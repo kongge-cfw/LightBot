@@ -92,11 +92,13 @@ import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import python from 'highlight.js/lib/languages/python'
 import groovy from 'highlight.js/lib/languages/groovy'
+import java from 'highlight.js/lib/languages/java'
 import { SCRIPT_LANGUAGES } from '../nodeConfigMeta'
 
 hljs.registerLanguage('javascript', javascript)
 hljs.registerLanguage('python', python)
 hljs.registerLanguage('groovy', groovy)
+hljs.registerLanguage('java', java)
 
 const LINE_HEIGHT = 22
 const PADDING_Y = 24

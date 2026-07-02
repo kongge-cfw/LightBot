@@ -7,6 +7,7 @@ export const BINDING_TYPES = {
   tool: 'tool',
   knowledge: 'knowledge',
   mcp: 'mcp',
+  workflow: 'workflow',
   subagent: 'subagent',
   skill: 'skill',
   agent: 'agent',
@@ -21,6 +22,7 @@ export const BINDING_GRADIENTS = {
   tool: 'linear-gradient(135deg, #10b981, #059669)',
   knowledge: 'linear-gradient(135deg, #6366f1, #4f46e5)',
   mcp: 'linear-gradient(135deg, #8b5cf6, #7c3aed)',
+  workflow: 'linear-gradient(135deg, #2563eb, #1d4ed8)',
   subagent: 'linear-gradient(135deg, #f59e0b, #d97706)',
   skill: 'linear-gradient(135deg, #ec4899, #db2777)',
   agent: 'linear-gradient(135deg, #7928ca, #ff0080)',
@@ -35,6 +37,7 @@ export const BINDING_TAG_BG = {
   tool: '#ecfdf5',
   knowledge: '#eef2ff',
   mcp: '#f5f3ff',
+  workflow: '#eff6ff',
   subagent: '#fffbeb',
   skill: '#fdf2f8',
   agent: '#fdf4ff',
@@ -48,6 +51,7 @@ export const BINDING_TAG_BORDER = {
   tool: '#a7f3d0',
   knowledge: '#c7d2fe',
   mcp: '#ddd6fe',
+  workflow: '#bfdbfe',
   subagent: '#fcd34d',
   skill: '#f9a8d4',
   agent: '#e9d5ff',
@@ -61,6 +65,7 @@ export const BINDING_TAG_TEXT = {
   tool: '#047857',
   knowledge: '#4338ca',
   mcp: '#6d28d9',
+  workflow: '#1d4ed8',
   subagent: '#b45309',
   skill: '#be185d',
   agent: '#7c3aed',
@@ -77,7 +82,7 @@ export const BUILTIN_BADGE_STYLE = {
 }
 
 /**
- * @param {string} type - tool | knowledge | mcp | subagent | skill
+ * @param {string} type - tool | knowledge | mcp | workflow | subagent | skill | agent
  * @returns {{ gradient: string, tagBg: string, tagBorder: string, tagText: string }}
  */
 export function getBindingTheme(type) {
@@ -88,6 +93,21 @@ export function getBindingTheme(type) {
     tagBorder: BINDING_TAG_BORDER[key],
     tagText: BINDING_TAG_TEXT[key],
   }
+}
+
+/**
+ * 对话型 Agent → agent（紫），工作流型 Agent → workflow（蓝）
+ * @param {string|{code?: string}|null|undefined} agentType
+ * @returns {'agent'|'workflow'}
+ */
+export function resolveAgentBindingType(agentType) {
+  const code = agentType?.code ?? agentType
+  return code === 'workflow' ? 'workflow' : 'agent'
+}
+
+/** Agent 占位头像渐变（无上传头像时使用） */
+export function agentAvatarGradient(agentType) {
+  return BINDING_GRADIENTS[resolveAgentBindingType(agentType)]
 }
 
 /** 工具类型中文标签 */

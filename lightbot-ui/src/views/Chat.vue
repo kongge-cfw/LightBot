@@ -92,7 +92,7 @@
         >
           <div :class="['message', messages[virtualRow.index]?.role, { 'message-highlight': highlightMessageId === messages[virtualRow.index]?._id }]">
             <!-- AI 头像 -->
-            <div v-if="messages[virtualRow.index]?.role === 'assistant'" class="message-avatar">
+            <div v-if="messages[virtualRow.index]?.role === 'assistant'" class="message-avatar" :style="currentAgentAvatarStyle">
               <img v-if="currentAgent?.avatar" :src="currentAgent.avatar" alt="" class="message-avatar-img" />
               <span v-else class="message-avatar-initial">{{ (currentAgent?.name || 'A')[0].toUpperCase() }}</span>
             </div>
@@ -457,7 +457,7 @@
               <button type="button" class="btn-agent">
                 <RobotOutlined v-if="!currentAgent" />
                 <img v-else-if="currentAgent.avatar" :src="currentAgent.avatar" alt="" class="btn-agent-avatar" />
-                <span v-else class="btn-agent-initial">{{ currentAgent.name[0] }}</span>
+                <span v-else class="btn-agent-initial" :style="agentIconStyle(currentAgent?.agentType)">{{ currentAgent.name[0] }}</span>
               </button>
             </a-tooltip>
             <template #overlay>
@@ -465,7 +465,7 @@
                 <a-menu-item v-for="a in agents" :key="String(a.id)">
                   <div class="agent-menu-item">
                     <img v-if="a.avatar" :src="a.avatar" alt="" class="agent-menu-icon" />
-                    <span v-else class="agent-menu-icon">{{ a.name[0] }}</span>
+                    <span v-else class="agent-menu-icon" :style="agentIconStyle(a.agentType)">{{ a.name[0] }}</span>
                     <span class="agent-menu-name">{{ a.name }}</span>
                     <span v-if="agentVersionLabel(a)" class="agent-version-tag">{{ agentVersionLabel(a) }}</span>
                     <span v-if="a.isDefault" class="agent-default-tag">默认</span>
@@ -797,6 +797,7 @@ import VoiceMicVisualizer from '../components/VoiceMicVisualizer.vue'
 import ChatMentionInput from '../components/ChatMentionInput.vue'
 import MentionTextRenderer from '../components/MentionTextRenderer.vue'
 import { contentHasMentionTokens, parseMentionsFromMetadata } from '../utils/mention_utils'
+import { agentAvatarGradient } from '../utils/bindingTheme'
 import { useChatAgents } from '../composables/useChatAgents'
 import { useChatAttachments } from '../composables/useChatAttachments'
 import { useVoiceIO } from '../composables/useVoiceIO'
@@ -893,6 +894,15 @@ const {
   loadAgentConfigVersions, loadCurrentAgent, loadAgents, agentVersionLabel,
 } = useChatAgents({
   sessionId, loading, pendingAttachments, voiceListening, stopVoiceInput: () => { voiceListening.value = false },
+})
+
+function agentIconStyle(agentType) {
+  return { background: agentAvatarGradient(agentType) }
+}
+
+const currentAgentAvatarStyle = computed(() => {
+  if (currentAgent.value?.avatar) return {}
+  return agentIconStyle(currentAgent.value?.agentType)
 })
 
 // 附件管理
@@ -3034,7 +3044,6 @@ watch(sessionId, (newVal, oldVal) => {
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7928ca, #ff0080);
   color: #fff;
   display: flex;
   align-items: center;
@@ -3576,7 +3585,6 @@ watch(sessionId, (newVal, oldVal) => {
 .btn-agent-initial {
   font-size: 14px;
   font-weight: 600;
-  background: linear-gradient(135deg, #7928ca, #ff0080);
   color: #fff;
   display: flex;
   align-items: center;
@@ -3607,7 +3615,6 @@ span.agent-menu-icon {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  background: linear-gradient(135deg, #7928ca, #ff0080);
   color: #fff;
 }
 .agent-menu-icon.default-icon {

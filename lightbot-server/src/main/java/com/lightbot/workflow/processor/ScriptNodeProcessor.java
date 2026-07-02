@@ -18,8 +18,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 脚本节点：委托 {@link SandboxService} 执行 JavaScript main(params) 并写入输出变量
- * <p>向后兼容现有工作流脚本（JavaScript main(params) 模式）。</p>
+ * 脚本节点：委托 {@link SandboxService} 执行脚本（JavaScript / Python / Groovy / Java）并写入输出变量
+ * <p>约定入口：JS/Python/Groovy 使用 {@code main(params)}；Java 为 Janino {@code run(params)} 方法体。</p>
  *
  * @author finch
  * @since 2026-06-24

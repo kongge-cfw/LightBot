@@ -57,6 +57,7 @@ export const SCRIPT_LANGUAGES = [
   { value: 'javascript', label: 'JavaScript' },
   { value: 'python', label: 'Python' },
   { value: 'groovy', label: 'Groovy' },
+  { value: 'java', label: 'Java' },
 ]
 
 /** 各语言脚本模板（新建/切换语言时使用） */
@@ -84,6 +85,12 @@ export const SCRIPT_TEMPLATES_BY_LANGUAGE = {
         historyCount: history instanceof List ? history.size() : 0
     ]
 }`,
+  java: `Object query = params.get("query");
+Object history = params.get("history_list");
+Map<String, Object> out = new LinkedHashMap<>();
+out.put("result", query != null ? String.valueOf(query).trim() : "");
+out.put("historyCount", history instanceof List ? ((List<?>) history).size() : 0);
+return out;`,
 }
 
 const SCRIPT_EXAMPLE_BASE = {
@@ -147,7 +154,7 @@ export const FIELD_HINTS = {
     toolId: '选择系统或自定义工具，执行后结果写入变量',
   },
   script: {
-    scriptLanguage: '脚本运行语言，影响语法高亮与后续执行引擎',
+    scriptLanguage: '脚本运行语言，影响语法高亮与执行引擎（Java 写 run 方法体，java.util.* 等已自动导入）',
     scriptContent: '入口函数 main(params)，params 含输入变量，需 return 对象作为输出',
     inputParams: '脚本可读入的变量映射，key 为 params 字段名，value 支持 {{变量}}',
     outputParams: '脚本 return 的字段声明，供下游节点引用',
@@ -254,12 +261,13 @@ export const NODE_EXAMPLES = {
   },
   script: {
     title: '脚本节点',
-    summary: '使用 JavaScript / Python / Groovy 处理变量；切换语言后示例与模板会随之变化。',
+    summary: '使用 JavaScript / Python / Groovy / Java 处理变量；切换语言后示例与模板会随之变化。',
     example: getScriptExampleConfig('javascript'),
     examplesByLanguage: {
       javascript: getScriptExampleConfig('javascript'),
       python: getScriptExampleConfig('python'),
       groovy: getScriptExampleConfig('groovy'),
+      java: getScriptExampleConfig('java'),
     },
   },
   retrieval: {

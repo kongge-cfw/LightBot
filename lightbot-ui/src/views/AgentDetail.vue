@@ -100,7 +100,7 @@
           </a-form-item>
           <a-form-item label="头像">
             <div class="avatar-upload" :class="{ 'is-readonly': isVersionPreview }">
-              <div class="avatar-preview" :class="{ 'has-avatar': avatarUrl }">
+              <div class="avatar-preview" :class="{ 'has-avatar': avatarUrl }" :style="avatarPreviewStyle">
                 <img v-if="avatarUrl" :src="avatarUrl" alt="avatar" class="avatar-img" @error="agent.avatar = ''" />
                 <span v-else class="avatar-placeholder">{{ (agent.name || 'A')[0] }}</span>
                 <div v-if="!isVersionPreview" class="avatar-overlay" @click="triggerAvatarUpload">
@@ -1686,6 +1686,7 @@ import { getSubAgents } from '../api/subagent'
 import { getSkills } from '../api/skill'
 import { safeJsonParse } from '../utils/request'
 import { truncateText } from '../utils/format'
+import { agentAvatarGradient } from '../utils/bindingTheme'
 import {
   toBindingId,
   toBindingIdSet,
@@ -2374,6 +2375,11 @@ function removeRecommendedQuestion(idx) {
 const avatarUrl = computed(() => {
   if (!agent.avatar) return ''
   return agent.avatar
+})
+
+const avatarPreviewStyle = computed(() => {
+  if (avatarUrl.value) return {}
+  return { background: agentAvatarGradient(agent.agentType) }
 })
 
 async function onModelSelectChange({ providerId, modelId }) {
@@ -4935,7 +4941,6 @@ onMounted(async () => {
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #7928ca, #ff0080);
   color: #fff;
   display: flex;
   align-items: center;

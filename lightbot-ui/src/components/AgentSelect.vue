@@ -19,7 +19,11 @@
       :value="a.id"
       :label="a.name"
     >
-      <EntitySelectOption type="agent" :name="a.name" />
+      <EntitySelectOption
+        :type="resolveAgentBindingType(a.agentType)"
+        :name="a.name"
+        :avatar-url="a.avatar"
+      />
     </a-select-option>
   </a-select>
 </template>
@@ -28,6 +32,7 @@
 import { ref, computed, onMounted } from 'vue'
 import EntitySelectOption from './EntitySelectOption.vue'
 import { getAgents } from '../api/agent'
+import { resolveAgentBindingType } from '../utils/bindingTheme'
 
 const props = defineProps({
   value: { type: [String, Array], default: undefined },
@@ -56,6 +61,8 @@ async function loadAgents() {
     agents.value = (res.data?.records || res.data || []).map(a => ({
       id: String(a.id),
       name: a.name,
+      agentType: a.agentType?.code || a.agentType || 'chat',
+      avatar: a.avatar || '',
     }))
   } catch {
     agents.value = []

@@ -60,6 +60,7 @@ public class EngineRegistry {
             case "python" -> "Python 执行环境不可用：服务器未安装 Python 3，请联系管理员安装 Python 3.8+ 后重试";
             case "javascript" -> "JavaScript 执行环境不可用：JVM 未包含 Nashorn 引擎，请确认使用 JDK 内置 Nashorn 或引入 org.openjdk.nashorn:nashorn-core 依赖";
             case "java" -> "Java 执行环境不可用：Janino 编译器未正确加载，请确认 org.codehaus.janino:janino 依赖已引入";
+            case "groovy" -> "Groovy 执行环境不可用：请确认 org.apache.groovy:groovy-jsr223 依赖已引入";
             default -> "「" + lang + "」执行环境不可用，请联系管理员检查运行环境";
         };
     }
@@ -83,6 +84,7 @@ public class EngineRegistry {
             case "js", "javascript", "ecmascript" -> "javascript";
             case "py", "python" -> "python";
             case "java" -> "java";
+            case "groovy", "gvy" -> "groovy";
             default -> lang.toLowerCase();
         };
     }

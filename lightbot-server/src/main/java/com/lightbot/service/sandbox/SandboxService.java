@@ -17,7 +17,7 @@ public interface SandboxService {
      * 执行代码片段
      *
      * @param code      代码内容
-     * @param language  编程语言（java / javascript），null 默认 java
+     * @param language  编程语言（java / javascript / python / groovy），null 默认 java
      * @param params    传入参数（代码中可通过 params 访问）
      * @param timeoutMs 超时时间（毫秒），null 使用默认 5000
      * @return 执行结果

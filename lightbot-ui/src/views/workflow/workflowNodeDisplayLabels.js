@@ -55,3 +55,15 @@ export function resolveMcpServerName(data, mcpServers = []) {
 export function resolveMcpToolName(data) {
   return data?.toolName || '—'
 }
+
+export function resolveSubWorkflowName(data, agents = []) {
+  const code = data?.componentCode
+  if (!code) return '—'
+  const agent = agents.find(a => String(a.id) === String(code))
+  const name = data?.componentName || agent?.name
+  if (name) {
+    const version = agent?.version
+    return version ? `${name} · v${version}` : name
+  }
+  return String(code)
+}

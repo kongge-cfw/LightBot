@@ -409,12 +409,15 @@
         </a-select>
       </a-form-item>
       <a-form-item label="子工作流" required>
+        <ConfigReadonlyValue v-if="readonly" :text="subWorkflowDisplayText" />
         <a-select
+          v-else
           v-model:value="node.data.componentCode"
           show-search
           allow-clear
-          :disabled="readonly"
           placeholder="选择已发布的 Workflow Agent"
+          option-label-prop="label"
+          dropdown-class-name="workflow-resource-dropdown"
           :filter-option="filterWorkflowAgentOption"
           :loading="subWorkflowAgentsLoading"
           @change="onSubWorkflowAgentChange"
@@ -425,8 +428,17 @@
             :value="String(agent.id)"
             :label="agent.name"
           >
-            {{ agent.name }}
-            <span v-if="agent.version" class="sub-wf-version"> v{{ agent.version }}</span>
+            <div class="resource-option">
+              <div class="resource-option-header">
+                <EntitySelectOption
+                  type="workflow"
+                  :name="agent.name"
+                  :avatar-url="agent.avatar"
+                  :tag="agent.version ? `v${agent.version}` : ''"
+                />
+              </div>
+              <div v-if="agent.description" class="resource-option-desc">{{ agent.description }}</div>
+            </div>
           </a-select-option>
         </a-select>
       </a-form-item>
@@ -788,6 +800,7 @@ import {
   resolveToolName,
   resolveMcpServerName,
   resolveMcpToolName,
+  resolveSubWorkflowName,
 } from '../workflowNodeDisplayLabels.js'
 import { getToolTypeLabel } from '../../../utils/bindingTheme'
 import { createConditionId } from '../nodeMeta'
@@ -924,6 +937,9 @@ const knowledgeDisplayText = computed(() => resolveKnowledgeName(props.node?.dat
 const toolDisplayText = computed(() => resolveToolName(props.node?.data, props.tools))
 const mcpServerDisplayText = computed(() => resolveMcpServerName(props.node?.data, mcpServers.value))
 const mcpToolDisplayText = computed(() => resolveMcpToolName(props.node?.data))
+const subWorkflowDisplayText = computed(() =>
+  resolveSubWorkflowName(props.node?.data, publishedWorkflowAgents.value),
+)
 
 const scrollableReadonly = computed(() => props.readonly && props.readonlyScrollable)
 const readonlyRootClass = computed(() => ({

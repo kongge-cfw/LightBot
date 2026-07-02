@@ -48,7 +48,7 @@
       <EntityCard
         v-for="a in list"
         :key="a.id"
-        type="agent"
+        :type="resolveAgentBindingType(a.agentType)"
         :name="a.name"
         @click="router.push(`/app/agents/${a.id}`)"
       >
@@ -182,6 +182,7 @@ import FeedbackHistory from './FeedbackHistory.vue'
 import { loadAgentStatusLabels, formatAgentStatus } from '../utils/agentStatus'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
+import { resolveAgentBindingType } from '../utils/bindingTheme'
 
 const router = useRouter()
 const list = ref([])

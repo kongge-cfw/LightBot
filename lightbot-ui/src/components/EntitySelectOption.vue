@@ -1,6 +1,12 @@
 <template>
   <div class="entity-select-option">
-    <span class="entity-select-avatar" :style="{ background: gradient }">
+    <span
+      v-if="avatarUrl && !avatarBroken"
+      class="entity-select-avatar entity-select-avatar--img"
+    >
+      <img :src="avatarUrl" :alt="name" @error="avatarBroken = true" />
+    </span>
+    <span v-else class="entity-select-avatar" :style="{ background: gradient }">
       {{ letter }}
     </span>
     <a-tooltip v-if="name" :title="name" placement="topLeft">
@@ -15,15 +21,22 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { BINDING_GRADIENTS } from '../utils/bindingTheme'
 
 const props = defineProps({
   type: { type: String, required: true },
   name: { type: String, default: '' },
+  avatarUrl: { type: String, default: '' },
   tag: { type: String, default: '' },
   tagMuted: { type: String, default: '' },
   desc: { type: String, default: '' },
+})
+
+const avatarBroken = ref(false)
+
+watch(() => props.avatarUrl, () => {
+  avatarBroken.value = false
 })
 
 const gradient = computed(() => BINDING_GRADIENTS[props.type] || BINDING_GRADIENTS.tool)
@@ -48,6 +61,12 @@ const letter = computed(() => (props.name || '?')[0].toUpperCase())
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
+  overflow: hidden;
+}
+.entity-select-avatar--img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 .entity-select-name {
   font-weight: 500;

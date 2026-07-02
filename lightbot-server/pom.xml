@@ -83,6 +83,13 @@
             <version>3.1.12</version>
         </dependency>
 
+        <!-- Groovy 脚本节点（JSR-223） -->
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-jsr223</artifactId>
+            <version>4.0.26</version>
+        </dependency>
+
         <!-- PostgreSQL -->
         <dependency>
             <groupId>org.postgresql</groupId>
