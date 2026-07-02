@@ -91,6 +91,40 @@ export function mergeNodeStates(nodes, nodeStates, selectedNodeId = null) {
 }
 
 /**
+ * 将 trace 节点 span 转为可回放的 nodeEvents（按开始时间排序，逐节点 start → complete）
+ * @param {Array} spans
+ * @returns {Array}
+ */
+export function spansToReplayEvents(spans) {
+  const events = []
+  const nodeSpans = (spans || [])
+    .filter(s => s.spanId?.startsWith('node:'))
+    .sort((a, b) => (a.startTime || 0) - (b.startTime || 0))
+  for (const span of nodeSpans) {
+    const nodeId = span.spanId.replace(/^node:/, '')
+    const attrs = span.attributes || {}
+    events.push({
+      type: 'workflow_node_start',
+      nodeId,
+      nodeType: attrs.nodeType,
+      nodeLabel: attrs.nodeLabel,
+      input: attrs.input,
+    })
+    events.push({
+      type: 'workflow_node_complete',
+      nodeId,
+      nodeType: attrs.nodeType,
+      nodeLabel: attrs.nodeLabel,
+      success: span.status !== 'failed' && attrs.success !== false,
+      durationMs: span.durationMs,
+      message: attrs.message,
+      outputs: attrs.outputs,
+    })
+  }
+  return events
+}
+
+/**
  * 高亮已走过的边
  * @param {Array} edges
  * @param {Set<string>} highlightedEdgeIds

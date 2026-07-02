@@ -151,7 +151,7 @@
       </ResizableSidePanel>
 
       <ResizableSidePanel
-        v-else-if="selectedNode"
+        v-else-if="selectedNode && !testAnimating && !testRunning"
         storage-key="workflow-node-detail-panel-width"
         :default-width="480"
         :min-width="320"
@@ -235,6 +235,7 @@
     @open-history-run="openTestRunHistory"
     @delete-history="deleteTestRunHistory"
     @clear-history="clearTestRunHistory"
+    @refresh-history="loadTestHistoryList"
     @back-to-live="backToLiveTest"
   />
 
@@ -284,7 +285,8 @@ import WorkflowTestDrawer from '../views/workflow/components/edit/WorkflowTestDr
 import WorkflowViewerCanvas from '../views/workflow/components/WorkflowViewerCanvas.vue'
 import WorkflowPublishModal from '../views/workflow/components/edit/WorkflowPublishModal.vue'
 import { workflowGraphToVueFlow, normalizeWorkflowGraphSnapshot } from '../views/workflow/workflowGraphToVueFlow.js'
-import { buildExecutedEdgeIds } from '../views/workflow/workflowViewerAdapter.js'
+import { buildExecutedEdgeIds, eventsToNodeStates } from '../views/workflow/workflowViewerAdapter.js'
+import { replayWorkflowNodeEvents } from '../views/workflow/composables/useWorkflowReplayAnimation.js'
 import { getNodeExample, canApplyNodeExample } from '../views/workflow/nodeConfigMeta'
 import { canSingleTestNodeType } from '../views/workflow/workflowNodeTest'
 import { ensureConditionGroups } from '../views/workflow/conditionUtils'
@@ -747,15 +749,19 @@ function applyWorkflowGraph(graph) {
   history.value = []
 }
 
-function focusNode(node) {
-  selectedNode.value = node
-  clearEdgeSelection()
+function panToNode(node) {
   const pos = normalizePosition(node.position)
   try {
     setCenter(pos.x + 90, pos.y + 40, { zoom: 1, duration: 300 })
   } catch (_) {
     setViewport({ x: -pos.x + 200, y: -pos.y + 120, zoom: 1 })
   }
+}
+
+function focusNode(node) {
+  selectedNode.value = node
+  clearEdgeSelection()
+  panToNode(node)
 }
 
 function addConversationParam() {
@@ -2001,10 +2007,6 @@ function onToolChange(value) {
   syncNodes()
 }
 
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
 function clearNodeDebugStatus() {
   nodes.value = nodes.value.map(n => ({
     ...n,
@@ -2020,7 +2022,7 @@ function setNodeDebugStatus(nodeId, status) {
   })
   triggerRef(nodes)
   const node = nodes.value.find(n => n.id === nodeId)
-  if (node) focusNode(node)
+  if (node) panToNode(node)
 }
 
 function clearReplayNodeStatus() {
@@ -2036,13 +2038,15 @@ function focusTestHistoryNode(nodeId) {
   testHistoryViewerRef.value?.focusNodeById?.(nodeId)
 }
 
-function setReplayNodeStatus(nodeId, status) {
-  if (viewingTestHistory.value && testHistoryViewerNodes.value.length) {
+function setReplayNodeStatus(nodeId, status, durationMs) {
+  if (viewingTestHistory.value) {
+    if (!testHistoryViewerNodes.value.length) return
     testHistoryNodeStates.value = {
       ...testHistoryNodeStates.value,
       [nodeId]: {
         ...testHistoryNodeStates.value[nodeId],
         debugStatus: status,
+        ...(durationMs != null ? { durationMs } : {}),
       },
     }
     focusTestHistoryNode(nodeId)
@@ -2053,25 +2057,24 @@ function setReplayNodeStatus(nodeId, status) {
 
 async function animateWorkflowTest(events, animationToken) {
   const token = animationToken ?? testAnimationGeneration.value
-  clearReplayNodeStatus()
   testAnimating.value = true
-  for (const ev of events || []) {
-    if (token !== testAnimationGeneration.value) {
+  try {
+    await replayWorkflowNodeEvents(events, {
+      isCancelled: () => token !== testAnimationGeneration.value,
+      onClear: clearReplayNodeStatus,
+      onNodeStart: (ev) => {
+        setReplayNodeStatus(ev.nodeId, 'executing')
+        testCurrentNodeId.value = ev.nodeId
+      },
+      onNodeComplete: (ev) => {
+        const status = ev.success === false ? 'fail' : (ev.suspended ? 'executing' : 'success')
+        setReplayNodeStatus(ev.nodeId, status, ev.durationMs)
+      },
+    })
+  } finally {
+    if (token === testAnimationGeneration.value) {
       testAnimating.value = false
-      return
     }
-    if (ev.type === 'workflow_node_start' && ev.nodeId) {
-      setReplayNodeStatus(ev.nodeId, 'executing')
-      testCurrentNodeId.value = ev.nodeId
-      await sleep(700)
-    }
-    if (ev.type === 'workflow_node_complete' && ev.nodeId) {
-      setReplayNodeStatus(ev.nodeId, ev.success === false ? 'fail' : 'success')
-      await sleep(400)
-    }
-  }
-  if (token === testAnimationGeneration.value) {
-    testAnimating.value = false
   }
 }
 
@@ -2482,7 +2485,7 @@ function stopTestReplayAnimation() {
   clearReplayNodeStatus()
 }
 
-function applyTestRunDetail(detail, { fromHistory = false, replayAnimation = true } = {}) {
+async function applyTestRunDetail(detail, { fromHistory = false, replayAnimation = true } = {}) {
   if (fromHistory) {
     applyTestHistorySnapshot(detail)
   }
@@ -2501,10 +2504,19 @@ function applyTestRunDetail(detail, { fromHistory = false, replayAnimation = tru
     testPendingConfirm.value = null
   }
   testCurrentNodeId.value = null
-  if (replayAnimation) {
-    const token = ++testAnimationGeneration.value
-    animateWorkflowTest(detail.nodeEvents || [], token)
+  if (!replayAnimation) {
+    if (fromHistory && testHistoryViewerNodes.value.length) {
+      testHistoryNodeStates.value = eventsToNodeStates(detail.nodeEvents || [])
+    }
+    return
   }
+  await nextTick()
+  if (fromHistory && testHistoryViewerNodes.value.length) {
+    await nextTick()
+    testHistoryViewerRef.value?.fitView?.()
+  }
+  const token = ++testAnimationGeneration.value
+  await animateWorkflowTest(detail.nodeEvents || [], token)
 }
 
 async function openTestRunHistory(runId) {
@@ -2519,6 +2531,9 @@ async function openTestRunHistory(runId) {
   }
   selectedHistoryRunId.value = runId
   viewingTestHistory.value = true
+  testVisible.value = true
+  selectedNode.value = null
+  clearEdgeSelection()
   versionVisible.value = false
   if (!liveTestSnapshot.value && testResult.value) {
     liveTestSnapshot.value = {
@@ -2528,7 +2543,7 @@ async function openTestRunHistory(runId) {
   }
   try {
     const res = await getWorkflowTestRun(agentId, runId)
-    applyTestRunDetail(res.data, { fromHistory: true })
+    await applyTestRunDetail(res.data, { fromHistory: true })
   } catch (e) {
     notification.error({ message: '加载历史记录失败', description: e.message })
   }
@@ -2568,15 +2583,24 @@ async function deleteTestRunHistory(runId) {
 }
 
 async function clearTestRunHistory() {
-  try {
-    await clearWorkflowTestRuns(agentId)
-    backToLiveTest()
-    testResult.value = null
-    testHistoryList.value = []
-    message.success('已清空测试历史')
-  } catch (e) {
-    notification.error({ message: '清空失败', description: e.message })
-  }
+  Modal.confirm({
+    title: '清空测试历史',
+    content: '确定清空全部测试运行记录吗？清空后无法恢复。',
+    okText: '清空',
+    okType: 'danger',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await clearWorkflowTestRuns(agentId)
+        backToLiveTest()
+        testResult.value = null
+        testHistoryList.value = []
+        message.success('已清空测试历史')
+      } catch (e) {
+        notification.error({ message: '清空失败', description: e.message })
+      }
+    },
+  })
 }
 
 function onTestTimelineNodeSelect(nodeId) {
@@ -2586,7 +2610,13 @@ function onTestTimelineNodeSelect(nodeId) {
     return
   }
   const node = nodes.value.find(n => n.id === nodeId)
-  if (node) focusNode(node)
+  if (!node) return
+  // 测试执行/回放中仅定位画布，不展开节点详情侧栏
+  if (testAnimating.value || testRunning.value) {
+    panToNode(node)
+    return
+  }
+  focusNode(node)
 }
 
 function onTestDrawerClose() {
@@ -2622,6 +2652,8 @@ async function runWorkflowTest() {
   viewingTestHistory.value = false
   selectedHistoryRunId.value = null
   liveTestSnapshot.value = null
+  selectedNode.value = null
+  clearEdgeSelection()
   testAnimationGeneration.value++
   testRunning.value = true
   testResult.value = null
@@ -2676,6 +2708,8 @@ async function runWorkflowTest() {
 
 async function resumeWorkflowTest(formData) {
   if (!testPendingConfirm.value?.runId) return
+  selectedNode.value = null
+  clearEdgeSelection()
   testRunning.value = true
   try {
     const res = await resumeWorkflow(agentId, {

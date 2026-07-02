@@ -58,14 +58,16 @@
     <a-spin :spinning="loading">
       <!-- 图模式：与编排页统一的 Vue Flow 只读画板 -->
       <div v-if="viewMode === 'graph'" class="graph-container">
+        <div v-if="replayAnimating" class="trace-replay-banner">正在回放节点执行流程...</div>
         <div v-if="viewerNodes.length" class="graph-viewer-wrap">
           <WorkflowViewerCanvas
+            ref="viewerCanvasRef"
             flow-id="workflow-trace-viewer"
             :nodes="viewerNodes"
             :edges="viewerEdges"
             :node-states="viewerNodeStates"
             :highlighted-edge-ids="highlightedEdgeIds"
-            :selected-node-id="selectedCanvasNodeId"
+            :selected-node-id="replayActiveNodeId || selectedCanvasNodeId"
             @node-click="onViewerNodeClick"
             @pane-click="selectedNodeId = null"
           />
@@ -159,7 +161,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined,
@@ -174,7 +176,8 @@ import WorkflowViewerCanvas from './workflow/components/WorkflowViewerCanvas.vue
 import ResizableSidePanel from './workflow/components/ResizableSidePanel.vue'
 import WorkflowNodeDetailPanel from './workflow/components/edit/WorkflowNodeDetailPanel.vue'
 import { workflowGraphToVueFlow, mergeTraceNodeData } from './workflow/workflowGraphToVueFlow.js'
-import { spansToNodeStates, buildExecutedEdgeIds } from './workflow/workflowViewerAdapter.js'
+import { spansToNodeStates, spansToReplayEvents, buildExecutedEdgeIds } from './workflow/workflowViewerAdapter.js'
+import { replayWorkflowNodeEvents } from './workflow/composables/useWorkflowReplayAnimation.js'
 import { getNodeIconText as getNodeIcon } from '../utils/nodeStyleUtils'
 import { getNodeTitle, getNodeColor } from '../views/workflow/nodeMeta'
 import { isGroupBuiltinType } from './workflow/workflowGroup.js'
@@ -189,6 +192,11 @@ const selectedNodeId = ref(null)
 const textExpanded = ref(new Set())
 const knowledgeList = ref([])
 const tools = ref([])
+const viewerCanvasRef = ref(null)
+const replayNodeStates = ref({})
+const replayAnimating = ref(false)
+const replayActiveNodeId = ref(null)
+let replayGeneration = 0
 
 // --- Data loading ---
 
@@ -208,9 +216,15 @@ async function loadResources() {
 
 async function loadTrace() {
   loading.value = true
+  replayGeneration++
+  replayAnimating.value = false
+  replayNodeStates.value = {}
+  replayActiveNodeId.value = null
   try {
     const res = await getTraceDetail(route.params.id)
     trace.value = res.data
+    await nextTick()
+    await startTraceReplay()
   } catch { /* ignore */ } finally {
     loading.value = false
   }
@@ -271,14 +285,64 @@ const viewerGraph = computed(() => {
 const viewerNodes = computed(() => viewerGraph.value.nodes)
 const viewerEdges = computed(() => viewerGraph.value.edges)
 
-const viewerNodeStates = computed(() => spansToNodeStates(nodeSpans.value))
+const replayEvents = computed(() => spansToReplayEvents(nodeSpans.value))
+
+const viewerNodeStates = computed(() => {
+  if (Object.keys(replayNodeStates.value).length) return replayNodeStates.value
+  return spansToNodeStates(nodeSpans.value)
+})
 
 const highlightedEdgeIds = computed(() => {
-  const executedIds = nodeSpans.value
-    .map(s => s.spanId?.replace(/^node:/, ''))
-    .filter(Boolean)
+  const states = replayNodeStates.value
+  const executedIds = Object.keys(states).length
+    ? Object.keys(states).filter(id => states[id]?.debugStatus)
+    : nodeSpans.value.map(s => s.spanId?.replace(/^node:/, '')).filter(Boolean)
   return buildExecutedEdgeIds(rootSpan.value?.attributes?.edges || [], executedIds)
 })
+
+async function startTraceReplay() {
+  const events = replayEvents.value
+  if (!events.length) {
+    replayNodeStates.value = spansToNodeStates(nodeSpans.value)
+    return
+  }
+  if (!viewerNodes.value.length) return
+  const token = ++replayGeneration
+  replayAnimating.value = true
+  replayNodeStates.value = {}
+  replayActiveNodeId.value = null
+  await nextTick()
+  viewerCanvasRef.value?.fitView?.()
+  try {
+    await replayWorkflowNodeEvents(events, {
+      isCancelled: () => token !== replayGeneration,
+      onClear: () => { replayNodeStates.value = {} },
+      onNodeStart: (ev) => {
+        replayNodeStates.value = {
+          ...replayNodeStates.value,
+          [ev.nodeId]: { ...replayNodeStates.value[ev.nodeId], debugStatus: 'executing' },
+        }
+        replayActiveNodeId.value = ev.nodeId
+        viewerCanvasRef.value?.focusNodeById?.(ev.nodeId)
+      },
+      onNodeComplete: (ev) => {
+        const status = ev.success === false ? 'fail' : 'success'
+        replayNodeStates.value = {
+          ...replayNodeStates.value,
+          [ev.nodeId]: {
+            debugStatus: status,
+            ...(ev.durationMs != null ? { durationMs: ev.durationMs } : {}),
+          },
+        }
+      },
+    })
+  } finally {
+    if (token === replayGeneration) {
+      replayAnimating.value = false
+      replayActiveNodeId.value = null
+    }
+  }
+}
 
 const selectedCanvasNodeId = computed(() => {
   if (!selectedNodeId.value) return null
@@ -395,7 +459,12 @@ function formatDuration(ms) {
 // --- Init ---
 
 onMounted(async () => {
-  await Promise.all([loadTrace(), loadResources()])
+  await loadResources()
+  await loadTrace()
+})
+
+onUnmounted(() => {
+  replayGeneration++
 })
 </script>
 
@@ -520,6 +589,19 @@ onMounted(async () => {
   flex: 1;
   min-width: 0;
   min-height: 0;
+}
+.trace-replay-banner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  padding: 8px 16px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 13px;
+  text-align: center;
+  border-bottom: 1px solid #c7d2fe;
 }
 .trace-node-detail-panel.config-panel {
   height: 100%;

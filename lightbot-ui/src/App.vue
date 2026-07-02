@@ -409,7 +409,8 @@ body {
 /* ===== 深色模式：自定义组件适配 ===== */
 /* Ant Design 组件由 darkAlgorithm 自动处理，仅保留自定义组件覆盖 */
 
-[data-theme="dark"] .tool-calls-group {
+[data-theme="dark"] .tool-calls-group,
+[data-theme="dark"] .workflow-nodes-group {
   background: var(--color-bg-elevated) !important;
   border-color: var(--color-hairline) !important;
 }

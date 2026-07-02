@@ -135,13 +135,13 @@ function handleSubmit() {
 .workflow-confirm-form {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #fed7aa;
+  border: 1px solid var(--color-warning-soft);
   border-radius: 8px;
-  background: #fff7ed;
+  background: var(--color-warn-bg);
 }
 .workflow-confirm-form.resolved {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
+  border-color: var(--green-200);
+  background: var(--green-50);
 }
 .confirm-alert { margin-bottom: 12px; }
 .confirm-fields { margin-top: 4px; }
@@ -149,8 +149,8 @@ function handleSubmit() {
   margin-bottom: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: #fff;
-  border: 1px dashed #fdba74;
+  background: var(--color-canvas);
+  border: 1px dashed var(--color-warning-soft);
   font-size: 13px;
   line-height: 1.55;
   color: var(--color-text-dark);
@@ -159,7 +159,7 @@ function handleSubmit() {
 .submitted-summary { display: flex; flex-direction: column; gap: 6px; }
 .submitted-row {
   display: flex; gap: 8px; font-size: 13px;
-  padding: 6px 8px; background: #fff; border-radius: 6px;
+  padding: 6px 8px; background: var(--color-canvas); border-radius: 6px;
 }
 .submitted-label { color: var(--color-mute); min-width: 72px; }
 .submitted-value { color: var(--color-text-dark); font-weight: 500; }

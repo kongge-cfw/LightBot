@@ -122,9 +122,16 @@
     <template v-else>
       <div class="history-toolbar">
         <span class="history-count">最近 {{ historyList.length }} 条</span>
-        <a-popconfirm title="确定清空全部测试历史？" @confirm="$emit('clear-history')">
-          <a-button size="small" danger :disabled="!historyList.length || historyLoading">清空历史</a-button>
-        </a-popconfirm>
+        <div class="history-toolbar-actions">
+          <a-tooltip title="刷新">
+            <a-button type="text" size="small" :disabled="historyLoading" @click="$emit('refresh-history')">
+              <ReloadOutlined :spin="historyLoading" />
+            </a-button>
+          </a-tooltip>
+          <a-button size="small" danger :disabled="!historyList.length || historyLoading" @click="$emit('clear-history')">
+            清空历史
+          </a-button>
+        </div>
       </div>
       <a-spin :spinning="historyLoading">
         <div v-if="!historyList.length" class="history-empty">暂无测试记录，运行一次测试后会自动保存</div>
@@ -156,6 +163,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue'
+import { ReloadOutlined } from '@ant-design/icons-vue'
 import WorkflowConfirmForm from '../../../../components/WorkflowConfirmForm.vue'
 import WorkflowTestTimeline from '../WorkflowTestTimeline.vue'
 import { formatTestStatus, formatTestDuration } from '../../composables/useWorkflowNodeSteps.js'
@@ -179,7 +187,7 @@ const props = defineProps({
 
 defineEmits([
   'close', 'run', 'resume', 'clear-conversation', 'select-node',
-  'open-history-run', 'delete-history', 'clear-history', 'back-to-live',
+  'open-history-run', 'delete-history', 'clear-history', 'refresh-history', 'back-to-live',
   'update:testMode', 'update:testInput', 'update:testUseDraft',
 ])
 
@@ -306,6 +314,7 @@ function formatTime(time) {
 .var-value-text { font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .var-preview { padding: 0 10px 6px; font-size: 12px; color: var(--color-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .history-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.history-toolbar-actions { display: flex; align-items: center; gap: 4px; }
 .history-count { font-size: 12px; color: var(--color-mute); }
 .history-empty { font-size: 13px; color: var(--color-mute); text-align: center; padding: 40px 0; }
 .history-list { display: flex; flex-direction: column; gap: 8px; }

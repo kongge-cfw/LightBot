@@ -614,7 +614,27 @@
           />
         </div>
       </div>
-      <div class="input-hint">LightBot 可能会犯错，请核实重要信息。</div>
+      <div v-if="showInputDisclaimer" class="input-hint">LightBot 可能会犯错，请核实重要信息。</div>
+      <div v-else class="input-hint-carousel">
+        <div class="input-hint-carousel-row">
+          <span class="input-question-label">你可以问我：</span>
+          <div class="input-question-body">
+            <a-tooltip :title="inputHintQuestions[questionRotateIndex]" :overlay-style="{ maxWidth: '400px' }">
+              <div class="input-question-rotate">
+                <transition name="fade" mode="out-in">
+                  <span
+                    :key="questionRotateIndex"
+                    class="input-question-text"
+                    @click="applyRecommendedQuestion(inputHintQuestions[questionRotateIndex])"
+                  >
+                    {{ inputHintQuestions[questionRotateIndex] }}
+                  </span>
+                </transition>
+              </div>
+            </a-tooltip>
+          </div>
+        </div>
+      </div>
     </div>
 
     <ChatAttachmentPreview
@@ -911,6 +931,57 @@ const currentAgentAvatarStyle = computed(() => {
   if (currentAgent.value?.avatar) return {}
   return agentIconStyle(currentAgent.value?.agentType)
 })
+
+/** 输入框下方：有历史消息时轮播 Agent 推荐问题，否则显示免责声明 */
+const inputHintQuestions = computed(() =>
+  currentRecommendedQuestions.value.filter(q => q && String(q).trim())
+)
+const showInputQuestionCarousel = computed(() =>
+  messages.value.length > 0 && inputHintQuestions.value.length > 0
+)
+const showInputDisclaimer = computed(() => !showInputQuestionCarousel.value)
+const questionRotateIndex = ref(0)
+let questionRotateTimer = null
+
+function applyRecommendedQuestion(q) {
+  if (!q) return
+  input.value = q
+  nextTick(() => inputRef.value?.focus())
+}
+
+function stopQuestionRotateTimer() {
+  if (questionRotateTimer) {
+    clearInterval(questionRotateTimer)
+    questionRotateTimer = null
+  }
+}
+
+function startQuestionRotateTimer() {
+  stopQuestionRotateTimer()
+  if (!showInputQuestionCarousel.value || inputHintQuestions.value.length <= 1) return
+  questionRotateTimer = setInterval(() => {
+    const len = inputHintQuestions.value.length
+    if (len > 1) {
+      questionRotateIndex.value = (questionRotateIndex.value + 1) % len
+    }
+  }, 2000)
+}
+
+watch(showInputQuestionCarousel, (show) => {
+  questionRotateIndex.value = 0
+  if (show) {
+    startQuestionRotateTimer()
+  } else {
+    stopQuestionRotateTimer()
+  }
+}, { immediate: true })
+
+watch([selectedAgentId, inputHintQuestions], () => {
+  questionRotateIndex.value = 0
+  if (showInputQuestionCarousel.value) {
+    startQuestionRotateTimer()
+  }
+}, { deep: true })
 
 // 附件管理
 const {
@@ -2804,6 +2875,7 @@ const scrollHandler = () => {
 
 onUnmounted(() => {
   voiceCleanup()
+  stopQuestionRotateTimer()
   if (pollTitleTimer) {
     clearInterval(pollTitleTimer)
     pollTitleTimer = null
@@ -4208,6 +4280,73 @@ span.agent-menu-icon {
   font-size: 12px;
   color: var(--color-mute);
   margin-top: 8px;
+}
+.input-hint-carousel {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+  max-width: 100%;
+  padding: 2px 16px;
+}
+.input-hint-carousel-row {
+  display: flex;
+  align-items: baseline;
+  width: min(560px, 100%);
+}
+.input-question-label {
+  flex-shrink: 0;
+  width: 6.5em;
+  text-align: right;
+  font-size: 13px;
+  line-height: 1.6;
+  font-weight: 500;
+  color: var(--color-body);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.input-question-body {
+  flex: 1;
+  min-width: 0;
+}
+.input-question-body :deep(.ant-tooltip) {
+  display: block;
+  max-width: 100%;
+}
+.input-question-rotate {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: calc(13px * 1.6 + 3px);
+  text-align: left;
+}
+.input-question-rotate .input-question-text {
+  position: absolute;
+  left: 0;
+  top: 0;
+  right: 0;
+}
+.input-question-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-mute);
+  cursor: pointer;
+  transition: color 0.15s;
+  display: block;
+  padding: 1px 0 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.input-question-text:hover {
+  color: var(--color-link);
+}
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 .token-pill {
   display: flex;

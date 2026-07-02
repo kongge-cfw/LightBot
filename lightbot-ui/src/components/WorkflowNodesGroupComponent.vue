@@ -169,8 +169,8 @@ onUnmounted(clearRevealTimer)
 .workflow-nodes-group {
   margin-bottom: 8px;
   padding: 10px 12px;
-  background: var(--color-purple-bg);
-  border: 1px solid #ddd6fe;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
   border-radius: 8px;
 }
 
@@ -187,9 +187,9 @@ onUnmounted(clearRevealTimer)
 }
 
 .summary-icon { flex-shrink: 0; font-size: 16px; }
-.icon-success { color: #22c55e; }
-.icon-spinning { color: #7c3aed; animation: spin 1s linear infinite; }
-.icon-waiting { color: #f97316; }
+.icon-success { color: var(--green-500); }
+.icon-spinning { color: var(--blue-500); animation: spin 1s linear infinite; }
+.icon-waiting { color: var(--color-warning); }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .summary-content {
@@ -200,10 +200,10 @@ onUnmounted(clearRevealTimer)
   gap: 2px;
 }
 
-.summary-title { font-size: 13px; font-weight: 600; color: #5b21b6; }
+.summary-title { font-size: 13px; font-weight: 600; color: var(--gray-700); }
 .summary-meta {
   font-size: 12px;
-  color: #7c3aed;
+  color: var(--gray-500);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -216,7 +216,7 @@ onUnmounted(clearRevealTimer)
 .workflow-panel {
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid #e9d5ff;
+  border-top: 1px solid var(--color-hairline);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -231,7 +231,7 @@ onUnmounted(clearRevealTimer)
 .container-children {
   margin-left: 20px;
   padding-left: 12px;
-  border-left: 2px solid #e9d5ff;
+  border-left: 2px solid var(--color-hairline);
   margin-top: 6px;
   display: flex;
   flex-direction: column;
