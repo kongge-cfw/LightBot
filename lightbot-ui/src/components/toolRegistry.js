@@ -159,3 +159,9 @@ export function getToolDisplayName(toolName) {
 export function isHiddenTool(toolName) {
   return HIDDEN_TOOL_NAMES.has(toolName)
 }
+
+/** 是否已在 toolRegistry 注册专用渲染组件 */
+export function hasToolRenderer(toolName) {
+  if (!toolName) return false
+  return Object.prototype.hasOwnProperty.call(TOOL_RENDERERS, String(toolName).trim())
+}

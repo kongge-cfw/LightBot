@@ -1,6 +1,6 @@
 <template>
-  <div v-if="!hidden" class="workflow-step-row" :class="{ nested, [`status-${step.status}`]: true }">
-    <div class="event-row" :class="statusClass">
+  <div v-if="!hidden" class="workflow-step-row" :class="{ nested, weakened, [`status-${step.status}`]: true, [`wf-type-${step.nodeType}`]: !!step.nodeType }">
+    <div class="event-row" :class="statusClass" :style="accentStyle">
       <div class="event-icon-col">
         <LoadingOutlined v-if="iconType === 'running'" class="event-icon icon-spinning" />
         <PauseCircleOutlined v-else-if="iconType === 'suspended'" class="event-icon icon-suspended" />
@@ -18,7 +18,7 @@
             </span>
             <span v-if="step.iterationIndex != null" class="event-iteration-tag">#{{ step.iterationIndex + 1 }}</span>
           </span>
-          <span class="event-summary">{{ summary }}</span>
+          <span class="event-summary" :style="{ color: summaryColor }">{{ summary }}</span>
           <span v-if="step.durationMs != null" class="event-duration">{{ step.durationMs }}ms</span>
           <RightOutlined v-if="expandable" :class="{ expanded: expanded }" class="step-toggle-icon" />
         </div>
@@ -39,7 +39,7 @@ import {
 import WorkflowStepDetail from './WorkflowStepDetail.vue'
 import {
   stepStatusClass, stepStatusIcon, getStepSummary, hasExpandableStepContent,
-  isHiddenInChat, getNodeTypeLabel,
+  isHiddenInChat, isWeakenedInChat, getNodeTypeLabel, getStepAccentStyle, getNodeChatStyle,
 } from './workflowNodeRegistry.js'
 
 const props = defineProps({
@@ -54,11 +54,15 @@ const expanded = ref(props.defaultExpanded)
 watch(() => props.defaultExpanded, (v) => { expanded.value = v })
 
 const hidden = computed(() => isHiddenInChat(props.step?.nodeType))
+const weakened = computed(() => isWeakenedInChat(props.step?.nodeType))
 const statusClass = computed(() => stepStatusClass(props.step))
 const iconType = computed(() => stepStatusIcon(props.step))
 const typeLabel = computed(() => getNodeTypeLabel(props.step?.nodeType))
 const summary = computed(() => getStepSummary(props.step))
 const expandable = computed(() => hasExpandableStepContent(props.step))
+const accentStyle = computed(() => getStepAccentStyle(props.step?.nodeType))
+const typeStyle = computed(() => getNodeChatStyle(props.step?.nodeType))
+const summaryColor = computed(() => typeStyle.value.color)
 
 function toggle() {
   if (!expandable.value) return
@@ -68,10 +72,13 @@ function toggle() {
 
 <style scoped>
 .workflow-step-row { font-size: 13px; }
+.workflow-step-row.weakened .event-row { opacity: 0.88; padding: 6px 10px; }
+.workflow-step-row.weakened .event-summary { font-size: 10px; }
 .workflow-step-row.nested .event-row { padding: 6px 8px; background: #faf5ff; border-color: #f3e8ff; }
 .event-row {
   display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px;
   border-radius: 6px; background: var(--color-canvas); transition: border-color 0.2s;
+  border: 1px solid var(--color-border-slate);
 }
 .event-running { border: 1px solid #c4b5fd; background: #faf5ff; }
 .event-start { border: 1px solid #e9d5ff; }

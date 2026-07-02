@@ -497,12 +497,20 @@ public class WorkflowExecutorService {
             completeEvent.put("detail", detail);
         }
         if (nodeResult != null && nodeResult.getOutputs() != null && !nodeResult.getOutputs().isEmpty()) {
-            Map<String, Object> outputSummary = summarizeMap(nodeResult.getOutputs(), 10);
-            if ("llm".equals(nodeTypeCode)) {
-                outputSummary.remove("llmOutput");
-            }
-            if (!outputSummary.isEmpty()) {
-                completeEvent.put("outputs", outputSummary);
+            // 工具节点：保留完整 toolResultText，供 Chat toolRegistry 渲染（生图/文件交付等）
+            if ("tool".equals(nodeTypeCode)) {
+                Map<String, Object> toolOutputs = buildToolNodeEventOutputs(nodeResult.getOutputs());
+                if (!toolOutputs.isEmpty()) {
+                    completeEvent.put("outputs", toolOutputs);
+                }
+            } else {
+                Map<String, Object> outputSummary = summarizeMap(nodeResult.getOutputs(), 10);
+                if ("llm".equals(nodeTypeCode)) {
+                    outputSummary.remove("llmOutput");
+                }
+                if (!outputSummary.isEmpty()) {
+                    completeEvent.put("outputs", outputSummary);
+                }
             }
         }
         if (nodeResult != null && nodeResult.getTraceData() != null && !nodeResult.getTraceData().isEmpty()) {
@@ -630,6 +638,59 @@ public class WorkflowExecutorService {
         }
         matcher.appendTail(sb);
         return sb.toString();
+    }
+
+    /**
+     * 工具节点 complete 事件 outputs：保留完整 JSON 结果与 toolName，避免 summarize 截断导致前端无法渲染
+     */
+    private Map<String, Object> buildToolNodeEventOutputs(Map<String, Object> source) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        if (source == null || source.isEmpty()) {
+            return out;
+        }
+        copyToolMetaField(out, source, "toolName");
+        copyToolMetaField(out, source, "toolId");
+        copyToolMetaField(out, source, "toolDisplayName");
+
+        Object text = source.get("toolResultText");
+        if (text instanceof String s && !s.isBlank()) {
+            out.put("toolResultText", s);
+        }
+        Object toolResult = source.get("toolResult");
+        if (toolResult != null) {
+            if (toolResult instanceof String str && !str.isBlank()) {
+                out.putIfAbsent("toolResultText", str);
+            } else {
+                out.put("toolResult", toolResult);
+                if (!out.containsKey("toolResultText")) {
+                    try {
+                        out.put("toolResultText", objectMapper.writeValueAsString(toolResult));
+                    } catch (Exception e) {
+                        out.put("toolResultText", String.valueOf(toolResult));
+                    }
+                }
+            }
+        }
+        if (!out.containsKey("toolResultText") && !out.containsKey("toolResult")) {
+            Object output = source.get("output");
+            if (output instanceof String s && !s.isBlank()) {
+                out.put("toolResultText", s);
+            } else if (output != null) {
+                try {
+                    out.put("toolResultText", objectMapper.writeValueAsString(output));
+                } catch (Exception e) {
+                    out.put("toolResultText", String.valueOf(output));
+                }
+            }
+        }
+        return out;
+    }
+
+    private void copyToolMetaField(Map<String, Object> target, Map<String, Object> source, String key) {
+        Object value = source.get(key);
+        if (value != null && !String.valueOf(value).isBlank()) {
+            target.put(key, value);
+        }
     }
 
     private Map<String, Object> summarizeMap(Map<String, Object> source, int maxEntries) {

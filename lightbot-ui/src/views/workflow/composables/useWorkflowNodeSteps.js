@@ -111,7 +111,7 @@ export function getNodeTypeName(type) {
     api: 'API', loop: '循环', variable: '变量', batch: '批处理',
     script: '脚本', mcp: 'MCP', input: '输入', confirm: '用户交互', output: '输出',
     variable_handle: '变量处理', parameter_extractor: '参数提取',
-    app_component: '应用组件', code: '代码',
+    app_component: '应用组件',
     loop_start: '迭代开始', loop_end: '迭代结束',
     batch_start: '并行处理', batch_end: '并行结束',
   }

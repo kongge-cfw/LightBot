@@ -41,7 +41,7 @@
         <li>运行：对话时 <code>WorkflowExecutorService.execute()</code> 解析 config，沿 DAG 执行直至 END</li>
       </ul>
       <p class="node-help-tip">
-        提示：当前画板已支持 start / end / llm / condition / retrieval / tool。枚举中还有 script、code 类型，需按上述步骤补齐前后端后方可使用。
+        提示：画板节点类型与后端 <code>NodeType</code> 枚举一致（如 start / llm / script / confirm 等）。脚本执行请使用 <code>script</code> 节点，不存在独立的 <code>code</code> 节点类型。
       </p>
     </div>
   </a-modal>
