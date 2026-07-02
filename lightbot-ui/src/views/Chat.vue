@@ -62,7 +62,7 @@
       </div>
 
       <!-- 加载更早的消息 -->
-      <div v-if="hasMoreMessages && !streaming && initialLoadDone" class="load-more-area">
+      <div v-if="sessionId && hasMoreMessages && !streaming && initialLoadDone" class="load-more-area">
         <a-button size="small" :loading="loadingOlder" @click="loadOlderMessages">
           加载更早的消息
         </a-button>
@@ -91,17 +91,14 @@
           }"
         >
           <div :class="['message', messages[virtualRow.index]?.role, { 'message-highlight': highlightMessageId === messages[virtualRow.index]?._id }]">
-            <!-- AI 头像 -->
-            <div v-if="messages[virtualRow.index]?.role === 'assistant'" class="message-avatar" :style="currentAgentAvatarStyle">
-              <img v-if="currentAgent?.avatar" :src="currentAgent.avatar" alt="" class="message-avatar-img" />
-              <span v-else class="message-avatar-initial">{{ (currentAgent?.name || 'A')[0].toUpperCase() }}</span>
-            </div>
             <div class="message-body">
               <!-- 编辑模式：独立于 message-content-wrapper，占满整行 -->
               <div v-if="isMessageEditing(messages[virtualRow.index], virtualRow.index)" class="edit-message-outer">
-                <button class="btn-copy edit-btn" @click="cancelEdit" title="取消">
-                  <CloseOutlined />
-                </button>
+                <a-tooltip title="取消">
+                  <button class="btn-copy edit-btn" @click="cancelEdit">
+                    <CloseOutlined />
+                  </button>
+                </a-tooltip>
                 <div class="edit-message-box" @keydown="handleEditKeydown">
                   <ChatMentionInput
                     ref="editInputRef"
@@ -112,14 +109,15 @@
                     @send="submitEdit"
                   />
                 </div>
-                <button
-                  class="btn-copy edit-btn edit-btn-send"
-                  :disabled="!editContent.trim() || loading"
-                  @click="submitEdit"
-                  title="发送"
-                >
-                  <SendOutlined />
-                </button>
+                <a-tooltip title="发送">
+                  <button
+                    class="btn-copy edit-btn edit-btn-send"
+                    :disabled="!editContent.trim() || loading"
+                    @click="submitEdit"
+                  >
+                    <SendOutlined />
+                  </button>
+                </a-tooltip>
               </div>
               <div v-else class="message-content-wrapper" :class="{ 'user-message-stack': messages[virtualRow.index]?.role === 'user' }">
                 <!-- 引用回复内容 -->
@@ -617,22 +615,25 @@
       <div v-if="showInputDisclaimer" class="input-hint">LightBot 可能会犯错，请核实重要信息。</div>
       <div v-else class="input-hint-carousel">
         <div class="input-hint-carousel-row">
-          <span class="input-question-label">你可以问我：</span>
-          <div class="input-question-body">
-            <a-tooltip :title="inputHintQuestions[questionRotateIndex]" :overlay-style="{ maxWidth: '400px' }">
-              <div class="input-question-rotate">
-                <transition name="fade" mode="out-in">
-                  <span
-                    :key="questionRotateIndex"
-                    class="input-question-text"
-                    @click="applyRecommendedQuestion(inputHintQuestions[questionRotateIndex])"
-                  >
-                    {{ inputHintQuestions[questionRotateIndex] }}
-                  </span>
-                </transition>
-              </div>
-            </a-tooltip>
-          </div>
+          <span class="input-question-label">你可以问我</span>
+          <a-tooltip
+            :title="inputHintQuestions[questionRotateIndex]"
+            placement="topLeft"
+            :arrow="{ pointAtCenter: false }"
+            :overlay-style="{ maxWidth: '400px' }"
+          >
+            <div class="input-question-rotate">
+              <transition name="fade" mode="out-in">
+                <span
+                  :key="questionRotateIndex"
+                  class="input-question-text"
+                  @click="applyRecommendedQuestion(inputHintQuestions[questionRotateIndex])"
+                >
+                  {{ inputHintQuestions[questionRotateIndex] }}
+                </span>
+              </transition>
+            </div>
+          </a-tooltip>
         </div>
       </div>
     </div>
@@ -926,11 +927,6 @@ const {
 function agentIconStyle(agentType) {
   return { background: agentAvatarGradient(agentType) }
 }
-
-const currentAgentAvatarStyle = computed(() => {
-  if (currentAgent.value?.avatar) return {}
-  return agentIconStyle(currentAgent.value?.agentType)
-})
 
 /** 输入框下方：有历史消息时轮播 Agent 推荐问题，否则显示免责声明 */
 const inputHintQuestions = computed(() =>
@@ -1583,9 +1579,15 @@ async function loadHistory() {
     return
   }
   pendingHistoryReload = false
+  const reqId = ++loadHistoryRequestId
 
   if (!sessionId.value) {
     messages.value = []
+    hasMoreMessages.value = false
+    initialLoadDone.value = true
+    loadingHistory.value = false
+    loadingOlder.value = false
+    messagePage.value = 1
     selectedAgentId.value = null
     currentAgent.value = null
     lastReplyElapsed.value = null
@@ -1595,7 +1597,6 @@ async function loadHistory() {
     return
   }
   // 竞态保护：递增请求 ID
-  const reqId = ++loadHistoryRequestId
   // 切换对话时显示加载态；保留当前 messages 直到新数据返回，避免列表闪空
   initialLoadDone.value = false
   lastReplyElapsed.value = null
@@ -3185,42 +3186,12 @@ watch(sessionId, (newVal, oldVal) => {
   margin: 0 auto;
   width: 100%;
 }
-.message.assistant {
-  display: flex;
-  gap: 10px;
-  align-items: flex-start;
-}
-.message-avatar {
-  flex-shrink: 0;
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 14px;
-  font-weight: 700;
-  overflow: hidden;
-}
-.message-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.message-avatar-initial {
-  line-height: 1;
-}
 .message-body {
   min-width: 0;
-}
-.message.assistant .message-body {
-  flex: 1;
   width: 100%;
 }
 .message.user .message-body {
   text-align: right;
-  width: 100%;
 }
 .message-meta {
   font-size: 12px;
@@ -4290,40 +4261,37 @@ span.agent-menu-icon {
 }
 .input-hint-carousel-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
+  gap: 10px;
   width: min(560px, 100%);
+}
+.input-hint-carousel-row :deep(.ant-tooltip) {
+  flex: 1;
+  min-width: 0;
+  display: block;
 }
 .input-question-label {
   flex-shrink: 0;
-  width: 6.5em;
-  text-align: right;
-  font-size: 13px;
-  line-height: 1.6;
-  font-weight: 500;
-  color: var(--color-body);
-  letter-spacing: 0.02em;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--color-link);
+  background: var(--color-info-bg);
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 4px 10px;
   white-space: nowrap;
 }
-.input-question-body {
-  flex: 1;
-  min-width: 0;
-}
-.input-question-body :deep(.ant-tooltip) {
-  display: block;
-  max-width: 100%;
-}
 .input-question-rotate {
-  position: relative;
   flex: 1;
   min-width: 0;
-  height: calc(13px * 1.6 + 3px);
-  text-align: left;
+  display: flex;
+  align-items: center;
+  min-height: calc(13px * 1.6);
 }
 .input-question-rotate .input-question-text {
-  position: absolute;
-  left: 0;
-  top: 0;
-  right: 0;
+  position: static;
+  width: 100%;
 }
 .input-question-text {
   font-size: 13px;

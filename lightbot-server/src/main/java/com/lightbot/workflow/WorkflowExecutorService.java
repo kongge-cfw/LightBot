@@ -364,6 +364,7 @@ public class WorkflowExecutorService {
             startEvent.put("nodeType", nodeTypeCode);
             startEvent.put("nodeLabel", nodeLabel);
             startEvent.put("stepIndex", stepIndex);
+            startEvent.put("startTime", nodeStartMs);
             startEvent.put("contentOffset", 0);
             Map<String, Object> inputPreview = buildNodeInputPreview(node, context);
             if (!inputPreview.isEmpty()) {

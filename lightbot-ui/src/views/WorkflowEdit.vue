@@ -107,7 +107,8 @@
 
         <div v-if="viewingTestHistory" class="test-history-viewer-overlay">
           <div class="test-history-banner">
-            正在回放历史测试快照（与当前草稿可能不一致）
+            <span>{{ testAnimating ? '正在回放历史执行过程（与当前草稿可能不一致）' : '正在查看历史测试快照（与当前草稿可能不一致）' }}</span>
+            <a-button v-if="testAnimating" size="small" type="link" class="test-history-skip-btn" @click="skipTestHistoryReplay">跳过动画</a-button>
           </div>
           <WorkflowViewerCanvas
             v-if="testHistoryViewerNodes.length"
@@ -236,6 +237,7 @@
     @delete-history="deleteTestRunHistory"
     @clear-history="clearTestRunHistory"
     @refresh-history="loadTestHistoryList"
+    @skip-replay="skipTestHistoryReplay"
     @back-to-live="backToLiveTest"
   />
 
@@ -2485,6 +2487,18 @@ function stopTestReplayAnimation() {
   clearReplayNodeStatus()
 }
 
+/** 跳过历史回放动画，直接展示最终执行状态 */
+function skipTestHistoryReplay() {
+  if (!viewingTestHistory.value || !testAnimating.value) return
+  testAnimationGeneration.value++
+  testAnimating.value = false
+  testCurrentNodeId.value = null
+  const events = testResult.value?.nodeEvents || []
+  if (testHistoryViewerNodes.value.length) {
+    testHistoryNodeStates.value = eventsToNodeStates(events)
+  }
+}
+
 async function applyTestRunDetail(detail, { fromHistory = false, replayAnimation = true } = {}) {
   if (fromHistory) {
     applyTestHistorySnapshot(detail)
@@ -3208,12 +3222,23 @@ function goBack() {
 
 .test-history-banner {
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding: 8px 16px;
   background: #fef3c7;
   color: #92400e;
   font-size: 13px;
   text-align: center;
   border-bottom: 1px solid #fcd34d;
+}
+
+.test-history-skip-btn {
+  flex-shrink: 0;
+  padding: 0;
+  height: auto;
+  color: #92400e;
 }
 
 .test-history-viewer-overlay :deep(.workflow-viewer-canvas) {

@@ -90,16 +90,77 @@ export function mergeNodeStates(nodes, nodeStates, selectedNodeId = null) {
   })
 }
 
+function getSpanNodeId(span) {
+  return span?.spanId?.replace(/^node:/, '') || ''
+}
+
 /**
- * 将 trace 节点 span 转为可回放的 nodeEvents（按开始时间排序，逐节点 start → complete）
+ * 按真实执行顺序排列节点 span（优先 stepIndex，否则沿工作流图从 start 遍历）
  * @param {Array} spans
+ * @param {{ nodes?: Array, edges?: Array }} [graph]
  * @returns {Array}
  */
-export function spansToReplayEvents(spans) {
+export function orderNodeSpansForReplay(spans, graph) {
+  const nodeSpans = (spans || []).filter(s => s.spanId?.startsWith('node:'))
+  if (nodeSpans.length <= 1) return [...nodeSpans]
+
+  const allHaveStepIndex = nodeSpans.every(s => s.attributes?.stepIndex != null)
+  if (allHaveStepIndex) {
+    return [...nodeSpans].sort(
+      (a, b) => (a.attributes.stepIndex ?? 0) - (b.attributes.stepIndex ?? 0),
+    )
+  }
+
+  const nodes = graph?.nodes || []
+  const edges = graph?.edges || []
+  if (!nodes.length) {
+    return [...nodeSpans].sort((a, b) => (a.startTime || 0) - (b.startTime || 0))
+  }
+
+  const executedIds = new Set(nodeSpans.map(getSpanNodeId))
+  const spanByNodeId = new Map(nodeSpans.map(s => [getSpanNodeId(s), s]))
+
+  let startId = nodes.find(n => n.type === 'start')?.id
+  if (!startId || !executedIds.has(startId)) {
+    startId = nodes.find(
+      n => executedIds.has(n.id)
+        && !edges.some(e => e.target === n.id && executedIds.has(e.source)),
+    )?.id
+  }
+
+  const ordered = []
+  const visited = new Set()
+  const queue = startId ? [startId] : []
+
+  while (queue.length) {
+    const current = queue.shift()
+    if (!current || visited.has(current) || !executedIds.has(current)) continue
+    visited.add(current)
+    const span = spanByNodeId.get(current)
+    if (span) ordered.push(span)
+
+    for (const edge of edges) {
+      if (edge.source === current && executedIds.has(edge.target) && !visited.has(edge.target)) {
+        queue.push(edge.target)
+      }
+    }
+  }
+
+  for (const span of nodeSpans) {
+    if (!ordered.includes(span)) ordered.push(span)
+  }
+  return ordered
+}
+
+/**
+ * 将 trace 节点 span 转为可回放的 nodeEvents（按执行顺序，逐节点 start → complete）
+ * @param {Array} spans
+ * @param {{ nodes?: Array, edges?: Array }} [graph]
+ * @returns {Array}
+ */
+export function spansToReplayEvents(spans, graph) {
   const events = []
-  const nodeSpans = (spans || [])
-    .filter(s => s.spanId?.startsWith('node:'))
-    .sort((a, b) => (a.startTime || 0) - (b.startTime || 0))
+  const nodeSpans = orderNodeSpansForReplay(spans, graph)
   for (const span of nodeSpans) {
     const nodeId = span.spanId.replace(/^node:/, '')
     const attrs = span.attributes || {}

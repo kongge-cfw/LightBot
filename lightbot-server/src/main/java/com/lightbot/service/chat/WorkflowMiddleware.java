@@ -373,13 +373,21 @@ public class WorkflowMiddleware implements ChatMiddleware {
                 }
             }
 
-            // 4. 为每个完成的节点构建 span
+            // 4. 按 stepIndex 顺序构建节点 span（避免 HashMap 乱序导致回放顺序错误）
             int[] llmTokenAgg = {0, 0};
-            for (Map.Entry<String, Map<String, Object>> entry : completeEvents.entrySet()) {
-                String nodeId = entry.getKey();
-                Map<String, Object> complete = entry.getValue();
+            List<Map<String, Object>> orderedCompletes = completeEvents.values().stream()
+                    .sorted(Comparator.comparingInt(c -> {
+                        Object si = c.get("stepIndex");
+                        return si instanceof Number ? ((Number) si).intValue() : Integer.MAX_VALUE;
+                    }))
+                    .toList();
+            for (Map<String, Object> complete : orderedCompletes) {
+                String nodeId = (String) complete.get("nodeId");
+                if (nodeId == null) {
+                    continue;
+                }
                 Map<String, Object> start = startEvents.get(nodeId);
-                buildNodeSpan(nodeId, start, complete, nodeDefMap.get(nodeId), spans, llmTokenAgg);
+                buildNodeSpan(nodeId, start, complete, nodeDefMap.get(nodeId), spans, llmTokenAgg, startTime);
             }
 
             // 5. 收集错误信息
@@ -426,14 +434,23 @@ public class WorkflowMiddleware implements ChatMiddleware {
      */
     @SuppressWarnings("unchecked")
     private void buildNodeSpan(String nodeId, Map<String, Object> start, Map<String, Object> complete,
-                               WorkflowNode nodeDef, List<LlmTraceSpan> spans, int[] llmTokenAgg) {
+                               WorkflowNode nodeDef, List<LlmTraceSpan> spans, int[] llmTokenAgg,
+                               long workflowStartTime) {
         String nodeType = (String) complete.get("nodeType");
         String nodeLabel = (String) complete.get("nodeLabel");
         boolean success = Boolean.TRUE.equals(complete.get("success"));
         Object durationObj = complete.get("durationMs");
         long durationMs = durationObj instanceof Number ? ((Number) durationObj).longValue() : 0;
-        long nodeStartMs = start != null ? ((Number) start.getOrDefault("startTime", System.currentTimeMillis())).longValue()
-                : System.currentTimeMillis() - durationMs;
+        int stepIndex = complete.get("stepIndex") instanceof Number n ? n.intValue() : Integer.MAX_VALUE;
+        long nodeStartMs;
+        if (start != null && start.get("startTime") instanceof Number st) {
+            nodeStartMs = st.longValue();
+        } else if (stepIndex != Integer.MAX_VALUE) {
+            // 历史事件无 startTime 时，用 stepIndex 生成单调递增时间，保证排序与回放顺序正确
+            nodeStartMs = workflowStartTime + stepIndex;
+        } else {
+            nodeStartMs = System.currentTimeMillis() - durationMs;
+        }
 
         // 节点配置（从定义中提取）
         Map<String, Object> nodeConfig = extractNodeConfig(nodeDef, nodeType);
@@ -442,6 +459,9 @@ public class WorkflowMiddleware implements ChatMiddleware {
         Map<String, Object> attrs = new HashMap<>();
         attrs.put("nodeType", nodeType);
         attrs.put("nodeLabel", nodeLabel != null ? nodeLabel : nodeId);
+        if (stepIndex != Integer.MAX_VALUE) {
+            attrs.put("stepIndex", stepIndex);
+        }
         if (!nodeConfig.isEmpty()) {
             attrs.put("config", nodeConfig);
         }

@@ -18,8 +18,27 @@
     />
 
     <template v-if="drawerTab === 'current'">
-      <a-alert v-if="viewingHistory" type="info" show-icon message="正在查看历史测试记录" class="test-alert" />
-      <a-alert v-if="testAnimating" type="info" show-icon message="正在执行工作流..." description="画布上当前节点会高亮显示执行状态" class="test-alert" />
+      <a-alert
+        v-if="viewingHistory && testAnimating"
+        type="info"
+        show-icon
+        message="正在回放执行过程..."
+        description="画布按节点顺序展示历史执行状态，并非实时运行"
+        class="test-alert"
+      >
+        <template #action>
+          <a-button size="small" @click="$emit('skip-replay')">跳过动画</a-button>
+        </template>
+      </a-alert>
+      <a-alert v-else-if="viewingHistory" type="info" show-icon message="正在查看历史测试记录" class="test-alert" />
+      <a-alert
+        v-else-if="testAnimating"
+        type="info"
+        show-icon
+        message="正在执行工作流..."
+        description="画布上当前节点会高亮显示执行状态"
+        class="test-alert"
+      />
       <a-segmented
         :value="testMode"
         :options="[
@@ -57,19 +76,25 @@
           <a-switch :checked="testUseDraft" @change="val => $emit('update:testUseDraft', val)" />
         </a-form-item>
         <div class="test-actions">
-          <a-button type="primary" :loading="testRunning || testAnimating" @click="$emit('run')">
-            {{ testAnimating ? '执行中...' : (testMode === 'conversation' ? '发送并运行' : '开始测试') }}
+          <a-button
+            type="primary"
+            :loading="testRunning || (testAnimating && !viewingHistory)"
+            :disabled="viewingHistory"
+            @click="$emit('run')"
+          >
+            {{ runButtonLabel }}
           </a-button>
-          <a-button v-if="testMode === 'conversation'" :disabled="testRunning || testAnimating" @click="$emit('clear-conversation')">
+          <a-button v-if="testMode === 'conversation'" :disabled="testRunning || testAnimating || viewingHistory" @click="$emit('clear-conversation')">
             清空对话
           </a-button>
+          <a-button v-if="viewingHistory && testAnimating" @click="$emit('skip-replay')">跳过动画</a-button>
           <a-button v-if="viewingHistory" @click="$emit('back-to-live')">返回当前</a-button>
         </div>
       </a-form>
 
       <a-divider v-if="testResult || testAnimating" />
       <div v-if="testAnimating && testCurrentNodeId" class="test-current-node">
-        当前节点：<strong>{{ getNodeTitleById(testCurrentNodeId) }}</strong>
+        {{ viewingHistory ? '回放节点' : '当前节点' }}：<strong>{{ getNodeTitleById(testCurrentNodeId) }}</strong>
       </div>
       <div v-if="testResult">
         <WorkflowConfirmForm
@@ -187,7 +212,7 @@ const props = defineProps({
 
 defineEmits([
   'close', 'run', 'resume', 'clear-conversation', 'select-node',
-  'open-history-run', 'delete-history', 'clear-history', 'refresh-history', 'back-to-live',
+  'open-history-run', 'delete-history', 'clear-history', 'refresh-history', 'skip-replay', 'back-to-live',
   'update:testMode', 'update:testInput', 'update:testUseDraft',
 ])
 
@@ -200,6 +225,12 @@ const expandedVars = ref(new Set())
 const variableCount = computed(() => {
   if (!props.testResult?.variables) return 0
   return Object.keys(props.testResult.variables).length
+})
+
+const runButtonLabel = computed(() => {
+  if (props.testAnimating && !props.viewingHistory) return '执行中...'
+  if (props.testMode === 'conversation') return '发送并运行'
+  return '开始测试'
 })
 
 watch(() => props.testResult, () => {

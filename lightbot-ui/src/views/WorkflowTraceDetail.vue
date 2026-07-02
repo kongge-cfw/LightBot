@@ -58,7 +58,13 @@
     <a-spin :spinning="loading">
       <!-- 图模式：与编排页统一的 Vue Flow 只读画板 -->
       <div v-if="viewMode === 'graph'" class="graph-container">
-        <div v-if="replayAnimating" class="trace-replay-banner">正在回放节点执行流程...</div>
+        <div v-if="replayAnimating" class="trace-replay-banner">
+          <span class="trace-replay-banner-text">正在回放执行过程（按历史顺序展示节点状态，并非实时运行）</span>
+          <a-button size="small" @click="skipTraceReplay">跳过动画</a-button>
+        </div>
+        <div v-if="viewerNodes.length && !replayAnimating && replayEvents.length" class="graph-canvas-actions">
+          <a-button size="small" @click="startTraceReplay">回放执行过程</a-button>
+        </div>
         <div v-if="viewerNodes.length" class="graph-viewer-wrap">
           <WorkflowViewerCanvas
             ref="viewerCanvasRef"
@@ -176,7 +182,7 @@ import WorkflowViewerCanvas from './workflow/components/WorkflowViewerCanvas.vue
 import ResizableSidePanel from './workflow/components/ResizableSidePanel.vue'
 import WorkflowNodeDetailPanel from './workflow/components/edit/WorkflowNodeDetailPanel.vue'
 import { workflowGraphToVueFlow, mergeTraceNodeData } from './workflow/workflowGraphToVueFlow.js'
-import { spansToNodeStates, spansToReplayEvents, buildExecutedEdgeIds } from './workflow/workflowViewerAdapter.js'
+import { spansToNodeStates, spansToReplayEvents, orderNodeSpansForReplay, buildExecutedEdgeIds } from './workflow/workflowViewerAdapter.js'
 import { replayWorkflowNodeEvents } from './workflow/composables/useWorkflowReplayAnimation.js'
 import { getNodeIconText as getNodeIcon } from '../utils/nodeStyleUtils'
 import { getNodeTitle, getNodeColor } from '../views/workflow/nodeMeta'
@@ -216,18 +222,33 @@ async function loadResources() {
 
 async function loadTrace() {
   loading.value = true
-  replayGeneration++
-  replayAnimating.value = false
-  replayNodeStates.value = {}
-  replayActiveNodeId.value = null
+  stopTraceReplay()
   try {
     const res = await getTraceDetail(route.params.id)
     trace.value = res.data
     await nextTick()
-    await startTraceReplay()
+    applyFinalNodeStates()
   } catch { /* ignore */ } finally {
     loading.value = false
   }
+}
+
+function applyFinalNodeStates() {
+  replayNodeStates.value = spansToNodeStates(nodeSpans.value)
+  replayAnimating.value = false
+  replayActiveNodeId.value = null
+}
+
+function stopTraceReplay() {
+  replayGeneration++
+  replayAnimating.value = false
+  replayActiveNodeId.value = null
+}
+
+function skipTraceReplay() {
+  if (!replayAnimating.value) return
+  stopTraceReplay()
+  applyFinalNodeStates()
 }
 
 // --- Span parsing（与改造前一致，trace 业务逻辑不变）---
@@ -248,10 +269,16 @@ const userInput = computed(() => {
   return rootSpan.value?.attributes?.userInput || ''
 })
 
+const traceGraph = computed(() => ({
+  nodes: rootSpan.value?.attributes?.nodes || [],
+  edges: rootSpan.value?.attributes?.edges || [],
+}))
+
 const nodeSpans = computed(() => {
-  return parseSpans()
-    .filter(s => s.spanId?.startsWith('node:'))
-    .sort((a, b) => (a.startTime || 0) - (b.startTime || 0))
+  return orderNodeSpansForReplay(
+    parseSpans().filter(s => s.spanId?.startsWith('node:')),
+    traceGraph.value,
+  )
 })
 
 const llmSpans = computed(() => {
@@ -285,7 +312,7 @@ const viewerGraph = computed(() => {
 const viewerNodes = computed(() => viewerGraph.value.nodes)
 const viewerEdges = computed(() => viewerGraph.value.edges)
 
-const replayEvents = computed(() => spansToReplayEvents(nodeSpans.value))
+const replayEvents = computed(() => spansToReplayEvents(nodeSpans.value, traceGraph.value))
 
 const viewerNodeStates = computed(() => {
   if (Object.keys(replayNodeStates.value).length) return replayNodeStates.value
@@ -302,11 +329,7 @@ const highlightedEdgeIds = computed(() => {
 
 async function startTraceReplay() {
   const events = replayEvents.value
-  if (!events.length) {
-    replayNodeStates.value = spansToNodeStates(nodeSpans.value)
-    return
-  }
-  if (!viewerNodes.value.length) return
+  if (!events.length || !viewerNodes.value.length || replayAnimating.value) return
   const token = ++replayGeneration
   replayAnimating.value = true
   replayNodeStates.value = {}
@@ -464,7 +487,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  replayGeneration++
+  stopTraceReplay()
 })
 </script>
 
@@ -492,6 +515,12 @@ onUnmounted(() => {
 .header-title {
   font-size: 17px;
   font-weight: 600;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* Info bar */
@@ -590,18 +619,30 @@ onUnmounted(() => {
   min-width: 0;
   min-height: 0;
 }
+.graph-canvas-actions {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 12;
+}
 .trace-replay-banner {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   padding: 8px 16px;
   background: #eef2ff;
   color: #4338ca;
   font-size: 13px;
-  text-align: center;
   border-bottom: 1px solid #c7d2fe;
+}
+.trace-replay-banner-text {
+  line-height: 1.5;
 }
 .trace-node-detail-panel.config-panel {
   height: 100%;
