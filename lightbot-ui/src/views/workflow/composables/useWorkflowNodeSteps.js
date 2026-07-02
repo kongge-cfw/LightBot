@@ -92,7 +92,9 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         const step = runningByNodeId.get(e.nodeId) || stepByIndex.get(e.stepIndex)
         if (step) {
           step.confirmForm = e.confirmForm
-          step.status = 'suspended'
+          if (!e.resolved && !e.submittedData) {
+            step.status = 'suspended'
+          }
         }
       }
     }
@@ -107,7 +109,7 @@ export function getNodeTypeName(type) {
     start: '开始', end: '结束', llm: '大模型', condition: '条件判断',
     retrieval: '知识检索', tool: '工具调用', classifier: '意图分类',
     api: 'API', loop: '循环', variable: '变量', batch: '批处理',
-    script: '脚本', mcp: 'MCP', input: '输入', confirm: '人工确认', output: '输出',
+    script: '脚本', mcp: 'MCP', input: '输入', confirm: '用户交互', output: '输出',
     variable_handle: '变量处理', parameter_extractor: '参数提取',
     app_component: '应用组件', code: '代码',
     loop_start: '迭代开始', loop_end: '迭代结束',

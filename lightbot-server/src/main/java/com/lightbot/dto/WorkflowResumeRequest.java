@@ -1,5 +1,7 @@
 package com.lightbot.dto;
 
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -19,4 +21,8 @@ public class WorkflowResumeRequest {
 
     @Schema(description = "确认表单数据（key 与 confirm 节点 formFields 对齐）")
     private Map<String, Object> formData;
+
+    @Schema(description = "Chat 对话中挂起时对应的助手消息 ID，恢复成功后回写 metadata")
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long messageId;
 }

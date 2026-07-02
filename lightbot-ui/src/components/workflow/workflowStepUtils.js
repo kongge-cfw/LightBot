@@ -23,23 +23,81 @@ export function truncateText(text, max = 120) {
   return s.length <= max ? s : `${s.slice(0, max)}…`
 }
 
+export function isWorkflowAwaitingConfirm(workflowEvents) {
+  return !!findUnresolvedConfirmEvent(workflowEvents)
+}
+
 /** 从 events / metadata 恢复挂起确认态 */
 export function resolveWorkflowConfirmPending(workflowEvents, metadata) {
-  if (metadata?.workflowConfirmForm && metadata?.workflowRunId) {
+  if (metadata?.workflowConfirmResolved === true) {
+    return null
+  }
+  if (metadata?.workflowSuspended === false) {
+    return null
+  }
+  if (Array.isArray(workflowEvents)) {
+    const hasComplete = workflowEvents.some(e => e?.type === 'workflow_complete')
+    const pendingEvent = findUnresolvedConfirmEvent(workflowEvents)
+    const confirmSubmitted = workflowEvents.some(e =>
+      e?.type === 'workflow_node_complete'
+      && e.nodeType === 'confirm'
+      && !e.suspended
+      && e.outputs
+      && Object.keys(e.outputs).length > 0
+    )
+    if (confirmSubmitted && !pendingEvent) {
+      return null
+    }
+    if (hasComplete && !pendingEvent) {
+      return null
+    }
+    if (!pendingEvent) {
+      return null
+    }
+    if (metadata?.workflowConfirmForm && metadata?.workflowRunId) {
+      return {
+        runId: String(metadata.workflowRunId),
+        confirmForm: metadata.workflowConfirmForm,
+      }
+    }
+    return {
+      runId: pendingEvent.runId != null ? String(pendingEvent.runId) : metadata?.workflowRunId,
+      confirmForm: pendingEvent.confirmForm,
+    }
+  }
+  if (metadata?.workflowConfirmForm && metadata?.workflowRunId && metadata?.workflowSuspended) {
     return {
       runId: String(metadata.workflowRunId),
       confirmForm: metadata.workflowConfirmForm,
     }
   }
-  if (!metadata?.workflowSuspended || !Array.isArray(workflowEvents)) return null
+  return null
+}
+
+/** 提取已提交的 confirm 数据（用于只读回显） */
+export function resolveWorkflowConfirmSubmitted(workflowEvents) {
+  if (!Array.isArray(workflowEvents)) return null
   for (let i = workflowEvents.length - 1; i >= 0; i--) {
     const ev = workflowEvents[i]
-    if (ev?.type === 'workflow_confirm_required' && ev.confirmForm) {
-      return {
-        runId: ev.runId != null ? String(ev.runId) : metadata?.workflowRunId,
-        confirmForm: ev.confirmForm,
-      }
+    if (ev?.type === 'workflow_confirm_required' && ev.resolved && ev.submittedData) {
+      return ev.submittedData
     }
+  }
+  for (let i = workflowEvents.length - 1; i >= 0; i--) {
+    const ev = workflowEvents[i]
+    if (ev?.type === 'workflow_node_complete' && ev.outputs && ev.nodeType === 'confirm') {
+      return ev.outputs
+    }
+  }
+  return null
+}
+
+function findUnresolvedConfirmEvent(workflowEvents) {
+  for (let i = workflowEvents.length - 1; i >= 0; i--) {
+    const ev = workflowEvents[i]
+    if (ev?.type !== 'workflow_confirm_required') continue
+    if (ev.resolved || ev.submittedData) continue
+    if (ev.confirmForm) return ev
   }
   return null
 }
@@ -69,4 +127,10 @@ export function extractLegacyResultText(step) {
     return String(step.detail)
   }
   return ''
+}
+
+/** 合并 resume 返回的全量 events（去重，以 resume 结果为准） */
+export function mergeWorkflowEvents(existing, incoming) {
+  if (!incoming?.length) return existing || []
+  return incoming
 }

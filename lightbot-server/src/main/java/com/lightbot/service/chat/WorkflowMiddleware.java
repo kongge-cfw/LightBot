@@ -91,11 +91,11 @@ public class WorkflowMiddleware implements ChatMiddleware {
                 WorkflowDefinition workflow = agentVersionService.loadWorkflowDefinitionForChat(
                         ctx.getAgent().getId(), ctx.getRequest().getConfigVersion());
 
-                String result;
+                String executorResult;
                 if (workflow == null || workflow.getNodes() == null || workflow.getNodes().isEmpty()) {
-                    result = "工作流尚未发布或为空，请先在编排页发布工作流，或切换到暂存草稿调试";
+                    executorResult = "工作流尚未发布或为空，请先在编排页发布工作流，或切换到暂存草稿调试";
                 } else {
-                    result = workflowExecutor.executeWithDefinition(
+                    executorResult = workflowExecutor.executeWithDefinition(
                             ctx.getAgent(),
                             workflow,
                             ctx.getSessionId(),
@@ -107,18 +107,31 @@ public class WorkflowMiddleware implements ChatMiddleware {
                     );
                 }
 
-                result = resolveAssistantContent(result, workflowEvents);
-                if (result != null) {
-                    SensitiveWordFilter.FilterResult filtered = SensitiveWordFilter.filterAiOutput(
-                            result, ctx.getConfigMap(), ctx.getAgent().getId(), ctx.getSessionId());
-                    result = filtered.text();
-                    ctx.getFullReply().append(result);
+                boolean workflowSuspended = workflowEvents.stream()
+                        .anyMatch(e -> "workflow_suspended".equals(e.get("type")));
+
+                String result;
+                if (workflowSuspended) {
+                    // 挂起：仅保留 confirm 前已产生的流式正文，不把占位文案当作「已完成回复」
+                    result = executorResult != null ? executorResult : "";
+                    if (!result.isEmpty()) {
+                        SensitiveWordFilter.FilterResult filtered = SensitiveWordFilter.filterAiOutput(
+                                result, ctx.getConfigMap(), ctx.getAgent().getId(), ctx.getSessionId());
+                        result = filtered.text();
+                        ctx.getFullReply().append(result);
+                    }
+                } else {
+                    result = resolveAssistantContent(executorResult, workflowEvents);
+                    if (result != null && !result.isEmpty()) {
+                        SensitiveWordFilter.FilterResult filtered = SensitiveWordFilter.filterAiOutput(
+                                result, ctx.getConfigMap(), ctx.getAgent().getId(), ctx.getSessionId());
+                        result = filtered.text();
+                        ctx.getFullReply().append(result);
+                    }
                 }
 
                 Map<String, Object> metadataMap = new LinkedHashMap<>();
                 metadataMap.put("workflowEvents", workflowEvents);
-                boolean workflowSuspended = workflowEvents.stream()
-                        .anyMatch(e -> "workflow_suspended".equals(e.get("type")));
                 if (workflowSuspended) {
                     metadataMap.put("workflowSuspended", true);
                     for (int i = workflowEvents.size() - 1; i >= 0; i--) {
@@ -139,34 +152,45 @@ public class WorkflowMiddleware implements ChatMiddleware {
                 }
                 ctx.getRagMetadataHolder()[0] = objectMapper.writeValueAsString(metadataMap);
 
-                // 流式已逐 token 推送，不再重复发送完整结果
-                if (!streamed[0] && result != null && !result.isEmpty()) {
+                // 流式已逐 token 推送，挂起时不补发正文（避免前端误判为「已完成」）
+                if (!workflowSuspended && !streamed[0] && result != null && !result.isEmpty()) {
                     sink.next(result);
                 }
                 sink.next(METADATA_PREFIX + ctx.getRagMetadataHolder()[0]);
                 sink.complete();
 
-                // 2. 持久化助手回复（含工作流事件 metadata，与对话型一致落库）
+                // 2. 助手消息由 ChatServiceImpl.buildDoneEvent 统一落库，避免重复写入两条 assistant 消息
                 String contentToSave = ctx.getFullReply().toString();
                 if (contentToSave.isEmpty() && !workflowEvents.isEmpty()) {
                     contentToSave = resolveAssistantContent(null, workflowEvents);
+                    if (!contentToSave.isEmpty()) {
+                        ctx.getFullReply().append(contentToSave);
+                    }
                 }
-                messageMiddleware.saveMessage(ctx.getSessionId(), MessageRole.ASSISTANT,
-                        contentToSave, ctx.getRagMetadataHolder()[0], 0);
-                taskExecutor.execute(() -> traceMiddleware.generateTitle(ctx.getSessionId(), ctx.getAgent(), ctx.getConfigMap()));
 
                 // 3. 异步写入工作流调用链 trace
                 final String traceResult = result;
-                taskExecutor.execute(() -> buildWorkflowTrace(ctx, workflow, workflowEvents, traceResult, t0));
+                taskExecutor.execute(() -> buildWorkflowTrace(ctx, workflow, workflowEvents, traceResult, t0, workflowSuspended));
 
-                log.info("[WorkflowMiddleware] 工作流执行完成: agentId={}, nodes={}, resultLength={}",
-                        ctx.getAgent().getId(), workflowEvents.size(), contentToSave.length());
+                if (workflowSuspended) {
+                    String suspendedRunId = workflowEvents.stream()
+                            .filter(e -> "workflow_suspended".equals(e.get("type")))
+                            .map(e -> e.get("runId"))
+                            .filter(Objects::nonNull)
+                            .map(Object::toString)
+                            .reduce((first, second) -> second)
+                            .orElse("");
+                    log.info("[WorkflowMiddleware] 工作流已挂起等待人工确认: agentId={}, nodes={}, runId={}",
+                            ctx.getAgent().getId(), workflowEvents.size(), suspendedRunId);
+                } else {
+                    log.info("[WorkflowMiddleware] 工作流执行完成: agentId={}, nodes={}, resultLength={}",
+                            ctx.getAgent().getId(), workflowEvents.size(), ctx.getFullReply().length());
+                }
             } catch (Exception e) {
                 log.error("[WorkflowMiddleware] 工作流执行失败: agentId={}, error={}",
                         ctx.getAgent().getId(), e.getMessage(), e);
                 String err = "工作流执行失败: " + e.getMessage();
                 ctx.getFullReply().append(err);
-                messageMiddleware.saveMessage(ctx.getSessionId(), MessageRole.ASSISTANT, err);
                 sink.next(err);
                 sink.complete();
 
@@ -203,6 +227,24 @@ public class WorkflowMiddleware implements ChatMiddleware {
             return result;
         }
         if (events == null || events.isEmpty()) {
+            return "";
+        }
+        // 挂起等待人工确认时，不回溯更早节点的 LLM 输出当作「最终回复」
+        boolean suspended = events.stream().anyMatch(e -> "workflow_suspended".equals(e.get("type")));
+        if (suspended) {
+            for (int i = events.size() - 1; i >= 0; i--) {
+                Map<String, Object> ev = events.get(i);
+                if (!"workflow_confirm_required".equals(ev.get("type"))) {
+                    continue;
+                }
+                Object form = ev.get("confirmForm");
+                if (form instanceof Map<?, ?> formMap) {
+                    Object msg = formMap.get("message");
+                    if (msg != null && !msg.toString().isBlank()) {
+                        return msg.toString();
+                    }
+                }
+            }
             return "";
         }
         // 1. 优先返回最后一个失败节点的错误信息
@@ -256,7 +298,8 @@ public class WorkflowMiddleware implements ChatMiddleware {
      */
     @SuppressWarnings("unchecked")
     private void buildWorkflowTrace(ChatContext ctx, WorkflowDefinition workflow,
-                                    List<Map<String, Object>> events, String result, long startTime) {
+                                    List<Map<String, Object>> events, String result, long startTime,
+                                    boolean workflowSuspended) {
         try {
             // 1. 构建节点定义映射（用于提取配置）
             Map<String, WorkflowNode> nodeDefMap = new HashMap<>();
@@ -271,7 +314,7 @@ public class WorkflowMiddleware implements ChatMiddleware {
             long totalDurationMs = System.currentTimeMillis() - startTime;
             boolean hasError = events.stream().anyMatch(e ->
                     "workflow_node_complete".equals(e.get("type")) && Boolean.FALSE.equals(e.get("success")));
-            String rootStatus = hasError ? "failed" : "completed";
+            String rootStatus = hasError ? "failed" : (workflowSuspended ? "suspended" : "completed");
             Map<String, Object> rootAttrs = new HashMap<>();
             rootAttrs.put("nodeCount", nodeDefMap.size());
             rootAttrs.put("eventCount", events.size());

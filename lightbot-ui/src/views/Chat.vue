@@ -173,8 +173,8 @@
                 <div v-if="messages[virtualRow.index]?._workflowEvents?.length > 0 && !messages[virtualRow.index]._sensitiveBlock" class="workflow-block-inline">
                   <WorkflowNodesGroupComponent
                     :workflow-events="messages[virtualRow.index]._workflowEvents"
-                    :is-done="!messages[virtualRow.index]._streaming && !messages[virtualRow.index]._workflowConfirmPending"
-                    :default-expanded="!!messages[virtualRow.index]._streaming || !!messages[virtualRow.index]._workflowConfirmPending"
+                    :is-done="!messages[virtualRow.index]._streaming && !messages[virtualRow.index]._workflowConfirmPending && !isWorkflowAwaitingConfirm(messages[virtualRow.index]._workflowEvents)"
+                    :default-expanded="!!messages[virtualRow.index]._streaming || !!messages[virtualRow.index]._workflowConfirmPending || isWorkflowAwaitingConfirm(messages[virtualRow.index]._workflowEvents)"
                     :is-streaming="!!messages[virtualRow.index]._streaming"
                   />
                   <WorkflowConfirmForm
@@ -182,6 +182,12 @@
                     :confirm-form="messages[virtualRow.index]._workflowConfirmPending.confirmForm"
                     :submitting="loading"
                     @submit="formData => submitWorkflowConfirm(messages[virtualRow.index], formData)"
+                  />
+                  <WorkflowConfirmForm
+                    v-else-if="getWorkflowConfirmSubmitted(messages[virtualRow.index])"
+                    :confirm-form="getWorkflowConfirmFormFromEvents(messages[virtualRow.index]._workflowEvents)"
+                    :submitted-data="getWorkflowConfirmSubmitted(messages[virtualRow.index])"
+                    readonly
                   />
                 </div>
                 <!-- 有工具事件：按 offset 分段渲染，工具块在对应位置插入，后续文本在其下方 -->
@@ -787,7 +793,7 @@ import MarkdownPreview from '../components/MarkdownPreview.vue'
 import ToolCallsGroupComponent from '../components/ToolCallsGroupComponent.vue'
 import WorkflowNodesGroupComponent from '../components/WorkflowNodesGroupComponent.vue'
 import WorkflowConfirmForm from '../components/WorkflowConfirmForm.vue'
-import { resolveWorkflowConfirmPending } from '../components/workflow/workflowStepUtils.js'
+import { resolveWorkflowConfirmPending, mergeWorkflowEvents, resolveWorkflowConfirmSubmitted, isWorkflowAwaitingConfirm } from '../components/workflow/workflowStepUtils.js'
 import { resumeWorkflow } from '../api/workflow'
 import AgentCapabilityPanel from '../components/AgentCapabilityPanel.vue'
 import ChatAttachmentPreview from '../components/ChatAttachmentPreview.vue'
@@ -1645,24 +1651,49 @@ async function submitWorkflowConfirm(msg, formData) {
     const res = await resumeWorkflow(selectedAgentId.value, {
       runId: pending.runId,
       formData,
+      messageId: msg._id || (typeof msg.metadata === 'object' ? msg.metadata?.assistantMessageId : null) || undefined,
     })
     const data = res.data || {}
     msg._workflowConfirmPending = null
-    if (!msg._workflowEvents) msg._workflowEvents = []
     if (data.nodeEvents?.length) {
-      msg._workflowEvents.push(...data.nodeEvents)
+      msg._workflowEvents = mergeWorkflowEvents(msg._workflowEvents, data.nodeEvents)
     }
     if (data.suspended) {
       msg._workflowConfirmPending = {
         runId: data.runId,
         confirmForm: data.confirmForm,
       }
+      if (msg.metadata) {
+        msg.metadata = {
+          ...(typeof msg.metadata === 'object' ? msg.metadata : {}),
+          workflowSuspended: true,
+          workflowRunId: data.runId,
+          workflowConfirmForm: data.confirmForm,
+          workflowEvents: msg._workflowEvents,
+        }
+      }
       currentStatus.value = '工作流已暂停，等待确认'
       return
     }
-    if (data.output) {
-      msg.content = msg.content ? `${msg.content}\n${data.output}` : data.output
+    if (msg.metadata) {
+      msg.metadata = {
+        ...(typeof msg.metadata === 'object' ? msg.metadata : {}),
+        workflowSuspended: false,
+        workflowConfirmResolved: true,
+        workflowConfirmForm: null,
+        workflowRunId: null,
+        workflowEvents: msg._workflowEvents,
+      }
     }
+    if (data.output) {
+      const out = String(data.output).trim()
+      if (out) {
+        const existing = (msg.content || '').trim()
+        msg.content = existing && existing.includes(out) ? msg.content : (existing ? `${existing}\n${out}` : out)
+      }
+    }
+    msg._streaming = false
+    msg._toolsDone = true
     currentStatus.value = ''
     scrollToBottom()
   } catch (e) {
@@ -1670,6 +1701,22 @@ async function submitWorkflowConfirm(msg, formData) {
   } finally {
     loading.value = false
   }
+}
+
+function getWorkflowConfirmSubmitted(msg) {
+  if (!msg?._workflowEvents?.length || msg._workflowConfirmPending) return null
+  return resolveWorkflowConfirmSubmitted(msg._workflowEvents)
+}
+
+function getWorkflowConfirmFormFromEvents(events) {
+  if (!events?.length) return null
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i]
+    if (ev?.type === 'workflow_confirm_required' && ev.confirmForm) {
+      return ev.confirmForm
+    }
+  }
+  return null
 }
 
 async function sendMessage() {
@@ -1999,6 +2046,31 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
     }
   }
 
+  const ensureAssistantMsg = (toolExpanded = false) => {
+    if (pushed) return assistantMsg
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      _streaming: true,
+      _toolsDone: false,
+      _toolEvents: [],
+      _workflowEvents: [],
+      _toolBlockOffsets: [],
+      _toolBlocksDone: [],
+      _toolExpanded: toolExpanded,
+      _reasoningContent: '',
+      _reasoningExpanded: true,
+      _reasoningDone: false,
+    })
+    assistantMsg = messages.value[messages.value.length - 1]
+    currentStreamingMsg = assistantMsg
+    attachRequestId(assistantMsg)
+    pushed = true
+    hasStreamContent.value = true
+    streamSmoother.start()
+    return assistantMsg
+  }
+
   try {
     let sid = sessionId.value
     const currentAgentId = selectedAgentId.value
@@ -2064,15 +2136,7 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
         },
         // onToolEvent: 工具调用/结果/状态事件
         onToolEvent: (event) => {
-          if (!pushed) {
-            messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: true, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false })
-            assistantMsg = messages.value[messages.value.length - 1]
-            currentStreamingMsg = assistantMsg
-            attachRequestId(assistantMsg)
-            pushed = true
-            hasStreamContent.value = true
-            streamSmoother.start()
-          }
+          ensureAssistantMsg(event.type === 'tool_call' || event.type === 'tool_result')
           if (event.type === 'tool_complete') {
             const offset = event.contentOffset ?? assistantMsg._currentToolOffset
             markToolBlockDone(assistantMsg, offset)
@@ -2142,20 +2206,13 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
           // 工作流 LLM 流式输出
           if (event.type === 'workflow_llm_chunk') {
             clearErrorRetry(assistantMsg)
-            if (!pushed) {
-              messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false })
-              assistantMsg = messages.value[messages.value.length - 1]
-              currentStreamingMsg = assistantMsg
-              attachRequestId(assistantMsg)
-              pushed = true
-              hasStreamContent.value = true
-              streamSmoother.start()
-            }
+            ensureAssistantMsg()
             streamSmoother.push(event.content || '')
             return
           }
           // 工作流节点执行事件（实时推送，无需等待最终回复）
           if (event.type === 'workflow_node_start' || event.type === 'workflow_node_complete' || event.type === 'workflow_complete' || event.type === 'workflow_confirm_required' || event.type === 'workflow_suspended') {
+            ensureAssistantMsg()
             if (!assistantMsg._workflowEvents) assistantMsg._workflowEvents = []
             if (event.type !== 'workflow_confirm_required') {
               assistantMsg._workflowEvents.push(event)
@@ -2171,6 +2228,12 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
             } else if (event.type === 'workflow_suspended') {
               assistantMsg._streaming = false
               assistantMsg._toolsDone = true
+              loading.value = false
+              streaming.value = false
+              if (!assistantMsg._workflowConfirmPending) {
+                const pending = resolveWorkflowConfirmPending(assistantMsg._workflowEvents, null)
+                if (pending) assistantMsg._workflowConfirmPending = pending
+              }
               currentStatus.value = '工作流已暂停，等待确认'
             } else if (event.type === 'workflow_node_start') {
               currentStatus.value = `正在执行: ${event.nodeLabel || event.nodeType || '节点'}`
@@ -2265,6 +2328,11 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
             assistantMsg._toolsDone = true
             assistantMsg._toolExpanded = false
             applyStreamDoneMetadata(assistantMsg, meta)
+            applyToolMetadata(assistantMsg, typeof assistantMsg.metadata === 'object' ? assistantMsg.metadata : null)
+            if (assistantMsg._workflowConfirmPending) {
+              loading.value = false
+              streaming.value = false
+            }
             if (assistantMsg._id) {
               loadBatchFeedbacks([assistantMsg])
             }
@@ -2272,7 +2340,9 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
           loading.value = false
           streaming.value = false
           hasStreamContent.value = false
-          currentStatus.value = ''
+          if (!assistantMsg?._workflowConfirmPending) {
+            currentStatus.value = ''
+          }
           lastReplyElapsed.value = Date.now() - sendStartTime
           abortController.value = null
           // 轮询等待标题生成完成
@@ -2515,8 +2585,11 @@ function applyToolMetadata(msg, meta) {
   if (meta.toolEvents?.length) {
     msg._toolEvents = meta.toolEvents
   }
-  if (meta.workflowEvents?.length && !msg._workflowEvents?.length) {
+  if (meta.workflowEvents?.length) {
     msg._workflowEvents = meta.workflowEvents
+  }
+  if (meta.workflowConfirmResolved === true || meta.workflowSuspended === false) {
+    msg._workflowConfirmPending = null
   }
   const pending = resolveWorkflowConfirmPending(msg._workflowEvents, meta)
   if (pending) {

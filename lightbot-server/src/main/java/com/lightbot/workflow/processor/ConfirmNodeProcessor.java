@@ -68,6 +68,22 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
             if (!(item instanceof Map<?, ?> map)) {
                 continue;
             }
+            String fieldType = normalizeFieldType(map.get("type"));
+            if ("info".equals(fieldType)) {
+                Map<String, Object> field = new HashMap<>();
+                field.put("key", WorkflowNodeDataUtils.parseString(map.get("key")));
+                field.put("label", WorkflowNodeDataUtils.parseString(map.get("label")));
+                field.put("type", "info");
+                Object defaultValue = map.get("defaultValue");
+                if (defaultValue == null) {
+                    defaultValue = map.get("default_value");
+                }
+                if (defaultValue != null) {
+                    field.put("defaultValue", defaultValue);
+                }
+                fields.add(field);
+                continue;
+            }
             Map<String, Object> field = new HashMap<>();
             String key = WorkflowNodeDataUtils.parseString(map.get("key"));
             if (key == null || key.isBlank()) {
@@ -95,20 +111,25 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
 
     private List<Map<String, Object>> defaultFormFields() {
         List<Map<String, Object>> fields = new ArrayList<>();
-        Map<String, Object> confirm = new HashMap<>();
-        confirm.put("key", "confirmed");
-        confirm.put("label", "确认继续");
-        confirm.put("type", "select");
-        confirm.put("required", true);
-        confirm.put("options", List.of("是", "否"));
-        fields.add(confirm);
+        Map<String, Object> info = new HashMap<>();
+        info.put("key", "_info");
+        info.put("label", "请确认是否继续执行后续步骤");
+        info.put("type", "info");
+        fields.add(info);
+        Map<String, Object> choice = new HashMap<>();
+        choice.put("key", "choice");
+        choice.put("label", "您的选择");
+        choice.put("type", "radio");
+        choice.put("required", true);
+        choice.put("options", List.of("继续", "取消"));
+        fields.add(choice);
         return fields;
     }
 
     private String normalizeFieldType(Object type) {
         String t = type != null ? String.valueOf(type).trim().toLowerCase() : "text";
         return switch (t) {
-            case "textarea", "number", "select" -> t;
+            case "textarea", "number", "select", "radio", "info" -> t;
             default -> "text";
         };
     }

@@ -318,29 +318,31 @@
     <template v-if="node.type === 'confirm'">
       <a-form-item>
         <template #label>
-          <ConfigFieldLabel label="确认提示语" :tip="hint('confirm', 'message')" />
+          <ConfigFieldLabel label="交互提示语" :tip="hint('confirm', 'message')" />
         </template>
         <a-textarea v-model:value="node.data.message" :rows="2" placeholder="展示给操作者的说明文字" @change="emitSync" />
       </a-form-item>
       <div class="config-section">
         <div class="config-section-title">
-          <ConfigFieldLabel label="确认表单字段" :tip="hint('confirm', 'formFields')" />
+          <ConfigFieldLabel label="交互字段" :tip="hint('confirm', 'formFields')" />
         </div>
         <div v-for="(field, idx) in node.data.formFields" :key="idx" class="param-row confirm-field-row">
           <a-input v-model:value="field.key" placeholder="变量 key" @change="emitSync" />
           <a-input v-model:value="field.label" placeholder="显示标签" @change="emitSync" />
           <a-select v-model:value="field.type" style="width: 110px" @change="emitSync">
+            <a-select-option value="info">展示信息</a-select-option>
             <a-select-option value="text">文本</a-select-option>
             <a-select-option value="textarea">多行</a-select-option>
             <a-select-option value="number">数字</a-select-option>
-            <a-select-option value="select">选项</a-select-option>
+            <a-select-option value="radio">单选</a-select-option>
+            <a-select-option value="select">下拉</a-select-option>
           </a-select>
-          <a-switch v-model:checked="field.required" checked-children="必填" un-checked-children="选填" @change="emitSync" />
+          <a-switch v-if="field.type !== 'info'" v-model:checked="field.required" checked-children="必填" un-checked-children="选填" @change="emitSync" />
           <a-button type="text" danger @click="removeConfirmField(idx)"><DeleteOutlined /></a-button>
         </div>
         <div v-for="(field, idx) in node.data.formFields" :key="'opt-' + idx">
           <a-input
-            v-if="field.type === 'select'"
+            v-if="field.type === 'select' || field.type === 'radio'"
             :value="formatSelectOptions(field.options)"
             placeholder="选项，逗号分隔，如：是,否"
             class="confirm-options-input"

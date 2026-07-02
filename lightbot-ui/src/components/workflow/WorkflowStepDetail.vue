@@ -1,7 +1,7 @@
 <template>
   <div class="wf-step-detail">
     <div v-if="step.status === 'failed'" class="wf-detail-msg fail">{{ step.message || '执行失败' }}</div>
-    <div v-else-if="step.status === 'suspended'" class="wf-detail-msg suspended">{{ step.message || '等待人工确认' }}</div>
+    <div v-else-if="step.status === 'suspended' && step.nodeType !== 'confirm'" class="wf-detail-msg suspended">{{ step.message || '等待处理' }}</div>
 
     <!-- LLM -->
     <template v-if="step.nodeType === 'llm'">
@@ -64,6 +64,15 @@
       <div v-if="outputs.componentName" class="wf-detail-pill">子流程 · {{ outputs.componentName }}</div>
       <div v-else-if="outputs.result" class="wf-detail-pre">{{ truncateText(outputs.result, 600) }}</div>
       <div v-if="step.children?.length" class="wf-detail-hint">展开上方子节点查看 {{ step.children.length }} 个内部步骤</div>
+    </template>
+
+    <!-- 用户交互 confirm -->
+    <template v-else-if="step.nodeType === 'confirm'">
+      <div v-if="step.status === 'suspended'" class="wf-detail-msg suspended">等待用户选择</div>
+      <div v-else-if="hasKvData(filteredOutputs)" class="wf-detail-kv">
+        <div class="wf-detail-kv-title">用户提交</div>
+        <pre>{{ formatKv(filteredOutputs) }}</pre>
+      </div>
     </template>
 
     <!-- 通用兜底 -->

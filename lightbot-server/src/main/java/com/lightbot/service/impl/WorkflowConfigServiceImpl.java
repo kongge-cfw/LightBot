@@ -11,10 +11,12 @@ import com.lightbot.dto.WorkflowTestRunDetailVO;
 import com.lightbot.dto.WorkflowTestRunVO;
 import com.lightbot.dto.WorkflowVersionVO;
 import com.lightbot.entity.Agent;
+import com.lightbot.entity.Message;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.NodeType;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
+import com.lightbot.service.MessageService;
 import com.lightbot.service.WorkflowConfigService;
 import com.lightbot.service.WorkflowTestRunService;
 import com.lightbot.workflow.WorkflowConfigParser;
@@ -29,6 +31,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -46,6 +49,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     private final ObjectMapper objectMapper;
     private final WorkflowExecutorService workflowExecutorService;
     private final WorkflowTestRunService workflowTestRunService;
+    private final MessageService messageService;
 
     @Override
     public Map<String, Object> getWorkflowConfig(Long agentId) {
@@ -160,7 +164,54 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             result.setRunId(request.getRunId());
         }
         result.setTestRunId(workflowTestRunService.findIdByRunId(request.getRunId()));
+        persistChatMessageAfterResume(request.getMessageId(), result);
         return result;
+    }
+
+    /**
+     * Chat 场景：恢复成功后回写助手消息 content/metadata，避免刷新后仍显示待确认
+     */
+    @SuppressWarnings("unchecked")
+    private void persistChatMessageAfterResume(Long messageId, WorkflowTestResultVO result) {
+        if (messageId == null || result == null) {
+            return;
+        }
+        Message msg = messageService.getById(messageId);
+        if (msg == null) {
+            return;
+        }
+        try {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            if (msg.getMetadata() != null && !msg.getMetadata().isBlank()) {
+                meta.putAll(objectMapper.readValue(msg.getMetadata(), Map.class));
+            }
+            if (result.getNodeEvents() != null) {
+                meta.put("workflowEvents", result.getNodeEvents());
+            }
+            if (Boolean.TRUE.equals(result.getSuspended())) {
+                meta.put("workflowSuspended", true);
+                meta.put("workflowRunId", result.getRunId());
+                meta.put("workflowConfirmForm", result.getConfirmForm());
+                meta.remove("workflowConfirmResolved");
+            } else {
+                meta.put("workflowSuspended", false);
+                meta.put("workflowConfirmResolved", true);
+                meta.remove("workflowConfirmForm");
+                meta.remove("workflowRunId");
+            }
+            msg.setMetadata(objectMapper.writeValueAsString(meta));
+            if (result.getOutput() != null && !result.getOutput().isBlank()) {
+                String existing = msg.getContent() != null ? msg.getContent() : "";
+                if (existing.isBlank()) {
+                    msg.setContent(result.getOutput());
+                } else if (!existing.contains(result.getOutput())) {
+                    msg.setContent(existing + "\n" + result.getOutput());
+                }
+            }
+            messageService.updateById(msg);
+        } catch (Exception e) {
+            log.warn("[WorkflowConfigService] 回写 Chat 消息失败: messageId={}, error={}", messageId, e.getMessage());
+        }
     }
 
     @Override

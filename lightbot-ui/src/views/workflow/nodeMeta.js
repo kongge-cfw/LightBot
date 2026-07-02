@@ -31,7 +31,7 @@ export const NODE_META = {
   script: { title: '脚本', color: '#64748b', icon: CodeOutlined, desc: 'JS/Python 脚本处理变量' },
   mcp: { title: 'MCP', color: '#6366f1', icon: CloudServerOutlined, desc: '调用 MCP 工具' },
   input: { title: '流程输入', color: '#0d9488', icon: ImportOutlined, desc: '在流程中补充输入参数' },
-  confirm: { title: '人工确认', color: '#f97316', icon: PauseCircleOutlined, desc: '暂停流程，等待人工确认' },
+    confirm: { title: '用户交互', color: '#f97316', icon: PauseCircleOutlined, desc: '暂停流程，展示信息或收集用户选择' },
   output: { title: '流程输出', color: '#0891b2', icon: ExportOutlined, desc: '输出流程中间结果' },
   variable_handle: { title: '变量处理', color: '#db2777', icon: FunctionOutlined, desc: '对变量进行模板/分组处理' },
   parameter_extractor: { title: '参数提取', color: '#e11d48', icon: FilterOutlined, desc: '从文本提取结构化参数' },
@@ -194,11 +194,11 @@ export function getDefaultNodeData(type) {
       outputParams: [{ key: 'query', type: 'String', defaultValue: '' }]
     },
     confirm: {
-      label: '人工确认',
+      label: '用户交互',
       message: '请确认以下信息后继续执行',
       formFields: [
-        { key: 'confirmed', label: '是否通过', type: 'select', required: true, options: ['是', '否'] },
-        { key: 'remark', label: '备注', type: 'textarea', required: false, defaultValue: '' },
+        { key: '_info', label: '请确认是否继续执行后续步骤', type: 'info' },
+        { key: 'choice', label: '您的选择', type: 'radio', required: true, options: ['继续', '取消'] },
       ],
     },
     output: {

@@ -148,7 +148,7 @@ public class WorkflowExecutorService {
                 ExecutionOptions.chat());
 
         if (outcome.isSuspended()) {
-            return outcome.getSuspendedMessage();
+            return outcome.getStreamResult();
         }
 
         emitWorkflowEvent(workflowEvents, onEvent, Map.of("type", "workflow_complete", "contentOffset", 0));
@@ -199,8 +199,13 @@ public class WorkflowExecutorService {
 
         Map<String, Object> confirmOutputs = new LinkedHashMap<>();
         if (formData != null) {
-            confirmOutputs.putAll(formData);
-            context.getVariables().putAll(formData);
+            formData.forEach((key, value) -> {
+                if (key == null || key.isBlank() || key.startsWith("_")) {
+                    return;
+                }
+                confirmOutputs.put(key, value);
+                context.getVariables().put(key, value);
+            });
         }
         if (suspended.getSuspendNodeId() != null) {
             context.getNodeOutputs().put(suspended.getSuspendNodeId(), confirmOutputs);
@@ -210,6 +215,9 @@ public class WorkflowExecutorService {
 
         List<Map<String, Object>> events = suspended.getWorkflowEvents() != null
                 ? new ArrayList<>(suspended.getWorkflowEvents()) : new ArrayList<>();
+
+        // 2. 将挂起的 confirm 节点标记为已提交，避免前端重复展示待确认态
+        patchConfirmEventsOnResume(events, suspended.getSuspendNodeId(), formData);
 
         LoopOutcome outcome = runExecutionLoop(
                 agent, workflow, context,
@@ -238,6 +246,63 @@ public class WorkflowExecutorService {
             builder.output(output);
         }
         return builder.build();
+    }
+
+    /**
+     * 恢复执行前：将挂起中的 confirm 节点事件标记为已提交，写入用户选择
+     */
+    private void patchConfirmEventsOnResume(List<Map<String, Object>> events,
+                                            String suspendNodeId,
+                                            Map<String, Object> formData) {
+        if (events == null || suspendNodeId == null) {
+            return;
+        }
+        Map<String, Object> submitted = filterSubmittedFormData(formData);
+        for (int i = events.size() - 1; i >= 0; i--) {
+            Map<String, Object> e = events.get(i);
+            if (!"workflow_node_complete".equals(e.get("type"))) {
+                continue;
+            }
+            if (!suspendNodeId.equals(String.valueOf(e.get("nodeId")))) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(e.get("suspended"))) {
+                continue;
+            }
+            e.put("suspended", false);
+            e.put("success", true);
+            e.put("message", "用户已提交");
+            if (!submitted.isEmpty()) {
+                e.put("outputs", submitted);
+            }
+            break;
+        }
+        for (Map<String, Object> e : events) {
+            if (!"workflow_confirm_required".equals(e.get("type"))) {
+                continue;
+            }
+            if (!suspendNodeId.equals(String.valueOf(e.get("nodeId")))) {
+                continue;
+            }
+            e.put("resolved", true);
+            if (!submitted.isEmpty()) {
+                e.put("submittedData", submitted);
+            }
+        }
+    }
+
+    private Map<String, Object> filterSubmittedFormData(Map<String, Object> formData) {
+        Map<String, Object> submitted = new LinkedHashMap<>();
+        if (formData == null) {
+            return submitted;
+        }
+        formData.forEach((key, value) -> {
+            if (key == null || key.isBlank() || key.startsWith("_")) {
+                return;
+            }
+            submitted.put(key, value);
+        });
+        return submitted;
     }
 
     private String serializeWorkflow(WorkflowDefinition workflow) {

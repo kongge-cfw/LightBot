@@ -82,7 +82,12 @@ export function getStepSummary(step) {
     case 'classifier':
       return outputs.subject ? `意图 · ${outputs.subject}` : '分类完成'
     case 'confirm':
-      return step.status === 'suspended' ? '等待确认' : '已确认'
+      if (step.status === 'suspended') return '等待您的选择'
+      if (outputs && Object.keys(outputs).length) {
+        const choice = outputs.choice ?? outputs.confirmed
+        return choice ? `已选择 · ${choice}` : '已提交'
+      }
+      return '已提交'
     case 'app_component':
       return outputs.componentName ? `子流程 · ${outputs.componentName}` : '子工作流完成'
     case 'loop':

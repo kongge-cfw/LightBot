@@ -2,12 +2,14 @@
   <div v-if="workflowEvents && workflowEvents.length > 0" class="workflow-nodes-group">
     <button type="button" class="workflow-summary" :class="{ 'is-expanded': isExpanded }" @click="toggleExpand">
       <span class="summary-icon">
-        <CheckCircleOutlined v-if="isDone" class="icon-success" />
+        <CheckCircleOutlined v-if="summaryDone" class="icon-success" />
+        <LoadingOutlined v-else-if="awaitingConfirm" class="icon-spinning icon-waiting" />
         <LoadingOutlined v-else class="icon-spinning" />
       </span>
       <span class="summary-content">
         <span class="summary-title">
-          {{ isDone ? `工作流已执行 ${visibleSteps.length} 个节点` : `工作流执行中 (${runningCount} 个进行中)` }}
+          <template v-if="awaitingConfirm">工作流等待您的确认</template>
+          <template v-else>{{ summaryDone ? `工作流已执行 ${visibleSteps.length} 个节点` : `工作流执行中 (${runningCount} 个进行中)` }}</template>
         </span>
         <span v-if="nodeLabels.length" class="summary-meta">{{ nodeLabels.join(' → ') }}</span>
       </span>
@@ -86,6 +88,12 @@ const runningCount = computed(() => {
 const nodeLabels = computed(() =>
   visibleSteps.value.map(s => s.nodeLabel || s.nodeType).filter(Boolean)
 )
+
+const awaitingConfirm = computed(() =>
+  visibleSteps.value.some(s => s.status === 'suspended')
+)
+
+const summaryDone = computed(() => props.isDone && !awaitingConfirm.value)
 
 watch(
   () => props.defaultExpanded,
@@ -181,6 +189,7 @@ onUnmounted(clearRevealTimer)
 .summary-icon { flex-shrink: 0; font-size: 16px; }
 .icon-success { color: #22c55e; }
 .icon-spinning { color: #7c3aed; animation: spin 1s linear infinite; }
+.icon-waiting { color: #f97316; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .summary-content {

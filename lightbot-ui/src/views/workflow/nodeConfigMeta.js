@@ -194,8 +194,8 @@ export const FIELD_HINTS = {
     outputParams: '流程开始时暴露给下游的参数，query 为常用默认项',
   },
   confirm: {
-    message: '暂停时展示给操作者的说明，如审批要求、补录指引',
-    formFields: '确认表单字段；提交后各字段 key 写入流程变量，下游可用 {{key}} 引用',
+    message: '暂停时展示给用户的说明文字（支持 {{变量}}）',
+    formFields: '交互字段：info=纯展示，radio/select=选项，text/textarea=输入；提交后 key 写入流程变量（_ 开头不入库）',
   },
   output: {
     output: '最终输出模板，可引用上游节点输出变量',
