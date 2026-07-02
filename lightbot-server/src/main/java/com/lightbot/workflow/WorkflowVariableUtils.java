@@ -1,5 +1,12 @@
 package com.lightbot.workflow;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.core.json.JsonReadFeature;
+import com.lightbot.util.InlineThinkingStreamParser;
+
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -107,12 +114,18 @@ public final class WorkflowVariableUtils {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        String text = raw.trim();
+        String text = InlineThinkingStreamParser.stripTags(raw).trim();
         if (text.startsWith("```")) {
-            int start = text.indexOf('{');
-            int end = text.lastIndexOf('}');
-            if (start >= 0 && end > start) {
-                return text.substring(start, end + 1);
+            int firstNewline = text.indexOf('\n');
+            int lastFence = text.lastIndexOf("```");
+            if (firstNewline > 0 && lastFence > firstNewline) {
+                text = text.substring(firstNewline + 1, lastFence).trim();
+            } else {
+                int start = text.indexOf('{');
+                int end = text.lastIndexOf('}');
+                if (start >= 0 && end > start) {
+                    return text.substring(start, end + 1);
+                }
             }
         }
         int start = text.indexOf('{');
@@ -121,5 +134,62 @@ public final class WorkflowVariableUtils {
             return text.substring(start, end + 1);
         }
         return text;
+    }
+
+    /**
+     * 解析 LLM 返回的 JSON 对象为 Map（兼容 thinking 标签、markdown 代码块、无引号字段名等）
+     *
+     * @param raw          模型原始输出
+     * @param objectMapper 标准 ObjectMapper
+     * @return 解析后的键值对
+     */
+    public static Map<String, Object> parseLlmJsonMap(String raw, ObjectMapper objectMapper)
+            throws JsonProcessingException {
+        String json = extractJsonObject(raw);
+        if (json == null || json.isBlank()) {
+            throw new IllegalArgumentException("模型未返回有效 JSON");
+        }
+        json = normalizeLlmJsonText(json);
+        try {
+            Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            return normalizeLlmJsonKeys(map);
+        } catch (JsonProcessingException strictError) {
+            ObjectMapper lenient = objectMapper.copy()
+                    .configure(JsonReadFeature.ALLOW_UNQUOTED_FIELD_NAMES.mappedFeature(), true)
+                    .configure(JsonReadFeature.ALLOW_SINGLE_QUOTES.mappedFeature(), true)
+                    .configure(JsonReadFeature.ALLOW_TRAILING_COMMA.mappedFeature(), true);
+            Map<String, Object> map = lenient.readValue(json, new TypeReference<Map<String, Object>>() {});
+            return normalizeLlmJsonKeys(map);
+        }
+    }
+
+    /** 修复模型常见 JSON 笔误 */
+    private static String normalizeLlmJsonText(String json) {
+        String normalized = json;
+        normalized = normalized.replace("\"_is.completed\"", "\"_is_completed\"");
+        normalized = normalized.replace("'_is.completed'", "'_is_completed'");
+        normalized = UNQUOTED_IS_COMPLETED.matcher(normalized).replaceAll("$1\"_is_completed\"$3");
+        return normalized;
+    }
+
+    private static final Pattern UNQUOTED_IS_COMPLETED =
+            Pattern.compile("([{,]\\s*)_is\\.completed(\\s*:)");
+
+    /** 统一模型返回的字段名 */
+    private static Map<String, Object> normalizeLlmJsonKeys(Map<String, Object> map) {
+        if (map == null || map.isEmpty()) {
+            return map != null ? map : Map.of();
+        }
+        boolean changed = false;
+        Map<String, Object> out = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            String key = entry.getKey();
+            if ("_is.completed".equals(key)) {
+                key = "_is_completed";
+                changed = true;
+            }
+            out.put(key, entry.getValue());
+        }
+        return changed ? out : map;
     }
 }

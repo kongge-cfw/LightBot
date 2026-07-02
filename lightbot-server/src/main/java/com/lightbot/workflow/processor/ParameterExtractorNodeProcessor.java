@@ -1,6 +1,5 @@
 package com.lightbot.workflow.processor;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
@@ -32,7 +31,8 @@ public class ParameterExtractorNodeProcessor extends AbstractFlowNodeProcessor i
     private static final String SYSTEM_PROMPT = """
             你是专业的参数提取助手，需要从用户输入中准确提取指定参数。
             若某些必填参数无法提取，请设置 _is_completed 为 false，并在 _reason 中说明原因。
-            必须只返回 JSON，不要输出 markdown 代码块或其它说明文字。
+            必须只返回标准 JSON 对象：所有字段名用双引号包裹，禁止使用 _is.completed 等带点号的字段名。
+            不要输出 markdown 代码块、思考过程或任何 JSON 以外的文字。
             """;
 
     private final WorkflowLlmSupport llmSupport;
@@ -112,17 +112,15 @@ public class ParameterExtractorNodeProcessor extends AbstractFlowNodeProcessor i
                     .append(":").append(required).append("\n");
         }
         sb.append("\n用户输入：\n").append(inputText).append("\n\n");
-        sb.append("请返回 JSON，包含 _is_completed、_reason 以及上述各 key 字段。");
+        sb.append("请只返回一个 JSON 对象，字段名必须加双引号，包含 \"_is_completed\"、\"_reason\" 以及上述各 key。");
         return sb.toString();
     }
 
     private Map<String, Object> parseExtractedParams(String raw) {
         try {
-            String json = WorkflowVariableUtils.extractJsonObject(raw);
-            if (json == null || json.isBlank()) {
-                throw new IllegalArgumentException("模型未返回有效 JSON");
-            }
-            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            return WorkflowVariableUtils.parseLlmJsonMap(raw, objectMapper);
+        } catch (IllegalArgumentException e) {
+            throw e;
         } catch (Exception e) {
             throw new IllegalArgumentException("参数解析失败: " + e.getMessage(), e);
         }

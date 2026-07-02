@@ -65,7 +65,7 @@ const nodeClass = computed(() => ({
   background: var(--color-warn-bg); border-bottom: 1px solid var(--color-hairline); border-radius: 10px 10px 0 0;
 }
 .node-icon { color: #f59e0b; font-size: 16px; }
-.node-title { font-size: 14px; font-weight: 600; }
+.node-title { font-size: 14px; font-weight: 600; color: var(--color-ink); }
 .branch-row {
   display: flex; align-items: center; justify-content: space-between;
   padding: 6px 12px 6px 14px; min-height: 36px;

@@ -28,6 +28,7 @@ import com.lightbot.util.LlmTraceContext;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.WorkflowExampleTemplates;
 import com.lightbot.dto.WorkflowExampleVO;
+import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.MentionGroupVO;
 import com.lightbot.dto.MentionOptionsVO;
 import com.lightbot.dto.MentionResourceDTO;
@@ -57,6 +58,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -657,6 +659,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Agent createFromWorkflowExample(String key) {
         // 1. 校验示例 key 有效性
         String exampleName = WorkflowExampleTemplates.getExampleName(key);
@@ -664,8 +667,11 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
             throw new BizException("无效的示例标识: " + key);
         }
 
-        // 2. 构建 Agent 实体
         long userId = StpUtil.getLoginIdAsLong();
+        Map<String, Long> toolIds = resolveExampleToolIds();
+        Map<String, Long> subAgentIds = createPublishedSubWorkflowExamples(key, userId, toolIds);
+
+        // 2. 构建 Agent 实体
         Agent agent = new Agent();
         agent.setUserId(userId);
         agent.setName(exampleName);
@@ -678,10 +684,65 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         agent.setVersion(0);
         save(agent);
 
-        // 3. 使用预定义工作流快照初始化草稿版本
-        Map<String, Object> snapshot = WorkflowExampleTemplates.getWorkflowSnapshot(key);
+        // 3. 解析占位符并初始化草稿版本
+        Map<String, Object> snapshot = WorkflowExampleTemplates.buildResolvedSnapshot(key, subAgentIds, toolIds);
+        if (snapshot == null) {
+            throw new BizException("示例工作流快照不存在: " + key);
+        }
         agentVersionService.initDraftWithWorkflow(agent, snapshot);
         return agent;
+    }
+
+    /** 按工具名解析内置工具 ID，供示例 tool 节点绑定 */
+    private Map<String, Long> resolveExampleToolIds() {
+        Map<String, Long> toolIds = new LinkedHashMap<>();
+        for (String toolName : List.of("web_search", "calculator")) {
+            Tool tool = toolService.getOne(new LambdaQueryWrapper<Tool>()
+                    .eq(Tool::getName, toolName)
+                    .last("LIMIT 1"));
+            if (tool != null && tool.getId() != null) {
+                toolIds.put(toolName, tool.getId());
+            }
+        }
+        return toolIds;
+    }
+
+    /** 创建并发布示例子工作流，返回 subKey → agentId */
+    private Map<String, Long> createPublishedSubWorkflowExamples(String key, long userId, Map<String, Long> toolIds) {
+        Map<String, Long> subAgentIds = new HashMap<>();
+        for (String subKey : WorkflowExampleTemplates.getSubWorkflowKeys(key)) {
+            Map<String, Object> subSnapshot = WorkflowExampleTemplates.getSubWorkflowSnapshot(subKey);
+            if (subSnapshot == null) {
+                throw new BizException("示例子工作流不存在: " + subKey);
+            }
+            WorkflowExampleTemplates.resolveBindings(subSnapshot, Map.of(), toolIds);
+
+            Agent subAgent = new Agent();
+            subAgent.setUserId(userId);
+            subAgent.setName(WorkflowExampleTemplates.getSubWorkflowName(subKey));
+            subAgent.setDescription("内置示例子工作流，由「" + WorkflowExampleTemplates.getExampleName(key) + "」自动创建");
+            subAgent.setAgentType(AgentType.WORKFLOW);
+            subAgent.setWelcomeMessage("示例子工作流模块");
+            subAgent.setRecommendedQuestions("[]");
+            subAgent.setConfig("{}");
+            subAgent.setStatus(AgentStatus.DRAFT);
+            subAgent.setVersion(0);
+            save(subAgent);
+
+            agentVersionService.initDraftWithWorkflow(subAgent, subSnapshot);
+            publishExampleWorkflowSnapshot(subAgent.getId(), subSnapshot);
+            subAgentIds.put(subKey, subAgent.getId());
+        }
+        return subAgentIds;
+    }
+
+    private void publishExampleWorkflowSnapshot(Long agentId, Map<String, Object> workflowSnapshot) {
+        Object graphObj = workflowSnapshot.get("graph");
+        if (graphObj == null) {
+            return;
+        }
+        WorkflowGraphDTO graph = objectMapper.convertValue(graphObj, WorkflowGraphDTO.class);
+        agentVersionService.publishWorkflow(agentId, graph);
     }
 
     @Override

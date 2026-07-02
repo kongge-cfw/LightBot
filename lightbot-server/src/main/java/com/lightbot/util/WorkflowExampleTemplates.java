@@ -6,12 +6,21 @@ import java.util.*;
 
 /**
  * 内置示例工作流模板定义
- * <p>5 个示例 Agent 覆盖全部 22 种节点类型，帮助用户快速学习工作流节点使用</p>
+ * <p>8 个示例 Agent 覆盖工作流节点与工具节点（含 confirm / tool / app_component），帮助用户快速学习</p>
  *
  * @author finch
  * @since 2026-05-31
  */
 public final class WorkflowExampleTemplates {
+
+    /** 子工作流占位符前缀，创建示例 Agent 时替换为真实 Agent ID */
+    public static final String SUB_PLACEHOLDER_PREFIX = "__SUB:";
+    /** 工具占位符前缀，创建示例 Agent 时按工具名解析 toolId */
+    public static final String TOOL_PLACEHOLDER_PREFIX = "__TOOL:";
+
+    private static final Map<String, String> SUB_WORKFLOW_NAMES = Map.of(
+            "data_prep_sub", "示例子流程：结构化提取模块"
+    );
 
     private WorkflowExampleTemplates() {}
 
@@ -46,8 +55,96 @@ public final class WorkflowExampleTemplates {
                         .key("external_integration").name("示例：外部集成与 MCP 助手")
                         .description("API 调用 + MCP 工具 + 条件分支，演示 api/script/condition/mcp 节点的外部集成能力")
                         .nodeTypeTags(List.of("api", "script", "condition", "mcp"))
+                        .build(),
+                WorkflowExampleVO.builder()
+                        .key("tool_multi").name("示例：多工具协作助手")
+                        .description("参数提取 + 联网搜索 + 计算器工具 + LLM 汇总，演示 tool 节点与工具链组合")
+                        .nodeTypeTags(List.of("parameter_extractor", "tool", "variable_handle", "llm", "output"))
+                        .build(),
+                WorkflowExampleVO.builder()
+                        .key("human_review").name("示例：人工审核助手")
+                        .description("LLM 生成草稿 → 人工确认表单 → 条件分支，演示 confirm 节点的人机协同审核")
+                        .nodeTypeTags(List.of("llm", "confirm", "condition", "variable", "output"))
+                        .build(),
+                WorkflowExampleVO.builder()
+                        .key("sub_workflow_orchestrator").name("示例：子工作流编排助手")
+                        .description("嵌套子工作流 + 人工复核 + LLM 定稿，演示 app_component 与 confirm 组合编排")
+                        .nodeTypeTags(List.of("app_component", "confirm", "condition", "llm", "parameter_extractor", "output"))
                         .build()
         );
+    }
+
+    /**
+     * 主示例是否需要先创建并发布子工作流
+     */
+    public static List<String> getSubWorkflowKeys(String key) {
+        if ("sub_workflow_orchestrator".equals(key)) {
+            return List.of("data_prep_sub");
+        }
+        return List.of();
+    }
+
+    /**
+     * 子工作流 Agent 名称
+     */
+    public static String getSubWorkflowName(String subKey) {
+        return SUB_WORKFLOW_NAMES.getOrDefault(subKey, "示例子工作流");
+    }
+
+    /**
+     * 获取子工作流快照（未解析占位符）
+     */
+    public static Map<String, Object> getSubWorkflowSnapshot(String subKey) {
+        return switch (subKey) {
+            case "data_prep_sub" -> buildDataPrepSubWorkflow();
+            default -> null;
+        };
+    }
+
+    /**
+     * 解析快照中的工具 ID / 子工作流 Agent ID 占位符（原地修改）
+     */
+    @SuppressWarnings("unchecked")
+    public static void resolveBindings(Map<String, Object> snapshot,
+                                       Map<String, Long> subAgentIds,
+                                       Map<String, Long> toolIds) {
+        if (snapshot == null) {
+            return;
+        }
+        Object graphObj = snapshot.get("graph");
+        if (!(graphObj instanceof Map<?, ?> graph)) {
+            return;
+        }
+        Object nodesObj = graph.get("nodes");
+        if (!(nodesObj instanceof List<?> nodes)) {
+            return;
+        }
+        for (Object nodeObj : nodes) {
+            if (!(nodeObj instanceof Map<?, ?> node)) {
+                continue;
+            }
+            Object dataObj = node.get("data");
+            if (!(dataObj instanceof Map<?, ?> data)) {
+                continue;
+            }
+            Map<String, Object> dataMap = (Map<String, Object>) data;
+            resolveToolPlaceholder(dataMap, toolIds);
+            resolveSubWorkflowPlaceholder(dataMap, subAgentIds);
+        }
+    }
+
+    /**
+     * 获取解析占位符后的工作流快照
+     */
+    public static Map<String, Object> buildResolvedSnapshot(String key,
+                                                            Map<String, Long> subAgentIds,
+                                                            Map<String, Long> toolIds) {
+        Map<String, Object> snapshot = getWorkflowSnapshot(key);
+        if (snapshot == null) {
+            return null;
+        }
+        resolveBindings(snapshot, subAgentIds, toolIds);
+        return snapshot;
     }
 
     /**
@@ -63,6 +160,9 @@ public final class WorkflowExampleTemplates {
             case "batch_parallel" -> buildBatchParallelWorkflow();
             case "data_extract" -> buildDataExtractWorkflow();
             case "external_integration" -> buildExternalIntegrationWorkflow();
+            case "tool_multi" -> buildToolMultiWorkflow();
+            case "human_review" -> buildHumanReviewWorkflow();
+            case "sub_workflow_orchestrator" -> buildSubWorkflowOrchestrator();
             default -> null;
         };
     }
@@ -93,20 +193,26 @@ public final class WorkflowExampleTemplates {
 
     // ========== 欢迎语 & 推荐问题 ==========
 
-    private static final Map<String, String> WELCOME_MAP = Map.of(
-            "rag_qa", "## RAG 知识问答助手\n我可以从知识库中检索相关信息，为你提供准确的回答。\n\n> 请先在工作流中绑定知识库，然后开始提问。",
-            "intent_router", "## 智能意图路由助手\n我会自动识别你的意图类型，分配给不同的处理模块来回答。\n\n> 支持信息查询、投诉建议等多种意图。",
-            "batch_parallel", "## 批量并行处理助手\n我可以同时处理多个问题，大幅提升效率。\n\n> 请输入多个问题，我会并行检索并生成回答。",
-            "data_extract", "## 数据提取与转换助手\n我可以从自然语言中提取结构化信息（姓名、邮箱、电话等），并进行格式验证。\n\n> 试试用一句话描述你的个人信息。",
-            "external_integration", "## 外部集成与 MCP 助手\n我可以调用外部 API、MCP 工具获取数据，并自动生成分析总结。\n\n> 已预置示例 API，直接对话即可体验。"
+    private static final Map<String, String> WELCOME_MAP = Map.ofEntries(
+            Map.entry("rag_qa", "## RAG 知识问答助手\n我可以从知识库中检索相关信息，为你提供准确的回答。\n\n> 请先在工作流中绑定知识库，然后开始提问。"),
+            Map.entry("intent_router", "## 智能意图路由助手\n我会自动识别你的意图类型，分配给不同的处理模块来回答。\n\n> 支持信息查询、投诉建议等多种意图。"),
+            Map.entry("batch_parallel", "## 批量并行处理助手\n我可以同时处理多个问题，大幅提升效率。\n\n> 请输入多个问题，我会并行检索并生成回答。"),
+            Map.entry("data_extract", "## 数据提取与转换助手\n我可以从自然语言中提取结构化信息（姓名、邮箱、电话等），并进行格式验证。\n\n> 试试用一句话描述你的个人信息。"),
+            Map.entry("external_integration", "## 外部集成与 MCP 助手\n我可以调用外部 API、MCP 工具获取数据，并自动生成分析总结。\n\n> 已预置示例 API，直接对话即可体验。"),
+            Map.entry("tool_multi", "## 多工具协作助手\n我会先提取你的问题与计算参数，再调用联网搜索和计算器工具，最后汇总成完整回答。\n\n> 请描述一个需要查资料并做简单计算的问题。"),
+            Map.entry("human_review", "## 人工审核助手\n我会先生成草稿内容，然后暂停等待你在对话中审核确认，通过后再输出正式版本。\n\n> 适合体验 confirm 人工确认节点。"),
+            Map.entry("sub_workflow_orchestrator", "## 子工作流编排助手\n我会调用内置子工作流做结构化提取，再请你复核子流程结果，最后生成定稿回复。\n\n> 创建本示例时会自动生成并发布子工作流 Agent。")
     );
 
-    private static final Map<String, String> QUESTIONS_MAP = Map.of(
-            "rag_qa", "[\"这个知识库包含哪些内容？\", \"帮我总结一下关键信息\", \"有哪些常见问题？\"]",
-            "intent_router", "[\"我想查询一下产品价格\", \"我对服务不满意，要投诉\", \"你好，随便聊聊\"]",
-            "batch_parallel", "[\"同时问3个不同的问题\", \"批量处理的效率如何？\", \"支持多大的并发量？\"]",
-            "data_extract", "[\"我叫张三，邮箱是zhangsan@example.com，电话13800138000\", \"帮我验证一下 test@domain.com 这个邮箱格式对不对\", \"从这段话里提取所有联系方式\"]",
-            "external_integration", "[\"帮我调用API获取数据\", \"用MCP工具处理一下任务\", \"外部接口调用失败了怎么办？\"]"
+    private static final Map<String, String> QUESTIONS_MAP = Map.ofEntries(
+            Map.entry("rag_qa", "[\"这个知识库包含哪些内容？\", \"帮我总结一下关键信息\", \"有哪些常见问题？\"]"),
+            Map.entry("intent_router", "[\"我想查询一下产品价格\", \"我对服务不满意，要投诉\", \"你好，随便聊聊\"]"),
+            Map.entry("batch_parallel", "[\"同时问3个不同的问题\", \"批量处理的效率如何？\", \"支持多大的并发量？\"]"),
+            Map.entry("data_extract", "[\"我叫张三，邮箱是zhangsan@example.com，电话13800138000\", \"帮我验证一下 test@domain.com 这个邮箱格式对不对\", \"从这段话里提取所有联系方式\"]"),
+            Map.entry("external_integration", "[\"帮我调用API获取数据\", \"用MCP工具处理一下任务\", \"外部接口调用失败了怎么办？\"]"),
+            Map.entry("tool_multi", "[\"查一下2024年全球AI市场规模，并计算1000×1.15\", \"搜索LightBot是什么，再算一下256+128\", \"帮我调研云原生趋势并计算增长率\"]"),
+            Map.entry("human_review", "[\"帮我写一段产品发布公告\", \"起草一封客户道歉邮件\", \"生成一份活动邀请文案\"]"),
+            Map.entry("sub_workflow_orchestrator", "[\"整理这段需求：我们要做智能客服，支持多轮对话和知识库\", \"提取下面方案的关键信息并复核\", \"分析这段产品介绍，输出结构化摘要\"]")
     );
 
     // ========== 示例 1：RAG 知识问答助手 ==========
@@ -433,7 +539,332 @@ public final class WorkflowExampleTemplates {
         return workflowSnapshot(nodes, edges);
     }
 
+    // ========== 示例 6：多工具协作助手 ==========
+
+    private static Map<String, Object> buildToolMultiWorkflow() {
+        List<Map<String, Object>> nodes = List.of(
+                node("start_1", "start", 50, 250, Map.of()),
+                node("input_1", "input", 200, 250, Map.of(
+                        "label", "用户输入",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                )),
+                node("extract_1", "parameter_extractor", 400, 250, Map.of(
+                        "label", "提取搜索与计算参数",
+                        "inputVariable", "{{query}}",
+                        "instruction", "从用户描述中提取：search_query（用于联网搜索的关键词）、num_a、num_b（两个数字，缺省为10和5）、operation（add/subtract/multiply/divide 之一，缺省 add）",
+                        "extractParams", List.of(
+                                Map.of("key", "search_query", "type", "String", "desc", "搜索关键词", "required", true),
+                                Map.of("key", "num_a", "type", "Number", "desc", "计算数字A", "required", false),
+                                Map.of("key", "num_b", "type", "Number", "desc", "计算数字B", "required", false),
+                                Map.of("key", "operation", "type", "String", "desc", "运算类型", "required", false)
+                        )
+                )),
+                node("tool_search", "tool", 650, 150, Map.of(
+                        "label", "联网搜索",
+                        "toolName", "web_search",
+                        "toolId", toolPlaceholder("web_search"),
+                        "inputMappings", List.of(
+                                Map.of("key", "query", "value", "{{search_query}}"),
+                                Map.of("key", "maxResults", "value", "5")
+                        ),
+                        "outputMappings", List.of(
+                                Map.of("key", "searchAnswer", "value", "{{answer}}"),
+                                Map.of("key", "searchResults", "value", "{{results}}"),
+                                Map.of("key", "toolResult", "value", "{{output}}")
+                        )
+                )),
+                node("tool_calc", "tool", 650, 350, Map.of(
+                        "label", "计算器",
+                        "toolName", "calculator",
+                        "toolId", toolPlaceholder("calculator"),
+                        "inputMappings", List.of(
+                                Map.of("key", "a", "value", "{{num_a}}"),
+                                Map.of("key", "b", "value", "{{num_b}}"),
+                                Map.of("key", "operation", "value", "{{operation}}")
+                        ),
+                        "outputMappings", List.of(
+                                Map.of("key", "calcResult", "value", "{{result}}"),
+                                Map.of("key", "toolResult", "value", "{{output}}")
+                        )
+                )),
+                node("varhandle_1", "variable_handle", 900, 250, Map.of(
+                        "label", "合并工具结果",
+                        "handleType", "template",
+                        "templateContent", "【联网搜索摘要】\n{{searchAnswer}}\n\n【计算结果】\n{{calcResult}}"
+                )),
+                node("llm_1", "llm", 1100, 250, Map.of(
+                        "label", "综合回答",
+                        "sysPrompt", "你是研究助手。请结合联网搜索摘要与计算结果，用清晰结构回答用户的原始问题。",
+                        "promptTemplate", "用户问题：{{query}}\n\n工具汇总：\n{{output}}",
+                        "temperature", 0.5,
+                        "enableStreaming", true
+                )),
+                node("output_1", "output", 1300, 250, Map.of(
+                        "label", "输出回答",
+                        "output", "{{llmOutput}}"
+                )),
+                node("end_1", "end", 1500, 250, Map.of())
+        );
+        List<Map<String, Object>> edges = List.of(
+                edge("e_start", "start_1", "input_1"),
+                edge("e_input", "input_1", "extract_1"),
+                edge("e_extract_search", "extract_1", "tool_search"),
+                edge("e_search_calc", "tool_search", "tool_calc"),
+                edge("e_calc_vh", "tool_calc", "varhandle_1"),
+                edge("e_vh_llm", "varhandle_1", "llm_1"),
+                edge("e_llm_out", "llm_1", "output_1"),
+                edge("e_output_end", "output_1", "end_1")
+        );
+        return workflowSnapshot(nodes, edges);
+    }
+
+    // ========== 示例 7：人工审核助手 ==========
+
+    private static Map<String, Object> buildHumanReviewWorkflow() {
+        List<Map<String, Object>> nodes = List.of(
+                node("start_1", "start", 50, 280, Map.of()),
+                node("input_1", "input", 200, 280, Map.of(
+                        "label", "用户需求",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                )),
+                node("llm_draft", "llm", 420, 280, Map.of(
+                        "label", "生成草稿",
+                        "sysPrompt", "你是专业文案助手。根据用户需求生成一版可直接发布的草稿，语气正式、结构清晰，控制在300字以内。",
+                        "promptTemplate", "用户需求：{{query}}",
+                        "temperature", 0.7,
+                        "enableStreaming", true
+                )),
+                node("confirm_1", "confirm", 650, 280, Map.of(
+                        "label", "人工审核",
+                        "message", "请审核下方草稿内容，选择是否通过，并填写修改意见（如有）",
+                        "formFields", List.of(
+                                Map.of("key", "_preview", "label", "待审核草稿", "type", "info", "defaultValue", "{{llmOutput}}"),
+                                Map.of("key", "confirmed", "label", "审核结论", "type", "radio", "required", true,
+                                        "options", List.of("通过", "驳回")),
+                                Map.of("key", "remark", "label", "审核意见", "type", "textarea", "required", false, "defaultValue", "")
+                        )
+                )),
+                node("condition_1", "condition", 900, 280, Map.of(
+                        "label", "审核分支",
+                        "conditionGroups", List.of(
+                                Map.of(
+                                        "relation", "and",
+                                        "sourceHandle", "out_a",
+                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "通过"))
+                                ),
+                                Map.of(
+                                        "relation", "and",
+                                        "sourceHandle", "out_b",
+                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "驳回"))
+                                )
+                        )
+                )),
+                node("llm_final", "llm", 1150, 150, Map.of(
+                        "label", "定稿润色",
+                        "sysPrompt", "你是编辑。在草稿基础上结合审核意见输出最终定稿，直接给出正文，不要解释流程。",
+                        "promptTemplate", "【草稿】\n{{llmOutput}}\n\n【审核意见】\n{{remark}}\n\n请输出最终定稿：",
+                        "temperature", 0.4,
+                        "enableStreaming", true
+                )),
+                node("variable_reject", "variable", 1150, 420, Map.of(
+                        "label", "驳回说明",
+                        "variableName", "rejectReply",
+                        "variableValue", "内容未通过审核。审核意见：{{remark}}"
+                )),
+                node("output_ok", "output", 1400, 150, Map.of(
+                        "label", "输出定稿",
+                        "output", "【审核通过 · 正式版本】\n\n{{llmOutput}}"
+                )),
+                node("output_reject", "output", 1400, 420, Map.of(
+                        "label", "输出驳回",
+                        "output", "{{rejectReply}}"
+                )),
+                node("output_fallback", "output", 1150, 550, Map.of(
+                        "label", "默认输出",
+                        "output", "审核结果未识别，请重新发起对话。"
+                )),
+                node("end_1", "end", 1620, 280, Map.of())
+        );
+        List<Map<String, Object>> edges = List.of(
+                edge("e_start", "start_1", "input_1"),
+                edge("e_input", "input_1", "llm_draft"),
+                edge("e_draft_confirm", "llm_draft", "confirm_1"),
+                edge("e_confirm_cond", "confirm_1", "condition_1"),
+                edgeHandle("e_pass", "condition_1", "llm_final", "out_a", "in"),
+                edgeHandle("e_reject", "condition_1", "variable_reject", "out_b", "in"),
+                edgeHandle("e_fallback", "condition_1", "output_fallback", "out_c", "in"),
+                edge("e_final_out", "llm_final", "output_ok"),
+                edge("e_reject_out", "variable_reject", "output_reject"),
+                edge("e_ok_end", "output_ok", "end_1"),
+                edge("e_rej_end", "output_reject", "end_1"),
+                edge("e_fb_end", "output_fallback", "end_1")
+        );
+        return workflowSnapshot(nodes, edges);
+    }
+
+    // ========== 示例 8：子工作流编排助手 ==========
+
+    /** 子工作流：结构化提取（由主示例创建时自动发布） */
+    private static Map<String, Object> buildDataPrepSubWorkflow() {
+        List<Map<String, Object>> nodes = List.of(
+                node("start_1", "start", 50, 200, Map.of()),
+                node("input_1", "input", 200, 200, Map.of(
+                        "label", "接收输入",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                )),
+                node("extract_1", "parameter_extractor", 420, 200, Map.of(
+                        "label", "提取结构化字段",
+                        "inputVariable", "{{query}}",
+                        "instruction", "从文本中提取 title（标题/主题）、summary（100字内摘要）、tags（逗号分隔关键词，最多5个）",
+                        "extractParams", List.of(
+                                Map.of("key", "title", "type", "String", "desc", "主题标题", "required", false),
+                                Map.of("key", "summary", "type", "String", "desc", "内容摘要", "required", false),
+                                Map.of("key", "tags", "type", "String", "desc", "关键词标签", "required", false)
+                        )
+                )),
+                node("varhandle_1", "variable_handle", 650, 200, Map.of(
+                        "label", "格式化输出",
+                        "handleType", "template",
+                        "templateContent", "标题：{{title}}\n摘要：{{summary}}\n标签：{{tags}}"
+                )),
+                node("output_1", "output", 880, 200, Map.of(
+                        "label", "子流程结果",
+                        "output", "{{output}}"
+                )),
+                node("end_1", "end", 1080, 200, Map.of())
+        );
+        List<Map<String, Object>> edges = List.of(
+                edge("e_start", "start_1", "input_1"),
+                edge("e_input", "input_1", "extract_1"),
+                edge("e_extract", "extract_1", "varhandle_1"),
+                edge("e_vh", "varhandle_1", "output_1"),
+                edge("e_output", "output_1", "end_1")
+        );
+        return workflowSnapshot(nodes, edges);
+    }
+
+    private static Map<String, Object> buildSubWorkflowOrchestrator() {
+        List<Map<String, Object>> nodes = List.of(
+                node("start_1", "start", 50, 280, Map.of()),
+                node("input_1", "input", 200, 280, Map.of(
+                        "label", "原始需求",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                )),
+                node("sub_1", "app_component", 420, 280, Map.of(
+                        "label", "调用子工作流",
+                        "componentType", "workflow",
+                        "componentCode", subPlaceholder("data_prep_sub"),
+                        "componentName", "结构化提取模块",
+                        "streamSwitch", false,
+                        "inputMappings", List.of(Map.of("key", "query", "value", "{{query}}")),
+                        "outputMappings", List.of(
+                                Map.of("key", "subResult", "value", "{{output}}"),
+                                Map.of("key", "result", "value", "{{result}}")
+                        )
+                )),
+                node("confirm_1", "confirm", 680, 280, Map.of(
+                        "label", "复核子流程结果",
+                        "message", "请核对子工作流提取的结构化信息是否准确，确认后继续生成正式回复",
+                        "formFields", List.of(
+                                Map.of("key", "_sub_preview", "label", "子工作流输出", "type", "info", "defaultValue", "{{subResult}}"),
+                                Map.of("key", "confirmed", "label", "是否确认继续", "type", "radio", "required", true,
+                                        "options", List.of("确认", "退回修改")),
+                                Map.of("key", "remark", "label", "补充说明", "type", "textarea", "required", false, "defaultValue", "")
+                        )
+                )),
+                node("condition_1", "condition", 940, 280, Map.of(
+                        "label", "复核分支",
+                        "conditionGroups", List.of(
+                                Map.of(
+                                        "relation", "and",
+                                        "sourceHandle", "out_a",
+                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "确认"))
+                                ),
+                                Map.of(
+                                        "relation", "and",
+                                        "sourceHandle", "out_b",
+                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "退回修改"))
+                                )
+                        )
+                )),
+                node("llm_1", "llm", 1180, 150, Map.of(
+                        "label", "生成正式回复",
+                        "sysPrompt", "你是方案顾问。基于原始需求、子工作流结构化结果与用户复核意见，输出条理清晰的正式回复。",
+                        "promptTemplate", "【原始需求】\n{{query}}\n\n【子工作流结果】\n{{subResult}}\n\n【复核意见】\n{{remark}}\n\n请输出正式回复：",
+                        "temperature", 0.5,
+                        "enableStreaming", true
+                )),
+                node("variable_reject", "variable", 1180, 420, Map.of(
+                        "label", "退回说明",
+                        "variableName", "rejectReply",
+                        "variableValue", "已退回：子工作流结果需要调整。说明：{{remark}}"
+                )),
+                node("output_ok", "output", 1420, 150, Map.of(
+                        "label", "正式输出",
+                        "output", "{{llmOutput}}"
+                )),
+                node("output_reject", "output", 1420, 420, Map.of(
+                        "label", "退回输出",
+                        "output", "{{rejectReply}}"
+                )),
+                node("output_fallback", "output", 1180, 550, Map.of(
+                        "label", "默认输出",
+                        "output", "复核结果未识别，请重新发起。"
+                )),
+                node("end_1", "end", 1640, 280, Map.of())
+        );
+        List<Map<String, Object>> edges = List.of(
+                edge("e_start", "start_1", "input_1"),
+                edge("e_input", "input_1", "sub_1"),
+                edge("e_sub_confirm", "sub_1", "confirm_1"),
+                edge("e_confirm_cond", "confirm_1", "condition_1"),
+                edgeHandle("e_pass", "condition_1", "llm_1", "out_a", "in"),
+                edgeHandle("e_reject", "condition_1", "variable_reject", "out_b", "in"),
+                edgeHandle("e_fallback", "condition_1", "output_fallback", "out_c", "in"),
+                edge("e_llm_out", "llm_1", "output_ok"),
+                edge("e_rej_out", "variable_reject", "output_reject"),
+                edge("e_ok_end", "output_ok", "end_1"),
+                edge("e_rej_end", "output_reject", "end_1"),
+                edge("e_fb_end", "output_fallback", "end_1")
+        );
+        return workflowSnapshot(nodes, edges);
+    }
+
     // ========== 工具方法 ==========
+
+    private static String toolPlaceholder(String toolName) {
+        return TOOL_PLACEHOLDER_PREFIX + toolName + "__";
+    }
+
+    private static String subPlaceholder(String subKey) {
+        return SUB_PLACEHOLDER_PREFIX + subKey + "__";
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void resolveToolPlaceholder(Map<String, Object> dataMap, Map<String, Long> toolIds) {
+        Object raw = dataMap.get("toolId");
+        if (!(raw instanceof String placeholder) || !placeholder.startsWith(TOOL_PLACEHOLDER_PREFIX)) {
+            return;
+        }
+        String toolName = placeholder.substring(TOOL_PLACEHOLDER_PREFIX.length()).replace("__", "");
+        Long toolId = toolIds.get(toolName);
+        if (toolId != null) {
+            dataMap.put("toolId", toolId);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void resolveSubWorkflowPlaceholder(Map<String, Object> dataMap, Map<String, Long> subAgentIds) {
+        Object raw = dataMap.get("componentCode");
+        if (!(raw instanceof String placeholder) || !placeholder.startsWith(SUB_PLACEHOLDER_PREFIX)) {
+            return;
+        }
+        String subKey = placeholder.substring(SUB_PLACEHOLDER_PREFIX.length()).replace("__", "");
+        Long subAgentId = subAgentIds.get(subKey);
+        if (subAgentId != null) {
+            dataMap.put("componentCode", String.valueOf(subAgentId));
+        }
+    }
 
     private static Map<String, Object> node(String id, String type, double x, double y, Map<String, Object> data) {
         Map<String, Object> n = new LinkedHashMap<>();

@@ -165,26 +165,6 @@ const resolvedEdgeTypes = computed(() => props.edgeTypes || edgeTypes)
 }
 </style>
 
-<!-- 与 WorkflowEditCanvas 一致的节点深色模式 -->
 <style>
-[data-theme="dark"] .generic-node { border-color: #3f3f46; }
-[data-theme="dark"] .generic-node .node-header { border-color: #2e2e33; }
-[data-theme="dark"] .llm-node .node-header { background: #2e1065; }
-[data-theme="dark"] .tool-node .node-header { background: #052e16; }
-[data-theme="dark"] .classifier-node .node-header { background: #422006; border-color: #3f3f46; }
-[data-theme="dark"] .batch-shell { background: rgba(5, 46, 22, 0.25); border-color: #0d9488; }
-[data-theme="dark"] .batch-shell .group-header { background: rgba(5, 46, 22, 0.65); border-color: #115e59; }
-[data-theme="dark"] .batch-shell .group-title { color: #5eead4; }
-[data-theme="dark"] .batch-shell .group-tag { background: #115e59; color: #99f6e4; }
-[data-theme="dark"] .batch-shell .group-icon { background: rgba(20, 184, 166, 0.25); color: #5eead4; }
-[data-theme="dark"] .batch-shell .group-inner { border-color: rgba(20, 184, 166, 0.3); background: rgba(0, 0, 0, 0.15); }
-[data-theme="dark"] .loop-shell { background: rgba(124, 45, 18, 0.2); border-color: #ea580c; }
-[data-theme="dark"] .loop-shell .group-header { background: rgba(124, 45, 18, 0.5); border-color: #9a3412; }
-[data-theme="dark"] .loop-shell .group-title { color: #fdba74; }
-[data-theme="dark"] .loop-shell .group-tag { background: #7c2d12; color: #fed7aa; }
-[data-theme="dark"] .loop-shell .group-icon { background: rgba(249, 115, 22, 0.25); color: #fb923c; }
-[data-theme="dark"] .loop-shell .group-inner { border-color: rgba(249, 115, 22, 0.3); background: rgba(0, 0, 0, 0.15); }
-[data-theme="dark"] .group-builtin-node { box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3); }
-[data-theme="dark"] .group-builtin-node.loop-end { background: linear-gradient(135deg, #4c1d95, #5b21b6); color: #e9d5ff; border-color: #6d28d9; }
-[data-theme="dark"] .group-builtin-node.batch-end { background: linear-gradient(135deg, #134e4a, #115e59); color: #99f6e4; border-color: #0f766e; }
+@import '../workflowNodeTheme.css';
 </style>
