@@ -89,6 +89,12 @@ public class NodeExecutionContext {
     private Consumer<Map<String, Object>> onEvent = null;
 
     /**
+     * 子工作流嵌套深度（根流程为 0）
+     */
+    @Builder.Default
+    private int subWorkflowDepth = 0;
+
+    /**
      * 父容器节点 ID（子图节点执行时标识归属）
      */
     @Builder.Default

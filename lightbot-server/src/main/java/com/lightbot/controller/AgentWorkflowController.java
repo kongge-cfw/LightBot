@@ -55,6 +55,12 @@ public class AgentWorkflowController {
         return Result.ok(workflowConfigService.validate(agentId, graph));
     }
 
+    @Operation(summary = "获取已发布工作流 IO Schema（子工作流参数映射）")
+    @GetMapping("/io-schema")
+    public Result<Map<String, Object>> getIoSchema(@PathVariable Long agentId) {
+        return Result.ok(workflowConfigService.getIoSchema(agentId));
+    }
+
     @Operation(summary = "工作流版本列表")
     @GetMapping("/versions")
     public Result<List<WorkflowVersionVO>> listVersions(@PathVariable Long agentId) {

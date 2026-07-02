@@ -69,7 +69,28 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     @Override
     public List<String> validate(Long agentId, WorkflowGraphDTO graph) {
         requireAgent(agentId);
-        return validateGraph(graph);
+        return validateGraph(agentId, graph);
+    }
+
+    @Override
+    public Map<String, Object> getIoSchema(Long agentId) {
+        Agent agent = requireAgent(agentId);
+        if (agent.getAgentType() != com.lightbot.enums.AgentType.WORKFLOW) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "目标 Agent 不是工作流类型");
+        }
+        Integer version = agent.getVersion();
+        if (version == null || version <= 0) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "工作流尚未发布");
+        }
+        WorkflowDefinition definition = agentVersionService.loadWorkflowDefinition(agentId, false);
+        if (definition == null || definition.getNodes() == null || definition.getNodes().isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "工作流定义为空");
+        }
+        Map<String, Object> schema = com.lightbot.workflow.WorkflowIoSchemaUtil.buildSchema(definition);
+        schema.put("agentId", String.valueOf(agentId));
+        schema.put("agentName", agent.getName());
+        schema.put("publishedVersion", version);
+        return schema;
     }
 
     @Override
@@ -266,7 +287,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> validateGraph(WorkflowGraphDTO graph) {
+    private List<String> validateGraph(Long agentId, WorkflowGraphDTO graph) {
         List<String> errors = new ArrayList<>();
         if (graph == null || graph.getNodes() == null || graph.getNodes().isEmpty()) {
             errors.add("工作流节点为空");
@@ -320,6 +341,25 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             if ("tool".equals(type) && data.get("toolId") == null) {
                 errors.add("工具节点未选择工具: " + id);
             }
+            if ("app_component".equals(type)) {
+                Long targetId = com.lightbot.workflow.WorkflowNodeDataUtils.parseLongId(data.get("componentCode"));
+                if (targetId == null) {
+                    errors.add("应用组件节点未选择子工作流: " + id);
+                } else if (targetId.equals(agentId)) {
+                    errors.add("应用组件不能引用自身: " + id);
+                } else {
+                    String cycle = detectSubWorkflowCycle(agentId, targetId, new java.util.HashSet<>());
+                    if (cycle != null) {
+                        errors.add("应用组件存在循环引用: " + cycle);
+                    }
+                    Agent target = agentService.getById(targetId);
+                    if (target == null || target.getAgentType() != com.lightbot.enums.AgentType.WORKFLOW) {
+                        errors.add("应用组件目标不是有效的工作流 Agent: " + id);
+                    } else if (target.getVersion() == null || target.getVersion() <= 0) {
+                        errors.add("应用组件引用的子工作流尚未发布: " + id);
+                    }
+                }
+            }
             // 条件分支节点必须有默认路径（out_c 边）
             if ("condition".equals(type)) {
                 boolean hasDefaultEdge = edges.stream().anyMatch(e ->
@@ -343,6 +383,44 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         }
 
         return errors;
+    }
+
+    /**
+     * 检测子工作流 transitive 循环引用
+     */
+    private String detectSubWorkflowCycle(Long rootAgentId, Long currentTargetId, java.util.Set<Long> visiting) {
+        if (currentTargetId.equals(rootAgentId)) {
+            return "Agent " + rootAgentId + " → " + currentTargetId;
+        }
+        if (!visiting.add(currentTargetId)) {
+            return null;
+        }
+        WorkflowDefinition definition = agentVersionService.loadWorkflowDefinition(currentTargetId, false);
+        if (definition == null || definition.getNodes() == null) {
+            visiting.remove(currentTargetId);
+            return null;
+        }
+        for (com.lightbot.workflow.WorkflowNode node : definition.getNodes()) {
+            if (node.getType() != com.lightbot.enums.NodeType.APP_COMPONENT || node.getData() == null) {
+                continue;
+            }
+            Long nestedId = com.lightbot.workflow.WorkflowNodeDataUtils.parseLongId(
+                    node.getData().get("componentCode"));
+            if (nestedId == null) {
+                continue;
+            }
+            if (nestedId.equals(rootAgentId)) {
+                visiting.remove(currentTargetId);
+                return "Agent " + rootAgentId + " → ... → " + nestedId;
+            }
+            String nested = detectSubWorkflowCycle(rootAgentId, nestedId, visiting);
+            if (nested != null) {
+                visiting.remove(currentTargetId);
+                return "Agent " + currentTargetId + " → " + nested;
+            }
+        }
+        visiting.remove(currentTargetId);
+        return null;
     }
 
     /**

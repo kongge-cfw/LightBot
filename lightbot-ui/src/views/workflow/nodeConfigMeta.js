@@ -208,9 +208,11 @@ export const FIELD_HINTS = {
     groupStrategy: '多变量时的选取策略',
   },
   app_component: {
-    componentCode: '已发布组件唯一标识',
-    componentType: '引用工作流或智能体组件',
-    streamSwitch: '子组件是否流式返回',
+    componentCode: '选择已发布的 Workflow Agent（存储为 Agent ID）',
+    componentType: '当前仅支持工作流组件嵌套',
+    inputMappings: '子流程入参：key 为子流程变量名，value 支持 {{父流程变量}}',
+    outputMappings: '子流程出参写入父流程：key 为父流程变量名，value 引用子流程结果如 {{result}}',
+    streamSwitch: '子流程输出是否流式追加到对话',
   },
 }
 

@@ -104,6 +104,15 @@ watch(
 
 defineExpose({
   fitView: (opts) => fitView(opts ?? { padding: 0.2, includeHiddenNodes: true, duration: 300 }),
+  focusNodeById: (nodeId) => {
+    const node = props.nodes.find(n => n.id === nodeId)
+    if (!node?.position) return
+    const x = Number(node.position.x) || 0
+    const y = Number(node.position.y) || 0
+    try {
+      setCenter(x + 90, y + 40, { zoom: 1, duration: 300 })
+    } catch (_) { /* VueFlow 未就绪 */ }
+  },
 })
 </script>
 

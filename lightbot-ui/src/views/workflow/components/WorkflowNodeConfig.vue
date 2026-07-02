@@ -400,22 +400,68 @@
       </a-form-item>
     </template>
 
-    <!-- 应用组件 -->
+    <!-- 应用组件 / 子工作流 -->
     <template v-if="node.type === 'app_component'">
       <a-form-item label="组件类型">
-        <a-select v-model:value="node.data.componentType" @change="emitSync">
+        <a-select v-model:value="node.data.componentType" :disabled="readonly" @change="emitSync">
           <a-select-option value="workflow">工作流组件</a-select-option>
-          <a-select-option value="agent">智能体组件</a-select-option>
+          <a-select-option value="agent" disabled>智能体组件（暂未支持）</a-select-option>
         </a-select>
       </a-form-item>
-      <a-form-item label="组件标识" required>
-        <a-input v-model:value="node.data.componentCode" placeholder="已发布组件的 code" @change="emitSync" />
+      <a-form-item label="子工作流" required>
+        <a-select
+          v-model:value="node.data.componentCode"
+          show-search
+          allow-clear
+          :disabled="readonly"
+          placeholder="选择已发布的 Workflow Agent"
+          :filter-option="filterWorkflowAgentOption"
+          :loading="subWorkflowAgentsLoading"
+          @change="onSubWorkflowAgentChange"
+        >
+          <a-select-option
+            v-for="agent in publishedWorkflowAgents"
+            :key="agent.id"
+            :value="String(agent.id)"
+            :label="agent.name"
+          >
+            {{ agent.name }}
+            <span v-if="agent.version" class="sub-wf-version"> v{{ agent.version }}</span>
+          </a-select-option>
+        </a-select>
       </a-form-item>
-      <a-form-item label="组件名称">
-        <a-input v-model:value="node.data.componentName" placeholder="显示名称" @change="emitSync" />
+      <a-form-item v-if="node.data.componentName" label="显示名称">
+        <ConfigReadonlyValue v-if="readonly" :value="node.data.componentName" />
+        <a-input v-else v-model:value="node.data.componentName" placeholder="自动填充" @change="emitSync" />
+      </a-form-item>
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="输入参数映射" :tip="hint('app_component', 'inputMappings')" />
+        </template>
+        <div v-for="(row, idx) in appComponentInputMappings" :key="'sub-in-' + idx" class="param-row">
+          <a-input v-model:value="row.key" placeholder="参数名" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-button v-if="!readonly" type="text" danger @click="removeAppInputMapping(idx)"><DeleteOutlined /></a-button>
+        </div>
+        <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppInputMapping">
+          <PlusOutlined /> 添加入参
+        </a-button>
+      </a-form-item>
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="输出参数映射" :tip="hint('app_component', 'outputMappings')" />
+        </template>
+        <div v-for="(row, idx) in appComponentOutputMappings" :key="'sub-out-' + idx" class="param-row">
+          <a-input v-model:value="row.key" placeholder="写入父流程变量名" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" placeholder="{{result}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-button v-if="!readonly" type="text" danger @click="removeAppOutputMapping(idx)"><DeleteOutlined /></a-button>
+        </div>
+        <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppOutputMapping">
+          <PlusOutlined /> 添加出参
+        </a-button>
       </a-form-item>
       <a-form-item label="流式输出">
-        <a-switch v-model:checked="node.data.streamSwitch" @change="emitSync" />
+        <a-switch v-model:checked="node.data.streamSwitch" :disabled="readonly" @change="emitSync" />
       </a-form-item>
     </template>
 
@@ -720,8 +766,11 @@
 
 <script setup>
 import { computed, watch, ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { DeleteOutlined, PlusOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons-vue'
+import { getAgents } from '../../../api/agent'
+import { getWorkflowIoSchema } from '../../../api/workflow'
 import { getMcpServers, getMcpServerTools, refreshMcpServerTools } from '../../../api/mcp'
 import { getProvidersWithModels } from '../../../api/modelProvider'
 import ShortMemoryForm from './ShortMemoryForm.vue'
@@ -765,6 +814,100 @@ const emit = defineEmits([
   'knowledge-change',
   'tool-change',
 ])
+
+const route = useRoute()
+const publishedWorkflowAgents = ref([])
+const subWorkflowAgentsLoading = ref(false)
+
+function ensureAppComponentMappings() {
+  if (props.node?.type !== 'app_component' || !props.node?.data) return
+  if (!Array.isArray(props.node.data.inputMappings) || !props.node.data.inputMappings.length) {
+    props.node.data.inputMappings = [
+      { key: 'query', value: '{{query}}' },
+      { key: 'input', value: '{{input}}' },
+    ]
+  }
+  if (!Array.isArray(props.node.data.outputMappings) || !props.node.data.outputMappings.length) {
+    props.node.data.outputMappings = [{ key: 'result', value: '{{result}}' }]
+  }
+}
+
+const appComponentInputMappings = computed(() => {
+  ensureAppComponentMappings()
+  return props.node?.data?.inputMappings || []
+})
+
+const appComponentOutputMappings = computed(() => {
+  ensureAppComponentMappings()
+  return props.node?.data?.outputMappings || []
+})
+
+async function loadPublishedWorkflowAgents() {
+  subWorkflowAgentsLoading.value = true
+  try {
+    const res = await getAgents({ pageNum: 1, pageSize: 200, agentType: 'workflow' })
+    const records = res.data?.records || res.data || []
+    const currentId = String(route.params.agentId || '')
+    publishedWorkflowAgents.value = records.filter(
+      a => String(a.id) !== currentId && Number(a.version) > 0,
+    )
+  } catch {
+    publishedWorkflowAgents.value = []
+  } finally {
+    subWorkflowAgentsLoading.value = false
+  }
+}
+
+function filterWorkflowAgentOption(input, option) {
+  const label = option.label ?? option.children ?? ''
+  return String(label).toLowerCase().includes(String(input).toLowerCase())
+}
+
+async function onSubWorkflowAgentChange(agentId) {
+  if (!agentId) {
+    props.node.data.componentName = ''
+    emitSync()
+    return
+  }
+  const agent = publishedWorkflowAgents.value.find(a => String(a.id) === String(agentId))
+  if (agent) {
+    props.node.data.componentName = agent.name
+  }
+  try {
+    const res = await getWorkflowIoSchema(agentId)
+    const schema = res.data || {}
+    props.node.data.inputMappings = (schema.inputs || []).map(i => ({
+      key: i.key,
+      value: i.key === 'query' ? '{{query}}' : (i.key === 'input' ? '{{input}}' : `{{${i.key}}}`),
+    }))
+    props.node.data.outputMappings = [{ key: 'result', value: '{{result}}' }]
+    emitSync()
+  } catch (e) {
+    message.warning(e.message || '加载子工作流参数失败')
+  }
+}
+
+function addAppInputMapping() {
+  ensureAppComponentMappings()
+  props.node.data.inputMappings.push({ key: '', value: '' })
+  emitSync()
+}
+
+function removeAppInputMapping(idx) {
+  props.node.data.inputMappings.splice(idx, 1)
+  emitSync()
+}
+
+function addAppOutputMapping() {
+  ensureAppComponentMappings()
+  props.node.data.outputMappings.push({ key: '', value: '{{result}}' })
+  emitSync()
+}
+
+function removeAppOutputMapping(idx) {
+  props.node.data.outputMappings.splice(idx, 1)
+  emitSync()
+}
 
 const mcpServers = ref([])
 const mcpServersLoading = ref(false)
@@ -1136,6 +1279,10 @@ function resolveMcpServerIdFromName() {
 
 onMounted(async () => {
   if (props.readonly) await loadModelOptionsForDisplay()
+  if (props.node?.type === 'app_component') {
+    await loadPublishedWorkflowAgents()
+    ensureAppComponentMappings()
+  }
   if (props.node?.type === 'mcp') {
     await loadMcpServers()
     resolveMcpServerIdFromName()
@@ -1162,6 +1309,10 @@ watch(
 watch(
   () => props.node?.id,
   async () => {
+    if (props.node?.type === 'app_component') {
+      await loadPublishedWorkflowAgents()
+      ensureAppComponentMappings()
+    }
     if (props.node?.type !== 'mcp') return
     if (!mcpServers.value.length) await loadMcpServers()
     resolveMcpServerIdFromName()

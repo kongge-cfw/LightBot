@@ -2025,13 +2025,7 @@ function clearReplayNodeStatus() {
 
 function focusTestHistoryNode(nodeId) {
   if (!nodeId) return
-  try {
-    testHistoryViewerRef.value?.fitView?.({
-      nodes: [nodeId],
-      padding: 0.45,
-      duration: 300,
-    })
-  } catch (_) { /* VueFlow 未就绪 */ }
+  testHistoryViewerRef.value?.focusNodeById?.(nodeId)
 }
 
 function setReplayNodeStatus(nodeId, status) {
@@ -2204,7 +2198,7 @@ function validateWorkflow(showToast = true) {
       if (!n.data.inputVariable) errors.push({ nodeId: n.id, field: 'inputVariable', message: '请配置输入变量' })
     }
     if (n.type === 'app_component' && !n.data.componentCode?.trim()) {
-      errors.push({ nodeId: n.id, field: 'componentCode', message: '请填写组件标识' })
+      errors.push({ nodeId: n.id, field: 'componentCode', message: '请选择子工作流' })
     }
   })
 

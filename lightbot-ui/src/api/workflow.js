@@ -55,3 +55,7 @@ export function deleteWorkflowTestRun(agentId, runId) {
 export function clearWorkflowTestRuns(agentId) {
   return request.delete(`/agents/${agentId}/workflow/test-runs`)
 }
+
+export function getWorkflowIoSchema(agentId) {
+  return request.get(`/agents/${agentId}/workflow/io-schema`)
+}

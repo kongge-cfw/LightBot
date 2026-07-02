@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.dto.WorkflowTestResultVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.Message;
+import com.lightbot.enums.AgentType;
 import com.lightbot.enums.NodeType;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
@@ -42,6 +43,7 @@ public class WorkflowExecutorService {
     private final MessageService messageService;
     private final ObjectMapper objectMapper;
     private final WorkflowRunStateUtil workflowRunStateUtil;
+    private static final int MAX_SUB_WORKFLOW_DEPTH = 5;
     private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([^}]+)}}");
 
     /**
@@ -119,6 +121,7 @@ public class WorkflowExecutorService {
                 .onStreamChunk(onStreamChunk)
                 .workflowEvents(workflowEvents)
                 .onEvent(onEvent)
+                .subWorkflowDepth(0)
                 .build();
 
         // 2. 注入全局配置中的会话变量默认值
@@ -926,6 +929,97 @@ public class WorkflowExecutorService {
                 .output(output)
                 .nodeEvents(events)
                 .usedDraft(true)
+                .build();
+    }
+
+    /**
+     * 嵌套执行已发布子工作流（app_component 节点调用）
+     *
+     * @param parentContext  父流程上下文
+     * @param targetAgentId  目标 Workflow Agent ID
+     * @param inputVariables 子流程入参
+     * @param userInput      子流程用户输入（可为空）
+     * @return 子流程变量快照与输出
+     */
+    public SubWorkflowExecutionResult executeSubWorkflow(NodeExecutionContext parentContext,
+                                                         Long targetAgentId,
+                                                         Map<String, Object> inputVariables,
+                                                         String userInput) {
+        if (parentContext.getSubWorkflowDepth() >= MAX_SUB_WORKFLOW_DEPTH) {
+            throw new IllegalStateException("子工作流嵌套超过最大深度 " + MAX_SUB_WORKFLOW_DEPTH);
+        }
+        if (targetAgentId == null) {
+            throw new IllegalArgumentException("未指定子工作流 Agent");
+        }
+        if (targetAgentId.equals(parentContext.getAgentId())) {
+            throw new IllegalArgumentException("子工作流不能引用自身");
+        }
+
+        Agent targetAgent = agentService.getById(targetAgentId);
+        if (targetAgent == null) {
+            throw new IllegalArgumentException("子工作流 Agent 不存在: " + targetAgentId);
+        }
+        if (targetAgent.getAgentType() != AgentType.WORKFLOW) {
+            throw new IllegalArgumentException("目标 Agent 不是工作流类型");
+        }
+        Integer publishedVersion = targetAgent.getVersion();
+        if (publishedVersion == null || publishedVersion <= 0) {
+            throw new IllegalStateException("子工作流尚未发布，无法调用");
+        }
+
+        WorkflowDefinition subWorkflow = agentVersionService.loadWorkflowDefinition(targetAgentId, false);
+        if (subWorkflow == null || subWorkflow.getNodes() == null || subWorkflow.getNodes().isEmpty()) {
+            throw new IllegalStateException("子工作流定义为空");
+        }
+
+        String subUserInput = userInput != null ? userInput : "";
+        Map<String, Object> subVars = new LinkedHashMap<>();
+        if (inputVariables != null) {
+            subVars.putAll(inputVariables);
+        }
+        subVars.putIfAbsent("input", subUserInput);
+        subVars.putIfAbsent("query", subVars.get("input"));
+
+        NodeExecutionContext subContext = NodeExecutionContext.builder()
+                .agentId(targetAgentId)
+                .sessionId(parentContext.getSessionId())
+                .userInput(subUserInput)
+                .agent(targetAgent)
+                .workflow(subWorkflow)
+                .variables(subVars)
+                .nodeOutputs(new LinkedHashMap<>())
+                .workflowEvents(parentContext.getWorkflowEvents())
+                .onEvent(parentContext.getOnEvent())
+                .onStreamChunk(parentContext.getOnStreamChunk())
+                .parentNodeId(parentContext.getCurrentNodeId())
+                .subWorkflowDepth(parentContext.getSubWorkflowDepth() + 1)
+                .build();
+
+        applyGlobalConfig(subContext, subWorkflow.getGlobalConfig());
+
+        String startNodeId = subWorkflow.getStartNodeId();
+        if (startNodeId == null) {
+            throw new IllegalStateException("子工作流缺少开始节点");
+        }
+
+        LoopOutcome outcome = runExecutionLoop(
+                targetAgent, subWorkflow, subContext, startNodeId, 0,
+                new StringBuilder(), parentContext.getWorkflowEvents(),
+                parentContext.getOnEvent(), serializeWorkflow(subWorkflow),
+                ExecutionOptions.chat());
+
+        if (outcome.isSuspended()) {
+            throw new IllegalStateException("嵌套子工作流不支持人工确认挂起，请在子流程中移除 confirm 节点");
+        }
+
+        String output = subContext.getVariables().containsKey("result")
+                ? String.valueOf(subContext.getVariables().get("result"))
+                : outcome.getStreamResult();
+
+        return SubWorkflowExecutionResult.builder()
+                .output(output)
+                .variables(new LinkedHashMap<>(subContext.getVariables()))
+                .nodeOutputs(new LinkedHashMap<>(subContext.getNodeOutputs()))
                 .build();
     }
 

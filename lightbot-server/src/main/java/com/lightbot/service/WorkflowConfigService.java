@@ -40,6 +40,11 @@ public interface WorkflowConfigService {
     List<String> validate(Long agentId, WorkflowGraphDTO graph);
 
     /**
+     * 获取已发布工作流的 IO Schema（子工作流参数映射）
+     */
+    Map<String, Object> getIoSchema(Long agentId);
+
+    /**
      * 版本列表
      */
     List<WorkflowVersionVO> listVersions(Long agentId);
