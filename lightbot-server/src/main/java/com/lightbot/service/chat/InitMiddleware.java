@@ -319,23 +319,37 @@ public class InitMiddleware implements ChatMiddleware {
         }
         boolean agentChanged = !agentId.equals(session.getAgentId());
 
-        // 确定最终要存的 agentVersionId：
-        // - 有 agentVersionId（发布版本）→ 直接存
-        // - configVersion=0 且 agentVersionId 为空（主动切到草稿）→ 查询草稿行 ID 并存入
-        // - 都为空（新会话首次发消息）→ 不更新版本
-        boolean isDraft = configVersion != null && configVersion == 0;
-        Long targetVersionId = agentVersionId;
-        if (targetVersionId == null && isDraft) {
-            targetVersionId = agentVersionService.getDraftVersionId(agentId);
+        Long targetVersionId = resolveSessionAgentVersionId(agentId, agentVersionId, configVersion);
+        if (targetVersionId == null) {
+            if (agentChanged) {
+                chatSessionService.updateSessionAgent(sessionId, agentId, null);
+                log.info("[Chat] 会话智能体已更新（无版本快照）: sessionId={}, agentId={}", sessionId, agentId);
+            }
+            return;
         }
 
-        boolean versionChanged = targetVersionId != null;
-        boolean needUpdate = agentChanged || (versionChanged && !java.util.Objects.equals(targetVersionId, session.getAgentVersionId()));
+        boolean needUpdate = agentChanged || !java.util.Objects.equals(targetVersionId, session.getAgentVersionId());
         if (needUpdate) {
             chatSessionService.updateSessionAgent(sessionId, agentId, targetVersionId);
             log.info("[Chat] 会话智能体/版本已更新: sessionId={}, agentId={}, agentVersionId={}",
                     sessionId, agentId, targetVersionId);
         }
+    }
+
+    /**
+     * 解析应写入会话的 agent_version.id：与 configVersion 保持一致，避免前端 agentVersionId 与版本号不一致。
+     */
+    private Long resolveSessionAgentVersionId(Long agentId, Long agentVersionId, Integer configVersion) {
+        if (configVersion != null && configVersion == 0) {
+            return agentVersionService.getDraftVersionId(agentId);
+        }
+        if (agentVersionId != null) {
+            return agentVersionId;
+        }
+        if (configVersion != null && configVersion > 0) {
+            return agentVersionService.getPublishedVersionId(agentId, configVersion);
+        }
+        return null;
     }
 
 }

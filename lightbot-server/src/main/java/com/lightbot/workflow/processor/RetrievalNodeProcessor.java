@@ -18,6 +18,7 @@ import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -103,6 +104,7 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
         }
 
         String retrievalText = "";
+        List<Map<String, Object>> retrievalChunks = new ArrayList<>();
         try {
             if (embeddingModel == null) {
                 log.warn("[RetrievalNodeProcessor] EmbeddingModel 未配置，无法生成查询向量");
@@ -113,6 +115,14 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
             List<Map<String, Object>> hits = embeddingService.searchSimilarSql(knowledgeId, vector, topK, threshold, searchParams);
             log.info("[RetrievalNodeProcessor] 检索完成: knowledgeId={}, topK={}, threshold={}, 命中数={}",
                     knowledgeId, topK, threshold, hits.size());
+            for (Map<String, Object> hit : hits) {
+                Map<String, Object> chunk = new HashMap<>();
+                chunk.put("content", hit.getOrDefault("content", ""));
+                chunk.put("score", hit.get("score"));
+                chunk.put("documentId", hit.get("document_id"));
+                chunk.put("documentTitle", hit.get("document_title"));
+                retrievalChunks.add(chunk);
+            }
             retrievalText = hits.stream()
                     .map(h -> String.valueOf(h.getOrDefault("content", "")))
                     .filter(s -> !s.isBlank())
@@ -124,6 +134,7 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
 
         Map<String, Object> outputs = new HashMap<>();
         outputs.put("retrievalResult", retrievalText);
+        outputs.put("retrievalChunks", retrievalChunks);
         outputs.put("input", query);
 
         // streamContent 不设置，检索结果仅作为 outputs 传给下游 LLM 节点

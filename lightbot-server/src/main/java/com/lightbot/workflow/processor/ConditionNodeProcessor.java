@@ -8,6 +8,7 @@ import com.lightbot.workflow.WorkflowEdge;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -49,10 +50,7 @@ public class ConditionNodeProcessor implements NodeProcessor {
                         String next = resolveTargetByHandle(context, handle);
                         log.info("[ConditionNodeProcessor] 条件组命中: nodeId={}, handle={}, next={}",
                                 context.getCurrentNodeId(), handle, next);
-                        return NodeExecutionResult.builder()
-                                .nextNodeId(next)
-                                .finished(false)
-                                .build();
+                        return routeResult(context, next, handle, resolveGroupLabel(group));
                     }
                 }
                 // 否则分支：out_c 或最后一条出边
@@ -60,10 +58,7 @@ public class ConditionNodeProcessor implements NodeProcessor {
                 if (elseNext == null) {
                     elseNext = resolveDefaultOutEdge(context);
                 }
-                return NodeExecutionResult.builder()
-                        .nextNodeId(elseNext)
-                        .finished(false)
-                        .build();
+                return routeResult(context, elseNext, "out_c", "否则");
             }
         }
 
@@ -86,20 +81,43 @@ public class ConditionNodeProcessor implements NodeProcessor {
                         if (target == null || target.isBlank()) {
                             target = resolveTargetByHandle(context, handle);
                         }
-                        return NodeExecutionResult.builder()
-                                .nextNodeId(target)
-                                .finished(false)
-                                .build();
+                        return routeResult(context, target, handle, branch.get("label") != null
+                                ? branch.get("label").toString() : handle);
                     }
                 }
             }
         }
 
         String defaultNext = resolveDefaultOutEdge(context);
+        return routeResult(context, defaultNext, null, "默认");
+    }
+
+    private NodeExecutionResult routeResult(NodeExecutionContext context, String nextNodeId,
+                                          String matchedHandle, String matchedGroupLabel) {
+        Map<String, Object> outputs = new HashMap<>();
+        if (matchedHandle != null && !matchedHandle.isBlank()) {
+            outputs.put("matchedHandle", matchedHandle);
+        }
+        if (matchedGroupLabel != null && !matchedGroupLabel.isBlank()) {
+            outputs.put("matchedGroupLabel", matchedGroupLabel);
+        }
         return NodeExecutionResult.builder()
-                .nextNodeId(defaultNext)
+                .nextNodeId(nextNodeId)
+                .outputs(outputs)
                 .finished(false)
                 .build();
+    }
+
+    private String resolveGroupLabel(Map<String, Object> group) {
+        if (group == null) {
+            return null;
+        }
+        Object label = group.get("label");
+        if (label != null && !String.valueOf(label).isBlank()) {
+            return String.valueOf(label);
+        }
+        Object handle = group.get("sourceHandle");
+        return handle != null ? String.valueOf(handle) : null;
     }
 
     @SuppressWarnings("unchecked")

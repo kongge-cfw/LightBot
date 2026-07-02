@@ -102,6 +102,8 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
         Map<String, Object> outputs = new HashMap<>();
         outputs.put("output", result);
         outputs.put("mcpResult", result);
+        outputs.put("toolName", toolName);
+        outputs.put("mcpServerName", mcpServer.getName());
 
         return NodeExecutionResult.builder()
                 .nextNodeId(resolveNextNodeId(context))

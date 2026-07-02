@@ -125,7 +125,9 @@ public class WorkflowMiddleware implements ChatMiddleware {
                         Map<String, Object> ev = workflowEvents.get(i);
                         if ("workflow_suspended".equals(ev.get("type")) && ev.get("runId") != null) {
                             metadataMap.put("workflowRunId", ev.get("runId"));
-                            break;
+                        }
+                        if ("workflow_confirm_required".equals(ev.get("type")) && ev.get("confirmForm") != null) {
+                            metadataMap.put("workflowConfirmForm", ev.get("confirmForm"));
                         }
                     }
                 }

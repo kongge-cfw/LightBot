@@ -3270,7 +3270,8 @@ async function openVersionDrawer() {
       loadSubAgentList(),
       loadSkillList(),
       listAgentVersions(agentId).then(res => {
-        versionList.value = res.data || []
+        const payload = res.data || {}
+        versionList.value = Array.isArray(payload) ? payload : (payload.versions || [])
       })
     ])
   } catch (e) {

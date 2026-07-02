@@ -65,6 +65,10 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
         Map<String, Object> subVars = subResult.getVariables() != null
                 ? subResult.getVariables() : Map.of();
         Map<String, Object> outputs = applyOutputMappings(nodeData, subVars, subResult.getOutput());
+        String componentName = WorkflowNodeDataUtils.parseString(nodeData.get("componentName"));
+        if (componentName != null && !componentName.isBlank()) {
+            outputs.put("componentName", componentName);
+        }
 
         String streamContent = Boolean.TRUE.equals(nodeData.get("streamSwitch"))
                 ? subResult.getOutput() : null;

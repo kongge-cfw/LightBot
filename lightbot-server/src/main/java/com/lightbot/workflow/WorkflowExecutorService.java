@@ -423,7 +423,8 @@ public class WorkflowExecutorService {
         if (nextNodeId != null) {
             completeEvent.put("nextNodeId", nextNodeId);
         }
-        if (node != null && (node.getType() == NodeType.LOOP || node.getType() == NodeType.BATCH)) {
+        if (node != null && (node.getType() == NodeType.LOOP || node.getType() == NodeType.BATCH
+                || node.getType() == NodeType.APP_COMPONENT)) {
             completeEvent.put("isContainer", true);
         }
         String detail = buildNodeDetail(node, nodeResult, nodeSuccess, completeMessage, nodeTypeCode);
@@ -441,6 +442,12 @@ public class WorkflowExecutorService {
         }
         if (nodeResult != null && nodeResult.getTraceData() != null && !nodeResult.getTraceData().isEmpty()) {
             completeEvent.put("traceData", nodeResult.getTraceData());
+        }
+        if (nodeResult != null && nodeResult.getOutputs() != null) {
+            Object toolName = nodeResult.getOutputs().get("toolName");
+            if (toolName != null && !String.valueOf(toolName).isBlank()) {
+                completeEvent.put("toolName", toolName);
+            }
         }
         return completeEvent;
     }

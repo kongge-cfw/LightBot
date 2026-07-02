@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
+import com.lightbot.dto.AgentVersionListVO;
 import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.WorkflowVersionVO;
 import com.lightbot.entity.Agent;
@@ -167,6 +168,21 @@ public class AgentVersionServiceImpl implements AgentVersionService {
                     .build());
         }
         return list;
+    }
+
+    @Override
+    public AgentVersionListVO listVersionsWithDraft(Long agentId) {
+        requireAgent(agentId);
+        return AgentVersionListVO.builder()
+                .draftVersionId(getDraftVersionId(agentId))
+                .versions(listPublishedVersions(agentId))
+                .build();
+    }
+
+    @Override
+    public Long getPublishedVersionId(Long agentId, Integer version) {
+        AgentVersion row = requirePublishedRow(agentId, version);
+        return row.getId();
     }
 
     @Override

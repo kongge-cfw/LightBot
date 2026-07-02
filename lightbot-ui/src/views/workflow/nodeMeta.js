@@ -35,7 +35,7 @@ export const NODE_META = {
   output: { title: '流程输出', color: '#0891b2', icon: ExportOutlined, desc: '输出流程中间结果' },
   variable_handle: { title: '变量处理', color: '#db2777', icon: FunctionOutlined, desc: '对变量进行模板/分组处理' },
   parameter_extractor: { title: '参数提取', color: '#e11d48', icon: FilterOutlined, desc: '从文本提取结构化参数' },
-  app_component: { title: '应用组件', color: '#2563eb', icon: AppstoreOutlined, desc: '引用已发布的子工作流并映射入参/出参' }
+  app_component: { title: '应用组件', color: '#2563eb', icon: AppstoreOutlined, desc: '引用已发布的子工作流' }
 }
 
 /** 节点库分组（细致分类） */

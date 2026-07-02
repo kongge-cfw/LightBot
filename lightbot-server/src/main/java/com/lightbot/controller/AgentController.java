@@ -6,6 +6,7 @@ import com.lightbot.common.Result;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentPublishRequest;
 import com.lightbot.dto.AgentSaveRequest;
+import com.lightbot.dto.AgentVersionListVO;
 import com.lightbot.dto.MentionOptionsVO;
 import com.lightbot.dto.WorkflowVersionVO;
 import com.lightbot.dto.WorkflowExampleVO;
@@ -278,8 +279,8 @@ public class AgentController {
 
     @Operation(summary = "已发布版本列表")
     @GetMapping("/{id}/versions")
-    public Result<List<WorkflowVersionVO>> listVersions(@PathVariable Long id) {
-        return Result.ok(agentVersionService.listPublishedVersions(id));
+    public Result<AgentVersionListVO> listVersions(@PathVariable Long id) {
+        return Result.ok(agentVersionService.listVersionsWithDraft(id));
     }
 
     @Operation(summary = "获取已发布版本配置详情")

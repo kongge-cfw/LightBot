@@ -787,6 +787,7 @@ import MarkdownPreview from '../components/MarkdownPreview.vue'
 import ToolCallsGroupComponent from '../components/ToolCallsGroupComponent.vue'
 import WorkflowNodesGroupComponent from '../components/WorkflowNodesGroupComponent.vue'
 import WorkflowConfirmForm from '../components/WorkflowConfirmForm.vue'
+import { resolveWorkflowConfirmPending } from '../components/workflow/workflowStepUtils.js'
 import { resumeWorkflow } from '../api/workflow'
 import AgentCapabilityPanel from '../components/AgentCapabilityPanel.vue'
 import ChatAttachmentPreview from '../components/ChatAttachmentPreview.vue'
@@ -1413,6 +1414,7 @@ function parseMessage(m) {
 
   const roleRaw = m.role?.code || m.role
   const role = roleRaw != null ? String(roleRaw).toLowerCase() : ''
+  const workflowConfirmPending = resolveWorkflowConfirmPending(workflowEvents, metadata)
 
   return {
     role,
@@ -1425,6 +1427,7 @@ function parseMessage(m) {
     _mentions: Array.isArray(metadata?.mentions) ? metadata.mentions : [],
     _toolEvents: toolEvents,
     _workflowEvents: workflowEvents,
+    _workflowConfirmPending: workflowConfirmPending,
     _toolBlockOffsets: toolBlockOffsets,
     _toolBlocksDone: [],
     _toolExpanded: false,
@@ -2512,9 +2515,12 @@ function applyToolMetadata(msg, meta) {
   if (meta.toolEvents?.length) {
     msg._toolEvents = meta.toolEvents
   }
-  // 流式阶段已实时推送的 workflow 事件不再被 metadata 整体替换，避免节点列表闪跳
   if (meta.workflowEvents?.length && !msg._workflowEvents?.length) {
     msg._workflowEvents = meta.workflowEvents
+  }
+  const pending = resolveWorkflowConfirmPending(msg._workflowEvents, meta)
+  if (pending) {
+    msg._workflowConfirmPending = pending
   }
   if (meta.toolBlockOffsets?.length) {
     msg._toolBlockOffsets = meta.toolBlockOffsets

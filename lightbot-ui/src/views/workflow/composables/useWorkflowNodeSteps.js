@@ -1,12 +1,12 @@
 import { computed } from 'vue'
 
 function isContainerNodeType(type) {
-  return type === 'loop' || type === 'batch'
+  return type === 'loop' || type === 'batch' || type === 'app_component'
 }
 
 /**
  * 将 workflow nodeEvents 合并为时间线步骤
- * @param {import('vue').Ref|import('vue').ComputedRef|Array} nodeEventsSource
+ * @param {import('vue').Ref|import('vue').ComputedRef|Array|Function} nodeEventsSource
  */
 export function useWorkflowNodeSteps(nodeEventsSource) {
   const nodeSteps = computed(() => {
@@ -29,11 +29,13 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
           nodeLabel: e.nodeLabel,
           input: e.input,
           stepIndex: e.stepIndex,
+          stepKey: `start_${e.stepIndex ?? steps.length}_${e.nodeId}`,
           status: 'running',
           parentNodeId: e.parentNodeId || null,
           iterationIndex: e.iterationIndex ?? null,
           isContainer: isContainerStart,
           children: isContainerStart ? [] : undefined,
+          toolName: e.toolName || null,
         }
         if (e.parentNodeId && containerStack.length > 0) {
           const parent = containerStack[containerStack.length - 1]
@@ -53,6 +55,7 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
             nodeType: e.nodeType,
             nodeLabel: e.nodeLabel,
             stepIndex: e.stepIndex,
+            stepKey: `complete_${e.stepIndex ?? steps.length}_${e.nodeId}`,
             status: 'pending',
             parentNodeId: e.parentNodeId || null,
             iterationIndex: e.iterationIndex ?? null,
@@ -71,7 +74,9 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         step.durationMs = e.durationMs
         step.success = e.success
         step.outputs = e.outputs
+        step.traceData = e.traceData
         step.nextNodeId = e.nextNodeId
+        step.toolName = e.toolName ?? step.toolName
         if (e.suspended) {
           step.status = 'suspended'
         } else {
@@ -82,6 +87,12 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         if (e.stepIndex != null) stepByIndex.set(e.stepIndex, step)
         if (step.isContainer && containerStack.length > 0 && containerStack[containerStack.length - 1].nodeId === e.nodeId) {
           containerStack.pop()
+        }
+      } else if (e.type === 'workflow_confirm_required' && e.nodeId) {
+        const step = runningByNodeId.get(e.nodeId) || stepByIndex.get(e.stepIndex)
+        if (step) {
+          step.confirmForm = e.confirmForm
+          step.status = 'suspended'
         }
       }
     }
@@ -120,3 +131,5 @@ export function formatTestDuration(ms) {
   if (ms < 1000) return `${ms}ms`
   return `${(ms / 1000).toFixed(1)}s`
 }
+
+export { isContainerNodeType }

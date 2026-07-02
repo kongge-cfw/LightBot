@@ -1,5 +1,6 @@
 package com.lightbot.service;
 
+import com.lightbot.dto.AgentVersionListVO;
 import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.WorkflowVersionVO;
 import com.lightbot.entity.Agent;
@@ -23,6 +24,20 @@ public interface AgentVersionService {
     Map<String, Object> publishWorkflow(Long agentId, WorkflowGraphDTO graph);
 
     List<WorkflowVersionVO> listPublishedVersions(Long agentId);
+
+    /**
+     * 已发布版本列表 + 草稿快照 ID（无发布版本时仍返回 draftVersionId）
+     */
+    AgentVersionListVO listVersionsWithDraft(Long agentId);
+
+    /**
+     * 按版本号获取已发布快照主键 ID
+     *
+     * @param agentId Agent ID
+     * @param version 发布版本号（&gt;0）
+     * @return agent_version.id
+     */
+    Long getPublishedVersionId(Long agentId, Integer version);
 
     Map<String, Object> getPublishedVersionGraph(Long agentId, Integer version);
 

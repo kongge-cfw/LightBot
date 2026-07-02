@@ -15,7 +15,7 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
   const currentAgent = ref(null)
   const chatCapabilities = ref({})
   const selectedConfigVersion = ref(0)
-  /** 当前选中版本的 agent_version.id（主键），用于会话持久化，草稿时为 null */
+  /** 当前选中版本的 agent_version.id（主键），草稿/发布版本均持久化到会话 */
   const selectedAgentVersionId = ref(null)
   const configVersionOptions = ref([])
 
@@ -107,9 +107,13 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
     }
     try {
       const res = await listAgentVersions(agentId)
-      const versions = res.data || []
-      const draftRow = versions.find(v => v.draftVersionId)
-      const draftVersionId = draftRow?.draftVersionId ? String(draftRow.draftVersionId) : null
+      const payload = res.data || {}
+      const versions = Array.isArray(payload) ? payload : (payload.versions || [])
+      let draftVersionId = payload.draftVersionId != null ? String(payload.draftVersionId) : null
+      if (!draftVersionId) {
+        const draftRow = versions.find(v => v.draftVersionId)
+        draftVersionId = draftRow?.draftVersionId ? String(draftRow.draftVersionId) : null
+      }
       const opts = [{
         value: 0,
         versionId: draftVersionId,

@@ -67,6 +67,27 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         outputs.putIfAbsent("toolResult", toolVars.get("toolResult"));
         outputs.putIfAbsent("output", rawResult);
         outputs.putIfAbsent("toolResultText", rawResult);
+        String toolName = WorkflowNodeDataUtils.parseString(nodeData.get("toolName"));
+        String displayName = WorkflowNodeDataUtils.parseString(nodeData.get("label"));
+        try {
+            var toolEntity = toolService.getById(toolId);
+            if (toolEntity != null) {
+                if (toolName == null || toolName.isBlank()) {
+                    toolName = toolEntity.getName();
+                }
+                if (displayName == null || displayName.isBlank()) {
+                    displayName = toolEntity.getDisplayName() != null ? toolEntity.getDisplayName() : toolEntity.getName();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        if (toolName != null && !toolName.isBlank()) {
+            outputs.put("toolName", toolName);
+        }
+        outputs.put("toolId", String.valueOf(toolId));
+        if (displayName != null && !displayName.isBlank()) {
+            outputs.put("toolDisplayName", displayName);
+        }
 
         return NodeExecutionResult.builder()
                 .nextNodeId(resolveNextNodeId(context))
