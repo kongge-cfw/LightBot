@@ -16,6 +16,7 @@ import org.springframework.util.StringUtils;
 import com.lightbot.mapper.ToolMapper;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.ToolService;
+import com.lightbot.workflow.ToolIoSchemaUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.metadata.ToolMetadata;
@@ -435,6 +436,15 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
             }
         }
         return Map.of();
+    }
+
+    @Override
+    public Map<String, Object> getIoSchema(Long toolId) {
+        Tool tool = getById(toolId);
+        if (tool == null) {
+            throw new BizException(ErrorCode.TOOL_NOT_FOUND);
+        }
+        return ToolIoSchemaUtil.buildSchema(tool);
     }
 
     @Override

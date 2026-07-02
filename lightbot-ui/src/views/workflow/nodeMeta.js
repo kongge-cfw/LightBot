@@ -120,7 +120,7 @@ export function getDefaultNodeData(type) {
       inputVariable: '{{input}}',
       timeout: 30
     },
-    tool: { label: '工具调用', toolId: null, toolName: '', timeout: 30 },
+    tool: { label: '工具调用', toolId: null, toolName: '', timeout: 30, inputMappings: [{ key: 'query', value: '{{query}}' }], outputMappings: [{ key: 'toolResult', value: '{{output}}' }] },
     api: {
       label: 'HTTP API',
       url: '',

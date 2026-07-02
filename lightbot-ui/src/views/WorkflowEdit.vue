@@ -937,6 +937,14 @@ function migrateWorkflowNode(node) {
     }
     if (!data.output_params?.length) data.output_params = data.outputParams || defaults.output_params || [{ key: 'result', type: 'Array' }]
   }
+  if (node.type === 'tool') {
+    if (!Array.isArray(data.inputMappings)) {
+      data.inputMappings = defaults.inputMappings || [{ key: 'query', value: '{{query}}' }]
+    }
+    if (!Array.isArray(data.outputMappings)) {
+      data.outputMappings = defaults.outputMappings || [{ key: 'toolResult', value: '{{output}}' }]
+    }
+  }
   const migrated = migrateGroupNodeFields({ ...node, data })
   if (migrated.parentNode) {
     migrated.extent = migrated.extent || 'parent'

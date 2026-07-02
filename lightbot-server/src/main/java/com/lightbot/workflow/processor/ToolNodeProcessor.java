@@ -1,22 +1,24 @@
 package com.lightbot.workflow.processor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightbot.constant.ToolResultPrefixes;
 import com.lightbot.enums.NodeType;
 import com.lightbot.service.ToolService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowMappingUtils;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * 工具调用节点：执行已注册 Tool
+ * 工具调用节点：执行已注册 Tool，支持 inputMappings / outputMappings
  */
 @Slf4j
 @Component
@@ -32,7 +34,7 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
     }
 
     @Override
-  @SuppressWarnings("unchecked")
+    @SuppressWarnings("unchecked")
     public NodeExecutionResult execute(NodeExecutionContext context) {
         Map<String, Object> nodeData = context.getCurrentNodeData() != null
                 ? context.getCurrentNodeData() : Map.of();
@@ -42,7 +44,9 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
             throw new IllegalArgumentException("工具节点未配置 toolId");
         }
 
-        Map<String, Object> args = buildToolArgs(nodeData, context.getVariables());
+        Map<String, Object> variables = context.getVariables() != null
+                ? context.getVariables() : Map.of();
+        Map<String, Object> args = buildToolArgs(nodeData, variables, toolId);
         String argsJson;
         try {
             argsJson = objectMapper.writeValueAsString(args);
@@ -51,22 +55,36 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         }
 
         log.info("[ToolNodeProcessor] 执行工具: toolId={}, args={}", toolId, argsJson);
-        String result = toolService.testTool(toolId, argsJson);
+        String rawResult = toolService.testTool(toolId, argsJson);
+        if (ToolResultPrefixes.isError(rawResult)) {
+            throw new IllegalArgumentException("工具执行失败: " + summarizeError(rawResult));
+        }
 
-        Map<String, Object> outputs = new HashMap<>();
-        outputs.put("output", result);
-        outputs.put("toolResult", result);
+        Map<String, Object> toolVars = parseToolResultVars(rawResult);
+        Map<String, Object> outputs = WorkflowMappingUtils.applyOutputMappings(
+                nodeData, toolVars, "output", rawResult);
+        // 保留原始 JSON 与结构化对象，便于下游 LLM / script 使用
+        outputs.putIfAbsent("toolResult", toolVars.get("toolResult"));
+        outputs.putIfAbsent("output", rawResult);
+        outputs.putIfAbsent("toolResultText", rawResult);
 
         return NodeExecutionResult.builder()
                 .nextNodeId(resolveNextNodeId(context))
                 .outputs(outputs)
-                .streamContent(result)
+                .streamContent(rawResult)
                 .build();
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> buildToolArgs(Map<String, Object> nodeData, Map<String, Object> variables) {
-        Map<String, Object> args = new HashMap<>();
+    private Map<String, Object> buildToolArgs(Map<String, Object> nodeData,
+                                              Map<String, Object> variables,
+                                              Long toolId) {
+        Map<String, Object> args = WorkflowMappingUtils.buildInputArgs(nodeData, variables);
+        if (!args.isEmpty()) {
+            return args;
+        }
+
+        // 兼容旧版 inputParams 配置
         Object inputParams = nodeData.get("inputParams");
         if (inputParams == null) {
             inputParams = nodeData.get("input_params");
@@ -76,27 +94,65 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
                 if (!(item instanceof Map<?, ?> row)) {
                     continue;
                 }
-                String key = row.get("key") != null ? row.get("key").toString() : null;
-                if (key == null || key.isBlank()) {
+                String key = WorkflowNodeDataUtils.parseString(row.get("key"));
+                if (key == null) {
                     continue;
                 }
                 Object value = row.get("value");
-                args.put(key, value);
+                args.put(key, WorkflowMappingUtils.resolveTemplateValue(value, variables));
             }
         }
         if (args.isEmpty()) {
-            Long toolId = WorkflowNodeDataUtils.parseLongId(nodeData.get("toolId"));
-            if (toolId != null) {
-                Map<String, Object> example = toolService.getExampleParams(toolId);
-                if (example != null) {
-                    args.putAll(example);
-                }
+            Map<String, Object> example = toolService.getExampleParams(toolId);
+            if (example != null) {
+                args.putAll(example);
             }
-            if (variables != null) {
-                args.putIfAbsent("query", variables.get("query"));
-                args.putIfAbsent("input", variables.getOrDefault("input", variables.get("query")));
-            }
+            args.putIfAbsent("query", variables.get("query"));
+            args.putIfAbsent("input", variables.getOrDefault("input", variables.get("query")));
         }
         return args;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseToolResultVars(String rawResult) {
+        Map<String, Object> vars = new LinkedHashMap<>();
+        if (rawResult == null) {
+            return vars;
+        }
+        vars.put("output", rawResult);
+        vars.put("toolResultText", rawResult);
+        String trimmed = rawResult.trim();
+        if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) {
+            vars.put("toolResult", rawResult);
+            return vars;
+        }
+        try {
+            Object parsed = objectMapper.readValue(trimmed, Object.class);
+            vars.put("toolResult", parsed);
+            if (parsed instanceof Map<?, ?> map) {
+                map.forEach((k, v) -> vars.put(String.valueOf(k), v));
+            }
+        } catch (Exception e) {
+            log.warn("[ToolNodeProcessor] 工具结果 JSON 解析失败，按原始字符串处理: {}", e.getMessage());
+            vars.put("toolResult", rawResult);
+        }
+        return vars;
+    }
+
+    private String summarizeError(String rawResult) {
+        if (rawResult == null) {
+            return "未知错误";
+        }
+        String trimmed = rawResult.trim();
+        if (trimmed.contains("\"message\"")) {
+            try {
+                var node = objectMapper.readTree(trimmed);
+                if (node.has("message")) {
+                    return node.get("message").asText(trimmed);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return trimmed.length() > 200 ? trimmed.substring(0, 200) + "..." : trimmed;
     }
 }

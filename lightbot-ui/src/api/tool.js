@@ -24,6 +24,10 @@ export function testTool(id, args) {
   return request.post(`/tools/${id}/test`, { args })
 }
 
+export function getToolIoSchema(id) {
+  return request.get(`/tools/${id}/io-schema`)
+}
+
 export function getToolExampleParams(id) {
   return request.get(`/tools/${id}/example`)
 }

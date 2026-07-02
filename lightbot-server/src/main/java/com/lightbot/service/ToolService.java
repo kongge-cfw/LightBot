@@ -71,6 +71,14 @@ public interface ToolService extends IService<Tool> {
     Map<String, Object> getExampleParams(Long toolId);
 
     /**
+     * 获取工具 IO Schema（工作流 tool 节点参数映射）
+     *
+     * @param toolId 工具ID
+     * @return inputs / outputs 列表
+     */
+    Map<String, Object> getIoSchema(Long toolId);
+
+    /**
      * 清理悬空工具ID：过滤掉已被删除的工具
      *
      * @param toolIds 工具ID列表（字符串形式）

@@ -70,6 +70,12 @@ public class ToolController {
         return Result.ok();
     }
 
+    @Operation(summary = "获取Tool IO Schema（工作流参数映射）")
+    @GetMapping("/{id}/io-schema")
+    public Result<Map<String, Object>> getIoSchema(@PathVariable Long id) {
+        return Result.ok(toolService.getIoSchema(id));
+    }
+
     @Operation(summary = "测试执行Tool")
     @PostMapping("/{id}/test")
     public Result<String> testTool(@PathVariable Long id, @RequestBody Map<String, String> body) {

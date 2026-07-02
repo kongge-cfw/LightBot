@@ -266,6 +266,32 @@
       <a-form-item label="超时(秒)">
         <a-input-number v-model:value="node.data.timeout" :min="1" :max="120" :placeholder="'默认30'" @change="emitSync" />
       </a-form-item>
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="输入参数映射" :tip="hint('tool', 'inputMappings')" />
+        </template>
+        <div v-for="(row, idx) in toolInputMappings" :key="'tool-in-' + idx" class="param-row">
+          <a-input v-model:value="row.key" placeholder="工具参数名" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-button v-if="!readonly" type="text" danger @click="removeToolInputMapping(idx)"><DeleteOutlined /></a-button>
+        </div>
+        <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolInputMapping">
+          <PlusOutlined /> 添加入参
+        </a-button>
+      </a-form-item>
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="输出参数映射" :tip="hint('tool', 'outputMappings')" />
+        </template>
+        <div v-for="(row, idx) in toolOutputMappings" :key="'tool-out-' + idx" class="param-row">
+          <a-input v-model:value="row.key" placeholder="写入流程变量名" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" placeholder="{{answer}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-button v-if="!readonly" type="text" danger @click="removeToolOutputMapping(idx)"><DeleteOutlined /></a-button>
+        </div>
+        <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolOutputMapping">
+          <PlusOutlined /> 添加出参
+        </a-button>
+      </a-form-item>
     </template>
 
     <!-- 流程输入 -->
@@ -782,6 +808,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { DeleteOutlined, PlusOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { getAgents } from '../../../api/agent'
+import { getToolIoSchema } from '../../../api/tool'
 import { getWorkflowIoSchema } from '../../../api/workflow'
 import { getMcpServers, getMcpServerTools, refreshMcpServerTools } from '../../../api/mcp'
 import { getProvidersWithModels } from '../../../api/modelProvider'
@@ -843,6 +870,82 @@ function ensureAppComponentMappings() {
   if (!Array.isArray(props.node.data.outputMappings) || !props.node.data.outputMappings.length) {
     props.node.data.outputMappings = [{ key: 'result', value: '{{result}}' }]
   }
+}
+
+function ensureToolMappings() {
+  if (props.node?.type !== 'tool' || !props.node?.data) return
+  if (!Array.isArray(props.node.data.inputMappings)) {
+    props.node.data.inputMappings = [{ key: 'query', value: '{{query}}' }]
+  }
+  if (!Array.isArray(props.node.data.outputMappings)) {
+    props.node.data.outputMappings = [{ key: 'toolResult', value: '{{output}}' }]
+  }
+}
+
+const toolInputMappings = computed(() => {
+  ensureToolMappings()
+  return props.node?.data?.inputMappings || []
+})
+
+const toolOutputMappings = computed(() => {
+  ensureToolMappings()
+  return props.node?.data?.outputMappings || []
+})
+
+function buildDefaultToolInputValue(key) {
+  if (key === 'query') return '{{query}}'
+  if (key === 'input') return '{{input}}'
+  return `{{${key}}}`
+}
+
+async function applyToolIoSchema(toolId) {
+  if (!toolId || props.node?.type !== 'tool') return
+  try {
+    const res = await getToolIoSchema(toolId)
+    const schema = res.data || {}
+    const inputs = schema.inputs || []
+    const outputs = schema.outputs || []
+    props.node.data.inputMappings = inputs.length
+      ? inputs.map(i => ({
+          key: i.key,
+          value: buildDefaultToolInputValue(i.key),
+        }))
+      : [{ key: 'query', value: '{{query}}' }]
+    props.node.data.outputMappings = outputs.length
+      ? outputs.map(o => ({
+          key: o.key,
+          value: `{{${o.key}}}`,
+        }))
+      : [{ key: 'toolResult', value: '{{output}}' }]
+    if (!props.node.data.outputMappings.some(r => r.key === 'toolResult')) {
+      props.node.data.outputMappings.push({ key: 'toolResult', value: '{{output}}' })
+    }
+    emitSync()
+  } catch (e) {
+    message.warning(e.message || '加载工具参数 Schema 失败')
+  }
+}
+
+function addToolInputMapping() {
+  ensureToolMappings()
+  props.node.data.inputMappings.push({ key: '', value: '' })
+  emitSync()
+}
+
+function removeToolInputMapping(idx) {
+  props.node.data.inputMappings.splice(idx, 1)
+  emitSync()
+}
+
+function addToolOutputMapping() {
+  ensureToolMappings()
+  props.node.data.outputMappings.push({ key: '', value: '{{output}}' })
+  emitSync()
+}
+
+function removeToolOutputMapping(idx) {
+  props.node.data.outputMappings.splice(idx, 1)
+  emitSync()
 }
 
 const appComponentInputMappings = computed(() => {
@@ -1181,6 +1284,13 @@ function onKnowledgeChange(v) {
 function onToolChange(v) {
   if (props.readonly) return
   emit('tool-change', v)
+  if (!v) {
+    props.node.data.inputMappings = []
+    props.node.data.outputMappings = [{ key: 'toolResult', value: '{{output}}' }]
+    emitSync()
+    return
+  }
+  applyToolIoSchema(v)
 }
 
 function onModelChange(payload) {
@@ -1299,6 +1409,9 @@ onMounted(async () => {
     await loadPublishedWorkflowAgents()
     ensureAppComponentMappings()
   }
+  if (props.node?.type === 'tool') {
+    ensureToolMappings()
+  }
   if (props.node?.type === 'mcp') {
     await loadMcpServers()
     resolveMcpServerIdFromName()
@@ -1328,6 +1441,9 @@ watch(
     if (props.node?.type === 'app_component') {
       await loadPublishedWorkflowAgents()
       ensureAppComponentMappings()
+    }
+    if (props.node?.type === 'tool') {
+      ensureToolMappings()
     }
     if (props.node?.type !== 'mcp') return
     if (!mcpServers.value.length) await loadMcpServers()

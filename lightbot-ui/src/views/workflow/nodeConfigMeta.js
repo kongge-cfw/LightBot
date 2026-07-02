@@ -151,7 +151,9 @@ export const FIELD_HINTS = {
     threshold: '相似度低于该值的片段将被过滤',
   },
   tool: {
-    toolId: '选择系统或自定义工具，执行后结果写入变量',
+    toolId: '选择系统或自定义工具',
+    inputMappings: '工具入参：key 为工具参数名（来自 inputSchema），value 支持 {{流程变量}}',
+    outputMappings: '出参映射：key 为写入流程的变量名，value 引用工具返回 JSON 字段，如 {{answer}}、{{results}}、{{output}}',
   },
   script: {
     scriptLanguage: '脚本运行语言，影响语法高亮与执行引擎（Java 写 run 方法体，java.util.* 等已自动导入）',
@@ -309,8 +311,18 @@ export const NODE_EXAMPLES = {
   },
   tool: {
     title: '工具调用节点',
-    summary: '执行平台已注册工具（搜索、计算等）。',
-    example: { label: '网页搜索', toolId: '1', toolName: 'web_search' },
+    summary: '执行平台已注册工具；入参/出参由 Tool Schema 驱动，支持自定义 {{变量}} 映射。',
+    example: {
+      label: '网页搜索',
+      toolId: '1',
+      toolName: 'web_search',
+      inputMappings: [{ key: 'query', value: '{{query}}' }, { key: 'maxResults', value: '5' }],
+      outputMappings: [
+        { key: 'search_answer', value: '{{answer}}' },
+        { key: 'search_results', value: '{{results}}' },
+        { key: 'toolResult', value: '{{output}}' },
+      ],
+    },
   },
   input: {
     title: '流程输入节点',

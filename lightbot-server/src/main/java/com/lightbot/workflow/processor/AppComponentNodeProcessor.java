@@ -6,18 +6,13 @@ import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
 import com.lightbot.workflow.SubWorkflowExecutionResult;
 import com.lightbot.workflow.WorkflowExecutorService;
+import com.lightbot.workflow.WorkflowMappingUtils;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 应用组件节点：嵌套执行已发布子工作流
@@ -25,8 +20,6 @@ import java.util.regex.Pattern;
 @Slf4j
 @Component
 public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
-
-    private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([^}]+)}}");
 
     private final WorkflowExecutorService workflowExecutorService;
 
@@ -85,21 +78,7 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> buildSubInputs(Map<String, Object> nodeData, Map<String, Object> parentVars) {
-        Map<String, Object> inputs = new LinkedHashMap<>();
-        List<Map<String, Object>> mappings = readMappingList(nodeData.get("inputMappings"));
-        if (mappings == null || mappings.isEmpty()) {
-            mappings = readMappingList(nodeData.get("input_mappings"));
-        }
-        if (mappings != null) {
-            for (Map<String, Object> row : mappings) {
-                String key = WorkflowNodeDataUtils.parseString(row.get("key"));
-                if (key == null) {
-                    continue;
-                }
-                Object rawValue = row.get("value");
-                inputs.put(key, resolveTemplateValue(rawValue, parentVars));
-            }
-        }
+        Map<String, Object> inputs = WorkflowMappingUtils.buildInputArgs(nodeData, parentVars);
         if (!inputs.containsKey("query")) {
             Object query = parentVars.get("query");
             if (query == null) {
@@ -119,29 +98,16 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
     private Map<String, Object> applyOutputMappings(Map<String, Object> nodeData,
                                                     Map<String, Object> subVars,
                                                     String defaultOutput) {
-        Map<String, Object> outputs = new LinkedHashMap<>();
-        List<Map<String, Object>> mappings = readMappingList(nodeData.get("outputMappings"));
-        if (mappings == null || mappings.isEmpty()) {
-            mappings = readMappingList(nodeData.get("output_mappings"));
-        }
-        if (mappings != null && !mappings.isEmpty()) {
-            for (Map<String, Object> row : mappings) {
-                String key = WorkflowNodeDataUtils.parseString(row.get("key"));
-                if (key == null) {
-                    continue;
-                }
-                Object rawValue = row.get("value");
-                if (rawValue == null || String.valueOf(rawValue).isBlank()) {
-                    rawValue = "{{result}}";
-                }
-                outputs.put(key, resolveTemplateValue(rawValue, subVars));
+        Map<String, Object> outputs = WorkflowMappingUtils.applyOutputMappings(
+                nodeData, subVars, "result", defaultOutput);
+        if (!outputs.containsKey("output")) {
+            Object result = outputs.get("result");
+            if (result == null) {
+                result = subVars.get("result");
             }
-        } else {
-            Object result = subVars.get("result");
             if (result == null) {
                 result = defaultOutput;
             }
-            outputs.put("result", result);
             outputs.put("output", result);
         }
         return outputs;
@@ -159,39 +125,5 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
             query = parentVars.get("input");
         }
         return query != null ? String.valueOf(query) : "";
-    }
-
-    private Object resolveTemplateValue(Object rawValue, Map<String, Object> variables) {
-        if (!(rawValue instanceof String text)) {
-            return rawValue;
-        }
-        Matcher matcher = VAR_PATTERN.matcher(text.trim());
-        if (matcher.matches()) {
-            String varName = matcher.group(1).trim();
-            return variables.get(varName);
-        }
-        StringBuffer sb = new StringBuffer();
-        matcher.reset();
-        while (matcher.find()) {
-            String varName = matcher.group(1).trim();
-            Object varValue = variables.get(varName);
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(varValue == null ? "" : String.valueOf(varValue)));
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> readMappingList(Object raw) {
-        if (!(raw instanceof List<?> list)) {
-            return null;
-        }
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (Object item : list) {
-            if (item instanceof Map<?, ?> map) {
-                result.add(new LinkedHashMap<>((Map<String, Object>) map));
-            }
-        }
-        return result;
     }
 }
