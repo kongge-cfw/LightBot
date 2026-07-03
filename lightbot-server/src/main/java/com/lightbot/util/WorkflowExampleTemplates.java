@@ -431,24 +431,27 @@ public final class WorkflowExampleTemplates {
                 node("varhandle_1", "variable_handle", 500, 250, Map.of(
                         "label", "格式化信息",
                         "handleType", "template",
-                        "templateContent", "姓名：{{name}}\n邮箱：{{email}}\n电话：{{phone}}"
+                        "templateContent", "姓名：{{extractor_1.name}}\n邮箱：{{extractor_1.email}}\n电话：{{extractor_1.phone}}"
                 )),
                 node("script_1", "script", 700, 250, Map.of(
                         "label", "生成摘要",
                         "scriptLanguage", "javascript",
-                        "scriptContent", "function main(params) {\n  var name = params.name || '未提供';\n  var email = params.email || '未提供';\n  var phone = params.phone || '未提供';\n  var emailValid = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n  var emailStatus = emailValid ? '格式正确' : '格式无效';\n  var summary = '用户信息摘要：\\n';\n  summary += '- 姓名：' + name + '\\n';\n  summary += '- 邮箱：' + email + '（' + emailStatus + '）\\n';\n  summary += '- 电话：' + phone;\n  return { result: summary };\n}",
+                        "scriptContent", "function main(params) {\n  var name = String(params.name || '未提供');\n  var email = String(params.email || '未提供');\n  var phone = String(params.phone || '未提供');\n  var emailValid = /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email);\n  var emailStatus = emailValid ? '格式正确' : '格式无效';\n  var summary = '用户信息摘要：\\n';\n  summary += '- 姓名：' + name + '\\n';\n  summary += '- 邮箱：' + email + '（' + emailStatus + '）\\n';\n  summary += '- 电话：' + phone;\n  return { result: summary };\n}",
                         "inputParams", List.of(
-                                Map.of("key", "name", "value", "{{name}}"),
-                                Map.of("key", "email", "value", "{{email}}"),
-                                Map.of("key", "phone", "value", "{{phone}}")
+                                Map.of("key", "name", "value", "{{extractor_1.name}}"),
+                                Map.of("key", "email", "value", "{{extractor_1.email}}"),
+                                Map.of("key", "phone", "value", "{{extractor_1.phone}}")
                         ),
                         "outputParams", List.of(Map.of("key", "result"))
                 )),
                 node("output_1", "output", 950, 250, Map.of(
                         "label", "输出结果",
-                        "output", "{{result}}"
+                        "output", "{{script_1.result}}"
                 )),
-                node("end_1", "end", 1150, 250, Map.of())
+                node("end_1", "end", 1150, 250, Map.of(
+                        "outputType", "text",
+                        "textTemplate", "{{script_1.result}}"
+                ))
         );
         List<Map<String, Object>> edges = List.of(
                 edge("e_start", "start_1", "extractor_1"),

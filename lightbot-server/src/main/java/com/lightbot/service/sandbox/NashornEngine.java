@@ -101,7 +101,7 @@ public class NashornEngine implements CodeEngine {
                     }
 
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
-                    String returnValue = result == null ? null : truncateOutput(String.valueOf(result));
+                    String returnValue = serializeJsReturnValue(engine, bindings, result);
 
                     return CodeExecResult.builder()
                             .success(true)
@@ -165,6 +165,33 @@ public class NashornEngine implements CodeEngine {
         return text.length() > MAX_OUTPUT_LENGTH
                 ? text.substring(0, MAX_OUTPUT_LENGTH) + "... (截断)"
                 : text;
+    }
+
+    /**
+     * 将 JS 返回值序列化为字符串：对象/数组用 JSON.stringify，避免 [object Object]
+     */
+    private String serializeJsReturnValue(ScriptEngine engine, Bindings bindings, Object result) {
+        if (result == null) {
+            return null;
+        }
+        if (result instanceof String s) {
+            return truncateOutput(s);
+        }
+        if (result instanceof Number || result instanceof Boolean) {
+            return truncateOutput(String.valueOf(result));
+        }
+        try {
+            bindings.put("_returnResult", result);
+            Object json = engine.eval(
+                    "(_returnResult === null || _returnResult === undefined) ? null "
+                            + ": (typeof _returnResult === 'object' ? JSON.stringify(_returnResult) "
+                            + ": String(_returnResult))",
+                    bindings);
+            return json == null ? null : truncateOutput(String.valueOf(json));
+        } catch (Exception e) {
+            log.warn("[NashornEngine] 返回值 JSON 序列化失败，降级为 toString: {}", e.getMessage());
+            return truncateOutput(String.valueOf(result));
+        }
     }
 
     private String sanitizeError(String message) {
