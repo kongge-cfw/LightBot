@@ -59,6 +59,7 @@
       />
 
       <div class="workflow-canvas-shell">
+        <WorkflowUndoToastStack />
         <WorkflowEditCanvas
           ref="workflowCanvasRef"
           :flow-id="WORKFLOW_FLOW_ID"
@@ -278,6 +279,7 @@ import { handleLiveWorkflowTestEvent, applyWorkflowTestStreamResult, patchLocalC
 import NodeSingleTestDrawer from '../views/workflow/components/NodeSingleTestDrawer.vue'
 import NodeExampleModal from '../views/workflow/components/NodeExampleModal.vue'
 import WorkflowEditToolbar from '../views/workflow/components/edit/WorkflowEditToolbar.vue'
+import WorkflowUndoToastStack from '../views/workflow/components/edit/WorkflowUndoToastStack.vue'
 import { loadAgentStatusLabels, formatAgentStatus } from '../utils/agentStatus'
 import WorkflowEditLeftPanel from '../views/workflow/components/edit/WorkflowEditLeftPanel.vue'
 import WorkflowEditCanvas from '../views/workflow/components/edit/WorkflowEditCanvas.vue'
@@ -292,6 +294,7 @@ import WorkflowPublishModal from '../views/workflow/components/edit/WorkflowPubl
 import { workflowGraphToVueFlow, normalizeWorkflowGraphSnapshot } from '../views/workflow/workflowGraphToVueFlow.js'
 import { buildExecutedEdgeIds, eventsToNodeStates } from '../views/workflow/workflowViewerAdapter.js'
 import { replayWorkflowNodeEvents } from '../views/workflow/composables/useWorkflowReplayAnimation.js'
+import { showWorkflowUndoToast } from '../views/workflow/utils/workflowUndoToast.js'
 import { getNodeExample, canApplyNodeExample } from '../views/workflow/nodeConfigMeta'
 import { canSingleTestNodeType } from '../views/workflow/workflowNodeTest'
 import { ensureConditionGroups } from '../views/workflow/conditionUtils'
@@ -477,6 +480,9 @@ const globalConfig = ref({
 })
 const selectedNode = ref(null)
 const selectedEdge = ref(null)
+/** 打开节点详情侧栏时的 data 快照，用于撤回与脏检测 */
+const nodePanelSnapshot = ref(null)
+const nodePanelHistoryRecorded = ref(false)
 
 watch([selectedNode, selectedEdge, panelCollapsed, versionVisible], () => {
   if (!versionVisible.value) return
@@ -700,19 +706,76 @@ async function flushAutoSave() {
   }
 }
 
+function captureNodePanelSnapshot(node) {
+  if (!node?.id || isVersionPreview.value) {
+    nodePanelSnapshot.value = null
+    nodePanelHistoryRecorded.value = false
+    return
+  }
+  nodePanelSnapshot.value = {
+    nodeId: node.id,
+    data: JSON.parse(JSON.stringify(node.data || {})),
+    undoNodes: JSON.parse(JSON.stringify(nodes.value)),
+    undoEdges: JSON.parse(JSON.stringify(edges.value)),
+  }
+  nodePanelHistoryRecorded.value = false
+}
+
+function hasNodePanelPendingChanges(node) {
+  if (!node?.id || !nodePanelSnapshot.value) return false
+  if (nodePanelSnapshot.value.nodeId !== node.id) return false
+  return JSON.stringify(node.data || {}) !== JSON.stringify(nodePanelSnapshot.value.data)
+}
+
+/** 节点详情内首次修改时入栈撤回（保存打开侧栏时的画布状态） */
+function ensureNodePanelEditHistory() {
+  if (nodePanelHistoryRecorded.value || !nodePanelSnapshot.value || !selectedNode.value) return
+  if (nodePanelSnapshot.value.nodeId !== selectedNode.value.id) return
+  if (!hasNodePanelPendingChanges(selectedNode.value)) return
+  history.value.push({
+    nodes: nodePanelSnapshot.value.undoNodes,
+    edges: nodePanelSnapshot.value.undoEdges,
+    label: `修改「${getNodeDisplayName(selectedNode.value)}」节点配置`,
+  })
+  if (history.value.length > 20) history.value.shift()
+  nodePanelHistoryRecorded.value = true
+}
+
+/** 将选中节点的 data 同步写入 nodes 源数据（避免仅改 VueFlow 引用导致未脏标记/未保存） */
+function patchSelectedNodeData(nextData) {
+  const nodeId = selectedNode.value?.id
+  if (!nodeId) return
+  const stored = nodes.value.find(n => n.id === nodeId)
+  if (stored) stored.data = nextData
+  selectedNode.value.data = nextData
+}
+
+function syncSelectedNodeToStore() {
+  const nodeId = selectedNode.value?.id
+  if (!nodeId) return
+  const stored = nodes.value.find(n => n.id === nodeId)
+  if (stored && selectedNode.value.data && stored.data !== selectedNode.value.data) {
+    stored.data = selectedNode.value.data
+  }
+}
+
 async function closeNodePanel() {
   const node = selectedNode.value
   if (!node) return
   if (isVersionPreview.value) {
+    nodePanelSnapshot.value = null
+    nodePanelHistoryRecorded.value = false
     selectedNode.value = null
     return
   }
-  const wasDirty = isDirty.value
+  syncSelectedNodeToStore()
   clearTimeout(autoSaveTimer)
-  if (wasDirty) {
+  if (isDirty.value) {
     await doAutoSave(true)
     message.success(`「${node.data?.label || getNodeTitle(node.type)}」已自动保存`)
   }
+  nodePanelSnapshot.value = null
+  nodePanelHistoryRecorded.value = false
   selectedNode.value = null
 }
 
@@ -770,6 +833,7 @@ function panToNode(node) {
 function focusNode(node) {
   selectedNode.value = node
   clearEdgeSelection()
+  captureNodePanelSnapshot(node)
   panToNode(node)
 }
 
@@ -785,16 +849,30 @@ function removeConversationParam(index) {
 const history = ref([])
 const canUndo = computed(() => history.value.length > 0)
 
-// 记录操作历史
-function recordHistory() {
+// 记录操作历史（label 用于撤回时的说明文案）
+function recordHistory(label = '画布变更') {
   history.value.push({
     nodes: JSON.parse(JSON.stringify(nodes.value)),
-    edges: JSON.parse(JSON.stringify(edges.value))
+    edges: JSON.parse(JSON.stringify(edges.value)),
+    label,
   })
-  // 限制历史记录数量
   if (history.value.length > 20) {
     history.value.shift()
   }
+}
+
+function getNodeDisplayName(nodeOrId) {
+  const node = typeof nodeOrId === 'string'
+    ? nodes.value.find(n => n.id === nodeOrId)
+    : nodeOrId
+  if (!node) return '节点'
+  return node.data?.label || getNodeTitle(node.type) || node.id
+}
+
+function formatEdgeHistoryLabel(action, edgeLike) {
+  if (!edgeLike?.source || !edgeLike?.target) return action
+  const link = `「${getNodeDisplayName(edgeLike.source)}」→「${getNodeDisplayName(edgeLike.target)}」`
+  return `${action}${link}`
 }
 
 // 撤回操作
@@ -806,9 +884,12 @@ function undoAction() {
   triggerRef(nodes)
   selectedNode.value = null
   selectedEdge.value = null
+  nodePanelSnapshot.value = null
+  nodePanelHistoryRecorded.value = false
   clearEdgeSelection()
   clearEdgeInsertUi()
-  message.info('已撤回上一步操作')
+  scheduleAutoSave()
+  showWorkflowUndoToast(lastState.label)
 }
 
 // 初始化加载
@@ -1203,7 +1284,7 @@ function openNodeTestDrawer() {
 function copySelectedNode() {
   const src = selectedNode.value
   if (!src || isVersionPreview.value || src.type === 'start' || src.type === 'end' || isGroupBuiltinType(src.type)) return
-  recordHistory()
+  recordHistory(`复制「${getNodeDisplayName(src)}」节点`)
   const pos = normalizePosition(src.position)
   const newId = `node_${Date.now()}`
   const idMap = { [src.id]: newId }
@@ -1253,11 +1334,13 @@ function openNodeExampleModal() {
 
 function applyNodeExampleConfig(exampleData) {
   if (!selectedNode.value || isVersionPreview.value) return
-  selectedNode.value.data = {
-    ...selectedNode.value.data,
+  recordHistory(`应用「${getNodeDisplayName(selectedNode.value)}」示例配置`)
+  const nextData = {
+    ...base,
     ...exampleData,
-    label: selectedNode.value.data.label || exampleData.label,
+    label: base.label || exampleData.label,
   }
+  patchSelectedNodeData(nextData)
   syncNodes()
   message.success('已应用示例配置')
 }
@@ -1525,7 +1608,7 @@ function onInsertNodeOnEdge(nodeType) {
     return
   }
 
-  recordHistory()
+  recordHistory(`在连线上插入「${getNodeTitle(nodeType)}」节点`)
   commitWorkflowNodes(ctx.nodes)
   edges.value = [
     ...edgesWithoutOld,
@@ -1578,7 +1661,7 @@ function onDrop(event) {
   const nodeType = event.dataTransfer.getData('nodeType')
   if (!nodeType) return
 
-  recordHistory()
+  recordHistory(`添加「${getNodeTitle(nodeType)}」节点`)
 
   const position = flowPointFromEvent(event)
   let newNode
@@ -1679,7 +1762,7 @@ function onNodeDragStart({ node }) {
   draggingNode.value = node
   isNodeDragging.value = true
   dragOverTrash.value = false
-  recordHistory()
+  recordHistory(`移动「${getNodeDisplayName(node)}」节点位置`)
   if (node && isGroupNodeType(node.type)) {
     draggingGroupId.value = node.id
     setGroupChildrenDragMask(node.id, true)
@@ -1768,7 +1851,7 @@ function removeNodeById(nodeId, { skipHistory = false } = {}) {
     message.warning('容器内置节点不可单独删除，请删除循环/批处理容器')
     return
   }
-  if (!skipHistory) recordHistory()
+  if (!skipHistory) recordHistory(`删除「${getNodeDisplayName(node)}」节点`)
 
   const removeIds = new Set([nodeId])
   if (isGroupNodeType(node.type)) {
@@ -1881,7 +1964,7 @@ function onConnect(params) {
     message.warning('无法连接：请从上游节点右侧「出」拖到下游节点左侧「入」')
     return
   }
-  recordHistory()
+  recordHistory(formatEdgeHistoryLabel('新建', redirected))
   const newEdge = {
     id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
     type: 'workflow-bezier',
@@ -1899,7 +1982,7 @@ function onConnect(params) {
 // 拖拽重连连线端点
 function onEdgeUpdate({ edge, connection }) {
   if (isVersionPreview.value || !edge || !connection) return
-  recordHistory()
+  recordHistory(formatEdgeHistoryLabel('调整', edge))
   applyEdgePatch(edge.id, connection)
 }
 
@@ -1936,13 +2019,13 @@ const edgeSourceHandleOptions = computed(() => {
 
 function onEdgeTargetChange(targetId) {
   if (!selectedEdge.value || isVersionPreview.value) return
-  recordHistory()
+  recordHistory(formatEdgeHistoryLabel('修改目标节点：', selectedEdge.value))
   applyEdgePatch(selectedEdge.value.id, { target: targetId, targetHandle: HANDLE_IN })
 }
 
 function onEdgeSourceHandleChange(sourceHandle) {
   if (!selectedEdge.value || isVersionPreview.value) return
-  recordHistory()
+  recordHistory(formatEdgeHistoryLabel('修改出口：', selectedEdge.value))
   applyEdgePatch(selectedEdge.value.id, { sourceHandle })
 }
 
@@ -1951,6 +2034,7 @@ function onNodeClick(event) {
   clearEdgeSelection()
   selectedEdge.value = null
   selectedNode.value = event.node
+  captureNodePanelSnapshot(event.node)
 }
 
 // 点击连线（仅选中，不触发删除）
@@ -1977,6 +2061,8 @@ function onPaneClick() {
 
 // 同步节点数据
 function syncNodes() {
+  syncSelectedNodeToStore()
+  ensureNodePanelEditHistory()
   triggerRef(nodes)
   scheduleAutoSave()
 }
@@ -2117,7 +2203,7 @@ function deleteSelectedEdge() {
     message.warning('无法识别连线，请刷新页面后重试')
     return
   }
-  recordHistory()
+  recordHistory(formatEdgeHistoryLabel('删除', edge))
   edges.value = applyEdgeChanges(
     [{ type: 'remove', id: edge.id, source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle ?? null, targetHandle: edge.targetHandle ?? null }],
     edges.value
@@ -2450,7 +2536,7 @@ function openLeftPanelTab(tab) {
 
 function formatWorkflowLayout() {
   if (isVersionPreview.value || nodes.value.length < 2) return
-  recordHistory()
+  recordHistory('自动整理节点布局')
   const snapshotNode = n => ({
     id: n.id,
     x: n.position?.x,

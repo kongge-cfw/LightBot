@@ -52,7 +52,7 @@
           </span>
           <span v-if="node.isLeaf" class="sft-node-actions">
             <a-tooltip title="预览" placement="top" :get-popup-container="tooltipPopupContainer">
-              <button class="sft-act" @click.stop="emit('preview', node.dataRef)">
+              <button class="sft-act" @click.stop="emit('preview', resolveFileEntry(node.dataRef))">
                 <EyeOutlined />
               </button>
             </a-tooltip>
@@ -165,31 +165,48 @@ function updateNodeChildren(nodes, path, children) {
 
 function toTreeNode(entry) {
   const isLeaf = !entry.directory
-  const displayName = entry.fileName || entry.name
+  const displayName = entryDisplayName(entry)
   return {
+    ...entry,
     key: entry.path,
     title: displayName,
     path: entry.path,
     isLeaf,
-    dataRef: entry,
     children: isLeaf ? undefined : [],
   }
 }
 
-function nodeDisplayName(node) {
-  const ref = node?.dataRef
-  return ref?.fileName || ref?.name || node?.title || ''
+/** 从树节点或原始 entry 解析会话文件条目 */
+function resolveFileEntry(ref) {
+  if (!ref) return null
+  if (ref.path && (ref.fileName || ref.name || ref.directory != null)) {
+    return ref
+  }
+  if (ref.dataRef?.path) {
+    return ref.dataRef
+  }
+  return ref
 }
 
-function previewFile(entry) {
-  if (!entry?.path) return
+function entryDisplayName(entry) {
+  const e = resolveFileEntry(entry)
+  if (!e) return '该文件'
+  return e.fileName || e.name || e.path?.split('/').filter(Boolean).pop() || '该文件'
+}
+
+function nodeDisplayName(node) {
+  return entryDisplayName(node?.dataRef || node)
+}
+
+function previewFile(raw) {
+  const entry = resolveFileEntry(raw)
+  if (!entry?.path || entry.directory) return
   emit('preview', entry)
 }
 
 function nodeIconName(node) {
   if (!node.isLeaf) return node.path || node.title || ''
-  const ref = node.dataRef
-  return ref?.fileName || ref?.name || node.title || ''
+  return entryDisplayName(node?.dataRef || node)
 }
 
 async function onSelect(_keys, info) {
@@ -208,7 +225,8 @@ async function onSelect(_keys, info) {
   }
 }
 
-async function downloadFile(entry) {
+async function downloadFile(raw) {
+  const entry = resolveFileEntry(raw)
   if (!entry?.path) return
   try {
     const res = await getSessionFileDownloadUrl(props.sessionId, entry.path)
@@ -218,10 +236,12 @@ async function downloadFile(entry) {
   }
 }
 
-async function removeFile(entry) {
+async function removeFile(raw) {
+  const entry = resolveFileEntry(raw)
+  if (!entry?.path) return
   Modal.confirm({
     title: '删除文件',
-    content: `确认删除「${entry.fileName || entry.name}」？该操作不可恢复。`,
+    content: `确认删除「${entryDisplayName(entry)}」？该操作不可恢复。`,
     okText: '删除',
     okType: 'danger',
     cancelText: '取消',

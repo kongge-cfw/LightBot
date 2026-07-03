@@ -59,8 +59,8 @@
         </a-button>
       </template>
       <template v-else>
-        <WorkflowTooltip title="撤回 (Ctrl+Z)" placement="bottom">
-          <a-button v-if="canUndo" type="default" @click="$emit('undo')">
+        <WorkflowTooltip v-if="canUndo" title="撤回 (Ctrl+Z)" placement="bottom">
+          <a-button type="default" @click="$emit('undo')">
             <UndoOutlined /> 撤回
           </a-button>
         </WorkflowTooltip>
