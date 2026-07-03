@@ -171,13 +171,14 @@ public class ChatController {
         };
     }
 
-    @Operation(summary = "上传对话附件（图片/视频）")
+    @Operation(summary = "上传对话附件（图片/视频/文档）")
     @PostMapping(value = "/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ChatAttachmentDTO> uploadAttachment(
             @RequestParam Long agentId,
             @RequestParam(required = false) Long sessionId,
+            @RequestParam(required = false) Integer configVersion,
             @RequestParam("file") MultipartFile file) {
-        return Result.ok(chatAttachmentService.upload(agentId, sessionId, file));
+        return Result.ok(chatAttachmentService.upload(agentId, sessionId, configVersion, file));
     }
 
     @Operation(summary = "刷新对话附件预览 URL")

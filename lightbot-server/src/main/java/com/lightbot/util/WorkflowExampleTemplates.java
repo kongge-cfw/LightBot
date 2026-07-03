@@ -607,12 +607,12 @@ public final class WorkflowExampleTemplates {
                 node("varhandle_1", "variable_handle", 900, 250, Map.of(
                         "label", "合并工具结果",
                         "handleType", "template",
-                        "templateContent", "【联网搜索摘要】\n{{searchAnswer}}\n\n【计算结果】\n{{calcResult}}"
+                        "templateContent", "【联网搜索摘要】\n{{tool_search.searchAnswer}}\n\n【计算结果】\n{{tool_calc.calcResult}}"
                 )),
                 node("llm_1", "llm", 1100, 250, Map.of(
                         "label", "综合回答",
                         "sysPrompt", "你是研究助手。请结合联网搜索摘要与计算结果，用清晰结构回答用户的原始问题。",
-                        "promptTemplate", "用户问题：{{query}}\n\n工具汇总：\n{{output}}",
+                        "promptTemplate", "用户问题：{{sys.query}}\n\n工具汇总：\n{{output}}",
                         "temperature", 0.5,
                         "enableStreaming", true
                 )),

@@ -19,6 +19,7 @@ import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentSaveRequest;
 import com.lightbot.service.AgentService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
+import com.lightbot.util.AgentChatRuntimeConfigUtil;
 import com.lightbot.workflow.WorkflowConfigParser;
 import com.lightbot.service.McpServerService;
 import com.lightbot.service.SystemConfigService;
@@ -294,7 +295,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         if (agent == null) {
             throw new BizException(ErrorCode.AGENT_NOT_FOUND);
         }
-        Map<String, Object> runtimeConfig = agentVersionService.resolveRuntimeForChat(agent, configVersion);
+        Map<String, Object> runtimeConfig = AgentChatRuntimeConfigUtil.resolveForChat(
+                agent, configVersion, agentVersionService, objectMapper);
         return AgentChatCapabilitiesUtil.fromConfigMap(runtimeConfig);
     }
 

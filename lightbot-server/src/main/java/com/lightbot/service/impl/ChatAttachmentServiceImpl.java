@@ -9,12 +9,13 @@ import com.lightbot.enums.ErrorCode;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.ChatAttachmentService;
+import com.lightbot.service.AgentVersionService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
+import com.lightbot.util.AgentChatRuntimeConfigUtil;
 import com.lightbot.util.ChatContentSecurityScanUtil;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.SessionStoragePath;
 import com.lightbot.util.TikaUtil;
-import com.lightbot.workflow.WorkflowConfigParser;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +36,7 @@ import java.util.UUID;
 public class ChatAttachmentServiceImpl implements ChatAttachmentService {
 
     private final AgentService agentService;
+    private final AgentVersionService agentVersionService;
     private final MinioUtil minioUtil;
     private final TikaUtil tikaUtil;
     private final ObjectMapper objectMapper;
@@ -42,7 +44,7 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
     private final ChatAttachmentParsedService chatAttachmentParsedService;
 
     @Override
-    public ChatAttachmentDTO upload(Long agentId, Long sessionId, MultipartFile file) {
+    public ChatAttachmentDTO upload(Long agentId, Long sessionId, Integer configVersion, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "请选择文件");
         }
@@ -50,7 +52,8 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
         if (agent == null) {
             throw new BizException(ErrorCode.AGENT_NOT_FOUND);
         }
-        Map<String, Object> config = WorkflowConfigParser.parseConfigMap(agent.getConfig(), objectMapper);
+        Map<String, Object> config = AgentChatRuntimeConfigUtil.resolveForChat(
+                agent, configVersion, agentVersionService, objectMapper);
         AgentChatCapabilitiesDTO caps = AgentChatCapabilitiesUtil.fromConfigMap(config);
         if (!Boolean.TRUE.equals(caps.getAllowFileUpload())) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启附件上传");
@@ -104,7 +107,7 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(),
                     "不支持的文档格式，支持：MD/TXT/PDF/Word/PPT/Excel/CSV/HTML");
         }
-        String parsed = tikaUtil.parse(new ByteArrayInputStream(bytes), file.getOriginalFilename());
+        String parsed = parseDocumentText(bytes, file.getOriginalFilename(), extNoDot);
         if (parsed == null || parsed.isBlank()) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未能从文件中解析出文本，请换一份文件或检查是否加密/扫描件");
         }
@@ -156,6 +159,15 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
             log.warn("[ChatAttachment] 生成预览 URL 失败: {}", e.getMessage());
         }
         return dto;
+    }
+
+    /** Markdown 已是纯文本，直接 UTF-8 读取，避免 Tika 二次转换 */
+    private String parseDocumentText(byte[] bytes, String originalFilename, String extNoDot) {
+        if ("md".equalsIgnoreCase(extNoDot) || "markdown".equalsIgnoreCase(extNoDot)
+                || (originalFilename != null && originalFilename.toLowerCase().endsWith(".md"))) {
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        return tikaUtil.parse(new ByteArrayInputStream(bytes), originalFilename);
     }
 
     @Override

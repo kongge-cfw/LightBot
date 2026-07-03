@@ -263,11 +263,12 @@ export function refreshChatAttachmentPreviews(attachments) {
   return request.post('/chat/attachments/refresh-preview', attachments || [])
 }
 
-export function uploadChatAttachment(agentId, sessionId, file) {
+export function uploadChatAttachment(agentId, sessionId, file, configVersion) {
   const formData = new FormData()
   formData.append('file', file)
   const params = { agentId }
   if (sessionId) params.sessionId = sessionId
+  if (configVersion != null) params.configVersion = configVersion
   return request.post('/chat/attachments', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     params,

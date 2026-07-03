@@ -13,10 +13,11 @@ public interface ChatAttachmentService {
      *
      * @param agentId   Agent ID
      * @param sessionId 会话 ID（可为空，新会话用临时路径）
+     * @param configVersion 配置版本（与 Chat 页选中版本一致，可为空）
      * @param file      文件
      * @return 附件信息
      */
-    ChatAttachmentDTO upload(Long agentId, Long sessionId, MultipartFile file);
+    ChatAttachmentDTO upload(Long agentId, Long sessionId, Integer configVersion, MultipartFile file);
 
     /**
      * 为历史消息中的附件重新生成预览 URL（签名 URL 过期后刷新）

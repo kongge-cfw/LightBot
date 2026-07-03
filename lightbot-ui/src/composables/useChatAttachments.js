@@ -15,7 +15,7 @@ import { captureVideoThumbnail } from '../utils/videoThumbnail'
  *       attachmentPreviewAtt 由外部创建并传入，composable 只操作这些 ref
  */
 export function useChatAttachments({
-  selectedAgentId, sessionId, chatCapabilities,
+  selectedAgentId, sessionId, selectedConfigVersion, chatCapabilities,
   pendingAttachments, fileInputRef, uploading,
   attachmentPreviewOpen, attachmentPreviewAtt,
 }) {
@@ -69,7 +69,12 @@ export function useChatAttachments({
 
     uploading.value = true
     try {
-      const res = await uploadChatAttachment(selectedAgentId.value, sessionId.value, file)
+      const res = await uploadChatAttachment(
+        selectedAgentId.value,
+        sessionId.value,
+        file,
+        selectedConfigVersion?.value ?? 0,
+      )
       const att = { ...res.data }
       if (att.type === 'video') {
         try {
