@@ -274,3 +274,10 @@ export function uploadChatAttachment(agentId, sessionId, file, configVersion) {
     params,
   })
 }
+
+/** 删除缓冲区中未发送的附件（同步清理 MinIO 原文件与文档解析产物） */
+export function deleteChatAttachment(agentId, sessionId, attachment) {
+  const params = { agentId }
+  if (sessionId) params.sessionId = sessionId
+  return request.delete('/chat/attachments', { params, data: attachment })
+}

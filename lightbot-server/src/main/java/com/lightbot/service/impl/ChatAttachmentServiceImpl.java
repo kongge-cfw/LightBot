@@ -6,10 +6,12 @@ import com.lightbot.constant.ConfigKeys;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.enums.ErrorCode;
+import cn.dev33.satoken.stp.StpUtil;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.ChatAttachmentService;
 import com.lightbot.service.AgentVersionService;
+import com.lightbot.service.ChatSessionService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
 import com.lightbot.util.AgentChatRuntimeConfigUtil;
 import com.lightbot.util.ChatContentSecurityScanUtil;
@@ -42,6 +44,7 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
     private final ObjectMapper objectMapper;
     private final ChatContentSecurityScanUtil contentSecurityScanUtil;
     private final ChatAttachmentParsedService chatAttachmentParsedService;
+    private final ChatSessionService chatSessionService;
 
     @Override
     public ChatAttachmentDTO upload(Long agentId, Long sessionId, Integer configVersion, MultipartFile file) {
@@ -168,6 +171,67 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
             return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
         }
         return tikaUtil.parse(new ByteArrayInputStream(bytes), originalFilename);
+    }
+
+    @Override
+    public void delete(Long agentId, Long sessionId, ChatAttachmentDTO attachment) {
+        if (attachment == null || attachment.getObjectKey() == null || attachment.getObjectKey().isBlank()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "无效的附件");
+        }
+        validateAttachmentOwnership(agentId, sessionId, attachment);
+        deleteStoredAttachment(sessionId, attachment);
+    }
+
+    @Override
+    public void deleteStoredAttachment(Long sessionId, ChatAttachmentDTO attachment) {
+        if (attachment == null || attachment.getObjectKey() == null || attachment.getObjectKey().isBlank()) {
+            return;
+        }
+        Long agentId = SessionStoragePath.extractAgentIdFromTempObjectKey(attachment.getObjectKey());
+        safeDeleteObject(attachment.getObjectKey());
+        if ("document".equals(attachment.getType())) {
+            chatAttachmentParsedService.deleteParsed(attachment, sessionId, agentId);
+        }
+        if (sessionId != null) {
+            chatSessionService.removeSessionAttachmentByObjectKey(sessionId, attachment.getObjectKey());
+        }
+    }
+
+    private void validateAttachmentOwnership(Long agentId, Long sessionId, ChatAttachmentDTO attachment) {
+        String objectKey = attachment.getObjectKey();
+        if (objectKey.startsWith(SessionStoragePath.SESSIONS_PREFIX)) {
+            Long sid = SessionStoragePath.extractSessionIdFromObjectKey(objectKey);
+            if (sid == null) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "无效的附件路径");
+            }
+            if (sessionId != null && !sessionId.equals(sid)) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "附件与会话不匹配");
+            }
+            chatSessionService.ensureOwnedByUser(sid, StpUtil.getLoginIdAsLong());
+            return;
+        }
+        if (objectKey.startsWith("chat/")) {
+            Long aid = SessionStoragePath.extractAgentIdFromTempObjectKey(objectKey);
+            if (aid == null || agentId == null || !agentId.equals(aid)) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "附件与 Agent 不匹配");
+            }
+            if (agentService.getById(agentId) == null) {
+                throw new BizException(ErrorCode.AGENT_NOT_FOUND);
+            }
+            return;
+        }
+        throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "不允许删除该附件");
+    }
+
+    private void safeDeleteObject(String objectKey) {
+        try {
+            if (minioUtil.exists(objectKey)) {
+                minioUtil.delete(objectKey);
+                log.info("[ChatAttachment] 已删除附件: key={}", objectKey);
+            }
+        } catch (Exception e) {
+            log.warn("[ChatAttachment] 删除附件失败: key={}, error={}", objectKey, e.getMessage());
+        }
     }
 
     @Override

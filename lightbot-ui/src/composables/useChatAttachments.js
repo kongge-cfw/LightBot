@@ -1,5 +1,5 @@
 import { message } from 'ant-design-vue'
-import { uploadChatAttachment } from '../api/chat'
+import { uploadChatAttachment, deleteChatAttachment } from '../api/chat'
 import {
   validateChatAttachmentFile,
   validateAttachmentCount,
@@ -95,7 +95,16 @@ export function useChatAttachments({
     }
   }
 
-  function removeAttachment(index) {
+  async function removeAttachment(index) {
+    const att = pendingAttachments.value[index]
+    if (!att) return
+    if (att.objectKey && selectedAgentId.value) {
+      try {
+        await deleteChatAttachment(selectedAgentId.value, sessionId.value, att)
+      } catch {
+        return
+      }
+    }
     pendingAttachments.value.splice(index, 1)
   }
 

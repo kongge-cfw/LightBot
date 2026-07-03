@@ -138,6 +138,27 @@ public class ChatAttachmentParsedService {
         return null;
     }
 
+    /**
+     * 删除文档解析产物（sessions/.../parsed 或 chat/.../temp/parsed）。
+     */
+    public void deleteParsed(ChatAttachmentDTO att, Long sessionId, Long agentId) {
+        if (att == null) {
+            return;
+        }
+        String key = resolveParsedObjectKey(sessionId, agentId, att.getId(), att.getFileName(), att.getObjectKey());
+        if (key == null) {
+            return;
+        }
+        try {
+            if (minioUtil.exists(key)) {
+                minioUtil.delete(key);
+                log.info("[ChatAttachment] 已删除解析产物: key={}", key);
+            }
+        } catch (Exception e) {
+            log.warn("[ChatAttachment] 删除解析产物失败: key={}, error={}", key, e.getMessage());
+        }
+    }
+
     private void uploadString(String key, String content) {
         byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         try {

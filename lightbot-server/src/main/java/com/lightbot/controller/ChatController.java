@@ -181,6 +181,16 @@ public class ChatController {
         return Result.ok(chatAttachmentService.upload(agentId, sessionId, configVersion, file));
     }
 
+    @Operation(summary = "删除未发送的缓冲区附件")
+    @DeleteMapping("/attachments")
+    public Result<Void> deleteAttachment(
+            @RequestParam Long agentId,
+            @RequestParam(required = false) Long sessionId,
+            @Valid @RequestBody ChatAttachmentDTO attachment) {
+        chatAttachmentService.delete(agentId, sessionId, attachment);
+        return Result.ok();
+    }
+
     @Operation(summary = "刷新对话附件预览 URL")
     @PostMapping("/attachments/refresh-preview")
     public Result<List<ChatAttachmentDTO>> refreshAttachmentPreview(@Valid @RequestBody List<ChatAttachmentDTO> attachments) {

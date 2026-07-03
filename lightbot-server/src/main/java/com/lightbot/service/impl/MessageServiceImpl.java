@@ -12,7 +12,9 @@ import com.lightbot.entity.MessageFeedback;
 import com.lightbot.mapper.MessageFeedbackMapper;
 import com.lightbot.mapper.MessageMapper;
 import com.lightbot.mapper.ToolCallMapper;
+import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.service.MessageService;
+import com.lightbot.service.ChatAttachmentService;
 import com.lightbot.util.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +40,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     private final ObjectMapper objectMapper;
     private final ToolCallMapper toolCallMapper;
     private final MessageFeedbackMapper messageFeedbackMapper;
+    private final ChatAttachmentService chatAttachmentService;
 
     @Override
     public Page<Message> listBySessionIdPage(Long sessionId, int pageNum, int pageSize) {
@@ -126,17 +129,22 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
      */
     private void cleanupMinioResources(List<Message> messages) {
         for (Message msg : messages) {
-            List<String> paths = new ArrayList<>();
-            paths.addAll(extractImageFilePaths(msg.getMetadata()));
-            paths.addAll(extractAttachmentObjectKeys(msg.getMetadata()));
-            for (String path : paths) {
-                try {
-                    minioUtil.delete(path);
-                    log.info("[Message] 清理MinIO资源: path={}", path);
-                } catch (Exception e) {
-                    log.warn("[Message] 清理MinIO资源失败: path={}, error={}", path, e.getMessage());
-                }
+            List<String> imagePaths = extractImageFilePaths(msg.getMetadata());
+            for (String path : imagePaths) {
+                safeDeleteObject(path);
             }
+            for (ChatAttachmentDTO att : parseAttachmentsFromMetadata(msg.getMetadata())) {
+                chatAttachmentService.deleteStoredAttachment(msg.getSessionId(), att);
+            }
+        }
+    }
+
+    private void safeDeleteObject(String objectKey) {
+        try {
+            minioUtil.delete(objectKey);
+            log.info("[Message] 清理MinIO资源: path={}", objectKey);
+        } catch (Exception e) {
+            log.warn("[Message] 清理MinIO资源失败: path={}, error={}", objectKey, e.getMessage());
         }
     }
 
@@ -182,28 +190,25 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     }
 
     /**
-     * 从消息 metadata 中提取用户上传附件的 MinIO objectKey 列表
+     * 从消息 metadata 中提取用户上传附件列表
      */
-    private List<String> extractAttachmentObjectKeys(String metadata) {
-        List<String> keys = new ArrayList<>();
+    private List<ChatAttachmentDTO> parseAttachmentsFromMetadata(String metadata) {
+        List<ChatAttachmentDTO> result = new ArrayList<>();
         if (metadata == null || metadata.isBlank()) {
-            return keys;
+            return result;
         }
         try {
             JsonNode root = objectMapper.readTree(metadata);
             JsonNode attachments = root.get("attachments");
             if (attachments == null || !attachments.isArray()) {
-                return keys;
+                return result;
             }
             for (JsonNode att : attachments) {
-                String objectKey = att.path("objectKey").asText(null);
-                if (objectKey != null && !objectKey.isBlank()) {
-                    keys.add(objectKey);
-                }
+                result.add(objectMapper.convertValue(att, ChatAttachmentDTO.class));
             }
         } catch (Exception e) {
             log.warn("[Message] 解析附件metadata失败: {}", e.getMessage());
         }
-        return keys;
+        return result;
     }
 }

@@ -26,4 +26,21 @@ public interface ChatAttachmentService {
      * @return 带新 previewUrl 的附件列表
      */
     java.util.List<ChatAttachmentDTO> refreshPreviewUrls(java.util.List<ChatAttachmentDTO> attachments);
+
+    /**
+     * 删除未发送的缓冲区附件（MinIO 原文件 + 文档解析产物）
+     *
+     * @param agentId     Agent ID
+     * @param sessionId   会话 ID（可为空）
+     * @param attachment  上传接口返回的附件信息
+     */
+    void delete(Long agentId, Long sessionId, ChatAttachmentDTO attachment);
+
+    /**
+     * 删除已落库的附件文件（消息删除/会话清理等内部场景）
+     *
+     * @param sessionId  会话 ID
+     * @param attachment 附件信息（含 objectKey、type、fileName）
+     */
+    void deleteStoredAttachment(Long sessionId, ChatAttachmentDTO attachment);
 }
