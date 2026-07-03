@@ -115,7 +115,9 @@
           v-if="testPendingConfirm?.confirmForm && !viewingHistory"
           :confirm-form="testPendingConfirm.confirmForm"
           :submitting="testRunning || testStreaming"
+          :abandoning="testRunning || testStreaming"
           @submit="formData => $emit('resume', formData)"
+          @abandon="$emit('abandon')"
         />
         <a-alert
           v-else-if="viewingHistory && testResult.suspended"
@@ -228,7 +230,7 @@ const props = defineProps({
 })
 
 defineEmits([
-  'close', 'run', 'resume', 'clear-conversation', 'select-node',
+  'close', 'run', 'resume', 'abandon', 'clear-conversation', 'select-node',
   'open-history-run', 'delete-history', 'clear-history', 'refresh-history', 'skip-replay', 'back-to-live',
   'update:testMode', 'update:testInput', 'update:testUseDraft',
 ])

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.WorkflowNodeTestRequest;
+import com.lightbot.dto.WorkflowAbandonRequest;
 import com.lightbot.dto.WorkflowResumeRequest;
 import com.lightbot.dto.WorkflowTestRequest;
 import com.lightbot.dto.WorkflowTestResultVO;
@@ -22,7 +23,9 @@ import com.lightbot.service.WorkflowTestRunService;
 import com.lightbot.service.workflow.WorkflowTestSseHelper;
 import com.lightbot.workflow.WorkflowConfigParser;
 import com.lightbot.workflow.WorkflowDefinition;
+import com.lightbot.util.WorkflowRunStateUtil;
 import com.lightbot.workflow.WorkflowExecutorService;
+import com.lightbot.workflow.WorkflowSuspendedRun;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -56,6 +59,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     private final WorkflowTestRunService workflowTestRunService;
     private final WorkflowTestSseHelper workflowTestSseHelper;
     private final MessageService messageService;
+    private final WorkflowRunStateUtil workflowRunStateUtil;
 
     @Override
     public Map<String, Object> getWorkflowConfig(Long agentId) {
@@ -245,6 +249,137 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             }
         });
         return emitter;
+    }
+
+    @Override
+    public void abandonWorkflowConfirm(Long agentId, WorkflowAbandonRequest request) {
+        requireAgent(agentId);
+        String runId = request.getRunId();
+        WorkflowSuspendedRun suspended = workflowRunStateUtil.getSuspended(runId);
+        if (suspended != null && !agentId.equals(suspended.getAgentId())) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "运行实例与 Agent 不匹配");
+        }
+        workflowRunStateUtil.deleteSuspended(runId);
+        persistChatMessageAfterAbandon(request.getMessageId(), suspended);
+        log.info("[WorkflowConfigService] 用户放弃人工确认: agentId={}, runId={}, messageId={}",
+                agentId, runId, request.getMessageId());
+    }
+
+    /**
+     * Chat 场景：放弃确认后回写助手消息，避免刷新后仍显示待确认表单
+     */
+    @SuppressWarnings("unchecked")
+    private void persistChatMessageAfterAbandon(Long messageId, WorkflowSuspendedRun suspended) {
+        if (messageId == null) {
+            return;
+        }
+        Message msg = messageService.getById(messageId);
+        if (msg == null) {
+            return;
+        }
+        try {
+            Map<String, Object> meta = new LinkedHashMap<>();
+            if (msg.getMetadata() != null && !msg.getMetadata().isBlank()) {
+                meta.putAll(objectMapper.readValue(msg.getMetadata(), Map.class));
+            }
+            List<Map<String, Object>> events = patchConfirmEventsOnAbandon(
+                    extractWorkflowEvents(meta, suspended),
+                    suspended != null ? suspended.getSuspendNodeId() : findSuspendNodeIdFromEvents(meta));
+            if (events != null) {
+                meta.put("workflowEvents", events);
+            }
+            meta.put("workflowSuspended", false);
+            meta.put("workflowConfirmResolved", true);
+            meta.put("workflowAbandoned", true);
+            meta.remove("workflowConfirmForm");
+            meta.remove("workflowRunId");
+            msg.setMetadata(objectMapper.writeValueAsString(meta));
+
+            String notice = "工作流已终止（用户放弃人工确认）";
+            String existing = msg.getContent() != null ? msg.getContent().trim() : "";
+            if (existing.isEmpty()) {
+                msg.setContent(notice);
+            } else if (!existing.contains(notice)) {
+                msg.setContent(existing + "\n\n" + notice);
+            }
+            messageService.updateById(msg);
+        } catch (Exception e) {
+            log.warn("[WorkflowConfigService] 放弃确认回写 Chat 消息失败: messageId={}, error={}",
+                    messageId, e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> extractWorkflowEvents(Map<String, Object> meta, WorkflowSuspendedRun suspended) {
+        if (suspended != null && suspended.getWorkflowEvents() != null && !suspended.getWorkflowEvents().isEmpty()) {
+            return new ArrayList<>(suspended.getWorkflowEvents());
+        }
+        Object fromMeta = meta.get("workflowEvents");
+        if (fromMeta instanceof List<?> list) {
+            List<Map<String, Object>> copied = new ArrayList<>();
+            for (Object item : list) {
+                if (item instanceof Map<?, ?> map) {
+                    copied.add(new LinkedHashMap<>((Map<String, Object>) map));
+                }
+            }
+            return copied.isEmpty() ? null : copied;
+        }
+        return null;
+    }
+
+    private String findSuspendNodeIdFromEvents(Map<String, Object> meta) {
+        Object eventsObj = meta.get("workflowEvents");
+        if (!(eventsObj instanceof List<?> events)) {
+            return null;
+        }
+        for (int i = events.size() - 1; i >= 0; i--) {
+            Object item = events.get(i);
+            if (!(item instanceof Map<?, ?> ev)) {
+                continue;
+            }
+            if ("workflow_confirm_required".equals(ev.get("type"))) {
+                Object nodeId = ev.get("nodeId");
+                return nodeId != null ? nodeId.toString() : null;
+            }
+        }
+        return null;
+    }
+
+    private List<Map<String, Object>> patchConfirmEventsOnAbandon(List<Map<String, Object>> events, String suspendNodeId) {
+        if (events == null || suspendNodeId == null) {
+            return events;
+        }
+        for (int i = events.size() - 1; i >= 0; i--) {
+            Map<String, Object> e = events.get(i);
+            if (!"workflow_node_complete".equals(e.get("type"))) {
+                continue;
+            }
+            if (!suspendNodeId.equals(String.valueOf(e.get("nodeId")))) {
+                continue;
+            }
+            if (!Boolean.TRUE.equals(e.get("suspended"))) {
+                continue;
+            }
+            e.put("suspended", false);
+            e.put("success", false);
+            e.put("message", "用户已放弃");
+            break;
+        }
+        for (Map<String, Object> e : events) {
+            if (!"workflow_confirm_required".equals(e.get("type"))) {
+                continue;
+            }
+            if (!suspendNodeId.equals(String.valueOf(e.get("nodeId")))) {
+                continue;
+            }
+            e.put("resolved", true);
+            e.put("abandoned", true);
+        }
+        Map<String, Object> abandonedEvent = new LinkedHashMap<>();
+        abandonedEvent.put("type", "workflow_abandoned");
+        abandonedEvent.put("message", "用户放弃人工确认，工作流已终止");
+        events.add(abandonedEvent);
+        return events;
     }
 
     /**

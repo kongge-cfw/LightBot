@@ -1,40 +1,54 @@
 /**
- * Chat 能力类事件类型（Skill / SubAgent），与工具事件分区
+ * Chat 能力类事件分区（Skill / SubAgent 与工具事件分离）
  */
+import { SKILL_ACTIVE_EVENT_TYPE } from '../../components/skills/skillRegistry.js'
+import { SUBAGENT_EVENT_TYPES } from '../../components/capabilities/subagentRegistry.js'
+
 export const CAPABILITY_EVENT_TYPES = new Set([
-  'skill_active',
-  'subagent_call',
-  'subagent_result',
-  'subagent_token',
-  'subagent_tool_call',
-  'subagent_tool_result',
-  'subagent_error',
-  'subagent_error_retry',
+  SKILL_ACTIVE_EVENT_TYPE,
+  ...SUBAGENT_EVENT_TYPES,
 ])
 
 export function isCapabilityEvent(event) {
   return CAPABILITY_EVENT_TYPES.has(event?.type)
 }
 
+export function isSkillActiveEvent(event) {
+  return event?.type === SKILL_ACTIVE_EVENT_TYPE
+}
+
+export function isSubagentCapabilityEvent(event) {
+  return SUBAGENT_EVENT_TYPES.has(event?.type)
+}
+
 export function getCapabilityEvents(msg) {
   return (msg?._toolEvents || []).filter(e => CAPABILITY_EVENT_TYPES.has(e.type))
 }
 
-export function getTopCapabilityEvents(msg) {
-  return getCapabilityEvents(msg).filter(e => e.type === 'skill_active')
+/** 消息顶部展示的 Skill 启用块 */
+export function getTopSkillEvents(msg) {
+  return getCapabilityEvents(msg).filter(isSkillActiveEvent)
 }
 
+/** @deprecated 使用 getTopSkillEvents */
+export function getTopCapabilityEvents(msg) {
+  return getTopSkillEvents(msg)
+}
+
+/** 工具块 inline 区域的 SubAgent 能力事件（不含 skill_active） */
 export function getCapabilityEventsForOffset(msg, offset) {
   if (offset === -1) {
-    return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active')
+    return getCapabilityEvents(msg).filter(e => !isSkillActiveEvent(e))
   }
-  return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active' && e.contentOffset == offset)
+  return getCapabilityEvents(msg).filter(
+    e => !isSkillActiveEvent(e) && e.contentOffset == offset
+  )
 }
 
 export function getInlineCapabilityEvents(msg) {
   const offsets = getToolBlockOffsets(msg)
   if (offsets.length > 0) return []
-  return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active')
+  return getCapabilityEvents(msg).filter(e => !isSkillActiveEvent(e))
 }
 
 export function getPureToolEvents(events) {

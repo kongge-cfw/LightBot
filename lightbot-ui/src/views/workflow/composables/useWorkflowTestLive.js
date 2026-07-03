@@ -125,6 +125,40 @@ export function findSuspendNodeIdFromEvents(nodeEvents, runId) {
   }
   return null
 }
+
+/**
+ * 放弃确认：本地 patch confirm 节点事件（与后端 patchConfirmEventsOnAbandon 一致）
+ */
+export function patchLocalConfirmEventsOnAbandon(target, suspendNodeId) {
+  const events = Array.isArray(target?.nodeEvents)
+    ? target.nodeEvents
+    : (Array.isArray(target?._workflowEvents) ? target._workflowEvents : null)
+  if (!events?.length || !suspendNodeId) return events
+
+  const next = events.map(e => ({ ...e }))
+  for (let i = next.length - 1; i >= 0; i--) {
+    const e = next[i]
+    if (e.type !== 'workflow_node_complete') continue
+    if (String(e.nodeId) !== String(suspendNodeId)) continue
+    if (!e.suspended) continue
+    e.suspended = false
+    e.success = false
+    e.message = '用户已放弃'
+    break
+  }
+  next.forEach((e) => {
+    if (e.type !== 'workflow_confirm_required') return
+    if (String(e.nodeId) !== String(suspendNodeId)) return
+    e.resolved = true
+    e.abandoned = true
+  })
+  next.push({
+    type: 'workflow_abandoned',
+    message: '用户放弃人工确认，工作流已终止',
+  })
+  return next
+}
+
 export function applyWorkflowTestStreamResult(result, ctx) {
   const { testResult, testPendingConfirm } = ctx
   testResult.value = {

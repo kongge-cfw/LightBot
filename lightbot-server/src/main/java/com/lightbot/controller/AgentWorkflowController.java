@@ -3,6 +3,7 @@ package com.lightbot.controller;
 import com.lightbot.common.Result;
 import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.WorkflowNodeTestRequest;
+import com.lightbot.dto.WorkflowAbandonRequest;
 import com.lightbot.dto.WorkflowResumeRequest;
 import com.lightbot.dto.WorkflowTestRequest;
 import com.lightbot.dto.WorkflowTestResultVO;
@@ -114,6 +115,15 @@ public class AgentWorkflowController {
             @PathVariable Long agentId,
             @RequestBody @Valid WorkflowResumeRequest request) {
         return workflowConfigService.resumeWorkflowStream(agentId, request);
+    }
+
+    @Operation(summary = "放弃人工确认（终止挂起的工作流）")
+    @PostMapping("/abandon")
+    public Result<Void> abandonConfirm(
+            @PathVariable Long agentId,
+            @RequestBody @Valid WorkflowAbandonRequest request) {
+        workflowConfigService.abandonWorkflowConfirm(agentId, request);
+        return Result.ok();
     }
 
     @Operation(summary = "单节点调试运行")

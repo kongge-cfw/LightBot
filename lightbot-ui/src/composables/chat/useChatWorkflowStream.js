@@ -2,7 +2,12 @@ import { nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { resolveWorkflowConfirmPending } from '../../components/workflow/workflowStepUtils.js'
 import { resumeWorkflowStream } from '../../api/workflowTestStream.js'
-import { patchLocalConfirmEventsBeforeResume, findSuspendNodeIdFromEvents } from '../../views/workflow/composables/useWorkflowTestLive.js'
+import { abandonWorkflowConfirm as abandonWorkflowConfirmApi } from '../../api/workflow.js'
+import {
+  patchLocalConfirmEventsBeforeResume,
+  patchLocalConfirmEventsOnAbandon,
+  findSuspendNodeIdFromEvents,
+} from '../../views/workflow/composables/useWorkflowTestLive.js'
 
 export const WORKFLOW_SSE_EVENT_TYPES = [
   'workflow_node_start',
@@ -206,6 +211,58 @@ export function createChatWorkflowStreamHandlers(deps) {
     }
   }
 
+  async function abandonWorkflowConfirm(msg) {
+    const pending = msg?._workflowConfirmPending
+    const selectedAgentId = getSelectedAgentId()
+    if (!pending?.runId || !selectedAgentId) return
+
+    const runId = pending.runId
+    const suspendNodeId = findSuspendNodeIdFromEvents(msg._workflowEvents, runId)
+    const notice = '工作流已终止（用户放弃人工确认）'
+
+    loading.value = true
+    try {
+      await abandonWorkflowConfirmApi(selectedAgentId, {
+        runId,
+        messageId: msg._id || (typeof msg.metadata === 'object' ? msg.metadata?.assistantMessageId : null) || undefined,
+      })
+
+      const patched = patchLocalConfirmEventsOnAbandon({ _workflowEvents: msg._workflowEvents || [] }, suspendNodeId)
+      if (patched) msg._workflowEvents = patched
+
+      msg._workflowConfirmPending = null
+      msg._streaming = false
+      msg._toolsDone = true
+      streaming.value = false
+
+      const existing = msg.content?.trim() || ''
+      if (!existing) {
+        msg.content = notice
+      } else if (!existing.includes(notice)) {
+        msg.content = `${existing}\n\n${notice}`
+      }
+
+      const base = typeof msg.metadata === 'object' && msg.metadata ? msg.metadata : {}
+      msg.metadata = {
+        ...base,
+        workflowSuspended: false,
+        workflowConfirmResolved: true,
+        workflowAbandoned: true,
+        workflowConfirmForm: null,
+        workflowRunId: null,
+        workflowEvents: msg._workflowEvents,
+      }
+
+      currentStatus.value = ''
+      message.success('已放弃本次确认，工作流已终止')
+      scrollToBottom()
+    } catch (e) {
+      message.error(e.message || '放弃确认失败')
+    } finally {
+      loading.value = false
+    }
+  }
+
   function applyToolMetadata(msg, meta) {
     if (!meta) return
     msg.metadata = { ...(msg.metadata || {}), ...meta }
@@ -215,7 +272,7 @@ export function createChatWorkflowStreamHandlers(deps) {
     if (meta.workflowEvents?.length) {
       msg._workflowEvents = meta.workflowEvents
     }
-    if (meta.workflowConfirmResolved === true || meta.workflowSuspended === false) {
+    if (meta.workflowAbandoned === true || meta.workflowConfirmResolved === true || meta.workflowSuspended === false) {
       msg._workflowConfirmPending = null
     }
     const pending = resolveWorkflowConfirmPending(msg._workflowEvents, meta)
@@ -232,6 +289,7 @@ export function createChatWorkflowStreamHandlers(deps) {
     syncWorkflowResumeMetadata,
     finalizeWorkflowResumeMessage,
     submitWorkflowConfirm,
+    abandonWorkflowConfirm,
     applyToolMetadata,
   }
 }

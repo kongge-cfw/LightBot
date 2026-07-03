@@ -63,7 +63,7 @@ export function isWorkflowAwaitingConfirm(workflowEvents) {
 
 /** 从 events / metadata 恢复挂起确认态 */
 export function resolveWorkflowConfirmPending(workflowEvents, metadata) {
-  if (metadata?.workflowConfirmResolved === true) {
+  if (metadata?.workflowConfirmResolved === true || metadata?.workflowAbandoned === true) {
     return null
   }
   if (metadata?.workflowSuspended === false) {

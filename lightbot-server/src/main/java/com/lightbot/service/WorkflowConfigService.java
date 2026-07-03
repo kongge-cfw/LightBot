@@ -2,6 +2,7 @@ package com.lightbot.service;
 
 import com.lightbot.dto.WorkflowGraphDTO;
 import com.lightbot.dto.WorkflowNodeTestRequest;
+import com.lightbot.dto.WorkflowAbandonRequest;
 import com.lightbot.dto.WorkflowResumeRequest;
 import com.lightbot.dto.WorkflowTestRequest;
 import com.lightbot.dto.WorkflowTestResultVO;
@@ -80,6 +81,11 @@ public interface WorkflowConfigService {
      * 人工确认后恢复工作流（SSE 实时推送）
      */
     SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeRequest request);
+
+    /**
+     * 放弃人工确认：删除 Redis 挂起快照并回写 Chat 消息状态
+     */
+    void abandonWorkflowConfirm(Long agentId, WorkflowAbandonRequest request);
 
     /**
      * 单节点调试运行

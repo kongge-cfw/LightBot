@@ -138,7 +138,7 @@ export const TOOL_DISPLAY_NAMES = {
   subagent_tool_result: 'SubAgent 工具结果',
 }
 
-// 不在 ToolCallsGroup 中展示的工具（由 AgentCapabilityPanel 单独处理）
+// 不在 ToolCallsGroup 中展示的工具（由 capabilities/AgentCapabilityPanel 单独处理）
 export const HIDDEN_TOOL_NAMES = new Set([
   'skill_active',
   'subagent_call',

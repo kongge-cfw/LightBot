@@ -235,6 +235,7 @@
     @close="onTestDrawerClose"
     @run="runWorkflowTest"
     @resume="resumeWorkflowTest"
+    @abandon="abandonWorkflowTest"
     @clear-conversation="clearTestConversation"
     @select-node="onTestTimelineNodeSelect"
     @open-history-run="openTestRunHistory"
@@ -275,7 +276,8 @@ import {
   clearWorkflowTestRuns,
 } from '../api/workflow'
 import { testWorkflowStream, resumeWorkflowStream } from '../api/workflowTestStream'
-import { handleLiveWorkflowTestEvent, applyWorkflowTestStreamResult, patchLocalConfirmEventsBeforeResume, findSuspendNodeIdFromEvents } from './workflow/composables/useWorkflowTestLive.js'
+import { abandonWorkflowConfirm } from '../api/workflow'
+import { handleLiveWorkflowTestEvent, applyWorkflowTestStreamResult, patchLocalConfirmEventsBeforeResume, patchLocalConfirmEventsOnAbandon, findSuspendNodeIdFromEvents } from './workflow/composables/useWorkflowTestLive.js'
 import NodeSingleTestDrawer from '../views/workflow/components/NodeSingleTestDrawer.vue'
 import NodeExampleModal from '../views/workflow/components/NodeExampleModal.vue'
 import WorkflowEditToolbar from '../views/workflow/components/edit/WorkflowEditToolbar.vue'
@@ -2896,6 +2898,38 @@ async function resumeWorkflowTest(formData) {
   } finally {
     testStreamAbortController.value = null
     testStreaming.value = false
+    testRunning.value = false
+  }
+}
+
+async function abandonWorkflowTest() {
+  if (!testPendingConfirm.value?.runId) return
+  const runId = testPendingConfirm.value.runId
+  const suspendNodeId = findSuspendNodeIdFromEvents(testResult.value?.nodeEvents, runId)
+  const notice = '工作流已终止（用户放弃人工确认）'
+
+  testRunning.value = true
+  try {
+    await abandonWorkflowConfirm(agentId, { runId })
+    const patched = patchLocalConfirmEventsOnAbandon(
+      { nodeEvents: testResult.value?.nodeEvents || [] },
+      suspendNodeId,
+    )
+    testPendingConfirm.value = null
+    const prevOutput = testResult.value?.output || ''
+    testResult.value = {
+      ...(testResult.value || {}),
+      nodeEvents: patched || testResult.value?.nodeEvents || [],
+      suspended: false,
+      output: prevOutput && !prevOutput.includes(notice) ? `${prevOutput}\n\n${notice}` : (prevOutput || notice),
+    }
+    if (suspendNodeId) {
+      setReplayNodeStatus(suspendNodeId, 'failed')
+    }
+    message.success('已放弃本次确认，工作流已终止')
+  } catch (e) {
+    notification.error({ message: '放弃确认失败', description: e.message })
+  } finally {
     testRunning.value = false
   }
 }

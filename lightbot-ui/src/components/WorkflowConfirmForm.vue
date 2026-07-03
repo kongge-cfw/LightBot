@@ -82,10 +82,24 @@
             />
           </a-form-item>
         </template>
-        <a-form-item>
-          <a-button type="primary" :loading="submitting" @click="handleSubmit">
-            确认并继续
-          </a-button>
+        <a-form-item class="confirm-form-actions">
+          <a-space wrap>
+            <a-button type="primary" :loading="submitting" @click="handleSubmit">
+              确认并继续
+            </a-button>
+            <a-button
+              v-if="showAbandon"
+              danger
+              :loading="abandoning"
+              :disabled="submitting"
+              @click="handleAbandon"
+            >
+              放弃本次确认
+            </a-button>
+          </a-space>
+          <p v-if="showAbandon" class="confirm-abandon-hint">
+            放弃后将终止当前挂起的工作流，可重新发起对话。
+          </p>
         </a-form-item>
       </a-form>
     </div>
@@ -110,9 +124,12 @@ const props = defineProps({
   collapsible: { type: Boolean, default: true },
   /** 初始是否展开（待确认默认展开） */
   defaultExpanded: { type: Boolean, default: true },
+  /** 是否显示「放弃本次确认」 */
+  showAbandon: { type: Boolean, default: true },
+  abandoning: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['submit'])
+const emit = defineEmits(['submit', 'abandon'])
 
 const expanded = ref(props.defaultExpanded)
 
@@ -191,6 +208,10 @@ function handleSubmit() {
   }
   emit('submit', { ...formValues })
 }
+
+function handleAbandon() {
+  emit('abandon')
+}
 </script>
 
 <style scoped>
@@ -266,6 +287,13 @@ function handleSubmit() {
 .confirm-alert { margin-bottom: 12px; }
 .confirm-fields { margin-top: 4px; }
 .confirm-radio-group { display: flex; flex-direction: column; gap: 6px; }
+.confirm-form-actions { margin-bottom: 0; }
+.confirm-abandon-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.45;
+}
 .workflow-confirm-form.collapsed .confirm-form-toggle {
   border-bottom: none;
 }

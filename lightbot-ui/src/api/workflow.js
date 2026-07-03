@@ -40,6 +40,10 @@ export function resumeWorkflow(agentId, data) {
   return request.post(`/agents/${agentId}/workflow/resume`, data)
 }
 
+export function abandonWorkflowConfirm(agentId, data) {
+  return request.post(`/agents/${agentId}/workflow/abandon`, data)
+}
+
 export function listWorkflowTestRuns(agentId) {
   return request.get(`/agents/${agentId}/workflow/test-runs`)
 }

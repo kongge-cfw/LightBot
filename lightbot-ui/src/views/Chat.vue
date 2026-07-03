@@ -159,9 +159,9 @@
                   <div v-show="messages[virtualRow.index]._reasoningExpanded" class="reasoning-content">{{ messages[virtualRow.index]._reasoningContent }}</div>
                 </div>
                 <!-- Skill 启用 -->
-                <div v-if="getTopCapabilityEvents(messages[virtualRow.index]).length > 0 && !messages[virtualRow.index]._sensitiveBlock" class="capability-block-inline">
+                <div v-if="getTopSkillEvents(messages[virtualRow.index]).length > 0 && !messages[virtualRow.index]._sensitiveBlock" class="capability-block-inline">
                   <AgentCapabilityPanel
-                    :events="getTopCapabilityEvents(messages[virtualRow.index])"
+                    :events="getTopSkillEvents(messages[virtualRow.index])"
                     :is-done="!messages[virtualRow.index]._streaming || messages[virtualRow.index]._toolsDone"
                     :default-expanded="true"
                     @heightChange="onCapabilityHeightChange"
@@ -225,8 +225,10 @@
                   class="workflow-confirm-inline"
                   :confirm-form="messages[virtualRow.index]._workflowConfirmPending.confirmForm"
                   :submitting="loading"
+                  :abandoning="loading"
                   :default-expanded="true"
                   @submit="formData => submitWorkflowConfirm(messages[virtualRow.index], formData)"
+                  @abandon="() => abandonWorkflowConfirm(messages[virtualRow.index])"
                 />
                 <!-- 1.3 模型重试提示 -->
                 <div v-if="messages[virtualRow.index]._errorRetry" class="error-retry-block">
@@ -518,7 +520,7 @@
         </div>
         <div v-if="workflowConfirmBlocked" class="workflow-confirm-send-block">
           <PauseCircleOutlined class="workflow-confirm-send-icon" />
-          <span>工作流等待人工确认，请先完成上方表单后再发送新消息</span>
+          <span>等待人工确认中，请先完成上方表单后再发送新消息</span>
         </div>
         <div class="chat-input">
           <input
@@ -819,7 +821,7 @@ import { resolveWorkflowConfirmPending, isWorkflowAwaitingConfirm } from '../com
 import { useChatSendGate } from '../composables/chat/useChatSendGate.js'
 import { createChatWorkflowStreamHandlers } from '../composables/chat/useChatWorkflowStream.js'
 import {
-  getTopCapabilityEvents,
+  getTopSkillEvents,
   getCapabilityEventsForOffset,
   getInlineCapabilityEvents,
   getPureToolEvents,
@@ -828,8 +830,10 @@ import {
   markToolBlockDone,
   splitContentByOffsets,
   isSegmentFinalized,
+  getToolBlockOffsets,
 } from '../composables/chat/useChatEventPartition.js'
-import AgentCapabilityPanel from '../components/AgentCapabilityPanel.vue'
+import { createChatCapabilityStreamHandlers, registerToolBlockOffset } from '../composables/chat/useChatCapabilityStream.js'
+import { AgentCapabilityPanel } from '../components/capabilities/index.js'
 import ChatAttachmentPreview from '../components/ChatAttachmentPreview.vue'
 import ChatAttachmentTile from '../components/ChatAttachmentTile.vue'
 import SessionFileTree from '../components/SessionFileTree.vue'
@@ -1185,6 +1189,7 @@ const { canSend, workflowConfirmBlocked } = useChatSendGate({
 const {
   handleChatWorkflowStreamEvent,
   submitWorkflowConfirm,
+  abandonWorkflowConfirm,
   applyToolMetadata,
 } = createChatWorkflowStreamHandlers({
   loading,
@@ -1199,6 +1204,13 @@ const {
   getAbortController: () => abortController.value,
   setAbortController: (ctrl) => { abortController.value = ctrl },
   getSelectedAgentId: () => selectedAgentId.value,
+})
+
+const { handleChatCapabilityStreamEvent } = createChatCapabilityStreamHandlers({
+  currentStatus,
+  hasStreamContent,
+  scrollToBottom,
+  registerToolBlockOffset,
 })
 
 const userInitial = computed(() => {
@@ -2254,38 +2266,14 @@ async function runChatStream({ message, attachments, mentions, regenerate, editM
 
           streamSmoother.flush()
 
+          ensureAssistantMsg()
+          if (handleChatCapabilityStreamEvent(assistantMsg, event)) {
+            return
+          }
+
           const offset = event.contentOffset ?? assistantMsg.content.length
           if (event.contentOffset == null) {
             event.contentOffset = offset
-          }
-          if (event.type === 'skill_active') {
-            assistantMsg._toolEvents.push(event)
-            hasStreamContent.value = true
-            currentStatus.value = `已启用 ${(event.skills || []).length} 个 Skill`
-            scrollToBottom()
-            return
-          }
-          if (event.type === 'subagent_call' || event.type === 'subagent_result'
-              || event.type === 'subagent_token' || event.type === 'subagent_tool_call' || event.type === 'subagent_tool_result'
-              || event.type === 'subagent_error' || event.type === 'subagent_error_retry') {
-            assistantMsg._toolEvents.push(event)
-            if (event.type === 'subagent_call') {
-              assistantMsg._toolExpanded = true
-              assistantMsg._currentToolOffset = offset
-              registerToolBlockOffset(assistantMsg, offset)
-              currentStatus.value = `委派 SubAgent: ${event.displayName || event.subagentName || ''}`
-            } else if (event.type === 'subagent_tool_call') {
-              currentStatus.value = `SubAgent 调用工具: ${event.toolName || ''}`
-            } else if (event.type === 'subagent_token') {
-              currentStatus.value = `SubAgent 输出中...`
-            } else if (event.type === 'subagent_error_retry') {
-              currentStatus.value = event.message || `SubAgent 重试 ${event.attempt}/${event.maxRetries}`
-            } else if (event.type === 'subagent_error') {
-              currentStatus.value = event.message || 'SubAgent 执行失败'
-            }
-            hasStreamContent.value = true
-            scrollToBottom()
-            return
           }
           if (event.type === 'tool_call') {
             assistantMsg._toolExpanded = true
@@ -2497,16 +2485,6 @@ function stopGenerating() {
       || [...messages.value].reverse().find(m => m.role === 'assistant' && m._streaming)
     if (msg) finalizeAbortedStream(msg, messages.value.includes(msg))
   }, 120)
-}
-
-function registerToolBlockOffset(msg, offset) {
-  if (offset == null || offset < 0) return
-  if (!msg._toolBlockOffsets) msg._toolBlockOffsets = []
-  // 使用宽松相等检查是否已存在
-  if (!msg._toolBlockOffsets.some(o => o == offset)) {
-    msg._toolBlockOffsets.push(offset)
-    msg._toolBlockOffsets.sort((a, b) => a - b)
-  }
 }
 
 function formatElapsed(ms) {

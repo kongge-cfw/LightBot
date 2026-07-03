@@ -1,0 +1,37 @@
+/**
+ * SubAgent Chat 能力事件注册表
+ */
+import { RobotOutlined } from '@ant-design/icons-vue'
+
+export const SUBAGENT_EVENT_TYPES = new Set([
+  'subagent_call',
+  'subagent_result',
+  'subagent_token',
+  'subagent_tool_call',
+  'subagent_tool_result',
+  'subagent_error',
+  'subagent_error_retry',
+])
+
+export const SUBAGENT_CALL_EVENT_TYPE = 'subagent_call'
+
+export function isSubagentEvent(event) {
+  return SUBAGENT_EVENT_TYPES.has(event?.type)
+}
+
+export function formatSubagentCallTitle(event) {
+  const name = event?.displayName || event?.subagentName || 'SubAgent'
+  return `委派 SubAgent：${name}`
+}
+
+export function formatSubagentCallStatus(event) {
+  return `委派 SubAgent: ${event?.displayName || event?.subagentName || ''}`
+}
+
+export function formatSubagentToolCallStatus(event) {
+  return `SubAgent 调用工具: ${event?.toolName || ''}`
+}
+
+export function getSubagentIcon() {
+  return RobotOutlined
+}
