@@ -132,9 +132,10 @@
           <span class="wf-param-value mono">{{ row.value }}</span>
         </div>
       </div>
-      <details v-if="outputs.extractRaw" class="wf-raw-fold">
-        <summary>原始 JSON</summary>
-        <pre>{{ truncateText(outputs.extractRaw, 1200) }}</pre>
+      <div v-else-if="step.status === 'failed'" class="wf-detail-hint">解析失败，未写入结构化字段</div>
+      <details v-if="extractRawText" class="wf-raw-fold">
+        <summary>模型原始回复</summary>
+        <pre>{{ truncateText(extractRawText, 1200) }}</pre>
       </details>
     </template>
 
@@ -224,6 +225,18 @@ const variableHandleOutputs = computed(() => filteredOutputs.value)
 const extractRows = computed(() => {
   const keys = listOutputKeys(outputs.value)
   return keys.map(key => ({ key, value: previewValue(outputs.value[key], 160) }))
+})
+
+const extractRawText = computed(() => {
+  const fromOutputs = outputs.value.extractRaw
+  if (fromOutputs != null && String(fromOutputs).trim()) {
+    return String(fromOutputs)
+  }
+  const fromTrace = props.step?.traceData?.extractRaw
+  if (fromTrace != null && String(fromTrace).trim()) {
+    return String(fromTrace)
+  }
+  return ''
 })
 
 const tokenSummary = computed(() => {

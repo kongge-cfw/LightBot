@@ -11,12 +11,21 @@
       <template #overlay>
         <a-menu class="builtin-var-menu" @click="onPick">
           <a-menu-item-group title="内置变量">
-            <a-menu-item v-for="v in BUILTIN_VARIABLES" :key="v.key">
+            <a-menu-item v-for="v in BUILTIN_VARIABLES" :key="'builtin-' + v.key">
               <div class="var-menu-item">
                 <code>{{ v.example }}</code>
                 <span class="var-menu-label">{{ v.label }}</span>
               </div>
               <div class="var-menu-desc">{{ v.desc }}</div>
+            </a-menu-item>
+          </a-menu-item-group>
+          <a-menu-item-group v-if="upstreamItems.length" title="上游节点输出">
+            <a-menu-item v-for="v in upstreamItems" :key="'upstream-' + v.key">
+              <div class="var-menu-item">
+                <code>{{ v.example }}</code>
+                <span class="var-menu-label">{{ v.label }}</span>
+              </div>
+              <div v-if="v.desc" class="var-menu-desc">{{ v.desc }}</div>
             </a-menu-item>
           </a-menu-item-group>
         </a-menu>
@@ -26,15 +35,25 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import { BUILTIN_VARIABLES } from '../nodeConfigMeta'
+import { buildUpstreamVariableItems } from '../workflowUpstreamVariables'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '{{query}}' },
   disabled: { type: Boolean, default: false },
+  nodeId: { type: String, default: '' },
+  nodes: { type: Array, default: () => [] },
+  edges: { type: Array, default: () => [] },
 })
 
 const emit = defineEmits(['update:modelValue', 'change'])
+
+const upstreamItems = computed(() => {
+  if (!props.nodeId || !props.nodes?.length) return []
+  return buildUpstreamVariableItems(props.nodeId, props.nodes, props.edges)
+})
 
 function onInput(v) {
   emit('update:modelValue', v)
@@ -42,10 +61,17 @@ function onInput(v) {
 }
 
 function onPick({ key: menuKey }) {
-  const item = BUILTIN_VARIABLES.find(v => v.key === menuKey)
-  if (!item) return
-  emit('update:modelValue', item.example)
-  emit('change', item.example)
+  const builtin = BUILTIN_VARIABLES.find(v => menuKey === 'builtin-' + v.key)
+  if (builtin) {
+    emit('update:modelValue', builtin.example)
+    emit('change', builtin.example)
+    return
+  }
+  const upstream = upstreamItems.value.find(v => menuKey === 'upstream-' + v.key)
+  if (upstream) {
+    emit('update:modelValue', upstream.example)
+    emit('change', upstream.example)
+  }
 }
 </script>
 
@@ -73,7 +99,7 @@ function onPick({ key: menuKey }) {
 .builtin-var-menu {
   max-height: 360px;
   overflow-y: auto;
-  min-width: 260px;
+  min-width: 280px;
 }
 .builtin-var-menu .var-menu-item {
   display: flex;

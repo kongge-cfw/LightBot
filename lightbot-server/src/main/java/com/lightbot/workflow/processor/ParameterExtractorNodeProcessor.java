@@ -5,6 +5,7 @@ import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.ParameterExtractParseException;
 import com.lightbot.workflow.WorkflowLlmSupport;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
 import com.lightbot.workflow.WorkflowVariableUtils;
@@ -120,9 +121,10 @@ public class ParameterExtractorNodeProcessor extends AbstractFlowNodeProcessor i
         try {
             return WorkflowVariableUtils.parseLlmJsonMap(raw, objectMapper);
         } catch (IllegalArgumentException e) {
-            throw e;
+            String message = e.getMessage() != null ? e.getMessage() : "参数解析失败";
+            throw new ParameterExtractParseException(message, raw, e);
         } catch (Exception e) {
-            throw new IllegalArgumentException("参数解析失败: " + e.getMessage(), e);
+            throw new ParameterExtractParseException("参数解析失败: " + e.getMessage(), raw, e);
         }
     }
 }

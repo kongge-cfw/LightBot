@@ -117,18 +117,22 @@ public class WorkflowExecutorService {
                 .agent(agent)
                 .workflow(workflow)
                 .variables(new LinkedHashMap<>())
+                .scopedVariables(new LinkedHashMap<>())
+                .sysVariables(new LinkedHashMap<>())
                 .nodeOutputs(new LinkedHashMap<>())
                 .onStreamChunk(onStreamChunk)
                 .workflowEvents(workflowEvents)
                 .onEvent(onEvent)
                 .subWorkflowDepth(0)
                 .build();
+        WorkflowVariableScope.initContext(context);
 
         // 2. 注入全局配置中的会话变量默认值
         applyGlobalConfig(context, workflow.getGlobalConfig());
 
         // 2.0 注入会话历史（与对话型一致，供工作流节点使用 history_list / input）
         injectSessionHistory(context, sessionId, userInput);
+        WorkflowVariableScope.syncSysBucket(context);
 
         // 2.1 调试运行预置变量（query / history_list 等）
         if (initialVariables != null && !initialVariables.isEmpty()) {
@@ -154,7 +158,7 @@ public class WorkflowExecutorService {
         emitWorkflowEvent(workflowEvents, onEvent, Map.of("type", "workflow_complete", "contentOffset", 0));
 
         if (context.getVariables().containsKey("result")) {
-            return String.valueOf(context.getVariables().get("result"));
+            return WorkflowResultUtils.formatAsText(context.getVariables().get("result"));
         }
         return outcome.getStreamResult();
     }
@@ -194,8 +198,12 @@ public class WorkflowExecutorService {
                 .agent(agent)
                 .workflow(workflow)
                 .variables(new LinkedHashMap<>(suspended.getVariables()))
+                .scopedVariables(new LinkedHashMap<>())
+                .sysVariables(new LinkedHashMap<>())
                 .nodeOutputs(new LinkedHashMap<>(suspended.getNodeOutputs()))
                 .build();
+        WorkflowVariableScope.initContext(context);
+        WorkflowVariableScope.syncSysBucket(context);
 
         Map<String, Object> confirmOutputs = new LinkedHashMap<>();
         if (formData != null) {
@@ -241,7 +249,7 @@ public class WorkflowExecutorService {
         } else {
             emitWorkflowEvent(events, null, Map.of("type", "workflow_complete", "contentOffset", 0));
             String output = context.getVariables().containsKey("result")
-                    ? String.valueOf(context.getVariables().get("result"))
+                    ? WorkflowResultUtils.formatAsText(context.getVariables().get("result"))
                     : outcome.getStreamResult();
             builder.output(output);
         }
@@ -434,7 +442,7 @@ public class WorkflowExecutorService {
 
                 if (nodeResult.getOutputs() != null) {
                     context.getNodeOutputs().put(executingNodeId, nodeResult.getOutputs());
-                    context.getVariables().putAll(nodeResult.getOutputs());
+                    WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
                 }
 
                 if (nodeResult.getStreamContent() != null) {
@@ -452,6 +460,10 @@ public class WorkflowExecutorService {
                 completeMessage = "执行失败: " + e.getMessage();
                 log.error("[WorkflowExecutorService] 节点执行失败: nodeId={}, error={}",
                         executingNodeId, e.getMessage(), e);
+                NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
+                if (observability != null) {
+                    nodeResult = observability;
+                }
                 nextNodeId = null;
             }
 
@@ -921,12 +933,16 @@ public class WorkflowExecutorService {
                 .agent(agent)
                 .workflow(workflow)
                 .variables(new LinkedHashMap<>())
+                .scopedVariables(new LinkedHashMap<>())
+                .sysVariables(new LinkedHashMap<>())
                 .nodeOutputs(new LinkedHashMap<>())
                 .workflowEvents(workflowEvents)
                 .build();
+        WorkflowVariableScope.initContext(context);
 
         applyGlobalConfig(context, workflow.getGlobalConfig());
         injectSessionHistory(context, null, userInput);
+        WorkflowVariableScope.syncSysBucket(context);
         if (initialVariables != null && !initialVariables.isEmpty()) {
             context.getVariables().putAll(initialVariables);
         }
@@ -958,7 +974,7 @@ public class WorkflowExecutorService {
         emitWorkflowEvent(workflowEvents, null, Map.of("type", "workflow_complete", "contentOffset", 0));
 
         String output = context.getVariables().containsKey("result")
-                ? String.valueOf(context.getVariables().get("result"))
+                ? WorkflowResultUtils.formatAsText(context.getVariables().get("result"))
                 : outcome.getStreamResult();
 
         return builder.output(output).build();
@@ -985,10 +1001,13 @@ public class WorkflowExecutorService {
                 .agent(agent)
                 .workflow(workflow)
                 .variables(new LinkedHashMap<>())
+                .scopedVariables(new LinkedHashMap<>())
+                .sysVariables(new LinkedHashMap<>())
                 .nodeOutputs(new LinkedHashMap<>())
                 .currentNodeId(nodeId)
                 .currentNodeData(node.getData())
                 .build();
+        WorkflowVariableScope.initContext(context);
 
         applyGlobalConfig(context, workflow.getGlobalConfig());
         if (initialVariables != null && !initialVariables.isEmpty()) {
@@ -1018,13 +1037,17 @@ public class WorkflowExecutorService {
                     () -> processor.execute(context));
             if (nodeResult.getOutputs() != null) {
                 context.getNodeOutputs().put(nodeId, nodeResult.getOutputs());
-                context.getVariables().putAll(nodeResult.getOutputs());
+                WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
             }
             output = formatSingleNodeOutput(nodeResult);
         } catch (Exception e) {
             nodeSuccess = false;
             completeMessage = "执行失败: " + e.getMessage();
             output = completeMessage;
+            NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
+            if (observability != null) {
+                nodeResult = observability;
+            }
             log.error("[WorkflowExecutorService] 单节点测试失败: nodeId={}, error={}", nodeId, e.getMessage(), e);
         }
 
@@ -1052,6 +1075,8 @@ public class WorkflowExecutorService {
             if (!filteredOutputs.isEmpty()) {
                 completeEvent.put("outputs", filteredOutputs);
             }
+        } else if (!nodeSuccess && nodeResult != null && nodeResult.getOutputs() != null && !nodeResult.getOutputs().isEmpty()) {
+            completeEvent.put("outputs", new LinkedHashMap<>(nodeResult.getOutputs()));
         }
         // traceData 独立存放，不混入 outputs（避免 Chat 页组件误将其作为执行结果展示）
         if (nodeResult != null && nodeResult.getTraceData() != null && !nodeResult.getTraceData().isEmpty()) {
@@ -1121,6 +1146,8 @@ public class WorkflowExecutorService {
                 .agent(targetAgent)
                 .workflow(subWorkflow)
                 .variables(subVars)
+                .scopedVariables(new LinkedHashMap<>())
+                .sysVariables(new LinkedHashMap<>())
                 .nodeOutputs(new LinkedHashMap<>())
                 .workflowEvents(parentContext.getWorkflowEvents())
                 .onEvent(parentContext.getOnEvent())
@@ -1128,6 +1155,8 @@ public class WorkflowExecutorService {
                 .parentNodeId(parentContext.getCurrentNodeId())
                 .subWorkflowDepth(parentContext.getSubWorkflowDepth() + 1)
                 .build();
+        WorkflowVariableScope.initContext(subContext);
+        WorkflowVariableScope.syncSysBucket(subContext);
 
         applyGlobalConfig(subContext, subWorkflow.getGlobalConfig());
 
@@ -1147,7 +1176,7 @@ public class WorkflowExecutorService {
         }
 
         String output = subContext.getVariables().containsKey("result")
-                ? String.valueOf(subContext.getVariables().get("result"))
+                ? WorkflowResultUtils.formatAsText(subContext.getVariables().get("result"))
                 : outcome.getStreamResult();
 
         return SubWorkflowExecutionResult.builder()

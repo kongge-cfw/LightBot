@@ -38,6 +38,25 @@ public final class WorkflowVariableUtils {
     }
 
     /**
+     * 基于完整上下文解析变量（支持 {{nodeId.field}} 命名空间引用）
+     */
+    public static Object resolveValue(String expression, NodeExecutionContext context) {
+        if (expression == null || expression.isBlank()) {
+            return null;
+        }
+        if (context == null) {
+            return null;
+        }
+        String trimmed = expression.trim();
+        Matcher matcher = VAR_PATTERN.matcher(trimmed);
+        if (matcher.matches()) {
+            return WorkflowReferenceResolver.resolvePath(matcher.group(1).trim(), context);
+        }
+        String rendered = WorkflowPromptUtils.render(trimmed, context);
+        return rendered.equals(trimmed) ? trimmed : rendered;
+    }
+
+    /**
      * 解析文本变量，支持 fallback
      */
     public static String resolveText(String expression, Map<String, Object> variables, String fallback) {
@@ -52,12 +71,24 @@ public final class WorkflowVariableUtils {
      * 从节点 inputVariable 配置解析输入文本
      */
     public static String resolveInputText(String inputVariable, Map<String, Object> variables, String userInput) {
+        return resolveInputText(inputVariable, variables, userInput, null);
+    }
+
+    /**
+     * 从节点 inputVariable 配置解析输入文本（支持命名空间引用）
+     */
+    public static String resolveInputText(String inputVariable, Map<String, Object> variables,
+                                          String userInput, NodeExecutionContext context) {
         String expr = inputVariable != null && !inputVariable.isBlank() ? inputVariable : "{{input}}";
-        String rendered = WorkflowPromptUtils.render(expr, variables);
+        String rendered = context != null
+                ? WorkflowPromptUtils.render(expr, context)
+                : WorkflowPromptUtils.render(expr, variables);
         if (rendered != null && !rendered.isBlank() && !rendered.equals(expr)) {
             return rendered.trim();
         }
-        Object resolved = resolveValue(expr, variables);
+        Object resolved = context != null
+                ? resolveValue(expr, context)
+                : resolveValue(expr, variables);
         if (resolved != null && !String.valueOf(resolved).isBlank()) {
             return String.valueOf(resolved).trim();
         }

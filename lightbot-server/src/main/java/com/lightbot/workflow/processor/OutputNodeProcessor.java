@@ -28,7 +28,7 @@ public class OutputNodeProcessor extends AbstractFlowNodeProcessor implements No
         Map<String, Object> nodeData = context.getCurrentNodeData() != null
                 ? context.getCurrentNodeData() : Map.of();
         String template = String.valueOf(nodeData.getOrDefault("output", "{{input}}"));
-        String output = WorkflowPromptUtils.render(template, context.getVariables());
+        String output = WorkflowPromptUtils.render(template, context);
 
         Map<String, Object> outputs = new HashMap<>();
         outputs.put("output", output);

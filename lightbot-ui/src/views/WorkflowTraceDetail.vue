@@ -91,6 +91,7 @@
           <WorkflowNodeDetailPanel
             class="trace-node-detail-panel"
             :node="selectedWorkflowNode"
+            :nodes="viewerNodes"
             :edges="viewerEdges"
             force-readonly
             :show-header-actions="false"

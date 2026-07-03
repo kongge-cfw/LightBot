@@ -69,12 +69,16 @@ public class WorkflowNodeRunner {
                     () -> processor.execute(context));
             if (nodeResult.getOutputs() != null) {
                 context.getNodeOutputs().put(nodeId, nodeResult.getOutputs());
-                context.getVariables().putAll(nodeResult.getOutputs());
+                WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
             }
         } catch (Exception e) {
             nodeSuccess = false;
             completeMessage = "执行失败: " + e.getMessage();
             log.error("[WorkflowNodeRunner] 子图节点执行失败: nodeId={}, error={}", nodeId, e.getMessage(), e);
+            NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
+            if (observability != null) {
+                nodeResult = observability;
+            }
         }
 
         // 2. 推送子节点完成事件

@@ -1,24 +1,32 @@
 package com.lightbot.workflow.processor;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
 import com.lightbot.workflow.WorkflowNode;
+import com.lightbot.workflow.WorkflowNodeDataUtils;
+import com.lightbot.workflow.WorkflowPromptUtils;
+import com.lightbot.workflow.WorkflowResultUtils;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
  * 结束节点处理器
- * <p>工作流的出口节点，返回最终结果</p>
+ * <p>按 outputType + textTemplate/jsonParams 显式配置最终输出，禁止 Map.toString 作为对话回复</p>
  *
  * @author finch
  * @since 2026-05-24
  */
 @Component
 public class EndNodeProcessor implements NodeProcessor {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public NodeType getType() {
@@ -27,54 +35,133 @@ public class EndNodeProcessor implements NodeProcessor {
 
     @Override
     public NodeExecutionResult execute(NodeExecutionContext context) {
-        Map<String, Object> outputs = new HashMap<>();
+        Map<String, Object> nodeData = context.getCurrentNodeData() != null
+                ? context.getCurrentNodeData() : Map.of();
+        String result = resolveFinalResult(context, nodeData);
 
-        // 1. 优先从 variables 中取 LLM 输出
-        Object llmOutput = context.getVariables().get("llmOutput");
-        if (llmOutput != null) {
-            outputs.put("result", llmOutput);
-            return NodeExecutionResult.builder()
-                    .outputs(outputs)
-                    .finished(true)
-                    .build();
+        Map<String, Object> outputs = new HashMap<>();
+        outputs.put("result", result);
+        context.getVariables().put("result", result);
+
+        return NodeExecutionResult.builder()
+                .outputs(outputs)
+                .finished(true)
+                .build();
+    }
+
+    private String resolveFinalResult(NodeExecutionContext context, Map<String, Object> nodeData) {
+        String outputType = firstNonBlank(
+                WorkflowNodeDataUtils.parseString(nodeData.get("outputType")),
+                WorkflowNodeDataUtils.parseString(nodeData.get("output_type")),
+                "text");
+
+        if ("json".equalsIgnoreCase(outputType)) {
+            return buildJsonResult(context, nodeData);
         }
 
-        // 2. 遍历工作流节点定义，找到最后一个 LLM 节点的输出
+        String template = firstNonBlank(
+                WorkflowNodeDataUtils.parseString(nodeData.get("textTemplate")),
+                WorkflowNodeDataUtils.parseString(nodeData.get("text_template")),
+                WorkflowNodeDataUtils.parseString(nodeData.get("output")),
+                "{{output}}");
+
+        String rendered = WorkflowPromptUtils.render(template, context);
+        if (rendered != null && !rendered.isBlank() && !rendered.equals(template)) {
+            return rendered.trim();
+        }
+
+        Object heuristic = resolveHeuristicResult(context);
+        if (heuristic != null) {
+            return WorkflowResultUtils.formatAsText(heuristic);
+        }
+        return rendered != null ? rendered.trim() : "";
+    }
+
+    @SuppressWarnings("unchecked")
+    private String buildJsonResult(NodeExecutionContext context, Map<String, Object> nodeData) {
+        Object jsonParamsObj = nodeData.get("jsonParams");
+        if (jsonParamsObj == null) {
+            jsonParamsObj = nodeData.get("json_params");
+        }
+        if (!(jsonParamsObj instanceof List<?> params) || params.isEmpty()) {
+            return WorkflowResultUtils.formatAsText(resolveHeuristicResult(context));
+        }
+        Map<String, Object> json = new HashMap<>();
+        for (Object item : params) {
+            if (!(item instanceof Map<?, ?> row)) {
+                continue;
+            }
+            String key = WorkflowNodeDataUtils.parseString(row.get("key"));
+            if (key == null || key.isBlank()) {
+                continue;
+            }
+            String valueExpr = WorkflowNodeDataUtils.parseString(row.get("value"));
+            Object resolved = null;
+            if (valueExpr != null && !valueExpr.isBlank()) {
+                resolved = com.lightbot.workflow.WorkflowVariableUtils.resolveValue(valueExpr, context);
+                if (resolved == null || valueExpr.equals(String.valueOf(resolved))) {
+                    resolved = WorkflowPromptUtils.render(valueExpr, context);
+                }
+            }
+            json.put(key.trim(), resolved);
+        }
+        try {
+            return OBJECT_MAPPER.writeValueAsString(json);
+        } catch (JsonProcessingException e) {
+            return WorkflowResultUtils.formatAsText(json);
+        }
+    }
+
+
+    private Object resolveHeuristicResult(NodeExecutionContext context) {
+        Object llmOutput = context.getVariables().get("llmOutput");
+        if (llmOutput != null) {
+            return llmOutput;
+        }
+        Object output = context.getVariables().get("output");
+        if (output != null) {
+            return output;
+        }
+        Object existingResult = context.getVariables().get("result");
+        if (existingResult != null) {
+            return existingResult;
+        }
+
         if (context.getWorkflow() != null && context.getWorkflow().getNodes() != null) {
             for (int i = context.getWorkflow().getNodes().size() - 1; i >= 0; i--) {
                 WorkflowNode node = context.getWorkflow().getNodes().get(i);
                 if (node.getType() == NodeType.LLM) {
                     Object nodeOutput = context.getNodeOutputs().get(node.getId());
                     if (nodeOutput instanceof Map<?, ?> map && map.containsKey("llmOutput")) {
-                        outputs.put("result", map.get("llmOutput"));
-                        return NodeExecutionResult.builder()
-                                .outputs(outputs)
-                                .finished(true)
-                                .build();
+                        return map.get("llmOutput");
                     }
                 }
             }
         }
 
-        // 3. 优先取 variables 中已有的 result（脚本/代码等节点已设置）
-        Object existingResult = context.getVariables().get("result");
-        if (existingResult != null) {
-            outputs.put("result", existingResult);
-            return NodeExecutionResult.builder()
-                    .outputs(outputs)
-                    .finished(true)
-                    .build();
-        }
-
-        // 4. 兜底：取最后一个节点的输出
         Object lastOutput = context.getNodeOutputs().values().stream()
                 .reduce((first, second) -> second)
                 .orElse(null);
-        outputs.put("result", lastOutput);
+        if (lastOutput instanceof Map<?, ?> map) {
+            if (map.containsKey("output")) {
+                return map.get("output");
+            }
+            if (map.containsKey("result")) {
+                return map.get("result");
+            }
+        }
+        return lastOutput;
+    }
 
-        return NodeExecutionResult.builder()
-                .outputs(outputs)
-                .finished(true)
-                .build();
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return null;
+        }
+        for (String v : values) {
+            if (v != null && !v.isBlank()) {
+                return v;
+            }
+        }
+        return null;
     }
 }

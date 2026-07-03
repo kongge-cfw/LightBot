@@ -241,6 +241,13 @@ export function getDefaultNodeData(type) {
     loop_end: { label: '迭代结束', builtin: true },
     batch_start: { label: '并行处理', builtin: true },
     batch_end: { label: '并行结束', builtin: true },
+    start: { label: '开始' },
+    end: {
+      label: '结束',
+      outputType: 'text',
+      textTemplate: '{{output}}',
+      jsonParams: [],
+    },
   }
   return defaults[type] || { label: getNodeTitle(type) }
 }

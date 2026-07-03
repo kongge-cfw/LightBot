@@ -165,7 +165,7 @@ public class LlmNodeProcessor implements NodeProcessor {
         // 系统提示词
         String sysPromptRaw = WorkflowNodeDataUtils.parseString(nodeData.get("sysPrompt"));
         if (sysPromptRaw != null) {
-            String systemPrompt = WorkflowPromptUtils.render(sysPromptRaw, context.getVariables());
+            String systemPrompt = WorkflowPromptUtils.render(sysPromptRaw, context);
             if (systemPrompt != null && !systemPrompt.isBlank()) {
                 messages.add(new SystemMessage(systemPrompt));
             }
@@ -190,7 +190,7 @@ public class LlmNodeProcessor implements NodeProcessor {
 
         // 用户提示词（模板渲染）
         String promptTemplate = String.valueOf(nodeData.getOrDefault("promptTemplate", "{{input}}"));
-        String userPrompt = WorkflowPromptUtils.render(promptTemplate, context.getVariables());
+        String userPrompt = WorkflowPromptUtils.render(promptTemplate, context);
         log.info("[LlmNodeProcessor] promptTemplate={}, renderedUserPrompt={}, variableKeys={}",
                 promptTemplate, userPrompt.length() > 200 ? userPrompt.substring(0, 200) + "..." : userPrompt, context.getVariables().keySet());
         messages.add(new UserMessage(userPrompt));

@@ -160,6 +160,7 @@
       >
         <WorkflowNodeDetailPanel
           :node="selectedNode"
+          :nodes="nodes"
           :edges="edges"
           :is-version-preview="isVersionPreview"
           :can-test-selected-node="canTestSelectedNode"
@@ -292,6 +293,7 @@ import { replayWorkflowNodeEvents } from '../views/workflow/composables/useWorkf
 import { getNodeExample, canApplyNodeExample } from '../views/workflow/nodeConfigMeta'
 import { canSingleTestNodeType } from '../views/workflow/workflowNodeTest'
 import { ensureConditionGroups } from '../views/workflow/conditionUtils'
+import { validateWorkflowReferences } from '../views/workflow/workflowReferValidate'
 import { applyWorkflowAutoLayout, applyWorkflowBezierEdgeStyle } from '../views/workflow/workflowLayout'
 import { WORKFLOW_DRAGGING_GROUP_ID_KEY } from '../views/workflow/useGroupDragMask'
 import '../views/workflow/workflowGroupDragMask.css'
@@ -2214,6 +2216,10 @@ function validateWorkflow(showToast = true) {
       errors.push({ nodeId: n.id, field: 'componentCode', message: '请选择子工作流' })
     }
   })
+
+  // 5. 变量引用静态校验（命名空间 {{nodeId.field}}）
+  const referErrors = validateWorkflowReferences(nodes.value, edges.value)
+  referErrors.forEach(err => errors.push(err))
 
   validationErrors.value = errors
 

@@ -54,6 +54,10 @@ public class WorkflowSubgraphExecutor {
         }
 
         Map<String, Object> nodeOutputs = new HashMap<>(parentContext.getNodeOutputs());
+        Map<String, Map<String, Object>> scopedVariables = parentContext.getScopedVariables() != null
+                ? new HashMap<>(parentContext.getScopedVariables()) : new HashMap<>();
+        Map<String, Object> sysVariables = parentContext.getSysVariables() != null
+                ? new HashMap<>(parentContext.getSysVariables()) : new HashMap<>();
         NodeExecutionContext iterContext = NodeExecutionContext.builder()
                 .agentId(parentContext.getAgentId())
                 .sessionId(parentContext.getSessionId())
@@ -61,6 +65,8 @@ public class WorkflowSubgraphExecutor {
                 .agent(parentContext.getAgent())
                 .workflow(workflow)
                 .variables(variables)
+                .scopedVariables(scopedVariables)
+                .sysVariables(sysVariables)
                 .nodeOutputs(nodeOutputs)
                 .workflowEvents(parentContext.getWorkflowEvents())
                 .onEvent(parentContext.getOnEvent())

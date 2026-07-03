@@ -68,6 +68,7 @@
         :readonly="isVersionPreview || forceReadonly"
         :readonly-scrollable="forceReadonly"
         :node="node"
+        :nodes="nodes"
         :edges="edges"
         :knowledge-list="knowledgeList"
         :tools="tools"
@@ -84,6 +85,26 @@
         <a-form-item label="节点名称">
           <a-input v-model:value="node.data.label" :disabled="isVersionPreview || forceReadonly" @change="$emit('sync')" />
         </a-form-item>
+        <template v-if="node.type === 'end'">
+          <a-form-item label="输出类型">
+            <a-select v-model:value="node.data.outputType" @change="$emit('sync')">
+              <a-select-option value="text">文本</a-select-option>
+              <a-select-option value="json">JSON</a-select-option>
+            </a-select>
+          </a-form-item>
+          <a-form-item v-if="(node.data.outputType || 'text') === 'text'" label="最终输出模板">
+            <VariablePickerInput
+              v-model="node.data.textTemplate"
+              :node-id="node.id"
+              :nodes="nodes"
+              :edges="edges"
+              :placeholder="endOutputRefExample"
+              :disabled="isVersionPreview || forceReadonly"
+              @change="$emit('sync')"
+            />
+            <div class="field-hint">推荐使用上游节点显式引用，如 <code>{{ endOutputRefExample }}</code>，避免 Map 字符串化</div>
+          </a-form-item>
+        </template>
       </a-form>
 
       <WorkflowNodeExecutionSection
@@ -114,9 +135,14 @@ import WorkflowTooltip from '../WorkflowTooltip.vue'
 import WorkflowNodeConfig from '../WorkflowNodeConfig.vue'
 import WorkflowNodeExecutionSection from '../WorkflowNodeExecutionSection.vue'
 import NodeTypeIcon from '../NodeTypeIcon.vue'
+import VariablePickerInput from '../VariablePickerInput.vue'
+
+/** 结束节点引用示例（避免模板内嵌套 {{ }} 导致编译错误） */
+const endOutputRefExample = '{{output_1.output}}'
 
 defineProps({
   node: { type: Object, required: true },
+  nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
   isVersionPreview: Boolean,
   /** 强制只读（可观测性 trace 等场景，非历史版本预览） */
@@ -276,5 +302,11 @@ defineEmits([
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
+}
+.field-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.4;
 }
 </style>

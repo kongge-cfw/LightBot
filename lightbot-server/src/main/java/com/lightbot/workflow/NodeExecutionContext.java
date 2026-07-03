@@ -39,12 +39,22 @@ public class NodeExecutionContext {
     private String userInput;
 
     /**
-     * 节点间传递的变量
+     * 节点间传递的变量（兼容层扁平 Map，逐步由 scopedVariables 替代）
      */
     private Map<String, Object> variables;
 
     /**
-     * 各节点输出结果（key为节点ID）
+     * 命名空间变量池：nodeId -> { field -> value }
+     */
+    private Map<String, Map<String, Object>> scopedVariables;
+
+    /**
+     * 系统变量桶：query、input、history_list 等
+     */
+    private Map<String, Object> sysVariables;
+
+    /**
+     * 各节点输出结果（key为节点ID，值为原始 outputs）
      */
     private Map<String, Object> nodeOutputs;
 

@@ -10,18 +10,17 @@ public final class WorkflowPromptUtils {
     private WorkflowPromptUtils() {
     }
 
+    /**
+     * 基于扁平 variables 渲染（兼容旧调用）
+     */
     public static String render(String template, Map<String, Object> variables) {
-        if (template == null) {
-            return "";
-        }
-        String result = template;
-        if (variables != null) {
-            for (Map.Entry<String, Object> entry : variables.entrySet()) {
-                String placeholder = "{{" + entry.getKey() + "}}";
-                String value = entry.getValue() != null ? entry.getValue().toString() : "";
-                result = result.replace(placeholder, value);
-            }
-        }
-        return result;
+        return WorkflowReferenceResolver.renderWithVariables(template, variables);
+    }
+
+    /**
+     * 基于完整上下文渲染，支持 {{nodeId.field}} / ${nodeId.field} / {{sys.query}}
+     */
+    public static String render(String template, NodeExecutionContext context) {
+        return WorkflowReferenceResolver.renderWithContext(template, context);
     }
 }

@@ -96,7 +96,7 @@
         <template #label>
           <ConfigFieldLabel label="输入变量" :tip="hint('classifier', 'inputVariable')" />
         </template>
-        <VariablePickerInput v-model="node.data.inputVariable" placeholder="{{query}}" :disabled="readonly" @change="emitSync" />
+        <VariablePickerInput v-model="node.data.inputVariable" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @change="emitSync" />
       </a-form-item>
       <a-form-item label="模型" required>
         <ConfigReadonlyValue v-if="readonly" :text="modelDisplayText" />
@@ -165,7 +165,7 @@
         <template #label>
           <ConfigFieldLabel label="输入变量" :tip="hint('retrieval', 'inputVariable')" />
         </template>
-        <VariablePickerInput v-model="node.data.inputVariable" placeholder="{{query}}" :disabled="readonly" @change="emitSync" />
+        <VariablePickerInput v-model="node.data.inputVariable" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @change="emitSync" />
       </a-form-item>
       <a-form-item required>
         <template #label>
@@ -272,7 +272,7 @@
         </template>
         <div v-for="(row, idx) in toolInputMappings" :key="'tool-in-' + idx" class="param-row">
           <a-input v-model:value="row.key" placeholder="工具参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeToolInputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolInputMapping">
@@ -285,7 +285,7 @@
         </template>
         <div v-for="(row, idx) in toolOutputMappings" :key="'tool-out-' + idx" class="param-row">
           <a-input v-model:value="row.key" placeholder="写入流程变量名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" placeholder="{{answer}}" :disabled="readonly" @update:model-value="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{answer}}" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeToolOutputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolOutputMapping">
@@ -480,7 +480,7 @@
         </template>
         <div v-for="(row, idx) in appComponentInputMappings" :key="'sub-in-' + idx" class="param-row">
           <a-input v-model:value="row.key" placeholder="参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeAppInputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppInputMapping">
@@ -493,7 +493,7 @@
         </template>
         <div v-for="(row, idx) in appComponentOutputMappings" :key="'sub-out-' + idx" class="param-row">
           <a-input v-model:value="row.key" placeholder="写入父流程变量名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" placeholder="{{result}}" :disabled="readonly" @update:model-value="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{result}}" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeAppOutputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppOutputMapping">
@@ -543,6 +543,9 @@
           </template>
           <VariablePickerInput
             :model-value="loopArrayVariable"
+            :node-id="node.id"
+            :nodes="nodes"
+            :edges="edges"
             placeholder="{{input}} 或数组变量"
             @update:model-value="onLoopArrayVariableChange"
           />
@@ -579,6 +582,9 @@
         </template>
         <VariablePickerInput
           :model-value="batchArrayVariable"
+          :node-id="node.id"
+          :nodes="nodes"
+          :edges="edges"
           placeholder="{{input}} 或 Array 类型变量"
           @update:model-value="onBatchArrayVariableChange"
         />
@@ -651,7 +657,7 @@
         </div>
         <div v-for="(p, idx) in node.data.inputParams" :key="'in-' + idx" class="param-row">
           <a-input v-model:value="p.key" placeholder="参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="p.value" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="p.value" :node-id="node.id" :nodes="nodes" :edges="edges" :disabled="readonly" @change="emitSync" />
           <a-button type="text" danger :disabled="readonly" @click="removeScriptInput(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button type="dashed" block size="small" class="param-add-btn" :disabled="readonly" @click="addScriptInput">
@@ -839,6 +845,7 @@ import { syncConditionBranches, ensureConditionGroups } from '../conditionUtils'
 
 const props = defineProps({
   node: { type: Object, required: true },
+  nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },
   readonly: { type: Boolean, default: false },
   /** 只读但允许滚动查看长文本（可观测性 trace 等） */

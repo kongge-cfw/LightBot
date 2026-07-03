@@ -61,7 +61,7 @@ public class VariableHandleNodeProcessor extends AbstractFlowNodeProcessor imple
             if (template == null || template.isBlank()) {
                 throw new IllegalArgumentException("变量处理节点模板内容不能为空");
             }
-            primaryOutput = WorkflowPromptUtils.render(template, variables);
+            primaryOutput = WorkflowPromptUtils.render(template, context);
             outputs.put("output", primaryOutput);
         }
 
