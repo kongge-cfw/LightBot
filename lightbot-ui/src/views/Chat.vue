@@ -516,6 +516,10 @@
             <CloseOutlined />
           </button>
         </div>
+        <div v-if="workflowConfirmBlocked" class="workflow-confirm-send-block">
+          <PauseCircleOutlined class="workflow-confirm-send-icon" />
+          <span>工作流等待人工确认，请先完成上方表单后再发送新消息</span>
+        </div>
         <div class="chat-input">
           <input
             ref="fileInputRef"
@@ -536,7 +540,7 @@
               type="button"
               class="btn-attach"
               :class="{ 'btn-attach--uploading': uploading }"
-              :disabled="loading || uploading"
+              :disabled="loading || uploading || workflowConfirmBlocked"
               @click="triggerFileUpload"
             >
               <LoadingOutlined v-if="uploading" spin />
@@ -548,8 +552,8 @@
             v-model="input"
             :agent-id="selectedAgentId"
             :agent-version-id="selectedAgentVersionId"
-            :disabled="loading"
-            placeholder="输入消息... (Enter 发送, Shift+Enter 换行, @ 提及资源)"
+            :disabled="loading || workflowConfirmBlocked"
+            :placeholder="workflowConfirmBlocked ? '请先完成工作流人工确认表单…' : '输入消息... (Enter 发送, Shift+Enter 换行, @ 提及资源)'"
             @send="sendMessage"
           />
           <div class="chat-input-actions">
@@ -812,8 +816,19 @@ import ToolCallsGroupComponent from '../components/ToolCallsGroupComponent.vue'
 import WorkflowNodesGroupComponent from '../components/WorkflowNodesGroupComponent.vue'
 import WorkflowConfirmForm from '../components/WorkflowConfirmForm.vue'
 import { resolveWorkflowConfirmPending, isWorkflowAwaitingConfirm } from '../components/workflow/workflowStepUtils.js'
-import { resumeWorkflowStream } from '../api/workflowTestStream.js'
-import { patchLocalConfirmEventsBeforeResume, findSuspendNodeIdFromEvents } from './workflow/composables/useWorkflowTestLive.js'
+import { useChatSendGate } from '../composables/chat/useChatSendGate.js'
+import { createChatWorkflowStreamHandlers } from '../composables/chat/useChatWorkflowStream.js'
+import {
+  getTopCapabilityEvents,
+  getCapabilityEventsForOffset,
+  getInlineCapabilityEvents,
+  getPureToolEvents,
+  getToolEventsForOffset,
+  isToolBlockDone,
+  markToolBlockDone,
+  splitContentByOffsets,
+  isSegmentFinalized,
+} from '../composables/chat/useChatEventPartition.js'
 import AgentCapabilityPanel from '../components/AgentCapabilityPanel.vue'
 import ChatAttachmentPreview from '../components/ChatAttachmentPreview.vue'
 import ChatAttachmentTile from '../components/ChatAttachmentTile.vue'
@@ -1160,8 +1175,31 @@ const refsSectionExpandedMap = ref(new Map())
 // 消息反馈状态：messageId → "like"/"dislike"
 const messageFeedbackMap = ref(new Map())
 
-const canSend = computed(() =>
-  !loading.value && (input.value.trim().length > 0 || pendingAttachments.value.length > 0))
+const { canSend, workflowConfirmBlocked } = useChatSendGate({
+  loading,
+  input,
+  pendingAttachments,
+  messages,
+})
+
+const {
+  handleChatWorkflowStreamEvent,
+  submitWorkflowConfirm,
+  applyToolMetadata,
+} = createChatWorkflowStreamHandlers({
+  loading,
+  streaming,
+  currentStatus,
+  hasStreamContent,
+  streamSmoother,
+  scrollToBottom,
+  clearErrorRetry,
+  getCurrentStreamingMsg: () => currentStreamingMsg,
+  setCurrentStreamingMsg: (msg) => { currentStreamingMsg = msg },
+  getAbortController: () => abortController.value,
+  setAbortController: (ctrl) => { abortController.value = ctrl },
+  getSelectedAgentId: () => selectedAgentId.value,
+})
 
 const userInitial = computed(() => {
   const name = userStore.user?.username || userStore.user?.nickname || 'U'
@@ -1713,189 +1751,15 @@ async function loadOlderMessages() {
 }
 
 
-/** 工作流 SSE 事件：更新节点轨迹、状态文案与正文流式输出 */
-function handleChatWorkflowStreamEvent(assistantMsg, event) {
-  if (!assistantMsg || !event?.type) return false
-
-  if (event.type === 'workflow_llm_chunk') {
-    clearErrorRetry(assistantMsg)
-    currentStreamingMsg = assistantMsg
-    streamSmoother.push(event.content || '')
-    hasStreamContent.value = true
-    scrollToBottom()
-    return true
-  }
-
-  const workflowEventTypes = [
-    'workflow_node_start',
-    'workflow_node_complete',
-    'workflow_complete',
-    'workflow_confirm_required',
-    'workflow_suspended',
-  ]
-  if (!workflowEventTypes.includes(event.type)) return false
-
-  if (!assistantMsg._workflowEvents) assistantMsg._workflowEvents = []
-  if (event.type !== 'workflow_confirm_required') {
-    assistantMsg._workflowEvents.push(event)
-  }
-  hasStreamContent.value = true
-
-  if (event.type === 'workflow_confirm_required') {
-    assistantMsg._workflowConfirmPending = {
-      runId: event.runId,
-      confirmForm: event.confirmForm,
-    }
-    assistantMsg._workflowEvents.push(event)
-    assistantMsg._streaming = false
-    assistantMsg._toolsDone = true
-    loading.value = false
-    streaming.value = false
-    currentStatus.value = '等待人工确认'
-  } else if (event.type === 'workflow_suspended') {
-    assistantMsg._streaming = false
-    assistantMsg._toolsDone = true
-    loading.value = false
-    streaming.value = false
-    if (!assistantMsg._workflowConfirmPending) {
-      const pending = resolveWorkflowConfirmPending(assistantMsg._workflowEvents, null)
-      if (pending) assistantMsg._workflowConfirmPending = pending
-    }
-    currentStatus.value = '工作流已暂停，等待确认'
-    nextTick(() => scrollToBottom())
-  } else if (event.type === 'workflow_node_start') {
-    assistantMsg._streaming = true
-    currentStatus.value = `正在执行: ${event.nodeLabel || event.nodeType || '节点'}`
-  } else if (event.type === 'workflow_node_complete') {
-    const label = event.nodeLabel || event.nodeType || '节点'
-    const dur = event.durationMs != null ? ` (${event.durationMs}ms)` : ''
-    currentStatus.value = event.success === false
-      ? `${label} 执行失败`
-      : `${label} 已完成${dur}`
-  } else if (event.type === 'workflow_complete') {
-    currentStatus.value = '工作流执行完成，正在整理回复…'
-  }
-
-  scrollToBottom()
-  return true
-}
-
-function syncWorkflowResumeMetadata(msg, result) {
-  if (!msg) return
-  const base = typeof msg.metadata === 'object' && msg.metadata ? msg.metadata : {}
-  if (result?.nodeEvents?.length) {
-    msg._workflowEvents = result.nodeEvents
-  }
-  if (Boolean(result?.suspended)) {
-    msg.metadata = {
-      ...base,
-      workflowSuspended: true,
-      workflowRunId: result.runId,
-      workflowConfirmForm: result.confirmForm,
-      workflowEvents: msg._workflowEvents,
-    }
-    msg._workflowConfirmPending = {
-      runId: result.runId,
-      confirmForm: result.confirmForm,
-    }
-  } else {
-    msg.metadata = {
-      ...base,
-      workflowSuspended: false,
-      workflowConfirmResolved: true,
-      workflowConfirmForm: null,
-      workflowRunId: null,
-      workflowEvents: msg._workflowEvents,
-    }
-    msg._workflowConfirmPending = null
-  }
-}
-
-function finalizeWorkflowResumeMessage(msg, result) {
-  if (!msg) return
-  syncWorkflowResumeMetadata(msg, result)
-  if (result?.suspended) {
-    msg._streaming = false
-    msg._toolsDone = true
-    currentStatus.value = '工作流已暂停，等待确认'
-    return
-  }
-  if (result?.output) {
-    const out = String(result.output).trim()
-    if (out) msg.content = out
-  }
-  msg._streaming = false
-  msg._toolsDone = true
-  currentStatus.value = ''
-  scrollToBottom()
-}
-
-async function submitWorkflowConfirm(msg, formData) {
-  const pending = msg?._workflowConfirmPending
-  if (!pending?.runId || !selectedAgentId.value) return
-
-  const runId = pending.runId
-  const savedPending = { ...pending }
-  const suspendNodeId = findSuspendNodeIdFromEvents(msg._workflowEvents, runId)
-
-  const patchRef = { value: { nodeEvents: msg._workflowEvents || [] } }
-  patchLocalConfirmEventsBeforeResume(patchRef, suspendNodeId, formData)
-  msg._workflowEvents = patchRef.value.nodeEvents
-
-  msg._workflowConfirmPending = null
-  msg._streaming = true
-  msg._toolsDone = false
-
-  loading.value = true
-  streaming.value = true
-  currentStreamingMsg = msg
-  streamSmoother.start()
-  currentStatus.value = '表单已提交，正在执行后续流程…'
-
-  const controller = new AbortController()
-  abortController.value = controller
-
-  try {
-    await resumeWorkflowStream(selectedAgentId.value, {
-      runId,
-      formData,
-      messageId: msg._id || (typeof msg.metadata === 'object' ? msg.metadata?.assistantMessageId : null) || undefined,
-    }, {
-      signal: controller.signal,
-      onEvent: (event) => {
-        if (event?.type === 'error') {
-          throw new Error(event.message || '恢复工作流失败')
-        }
-        handleChatWorkflowStreamEvent(msg, event)
-      },
-      onDone: (result) => {
-        if (result) finalizeWorkflowResumeMessage(msg, result)
-      },
-    })
-  } catch (e) {
-    if (e.name === 'AbortError') return
-    message.error(e.message || '恢复工作流失败')
-    if (!msg._workflowConfirmPending) {
-      msg._workflowConfirmPending = savedPending
-    }
-    msg._streaming = false
-    msg._toolsDone = true
-    currentStatus.value = msg._workflowConfirmPending ? '工作流已暂停，等待确认' : ''
-  } finally {
-    streamSmoother.stop()
-    currentStreamingMsg = null
-    abortController.value = null
-    if (!msg._workflowConfirmPending) {
-      loading.value = false
-      streaming.value = false
-    }
-  }
-}
-
 async function sendMessage() {
   const text = input.value.trim()
   const attachments = [...pendingAttachments.value]
-  if ((!text && attachments.length === 0) || loading.value) return
+  if ((!text && attachments.length === 0) || !canSend.value) {
+    if (workflowConfirmBlocked.value && (text || attachments.length)) {
+      message.warning('请先完成工作流人工确认表单，再发送新消息')
+    }
+    return
+  }
   const mixCheck = validatePendingAttachmentMix(attachments)
   if (!mixCheck.ok) {
     message.warning(mixCheck.message)
@@ -2643,135 +2507,6 @@ function registerToolBlockOffset(msg, offset) {
     msg._toolBlockOffsets.push(offset)
     msg._toolBlockOffsets.sort((a, b) => a - b)
   }
-}
-
-const CAPABILITY_EVENT_TYPES = new Set(['skill_active', 'subagent_call', 'subagent_result', 'subagent_token', 'subagent_tool_call', 'subagent_tool_result', 'subagent_error', 'subagent_error_retry'])
-
-function getCapabilityEvents(msg) {
-  return (msg._toolEvents || []).filter(e => CAPABILITY_EVENT_TYPES.has(e.type))
-}
-
-function getTopCapabilityEvents(msg) {
-  return getCapabilityEvents(msg).filter(e => e.type === 'skill_active')
-}
-
-function getCapabilityEventsForOffset(msg, offset) {
-  if (offset == -1) {
-    return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active')
-  }
-  return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active' && e.contentOffset == offset)
-}
-
-function getInlineCapabilityEvents(msg) {
-  const offsets = getToolBlockOffsets(msg)
-  if (offsets.length > 0) return []
-  return getCapabilityEvents(msg).filter(e => e.type !== 'skill_active')
-}
-
-function getPureToolEvents(events) {
-  return (events || []).filter(e => !CAPABILITY_EVENT_TYPES.has(e.type))
-}
-
-function getToolBlockOffsets(msg) {
-  if (msg._toolBlockOffsets?.length > 0) return msg._toolBlockOffsets
-  const fromEvents = [...new Set(
-    (msg._toolEvents || [])
-      .filter(e => e.type === 'tool_call' || e.type === 'subagent_call')
-      .map(e => e.contentOffset)
-      .filter(o => o != null && o >= 0)
-  )]
-  return fromEvents.sort((a, b) => a - b)
-}
-
-function getToolEventsForOffset(msg, offset) {
-  const events = msg._toolEvents || []
-  if (offset == -1) {
-    return events.filter(e => e.contentOffset == null)
-  }
-  const matched = events.filter(e => e.contentOffset == offset)
-  if (matched.length > 0) return matched
-  const offsets = getToolBlockOffsets(msg)
-  if (offsets.length === 1 && offsets[0] == offset) {
-    return events.filter(e => e.contentOffset == null)
-  }
-  return matched
-}
-
-function isToolBlockDone(msg, offset) {
-  if (offset == -1) {
-    if (!msg._streaming) return true
-    return (msg._toolEvents || []).some(e => e.type === 'tool_result' || e.type === 'subagent_result')
-  }
-  if (msg._toolBlocksDone?.some(o => o == offset)) return true
-  if (!msg._streaming) return true
-  const atOffset = getToolEventsForOffset(msg, offset)
-  return atOffset.some(e => e.type === 'tool_result' || e.type === 'subagent_result')
-}
-
-function markToolBlockDone(msg, offset) {
-  if (offset == null || offset < 0) return
-  if (!msg._toolBlocksDone) msg._toolBlocksDone = []
-  // 使用宽松相等检查是否已存在
-  if (!msg._toolBlocksDone.some(o => o == offset)) {
-    msg._toolBlocksDone.push(offset)
-  }
-}
-
-function applyToolMetadata(msg, meta) {
-  if (!meta) return
-  msg.metadata = { ...(msg.metadata || {}), ...meta }
-  if (meta.toolEvents?.length) {
-    msg._toolEvents = meta.toolEvents
-  }
-  if (meta.workflowEvents?.length) {
-    msg._workflowEvents = meta.workflowEvents
-  }
-  if (meta.workflowConfirmResolved === true || meta.workflowSuspended === false) {
-    msg._workflowConfirmPending = null
-  }
-  const pending = resolveWorkflowConfirmPending(msg._workflowEvents, meta)
-  if (pending) {
-    msg._workflowConfirmPending = pending
-  }
-  if (meta.toolBlockOffsets?.length) {
-    msg._toolBlockOffsets = meta.toolBlockOffsets
-  }
-}
-
-function splitContentByOffsets(msg) {
-  const content = msg.content || ''
-  const offsets = getToolBlockOffsets(msg)
-  if (offsets.length === 0) {
-    if ((msg._toolEvents || []).length > 0) {
-      return [
-        { type: 'tool', offset: -1 },
-        ...(content ? [{ type: 'text', text: content }] : []),
-      ]
-    }
-    return [{ type: 'text', text: content }]
-  }
-
-  const segments = []
-  let lastIdx = 0
-  for (const offset of offsets) {
-    if (offset > lastIdx && offset <= content.length) {
-      segments.push({ type: 'text', text: content.substring(lastIdx, offset) })
-    }
-    segments.push({ type: 'tool', offset })
-    lastIdx = Math.max(lastIdx, offset)
-  }
-  if (lastIdx < content.length) {
-    segments.push({ type: 'text', text: content.substring(lastIdx) })
-  }
-  return segments
-}
-
-function isSegmentFinalized(msg, segment, index) {
-  if (!msg?._streaming) return true
-  if (segment.type !== 'text') return true
-  const segments = splitContentByOffsets(msg)
-  const lastTextIndex = [...segments].map((s, i) => ({ s, i })).reverse().find(item => item.s.type === 'text')?.i
-  return index !== lastTextIndex
 }
 
 function formatElapsed(ms) {
@@ -3661,6 +3396,22 @@ watch(sessionId, (newVal, oldVal) => {
 }
 
 /* 输入区 */
+.workflow-confirm-send-block {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--color-warning-deep);
+  background: var(--color-warn-bg);
+  border: 1px solid var(--color-warning-soft);
+}
+.workflow-confirm-send-icon {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}
 .chat-input-wrapper {
   padding: 0 32px 24px;
   max-width: 800px;

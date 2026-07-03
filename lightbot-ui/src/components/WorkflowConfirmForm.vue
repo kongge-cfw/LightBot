@@ -40,11 +40,14 @@
             v-else
             :label="field.label || field.key"
             :required="field.required"
+            :validate-status="fieldErrors[field.key] ? 'error' : ''"
+            :help="fieldErrors[field.key]"
           >
             <a-radio-group
               v-if="field.type === 'radio'"
               v-model:value="formValues[field.key]"
               class="confirm-radio-group"
+              @change="clearFieldError(field.key)"
             >
               <a-radio v-for="opt in normalizeConfirmOptions(field.options)" :key="opt.value" :value="opt.value">
                 {{ opt.label }}
@@ -56,22 +59,26 @@
               :placeholder="`请选择${field.label || field.key}`"
               :options="normalizeConfirmOptions(field.options)"
               style="width: 100%"
+              @change="clearFieldError(field.key)"
             />
             <a-textarea
               v-else-if="field.type === 'textarea'"
               v-model:value="formValues[field.key]"
               :rows="3"
               :placeholder="field.label || field.key"
+              @change="clearFieldError(field.key)"
             />
             <a-input-number
               v-else-if="field.type === 'number'"
               v-model:value="formValues[field.key]"
               style="width: 100%"
+              @change="clearFieldError(field.key)"
             />
             <a-input
               v-else
               v-model:value="formValues[field.key]"
               :placeholder="field.label || field.key"
+              @change="clearFieldError(field.key)"
             />
           </a-form-item>
         </template>
@@ -87,6 +94,7 @@
 
 <script setup>
 import { reactive, ref, watch, computed } from 'vue'
+import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, RightOutlined, WarningOutlined } from '@ant-design/icons-vue'
 import WorkflowConfirmInfoBlock from './workflow/confirm/WorkflowConfirmInfoBlock.vue'
 import WorkflowConfirmSubmittedSummary from './workflow/confirm/WorkflowConfirmSubmittedSummary.vue'
@@ -116,6 +124,35 @@ watch(
 )
 
 const formValues = reactive({})
+const fieldErrors = reactive({})
+
+function clearFieldError(key) {
+  if (key && fieldErrors[key]) {
+    delete fieldErrors[key]
+  }
+}
+
+function isRequiredFieldEmpty(field) {
+  const val = formValues[field.key]
+  if (field.type === 'number') {
+    return val == null || val === ''
+  }
+  return val == null || String(val).trim() === ''
+}
+
+function validateRequiredFields() {
+  Object.keys(fieldErrors).forEach(k => delete fieldErrors[k])
+  const missingLabels = []
+  for (const field of formFields.value) {
+    if (field.type === 'info' || !field.required || !field.key) continue
+    if (isRequiredFieldEmpty(field)) {
+      const label = field.label || field.key
+      fieldErrors[field.key] = `请填写${label}`
+      missingLabels.push(label)
+    }
+  }
+  return missingLabels
+}
 
 const formFields = computed(() => {
   const fields = props.confirmForm?.formFields
@@ -130,6 +167,7 @@ watch(
   () => props.confirmForm,
   (form) => {
     Object.keys(formValues).forEach(k => delete formValues[k])
+    Object.keys(fieldErrors).forEach(k => delete fieldErrors[k])
     if (!form?.formFields) return
     for (const field of form.formFields) {
       if (field?.type === 'info') continue
@@ -141,12 +179,15 @@ watch(
 )
 
 function handleSubmit() {
-  for (const field of formFields.value) {
-    if (field.type === 'info' || !field.required) continue
-    const val = formValues[field.key]
-    if (val == null || String(val).trim() === '') {
-      return
-    }
+  const missingLabels = validateRequiredFields()
+  if (missingLabels.length) {
+    expanded.value = true
+    message.warning(
+      missingLabels.length === 1
+        ? `请填写必填项：${missingLabels[0]}`
+        : `请填写必填项：${missingLabels.join('、')}`
+    )
+    return
   }
   emit('submit', { ...formValues })
 }
