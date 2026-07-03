@@ -1,0 +1,183 @@
+<template>
+  <div class="chat-topbar">
+    <div class="chat-topbar-left">
+      <a-tooltip v-if="!titleEditing" title="修改标题">
+        <div class="chat-topbar-title" @click="$emit('start-title-edit')">
+          {{ sessionTitle || '新对话' }}
+          <EditOutlined class="chat-topbar-title-icon" />
+        </div>
+      </a-tooltip>
+      <div v-else class="chat-topbar-title-edit">
+        <a-input
+          ref="titleInputRef"
+          :value="titleEditValue"
+          size="small"
+          :maxlength="50"
+          @update:value="$emit('update:titleEditValue', $event)"
+          @press-enter="$emit('confirm-title-edit')"
+          @blur="$emit('confirm-title-edit')"
+          @keydown.esc="$emit('cancel-title-edit')"
+        />
+        <a-tooltip title="取消">
+          <button
+            class="btn-title-cancel"
+            @mousedown.prevent
+            @click="$emit('cancel-title-edit')"
+          >
+            <CloseOutlined />
+          </button>
+        </a-tooltip>
+      </div>
+    </div>
+    <div class="chat-topbar-right">
+      <a-tooltip title="会话文件">
+        <button class="btn-topbar-file" @click="$emit('open-file-drawer')">
+          <FolderOpenOutlined />
+        </button>
+      </a-tooltip>
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref } from 'vue'
+import { EditOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
+
+defineProps({
+  sessionTitle: { type: String, default: '' },
+  titleEditing: { type: Boolean, default: false },
+  titleEditValue: { type: String, default: '' },
+})
+
+defineEmits([
+  'start-title-edit',
+  'confirm-title-edit',
+  'cancel-title-edit',
+  'update:titleEditValue',
+  'open-file-drawer',
+])
+
+const titleInputRef = ref(null)
+
+defineExpose({
+  titleInputRef,
+})
+</script>
+
+<style scoped>
+.chat-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 32px;
+  border-bottom: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  flex-shrink: 0;
+  gap: 16px;
+  width: 100%;
+}
+
+.chat-topbar-left {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.chat-topbar-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-ink);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.chat-topbar-title:hover {
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-hairline);
+}
+
+.chat-topbar-title-icon {
+  font-size: 12px;
+  color: var(--color-mute);
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.chat-topbar-title:hover .chat-topbar-title-icon {
+  opacity: 1;
+}
+
+.chat-topbar-title-edit {
+  flex: 1;
+  max-width: 360px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chat-topbar-title-edit :deep(input) {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.btn-title-cancel {
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas);
+  color: var(--color-mute);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.btn-title-cancel:hover {
+  background: var(--color-canvas-soft-2);
+  color: var(--color-error);
+  border-color: var(--color-hairline-strong);
+}
+
+.chat-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.btn-topbar-file {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: var(--color-canvas-soft-2);
+  color: var(--color-mute);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-topbar-file:hover {
+  background: var(--color-hairline);
+  color: var(--color-ink);
+}
+</style>
