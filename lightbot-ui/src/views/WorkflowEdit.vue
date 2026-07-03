@@ -2102,7 +2102,7 @@ async function onKnowledgeChange(value) {
 // 工具选择变化
 function onToolChange(value) {
   const tool = tools.value.find(t => t.id === value)
-  selectedNode.value.data.toolName = tool?.displayName || tool?.name || ''
+  selectedNode.value.data.toolName = tool?.name || ''
   syncNodes()
 }
 
@@ -2907,7 +2907,7 @@ async function abandonWorkflowTest() {
   if (!testPendingConfirm.value?.runId) return
   const runId = testPendingConfirm.value.runId
   const suspendNodeId = findSuspendNodeIdFromEvents(testResult.value?.nodeEvents, runId)
-  const notice = '工作流已终止（用户放弃人工确认）'
+  const notice = '工作流已终止（用户放弃回答）'
 
   testRunning.value = true
   try {

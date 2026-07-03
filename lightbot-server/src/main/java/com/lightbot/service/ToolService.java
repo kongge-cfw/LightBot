@@ -71,6 +71,14 @@ public interface ToolService extends IService<Tool> {
     Map<String, Object> getExampleParams(Long toolId);
 
     /**
+     * 从 inputSchema 解析必填参数名（工作流执行时仅对必填项补 example）
+     *
+     * @param toolId 工具ID
+     * @return 必填参数名集合
+     */
+    java.util.Set<String> getRequiredParamKeys(Long toolId);
+
+    /**
      * 获取工具 IO Schema（工作流 tool 节点参数映射）
      *
      * @param toolId 工具ID

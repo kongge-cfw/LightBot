@@ -33,11 +33,11 @@ export function resolveKnowledgeName(data, knowledgeList = []) {
 }
 
 export function resolveToolName(data, tools = []) {
-  if (data?.toolName) return data.toolName
   if (data?.toolId != null && tools.length) {
     const t = tools.find(x => String(x.id) === String(data.toolId))
     if (t) return t.displayName || t.name || String(data.toolId)
   }
+  if (data?.toolName) return data.toolName
   if (data?.toolId != null) return String(data.toolId)
   return '—'
 }

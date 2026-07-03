@@ -48,6 +48,7 @@ import { buildMentionMap, parseMentionText, resolveMentionSnapshot } from '../ut
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
+  initialMentions: { type: Array, default: () => [] },
   agentId: { type: [String, Number], default: null },
   agentVersionId: { type: [String, Number], default: null },
   placeholder: { type: String, default: '输入消息... (Enter 发送, Shift+Enter 换行)' },
@@ -108,9 +109,7 @@ let chipTooltipActiveChip = null
 
 onMounted(() => {
   if (props.modelValue) {
-    text.value = props.modelValue
-    lastEmittedText.value = props.modelValue
-    renderFromText(props.modelValue, storedSnapshots.value)
+    applyExternalContent(props.modelValue, props.initialMentions)
   }
   window.addEventListener('scroll', onWindowScrollHideTip, true)
 })
@@ -127,11 +126,17 @@ function onWindowScrollHideTip() {
 
 watch(() => props.modelValue, (val) => {
   if (val !== lastEmittedText.value) {
-    text.value = val || ''
-    lastEmittedText.value = val || ''
-    renderFromText(val || '', storedSnapshots.value)
+    applyExternalContent(val || '', props.initialMentions)
   }
 })
+
+function applyExternalContent(content, snapshots) {
+  const snaps = Array.isArray(snapshots) && snapshots.length ? snapshots : []
+  storedSnapshots.value = snaps
+  text.value = content || ''
+  lastEmittedText.value = content || ''
+  renderFromText(content || '', snaps)
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))

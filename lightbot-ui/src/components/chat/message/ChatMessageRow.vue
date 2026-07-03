@@ -6,6 +6,7 @@
         v-if="viewState.mode === 'edit'"
         ref="editBarRef"
         :edit-content="editContent"
+        :edit-mentions="editMentions"
         :selected-agent-id="selectedAgentId"
         :selected-agent-version-id="selectedAgentVersionId"
         :loading="loading"
@@ -81,6 +82,7 @@ import {
   getReplyToInfo,
   hasReplyTarget,
   getMsgRagRefs,
+  getMsgMentions,
   isMessageEditing,
 } from '../../../composables/chat/useChatMessageModel.js'
 import ChatMessageEditBar from './ChatMessageEditBar.vue'
@@ -155,6 +157,8 @@ const replyToInfo = computed(() => getReplyToInfo(props.msg, props.messages))
 const hasReplyTargetVal = computed(() => hasReplyTarget(props.msg, props.messages))
 
 const ragRefs = computed(() => getMsgRagRefs(props.msg))
+
+const editMentions = computed(() => getMsgMentions(props.msg))
 
 const editBarRef = ref(null)
 

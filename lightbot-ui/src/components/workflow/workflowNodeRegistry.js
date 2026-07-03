@@ -146,6 +146,10 @@ export function getStepSummary(step) {
       return text ? `命中 ${text.length} 字` : '未命中'
     }
     case 'tool': {
+      if (step.status === 'suspended') {
+        const hitl = step.confirmForm?.hitlType === 'ask_user' || step.confirmForm?.toolName === 'ask_user'
+        return hitl ? '等待您的回答' : '等待确认'
+      }
       const name = outputs.toolDisplayName || outputs.toolName || step.toolName
       return name ? `工具 · ${name}` : '工具执行完成'
     }

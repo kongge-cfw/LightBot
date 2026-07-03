@@ -10,8 +10,8 @@
       <span class="confirm-form-toggle-left">
         <WarningOutlined v-if="!readonly" class="confirm-form-toggle-icon pending" />
         <CheckCircleOutlined v-else class="confirm-form-toggle-icon done" />
-        <span class="confirm-form-toggle-title">{{ readonly ? '人工确认已提交' : '等待人工确认' }}</span>
-        <span v-if="!expanded && !readonly" class="confirm-form-toggle-hint">点击展开填写</span>
+        <span class="confirm-form-toggle-title">{{ readonly ? hitlResolvedTitle : hitlPendingTitle }}</span>
+        <span v-if="!expanded && !readonly" class="confirm-form-toggle-hint">{{ isAskUserHitl ? '点击展开回答' : '点击展开填写' }}</span>
       </span>
       <RightOutlined class="confirm-form-expand-icon" :class="{ expanded }" />
     </button>
@@ -21,8 +21,8 @@
         v-if="!collapsible"
         :type="readonly ? 'success' : 'warning'"
         show-icon
-        :message="readonly ? '已提交' : '等待人工确认'"
-        :description="confirmForm.message || '请查看以下信息并做出选择'"
+        :message="readonly ? (isAskUserHitl ? '已提交' : '已提交') : hitlPendingTitle"
+        :description="confirmForm.message || (isAskUserHitl ? '请回答以下问题以继续工作流' : '请查看以下信息并做出选择')"
         class="confirm-alert"
       />
       <div v-else-if="confirmForm.message" class="confirm-form-message">
@@ -85,7 +85,7 @@
         <a-form-item class="confirm-form-actions">
           <a-space wrap>
             <a-button type="primary" :loading="submitting" @click="handleSubmit">
-              确认并继续
+              {{ hitlSubmitLabel }}
             </a-button>
             <a-button
               v-if="showAbandon"
@@ -94,7 +94,7 @@
               :disabled="submitting"
               @click="handleAbandon"
             >
-              放弃本次确认
+              {{ hitlAbandonLabel }}
             </a-button>
           </a-space>
           <p v-if="showAbandon" class="confirm-abandon-hint">
@@ -112,7 +112,7 @@ import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, RightOutlined, WarningOutlined } from '@ant-design/icons-vue'
 import WorkflowConfirmInfoBlock from './workflow/confirm/WorkflowConfirmInfoBlock.vue'
 import WorkflowConfirmSubmittedSummary from './workflow/confirm/WorkflowConfirmSubmittedSummary.vue'
-import { normalizeConfirmOptions, buildConfirmSubmittedEntries } from './workflow/confirm/confirmFormUtils.js'
+import { normalizeConfirmOptions, buildConfirmSubmittedEntries, isAskUserHitlForm, getHitlPendingTitle, getHitlResolvedTitle, getHitlSubmitLabel, getHitlAbandonLabel } from './workflow/confirm/confirmFormUtils.js'
 
 const props = defineProps({
   confirmForm: { type: Object, default: null },
@@ -175,6 +175,12 @@ const formFields = computed(() => {
   const fields = props.confirmForm?.formFields
   return Array.isArray(fields) ? fields.filter(f => f?.key || f?.type === 'info') : []
 })
+
+const isAskUserHitl = computed(() => isAskUserHitlForm(props.confirmForm))
+const hitlPendingTitle = computed(() => getHitlPendingTitle(props.confirmForm))
+const hitlResolvedTitle = computed(() => getHitlResolvedTitle(props.confirmForm))
+const hitlSubmitLabel = computed(() => getHitlSubmitLabel(props.confirmForm))
+const hitlAbandonLabel = computed(() => getHitlAbandonLabel(props.confirmForm))
 
 const submittedEntries = computed(() =>
   buildConfirmSubmittedEntries(formFields.value, props.submittedData)

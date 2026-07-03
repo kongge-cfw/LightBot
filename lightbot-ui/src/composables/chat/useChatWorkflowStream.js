@@ -69,7 +69,8 @@ export function createChatWorkflowStreamHandlers(deps) {
       assistantMsg._toolsDone = true
       loading.value = false
       streaming.value = false
-      currentStatus.value = '等待人工确认'
+      const isAskUser = event.confirmForm?.hitlType === 'ask_user' || event.confirmForm?.toolName === 'ask_user'
+      currentStatus.value = isAskUser ? '工作流等待您的回答' : '等待人工确认'
     } else if (event.type === 'workflow_suspended') {
       assistantMsg._streaming = false
       assistantMsg._toolsDone = true

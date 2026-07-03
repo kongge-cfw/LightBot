@@ -74,3 +74,24 @@ export function buildConfirmSubmittedEntries(formFields, submittedData) {
       value: data[f.key] != null ? String(data[f.key]) : '—',
     }))
 }
+
+/** 是否为 ask_user 工具触发的 HITL 挂起（与 confirm 节点共用 confirmForm 协议） */
+export function isAskUserHitlForm(confirmForm) {
+  return confirmForm?.hitlType === 'ask_user' || confirmForm?.toolName === 'ask_user'
+}
+
+export function getHitlPendingTitle(confirmForm) {
+  return isAskUserHitlForm(confirmForm) ? '等待您的回答' : '等待人工确认'
+}
+
+export function getHitlResolvedTitle(confirmForm) {
+  return isAskUserHitlForm(confirmForm) ? '已提交回答' : '人工确认已提交'
+}
+
+export function getHitlSubmitLabel(confirmForm) {
+  return isAskUserHitlForm(confirmForm) ? '提交回答' : '确认并继续'
+}
+
+export function getHitlAbandonLabel(confirmForm) {
+  return isAskUserHitlForm(confirmForm) ? '放弃回答' : '放弃本次确认'
+}

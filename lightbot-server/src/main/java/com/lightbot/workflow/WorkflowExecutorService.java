@@ -423,9 +423,10 @@ public class WorkflowExecutorService {
                     confirmEvent.put("confirmForm", nodeResult.getSuspendPayload());
                     emitWorkflowEvent(workflowEvents, onEvent, confirmEvent);
 
+                    String suspendMessage = resolveSuspendMessage(nodeResult.getSuspendPayload());
                     Map<String, Object> completeEvent = buildCompleteEvent(
                             executingNodeId, nodeTypeCode, nodeLabel, true,
-                            "等待人工确认", stepIndex, nodeStartMs, nodeResult, node, null);
+                            suspendMessage, stepIndex, nodeStartMs, nodeResult, node, null);
                     completeEvent.put("suspended", true);
                     emitWorkflowEvent(workflowEvents, onEvent, completeEvent);
 
@@ -490,6 +491,14 @@ public class WorkflowExecutorService {
         }
 
         return LoopOutcome.completed(result.toString());
+    }
+
+    private String resolveSuspendMessage(Map<String, Object> suspendPayload) {
+        if (suspendPayload != null
+                && WorkflowHitlPayloadBuilder.HITL_TYPE_ASK_USER.equals(suspendPayload.get("hitlType"))) {
+            return "等待用户回答";
+        }
+        return "等待人工确认";
     }
 
     private Map<String, Object> buildCompleteEvent(String executingNodeId,

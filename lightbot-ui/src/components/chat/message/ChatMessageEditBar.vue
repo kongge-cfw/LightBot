@@ -9,6 +9,7 @@
       <ChatMentionInput
         ref="editInputRef"
         :model-value="editContent"
+        :initial-mentions="editMentions"
         :agent-id="selectedAgentId"
         :agent-version-id="selectedAgentVersionId"
         placeholder="编辑消息..."
@@ -29,12 +30,13 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { CloseOutlined, SendOutlined } from '@ant-design/icons-vue'
 import ChatMentionInput from '../../ChatMentionInput.vue'
 
-defineProps({
+const props = defineProps({
   editContent: { type: String, default: '' },
+  editMentions: { type: Array, default: () => [] },
   selectedAgentId: { type: [String, Number], default: null },
   selectedAgentVersionId: { type: [String, Number], default: null },
   loading: { type: Boolean, default: false },
@@ -43,6 +45,17 @@ defineProps({
 const emit = defineEmits(['cancel-edit', 'submit-edit', 'update:editContent'])
 
 const editInputRef = ref(null)
+
+/** 仅在挂载时重建 chip；勿 watch editContent，否则输入 @ 时会被 setFromMessage 重置导致浮层无法点击 */
+function syncMentionEditor() {
+  nextTick(() => {
+    nextTick(() => {
+      editInputRef.value?.setFromMessage?.(props.editContent || '', props.editMentions || [])
+    })
+  })
+}
+
+onMounted(() => syncMentionEditor())
 
 function handleEditKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {

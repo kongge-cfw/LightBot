@@ -437,6 +437,34 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         return Map.of();
     }
 
+    @Override
+    public java.util.Set<String> getRequiredParamKeys(Long toolId) {
+        Tool tool = getById(toolId);
+        if (tool == null) {
+            throw new BizException(ErrorCode.TOOL_NOT_FOUND);
+        }
+        if (tool.getInputSchema() == null || tool.getInputSchema().isBlank()) {
+            return java.util.Set.of();
+        }
+        try {
+            var root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(tool.getInputSchema());
+            var requiredNode = root.get("required");
+            if (requiredNode == null || !requiredNode.isArray()) {
+                return java.util.Set.of();
+            }
+            java.util.Set<String> keys = new java.util.LinkedHashSet<>();
+            for (var item : requiredNode) {
+                if (item != null && item.isTextual() && !item.asText().isBlank()) {
+                    keys.add(item.asText());
+                }
+            }
+            return keys;
+        } catch (Exception e) {
+            log.warn("[ToolService] 解析 inputSchema.required 失败: toolId={}, error={}", toolId, e.getMessage());
+            return java.util.Set.of();
+        }
+    }
+
     private static Object jsonNodeToValue(com.fasterxml.jackson.databind.JsonNode node) {
         if (node == null || node.isNull()) {
             return null;

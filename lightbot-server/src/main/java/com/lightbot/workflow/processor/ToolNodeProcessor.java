@@ -7,6 +7,7 @@ import com.lightbot.service.ToolService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowHitlPayloadBuilder;
 import com.lightbot.workflow.WorkflowMappingUtils;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
 import lombok.RequiredArgsConstructor;
@@ -70,9 +71,8 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         try {
             var toolEntity = toolService.getById(toolId);
             if (toolEntity != null) {
-                if (toolName == null || toolName.isBlank()) {
-                    toolName = toolEntity.getName();
-                }
+                // 始终使用注册名（ask_user），避免节点 data 误存 displayName 导致 HITL 检测失败
+                toolName = toolEntity.getName();
                 if (displayName == null || displayName.isBlank()) {
                     displayName = toolEntity.getDisplayName() != null ? toolEntity.getDisplayName() : toolEntity.getName();
                 }
@@ -85,6 +85,20 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         outputs.put("toolId", String.valueOf(toolId));
         if (displayName != null && !displayName.isBlank()) {
             outputs.put("toolDisplayName", displayName);
+        }
+
+        // ask_user：与 confirm 节点共用 HITL 挂起 / resume 机制
+        if (WorkflowHitlPayloadBuilder.isAskUserWaitForUser(toolName, rawResult, objectMapper)) {
+            Map<String, Object> suspendPayload = WorkflowHitlPayloadBuilder.fromAskUserTool(
+                    context.getCurrentNodeId(), rawResult, objectMapper);
+            log.info("[ToolNodeProcessor] ask_user 挂起工作流等待用户回答: nodeId={}", context.getCurrentNodeId());
+            return NodeExecutionResult.builder()
+                    .suspended(true)
+                    .nextNodeId(resolveNextNodeId(context))
+                    .suspendPayload(suspendPayload)
+                    .outputs(outputs)
+                    .streamContent(rawResult)
+                    .build();
         }
 
         return NodeExecutionResult.builder()
@@ -135,13 +149,20 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         return args;
     }
 
-    /** 映射未覆盖的可选参数，用工具注册时的 exampleParams 补全（如 web_search.maxResults） */
+    /** 映射未覆盖的必填参数，用工具注册时的 exampleParams 补全（可选参数不补，如 ask_user.options 留空=开放提问） */
     private void fillMissingToolArgsFromExample(Map<String, Object> args, Long toolId) {
         Map<String, Object> example = toolService.getExampleParams(toolId);
         if (example == null || example.isEmpty()) {
             return;
         }
+        java.util.Set<String> requiredKeys = toolService.getRequiredParamKeys(toolId);
+        if (requiredKeys.isEmpty()) {
+            return;
+        }
         for (Map.Entry<String, Object> entry : example.entrySet()) {
+            if (!requiredKeys.contains(entry.getKey())) {
+                continue;
+            }
             Object current = args.get(entry.getKey());
             if (current == null || (current instanceof String s && s.isBlank())) {
                 args.put(entry.getKey(), entry.getValue());
