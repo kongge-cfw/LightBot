@@ -1037,6 +1037,7 @@ function migrateWorkflowNode(node) {
     if (!data.output_params?.length) data.output_params = data.outputParams || defaults.output_params || [{ key: 'result', type: 'Array' }]
   }
   if (node.type === 'tool') {
+    if (data.toolId != null) data.toolId = String(data.toolId)
     if (!Array.isArray(data.inputMappings)) {
       data.inputMappings = defaults.inputMappings || [{ key: 'query', value: '{{query}}' }]
     }

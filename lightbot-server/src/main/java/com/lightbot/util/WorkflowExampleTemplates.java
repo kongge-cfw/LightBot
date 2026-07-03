@@ -930,7 +930,7 @@ public final class WorkflowExampleTemplates {
         String toolName = placeholder.substring(TOOL_PLACEHOLDER_PREFIX.length()).replace("__", "");
         Long toolId = toolIds.get(toolName);
         if (toolId != null) {
-            dataMap.put("toolId", toolId);
+            dataMap.put("toolId", String.valueOf(toolId));
         }
     }
 

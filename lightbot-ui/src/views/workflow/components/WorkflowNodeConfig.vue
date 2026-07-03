@@ -255,8 +255,8 @@
         >
           <a-select-option
             v-for="t in tools"
-            :key="t.id"
-            :value="t.id"
+            :key="String(t.id)"
+            :value="String(t.id)"
             :label="t.displayName || t.name"
           >
             <EntitySelectOption type="tool" :name="t.displayName || t.name" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
@@ -880,9 +880,10 @@ const toolOutputMappings = computed(() => {
   return props.node?.data?.outputMappings || []
 })
 
-function buildDefaultToolInputValue(key) {
+function buildDefaultToolInputValue(key, inputDef) {
   if (key === 'query') return '{{query}}'
   if (key === 'input') return '{{input}}'
+  if (inputDef?.type === 'Number' && key === 'maxResults') return '5'
   return `{{${key}}}`
 }
 
@@ -896,7 +897,7 @@ async function applyToolIoSchema(toolId) {
     props.node.data.inputMappings = inputs.length
       ? inputs.map(i => ({
           key: i.key,
-          value: buildDefaultToolInputValue(i.key),
+          value: buildDefaultToolInputValue(i.key, i),
         }))
       : [{ key: 'query', value: '{{query}}' }]
     props.node.data.outputMappings = outputs.length

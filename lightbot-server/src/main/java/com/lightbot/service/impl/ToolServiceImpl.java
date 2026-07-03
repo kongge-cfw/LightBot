@@ -426,9 +426,8 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 if (node.has("exampleParams")) {
                     var exampleNode = node.get("exampleParams");
                     Map<String, Object> example = new java.util.HashMap<>();
-                    exampleNode.fields().forEachRemaining(entry -> {
-                        example.put(entry.getKey(), entry.getValue().asText());
-                    });
+                    exampleNode.fields().forEachRemaining(entry ->
+                            example.put(entry.getKey(), jsonNodeToValue(entry.getValue())));
                     return example;
                 }
             } catch (Exception e) {
@@ -436,6 +435,19 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
             }
         }
         return Map.of();
+    }
+
+    private static Object jsonNodeToValue(com.fasterxml.jackson.databind.JsonNode node) {
+        if (node == null || node.isNull()) {
+            return null;
+        }
+        if (node.isNumber()) {
+            return node.numberValue();
+        }
+        if (node.isBoolean()) {
+            return node.booleanValue();
+        }
+        return node.asText();
     }
 
     @Override

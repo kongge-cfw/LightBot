@@ -50,8 +50,9 @@ public class WebSearchTool {
             @ToolParam(description = "搜索关键词")
             @ToolParamMeta(example = "今天天气") String query,
             @ToolParam(description = "返回结果数量（默认5，最大10）")
-            @ToolParamMeta(example = "5") int maxResults) {
-        log.info("[Tool:web_search] 搜索: query={}, maxResults={}", query, maxResults);
+            @ToolParamMeta(example = "5") Integer maxResults) {
+        int limit = maxResults != null ? maxResults : 5;
+        log.info("[Tool:web_search] 搜索: query={}, maxResults={}", query, limit);
 
         if (apiKey == null || apiKey.isBlank()) {
             return "联网搜索未配置，请在配置文件中设置 lightbot.tavily.api-key";
@@ -60,7 +61,7 @@ public class WebSearchTool {
         try {
             Map<String, Object> body = Map.of(
                     "query", query,
-                    "max_results", Math.min(Math.max(maxResults, 1), 10),
+                    "max_results", Math.min(Math.max(limit, 1), 10),
                     "search_depth", "basic",
                     "include_answer", true,
                     "include_raw_content", true);

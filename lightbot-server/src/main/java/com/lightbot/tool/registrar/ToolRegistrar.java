@@ -278,12 +278,13 @@ public class ToolRegistrar {
                 Class<?> paramType = param.getType();
                 if (paramType == String.class) {
                     example.put(paramName, exampleValue != null ? exampleValue : "示例值");
-                } else if (paramType == int.class || paramType == Integer.class
-                        || paramType == long.class || paramType == Long.class) {
-                    example.put(paramName, 0);
+                } else if (paramType == int.class || paramType == Integer.class) {
+                    example.put(paramName, parseIntExample(meta, toolParam, 0));
+                } else if (paramType == long.class || paramType == Long.class) {
+                    example.put(paramName, parseLongExample(meta, toolParam, 0L));
                 } else if (paramType == double.class || paramType == Double.class
                         || paramType == float.class || paramType == Float.class) {
-                    example.put(paramName, 0.0);
+                    example.put(paramName, parseDoubleExample(meta, toolParam, 0.0));
                 } else if (paramType == boolean.class || paramType == Boolean.class) {
                     example.put(paramName, true);
                 } else {
@@ -294,6 +295,45 @@ public class ToolRegistrar {
         } catch (Exception e) {
             log.warn("[ToolRegistrar] 生成示例参数失败: method={}, error={}", method.getName(), e.getMessage());
             return "{}";
+        }
+    }
+
+    private static int parseIntExample(ToolParamMeta meta, ToolParam toolParam, int defaultValue) {
+        String raw = meta != null && !meta.example().isEmpty() ? meta.example()
+                : (toolParam != null ? toolParam.description() : null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private static long parseLongExample(ToolParamMeta meta, ToolParam toolParam, long defaultValue) {
+        String raw = meta != null && !meta.example().isEmpty() ? meta.example()
+                : (toolParam != null ? toolParam.description() : null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Long.parseLong(raw.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    private static double parseDoubleExample(ToolParamMeta meta, ToolParam toolParam, double defaultValue) {
+        String raw = meta != null && !meta.example().isEmpty() ? meta.example()
+                : (toolParam != null ? toolParam.description() : null);
+        if (raw == null || raw.isBlank()) {
+            return defaultValue;
+        }
+        try {
+            return Double.parseDouble(raw.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 

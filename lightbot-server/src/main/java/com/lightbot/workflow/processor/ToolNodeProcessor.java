@@ -101,6 +101,7 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
                                               Map<String, Object> variables,
                                               Long toolId) {
         Map<String, Object> args = WorkflowMappingUtils.buildInputArgs(nodeData, variables);
+        fillMissingToolArgsFromExample(args, toolId);
         if (!args.isEmpty()) {
             return args;
         }
@@ -132,6 +133,20 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
             args.putIfAbsent("input", variables.getOrDefault("input", variables.get("query")));
         }
         return args;
+    }
+
+    /** 映射未覆盖的可选参数，用工具注册时的 exampleParams 补全（如 web_search.maxResults） */
+    private void fillMissingToolArgsFromExample(Map<String, Object> args, Long toolId) {
+        Map<String, Object> example = toolService.getExampleParams(toolId);
+        if (example == null || example.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Object> entry : example.entrySet()) {
+            Object current = args.get(entry.getKey());
+            if (current == null || (current instanceof String s && s.isBlank())) {
+                args.put(entry.getKey(), entry.getValue());
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
