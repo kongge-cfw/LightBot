@@ -7,7 +7,7 @@
 
     <component :is="detailRenderer" :step="step" />
 
-    <div v-if="hasKvData(step.input) && !['start', 'input'].includes(step.nodeType)" class="wf-detail-kv muted">
+    <div v-if="showInputKv" class="wf-detail-kv muted">
       <div class="wf-detail-kv-title">入参</div>
       <pre>{{ formatKv(step.input) }}</pre>
     </div>
@@ -19,7 +19,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import { formatKv, hasKvData } from './workflowStepUtils.js'
+import { formatKv, hasKvData, hasWorkflowToolRenderer } from './workflowStepUtils.js'
 import { getWorkflowNodeDetailRenderer } from './workflowNodeDetailRegistry.js'
 import './workflowStepDetailShared.css'
 
@@ -28,4 +28,12 @@ const props = defineProps({
 })
 
 const detailRenderer = computed(() => getWorkflowNodeDetailRenderer(props.step?.nodeType))
+
+/** tool/mcp 已走 toolRegistry 渲染时，不再重复展示原始 JSON 入参 */
+const showInputKv = computed(() => {
+  if (!hasKvData(props.step?.input)) return false
+  if (['start', 'input'].includes(props.step?.nodeType)) return false
+  if (['tool', 'mcp'].includes(props.step?.nodeType) && hasWorkflowToolRenderer(props.step)) return false
+  return true
+})
 </script>

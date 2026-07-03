@@ -2,6 +2,7 @@ import { computed, toValue } from 'vue'
 import {
   parseStepOutputs, buildAssignmentRows, listOutputKeys, previewValue,
   extractUserInputText, buildWorkflowToolEvent, canRenderWorkflowTool,
+  hasWorkflowToolRenderer,
 } from '../workflowStepUtils.js'
 
 /**
@@ -68,6 +69,7 @@ export function useWorkflowStepContext(stepSource) {
 
   const workflowToolEvent = computed(() => buildWorkflowToolEvent(step.value))
   const workflowToolRenderable = computed(() => canRenderWorkflowTool(workflowToolEvent.value))
+  const workflowToolHasRegistryRenderer = computed(() => hasWorkflowToolRenderer(step.value))
   const mcpPseudoEvent = computed(() => buildWorkflowToolEvent(step.value))
 
   const toolRawResult = computed(() => {
@@ -89,6 +91,7 @@ export function useWorkflowStepContext(stepSource) {
     retrievalChunks,
     workflowToolEvent,
     workflowToolRenderable,
+    workflowToolHasRegistryRenderer,
     mcpPseudoEvent,
     toolRawResult,
   }

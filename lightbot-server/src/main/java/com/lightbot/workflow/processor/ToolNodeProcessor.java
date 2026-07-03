@@ -44,9 +44,7 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
             throw new IllegalArgumentException("工具节点未配置 toolId");
         }
 
-        Map<String, Object> variables = context.getVariables() != null
-                ? context.getVariables() : Map.of();
-        Map<String, Object> args = buildToolArgs(nodeData, variables, toolId);
+        Map<String, Object> args = buildToolArgs(nodeData, context, toolId);
         String argsJson;
         try {
             argsJson = objectMapper.writeValueAsString(args);
@@ -98,9 +96,11 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
 
     @SuppressWarnings("unchecked")
     private Map<String, Object> buildToolArgs(Map<String, Object> nodeData,
-                                              Map<String, Object> variables,
+                                              NodeExecutionContext context,
                                               Long toolId) {
-        Map<String, Object> args = WorkflowMappingUtils.buildInputArgs(nodeData, variables);
+        Map<String, Object> variables = context.getVariables() != null
+                ? context.getVariables() : Map.of();
+        Map<String, Object> args = WorkflowMappingUtils.buildInputArgs(nodeData, context);
         fillMissingToolArgsFromExample(args, toolId);
         if (!args.isEmpty()) {
             return args;
@@ -121,7 +121,7 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
                     continue;
                 }
                 Object value = row.get("value");
-                args.put(key, WorkflowMappingUtils.resolveTemplateValue(value, variables));
+                args.put(key, WorkflowMappingUtils.resolveTemplateValue(value, context));
             }
         }
         if (args.isEmpty()) {

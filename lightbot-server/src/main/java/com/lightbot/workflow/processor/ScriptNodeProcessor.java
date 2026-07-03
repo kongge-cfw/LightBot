@@ -7,6 +7,7 @@ import com.lightbot.service.sandbox.SandboxService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowMappingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -14,8 +15,6 @@ import org.springframework.stereotype.Component;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * 脚本节点：委托 {@link SandboxService} 执行脚本（JavaScript / Python / Groovy / Java）并写入输出变量
@@ -28,8 +27,6 @@ import java.util.regex.Pattern;
 @Component
 @RequiredArgsConstructor
 public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
-
-    private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([^}]+)}}");
 
     private static final long SCRIPT_TIMEOUT_MS = 5000;
 
@@ -48,7 +45,7 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
             return passThrough(context, "result", null);
         }
 
-        Map<String, Object> params = buildScriptParams(nodeData, context.getVariables());
+        Map<String, Object> params = buildScriptParams(nodeData, context);
         String script = stringVal(nodeData.get("scriptContent"));
         String language = stringVal(nodeData.get("scriptLanguage"));
         if (script.isBlank()) {
@@ -122,9 +119,9 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
         return outputs;
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> buildScriptParams(Map<String, Object> nodeData, Map<String, Object> variables) {
+    private Map<String, Object> buildScriptParams(Map<String, Object> nodeData, NodeExecutionContext context) {
         Map<String, Object> params = new HashMap<>();
+        Map<String, Object> variables = context.getVariables() != null ? context.getVariables() : Map.of();
         Object inputParams = nodeData.get("inputParams");
         if (inputParams == null) {
             inputParams = nodeData.get("input_params");
@@ -135,7 +132,7 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
                 String key = stringVal(row.get("key"));
                 if (key.isBlank()) continue;
                 String valueExpr = stringVal(row.get("value"));
-                params.put(key, resolveExpression(valueExpr, variables));
+                params.put(key, WorkflowMappingUtils.resolveTemplateValue(valueExpr, context));
             }
         }
         if (params.isEmpty()) {
@@ -143,16 +140,6 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
             params.put("input", variables.getOrDefault("input", variables.get("query")));
         }
         return params;
-    }
-
-    private Object resolveExpression(String expr, Map<String, Object> variables) {
-        if (expr == null || expr.isBlank()) return null;
-        Matcher m = VAR_PATTERN.matcher(expr.trim());
-        if (m.matches()) {
-            String key = m.group(1).trim();
-            return variables.get(key);
-        }
-        return expr;
     }
 
     /**

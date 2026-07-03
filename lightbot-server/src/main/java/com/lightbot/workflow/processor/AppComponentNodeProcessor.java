@@ -51,10 +51,8 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
             throw new IllegalArgumentException("请选择已发布的子工作流 Agent");
         }
 
-        Map<String, Object> parentVars = context.getVariables() != null
-                ? context.getVariables() : Map.of();
-        Map<String, Object> subInputs = buildSubInputs(nodeData, parentVars);
-        String userInput = resolveSubUserInput(subInputs, parentVars);
+        Map<String, Object> subInputs = buildSubInputs(nodeData, context);
+        String userInput = resolveSubUserInput(subInputs, context);
 
         log.info("[AppComponentNodeProcessor] 调用子工作流: targetAgentId={}, nodeId={}",
                 targetAgentId, context.getCurrentNodeId());
@@ -80,9 +78,10 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> buildSubInputs(Map<String, Object> nodeData, Map<String, Object> parentVars) {
-        Map<String, Object> inputs = WorkflowMappingUtils.buildInputArgs(nodeData, parentVars);
+    private Map<String, Object> buildSubInputs(Map<String, Object> nodeData, NodeExecutionContext context) {
+        Map<String, Object> parentVars = context.getVariables() != null
+                ? context.getVariables() : Map.of();
+        Map<String, Object> inputs = WorkflowMappingUtils.buildInputArgs(nodeData, context);
         if (!inputs.containsKey("query")) {
             Object query = parentVars.get("query");
             if (query == null) {
@@ -117,7 +116,9 @@ public class AppComponentNodeProcessor extends AbstractFlowNodeProcessor impleme
         return outputs;
     }
 
-    private String resolveSubUserInput(Map<String, Object> subInputs, Map<String, Object> parentVars) {
+    private String resolveSubUserInput(Map<String, Object> subInputs, NodeExecutionContext context) {
+        Map<String, Object> parentVars = context.getVariables() != null
+                ? context.getVariables() : Map.of();
         Object query = subInputs.get("query");
         if (query == null) {
             query = subInputs.get("input");

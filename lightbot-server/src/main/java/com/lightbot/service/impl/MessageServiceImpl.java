@@ -13,9 +13,10 @@ import com.lightbot.mapper.MessageFeedbackMapper;
 import com.lightbot.mapper.MessageMapper;
 import com.lightbot.mapper.ToolCallMapper;
 import com.lightbot.dto.ChatAttachmentDTO;
+import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.MessageService;
-import com.lightbot.service.ChatAttachmentService;
 import com.lightbot.util.MinioUtil;
+import com.lightbot.util.SessionStoragePath;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -40,7 +41,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     private final ObjectMapper objectMapper;
     private final ToolCallMapper toolCallMapper;
     private final MessageFeedbackMapper messageFeedbackMapper;
-    private final ChatAttachmentService chatAttachmentService;
+    private final ChatAttachmentParsedService chatAttachmentParsedService;
 
     @Override
     public Page<Message> listBySessionIdPage(Long sessionId, int pageNum, int pageSize) {
@@ -134,8 +135,23 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
                 safeDeleteObject(path);
             }
             for (ChatAttachmentDTO att : parseAttachmentsFromMetadata(msg.getMetadata())) {
-                chatAttachmentService.deleteStoredAttachment(msg.getSessionId(), att);
+                deleteMessageAttachment(msg.getSessionId(), att);
             }
+        }
+    }
+
+    /**
+     * 删除消息关联附件的存储对象（MinIO + 文档解析缓存）。
+     * 不依赖 ChatAttachmentService，避免与 ChatSessionService 形成循环依赖。
+     */
+    private void deleteMessageAttachment(Long sessionId, ChatAttachmentDTO attachment) {
+        if (attachment == null || attachment.getObjectKey() == null || attachment.getObjectKey().isBlank()) {
+            return;
+        }
+        safeDeleteObject(attachment.getObjectKey());
+        if ("document".equals(attachment.getType())) {
+            Long agentId = SessionStoragePath.extractAgentIdFromTempObjectKey(attachment.getObjectKey());
+            chatAttachmentParsedService.deleteParsed(attachment, sessionId, agentId);
         }
     }
 

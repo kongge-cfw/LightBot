@@ -41,6 +41,7 @@ import {
   stepStatusClass, stepStatusIcon, getStepSummary, hasExpandableStepContent,
   isHiddenInChat, isWeakenedInChat, getNodeTypeLabel, getNodeChatStyle,
 } from './workflowNodeRegistry.js'
+import { hasWorkflowToolRenderer } from './workflowStepUtils.js'
 
 const props = defineProps({
   step: { type: Object, required: true },
@@ -49,9 +50,21 @@ const props = defineProps({
   defaultExpanded: { type: Boolean, default: false },
 })
 
-const expanded = ref(props.defaultExpanded)
+const expanded = ref(props.defaultExpanded || shouldAutoExpandToolStep(props.step))
 
-watch(() => props.defaultExpanded, (v) => { expanded.value = v })
+watch(() => props.defaultExpanded, (v) => {
+  if (v) expanded.value = true
+})
+
+watch(() => props.step, (step) => {
+  if (shouldAutoExpandToolStep(step)) expanded.value = true
+}, { deep: true })
+
+function shouldAutoExpandToolStep(step) {
+  if (!step) return false
+  if (step.status === 'running') return props.defaultExpanded
+  return (step.nodeType === 'tool' || step.nodeType === 'mcp') && hasWorkflowToolRenderer(step)
+}
 
 const hidden = computed(() => isHiddenInChat(props.step?.nodeType))
 const weakened = computed(() => isWeakenedInChat(props.step?.nodeType))

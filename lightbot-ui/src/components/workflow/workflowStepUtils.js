@@ -1,4 +1,11 @@
 /** 工作流步骤展示通用工具 */
+import { hasToolRenderer, TOOL_DISPLAY_NAMES } from '../toolRegistry.js'
+
+/** 工具显示名 → 注册名（如「计算器」→ calculator） */
+const DISPLAY_NAME_TO_TOOL = Object.entries(TOOL_DISPLAY_NAMES).reduce((acc, [key, label]) => {
+  if (label) acc[label] = key
+  return acc
+}, {})
 
 export function parseStepOutputs(outputs) {
   if (!outputs) return null
@@ -137,6 +144,45 @@ function findUnresolvedConfirmEvent(workflowEvents) {
 }
 
 /**
+ * 解析工作流 tool/mcp 节点的工具注册名（对齐 toolRegistry key）
+ * @param {object} step 工作流步骤
+ */
+export function resolveWorkflowToolName(step) {
+  const outputs = parseStepOutputs(step?.outputs) || {}
+  const candidates = [
+    outputs.toolName,
+    step?.toolName,
+    outputs.toolDisplayName,
+  ]
+    .map(v => String(v || '').trim())
+    .filter(Boolean)
+
+  for (const name of candidates) {
+    if (hasToolRenderer(name)) return name
+    const mapped = DISPLAY_NAME_TO_TOOL[name]
+    if (mapped && hasToolRenderer(mapped)) return mapped
+    const lower = name.toLowerCase()
+    if (hasToolRenderer(lower)) return lower
+  }
+  return candidates[0] || ''
+}
+
+/** 从扁平字段重建计算器类工具 JSON（兼容 outputMappings 展开后的 outputs） */
+function reconstructCalculatorResult(outputs) {
+  if (outputs.expression == null && outputs.result == null) return ''
+  try {
+    return JSON.stringify({
+      expression: outputs.expression,
+      operation: outputs.operation,
+      operands: outputs.operands,
+      result: outputs.result,
+    })
+  } catch {
+    return ''
+  }
+}
+
+/**
  * 从工作流 tool 节点 outputs 提取与 Chat tool_result 一致的结果字符串
  */
 export function extractWorkflowToolResult(outputs) {
@@ -171,6 +217,9 @@ export function extractWorkflowToolResult(outputs) {
     }
   }
 
+  const calculatorJson = reconstructCalculatorResult(outputs)
+  if (calculatorJson) return calculatorJson
+
   return ''
 }
 
@@ -179,10 +228,11 @@ export function extractWorkflowToolResult(outputs) {
  */
 export function buildWorkflowToolEvent(step) {
   const outputs = parseStepOutputs(step?.outputs) || {}
-  const toolName = String(outputs.toolName || step?.toolName || '').trim()
+  const toolName = resolveWorkflowToolName(step)
   const result = extractWorkflowToolResult(outputs)
   return {
     toolName,
+    displayName: outputs.toolDisplayName || '',
     result,
     type: 'tool_result',
   }
@@ -195,7 +245,16 @@ export function buildToolPseudoEvent(step) {
 
 /** 工作流 tool 节点是否可交给 ToolCallRenderer 渲染 */
 export function canRenderWorkflowTool(event) {
-  return !!(event?.result && String(event.result).trim())
+  if (!event?.result || !String(event.result).trim()) return false
+  if (event.toolName && hasToolRenderer(event.toolName)) return true
+  // 未注册专用组件时仍走 BaseToolCall 兜底
+  return true
+}
+
+/** 工作流 tool/mcp 节点是否应使用 toolRegistry 专用渲染（非 JSON 兜底） */
+export function hasWorkflowToolRenderer(step) {
+  const event = buildWorkflowToolEvent(step)
+  return !!(event.toolName && hasToolRenderer(event.toolName) && event.result)
 }
 
 export function extractLegacyResultText(step) {

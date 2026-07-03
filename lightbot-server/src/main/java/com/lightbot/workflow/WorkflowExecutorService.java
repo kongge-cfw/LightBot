@@ -526,7 +526,7 @@ public class WorkflowExecutorService {
         if (nodeResult != null && nodeResult.getOutputs() != null && !nodeResult.getOutputs().isEmpty()) {
             // 工具节点：保留完整 toolResultText，供 Chat toolRegistry 渲染（生图/文件交付等）
             if ("tool".equals(nodeTypeCode)) {
-                Map<String, Object> toolOutputs = buildToolNodeEventOutputs(nodeResult.getOutputs());
+                Map<String, Object> toolOutputs = WorkflowToolEventOutputs.build(nodeResult.getOutputs(), objectMapper);
                 if (!toolOutputs.isEmpty()) {
                     completeEvent.put("outputs", toolOutputs);
                 }
@@ -617,6 +617,16 @@ public class WorkflowExecutorService {
         }
 
         Map<String, Object> nodeData = node.getData();
+        if (nodeData != null && (node.getType() == NodeType.TOOL || node.getType() == NodeType.APP_COMPONENT)) {
+            Map<String, Object> mappedArgs = WorkflowMappingUtils.buildInputArgs(nodeData, context);
+            for (Map.Entry<String, Object> entry : mappedArgs.entrySet()) {
+                preview.put(entry.getKey(), summarizeValue(entry.getValue()));
+            }
+            if (!preview.isEmpty()) {
+                return preview;
+            }
+        }
+
         Object inputParamsObj = nodeData != null ? nodeData.get("input_params") : null;
         if (inputParamsObj == null && nodeData != null) {
             inputParamsObj = nodeData.get("inputParams");
@@ -632,7 +642,7 @@ public class WorkflowExecutorService {
                     continue;
                 }
                 Object rawValue = paramMap.get("value");
-                Object value = resolveInputParamValue(rawValue, context.getVariables());
+                Object value = resolveInputParamValue(rawValue, context);
                 preview.put(key, summarizeValue(value));
             }
         }
@@ -647,77 +657,8 @@ public class WorkflowExecutorService {
         return preview;
     }
 
-    private Object resolveInputParamValue(Object rawValue, Map<String, Object> variables) {
-        if (!(rawValue instanceof String valueText)) {
-            return rawValue;
-        }
-        Matcher matcher = VAR_PATTERN.matcher(valueText.trim());
-        if (matcher.matches()) {
-            String varName = matcher.group(1).trim();
-            return variables.get(varName);
-        }
-        StringBuffer sb = new StringBuffer();
-        matcher.reset();
-        while (matcher.find()) {
-            String varName = matcher.group(1).trim();
-            Object varValue = variables.get(varName);
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(varValue == null ? "" : String.valueOf(varValue)));
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
-    }
-
-    /**
-     * 工具节点 complete 事件 outputs：保留完整 JSON 结果与 toolName，避免 summarize 截断导致前端无法渲染
-     */
-    private Map<String, Object> buildToolNodeEventOutputs(Map<String, Object> source) {
-        Map<String, Object> out = new LinkedHashMap<>();
-        if (source == null || source.isEmpty()) {
-            return out;
-        }
-        copyToolMetaField(out, source, "toolName");
-        copyToolMetaField(out, source, "toolId");
-        copyToolMetaField(out, source, "toolDisplayName");
-
-        Object text = source.get("toolResultText");
-        if (text instanceof String s && !s.isBlank()) {
-            out.put("toolResultText", s);
-        }
-        Object toolResult = source.get("toolResult");
-        if (toolResult != null) {
-            if (toolResult instanceof String str && !str.isBlank()) {
-                out.putIfAbsent("toolResultText", str);
-            } else {
-                out.put("toolResult", toolResult);
-                if (!out.containsKey("toolResultText")) {
-                    try {
-                        out.put("toolResultText", objectMapper.writeValueAsString(toolResult));
-                    } catch (Exception e) {
-                        out.put("toolResultText", String.valueOf(toolResult));
-                    }
-                }
-            }
-        }
-        if (!out.containsKey("toolResultText") && !out.containsKey("toolResult")) {
-            Object output = source.get("output");
-            if (output instanceof String s && !s.isBlank()) {
-                out.put("toolResultText", s);
-            } else if (output != null) {
-                try {
-                    out.put("toolResultText", objectMapper.writeValueAsString(output));
-                } catch (Exception e) {
-                    out.put("toolResultText", String.valueOf(output));
-                }
-            }
-        }
-        return out;
-    }
-
-    private void copyToolMetaField(Map<String, Object> target, Map<String, Object> source, String key) {
-        Object value = source.get(key);
-        if (value != null && !String.valueOf(value).isBlank()) {
-            target.put(key, value);
-        }
+    private Object resolveInputParamValue(Object rawValue, NodeExecutionContext context) {
+        return WorkflowMappingUtils.resolveTemplateValue(rawValue, context);
     }
 
     private Map<String, Object> summarizeMap(Map<String, Object> source, int maxEntries) {

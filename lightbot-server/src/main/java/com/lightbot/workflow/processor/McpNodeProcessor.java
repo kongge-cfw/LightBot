@@ -10,9 +10,9 @@ import com.lightbot.service.McpServerService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowMappingUtils;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
 import com.lightbot.workflow.WorkflowPromptUtils;
-import com.lightbot.workflow.WorkflowVariableUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -70,7 +70,7 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
             throw new IllegalArgumentException("MCP 节点未配置 toolName");
         }
 
-        Map<String, Object> toolParams = buildToolParams(nodeData, context.getVariables());
+        Map<String, Object> toolParams = buildToolParams(nodeData, context);
         String argsJson;
         try {
             argsJson = objectMapper.writeValueAsString(toolParams);
@@ -113,8 +113,9 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
     }
 
   @SuppressWarnings("unchecked")
-    private Map<String, Object> buildToolParams(Map<String, Object> nodeData, Map<String, Object> variables) {
+    private Map<String, Object> buildToolParams(Map<String, Object> nodeData, NodeExecutionContext context) {
         Map<String, Object> params = new HashMap<>();
+        Map<String, Object> variables = context.getVariables() != null ? context.getVariables() : Map.of();
         Object inputParamsRaw = nodeData.get("inputParams");
         if (inputParamsRaw == null) {
             inputParamsRaw = nodeData.get("input_params");
@@ -122,7 +123,7 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
         if (inputParamsRaw instanceof String str && !str.isBlank() && !"{}".equals(str.trim())) {
             try {
                 Map<String, Object> parsed = objectMapper.readValue(str, new TypeReference<Map<String, Object>>() {});
-                parsed.forEach((k, v) -> params.put(k, renderParamValue(v, variables)));
+                parsed.forEach((k, v) -> params.put(k, renderParamValue(v, context)));
                 return params;
             } catch (Exception e) {
                 log.warn("[McpNodeProcessor] 解析 inputParams JSON 失败: {}", e.getMessage());
@@ -137,7 +138,7 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
                 if (key == null || key.isBlank()) {
                     continue;
                 }
-                params.put(key, renderParamValue(row.get("value"), variables));
+                params.put(key, renderParamValue(row.get("value"), context));
             }
         }
         if (params.isEmpty() && variables != null) {
@@ -147,12 +148,12 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
         return params;
     }
 
-    private Object renderParamValue(Object value, Map<String, Object> variables) {
+    private Object renderParamValue(Object value, NodeExecutionContext context) {
         if (value == null) {
             return null;
         }
         if (value instanceof String str) {
-            Object resolved = WorkflowVariableUtils.resolveValue(str, variables);
+            Object resolved = WorkflowMappingUtils.resolveTemplateValue(str, context);
             if (resolved != null) {
                 // 变量解析结果为 JSON 字符串时，还原为 Java 对象（防止数组/对象被序列化为字符串传给 MCP）
                 if (resolved instanceof String jsonStr) {
@@ -168,7 +169,7 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
                 }
                 return resolved;
             }
-            return WorkflowPromptUtils.render(str, variables);
+            return WorkflowPromptUtils.render(str, context);
         }
         return value;
     }

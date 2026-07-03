@@ -1,5 +1,6 @@
 package com.lightbot.workflow;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.enums.NodeType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ import java.util.function.Consumer;
 public class WorkflowNodeRunner {
 
     private final NodeProcessorRegistry registry;
+    private final ObjectMapper objectMapper;
 
     /**
      * 在已有上下文中执行指定节点并合并输出到 variables
@@ -98,7 +100,18 @@ public class WorkflowNodeRunner {
                 completeEvent.put("iterationIndex", context.getIterationIndex());
             }
             if (nodeResult != null && nodeResult.getOutputs() != null && !nodeResult.getOutputs().isEmpty()) {
-                completeEvent.put("outputs", nodeResult.getOutputs());
+                if ("tool".equals(nodeTypeCode)) {
+                    Map<String, Object> toolOutputs = WorkflowToolEventOutputs.build(nodeResult.getOutputs(), objectMapper);
+                    if (!toolOutputs.isEmpty()) {
+                        completeEvent.put("outputs", toolOutputs);
+                    }
+                } else {
+                    completeEvent.put("outputs", nodeResult.getOutputs());
+                }
+                Object toolName = nodeResult.getOutputs().get("toolName");
+                if (toolName != null && !String.valueOf(toolName).isBlank()) {
+                    completeEvent.put("toolName", toolName);
+                }
             }
             if (nodeResult != null && nodeResult.getTraceData() != null && !nodeResult.getTraceData().isEmpty()) {
                 completeEvent.put("traceData", nodeResult.getTraceData());
