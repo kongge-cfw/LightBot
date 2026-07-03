@@ -94,7 +94,8 @@ public final class NodeIoContractRegistry {
             case CONDITION -> List.of("matchedHandle", "matchedGroupLabel");
             case CLASSIFIER -> List.of("subject", "intentId", "matchedIntentId", "thought");
             case API -> List.of("statusCode", "body", "result");
-            case TOOL -> List.of("output", "toolResult", "toolResultText", "toolName", "toolId");
+            case TOOL -> List.of("output", "toolResult", "toolResultText", "toolName", "toolId",
+                    "question", "options", "is_open_ended", "answer");
             case MCP -> List.of("output", "mcpResult", "toolName", "mcpServerName");
             case OUTPUT -> List.of("output");
             case VARIABLE_HANDLE -> List.of("output");

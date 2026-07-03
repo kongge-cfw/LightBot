@@ -6,7 +6,7 @@ import java.util.*;
 
 /**
  * 内置示例工作流模板定义
- * <p>8 个示例 Agent 覆盖工作流节点与工具节点（含 confirm / tool / app_component），帮助用户快速学习</p>
+ * <p>9 个示例 Agent 覆盖工作流节点与工具节点（含 confirm / tool / ask_user / app_component），帮助用户快速学习</p>
  *
  * @author finch
  * @since 2026-05-31
@@ -70,6 +70,11 @@ public final class WorkflowExampleTemplates {
                         .key("sub_workflow_orchestrator").name("示例：子工作流编排助手")
                         .description("嵌套子工作流 + 人工复核 + LLM 定稿，演示 app_component 与 confirm 组合编排")
                         .nodeTypeTags(List.of("app_component", "confirm", "condition", "llm", "parameter_extractor", "output"))
+                        .build(),
+                WorkflowExampleVO.builder()
+                        .key("gaokao_volunteer").name("示例：高考志愿填报助手")
+                        .description("向用户提问工具链式反问省市、分数、选科，再生成志愿填报建议，演示 ask_user HITL 挂起与 resume")
+                        .nodeTypeTags(List.of("input", "tool", "variable_handle", "llm", "output"))
                         .build()
         );
     }
@@ -177,6 +182,7 @@ public final class WorkflowExampleTemplates {
             case "tool_multi" -> buildToolMultiWorkflow();
             case "human_review" -> buildHumanReviewWorkflow();
             case "sub_workflow_orchestrator" -> buildSubWorkflowOrchestrator();
+            case "gaokao_volunteer" -> buildGaokaoVolunteerWorkflow();
             default -> null;
         };
     }
@@ -215,7 +221,8 @@ public final class WorkflowExampleTemplates {
             Map.entry("external_integration", "## 外部集成与 MCP 助手\n我可以调用外部 API、MCP 工具获取数据，并自动生成分析总结。\n\n> 已预置示例 API，直接对话即可体验。"),
             Map.entry("tool_multi", "## 多工具协作助手\n我会先提取你的问题与计算参数，再调用联网搜索和计算器工具，最后汇总成完整回答。\n\n> 请描述一个需要查资料并做简单计算的问题。"),
             Map.entry("human_review", "## 人工审核助手\n我会先生成草稿内容，然后暂停等待你在对话中完成人工确认（含展示信息、文本、数字、单选、下拉、多行意见等字段），通过后再输出正式版本。\n\n> 适合体验 confirm 人工确认节点的完整表单能力。"),
-            Map.entry("sub_workflow_orchestrator", "## 子工作流编排助手\n我会调用内置子工作流做结构化提取，再请你复核子流程结果，最后生成定稿回复。\n\n> 创建本示例时会自动生成并发布子工作流 Agent。")
+            Map.entry("sub_workflow_orchestrator", "## 子工作流编排助手\n我会调用内置子工作流做结构化提取，再请你复核子流程结果，最后生成定稿回复。\n\n> 创建本示例时会自动生成并发布子工作流 Agent。"),
+            Map.entry("gaokao_volunteer", "## 高考志愿填报助手\n我会依次向您确认**高考省份、总分、选科组合**等信息（对话中会弹出提问表单），收集完整后再给出冲稳保方向的志愿建议。\n\n> 演示 ask_user 工具节点的工作流挂起与 resume；请以官方招生简章与考试院数据为准。")
     );
 
     private static final Map<String, String> QUESTIONS_MAP = Map.ofEntries(
@@ -226,7 +233,8 @@ public final class WorkflowExampleTemplates {
             Map.entry("external_integration", "[\"帮我调用API获取数据\", \"用MCP工具处理一下任务\", \"外部接口调用失败了怎么办？\"]"),
             Map.entry("tool_multi", "[\"查一下2024年全球AI市场规模，并计算1000×1.15\", \"搜索LightBot是什么，再算一下256+128\", \"帮我调研云原生趋势并计算增长率\"]"),
             Map.entry("human_review", "[\"帮我写一段产品发布公告\", \"起草一封客户道歉邮件\", \"生成一份活动邀请文案\"]"),
-            Map.entry("sub_workflow_orchestrator", "[\"整理这段需求：我们要做智能客服，支持多轮对话和知识库\", \"提取下面方案的关键信息并复核\", \"分析这段产品介绍，输出结构化摘要\"]")
+            Map.entry("sub_workflow_orchestrator", "[\"整理这段需求：我们要做智能客服，支持多轮对话和知识库\", \"提取下面方案的关键信息并复核\", \"分析这段产品介绍，输出结构化摘要\"]"),
+            Map.entry("gaokao_volunteer", "[\"我是河南考生，想报计算机相关专业\", \"帮我看看600分左右能报哪些学校\", \"新高考选科物化生，分数630怎么填志愿\"]")
     );
 
     // ========== 示例 1：RAG 知识问答助手 ==========
@@ -635,7 +643,100 @@ public final class WorkflowExampleTemplates {
         return workflowSnapshot(nodes, edges);
     }
 
-    // ========== 示例 7：人工审核助手 ==========
+    // ========== 示例 7：高考志愿填报助手（ask_user 链式反问） ==========
+
+    private static Map<String, Object> buildGaokaoVolunteerWorkflow() {
+        List<Map<String, Object>> nodes = List.of(
+                node("start_1", "start", 50, 280, Map.of()),
+                node("input_1", "input", 200, 280, Map.of(
+                        "label", "用户诉求",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                )),
+                node("ask_province", "tool", 420, 280, Map.of(
+                        "label", "询问省市",
+                        "toolName", "ask_user",
+                        "toolId", toolPlaceholder("ask_user"),
+                        "inputMappings", List.of(
+                                Map.of("key", "question", "value", "请告诉我您参加高考所在的省份或直辖市："),
+                                Map.of("key", "options", "value", "北京,上海,天津,广东,浙江,江苏,山东,河南,湖北,四川,其他省份")
+                        ),
+                        "outputMappings", List.of(
+                                Map.of("key", "province", "value", "{{answer}}"),
+                                Map.of("key", "answer", "value", "{{answer}}")
+                        )
+                )),
+                node("ask_score", "tool", 640, 280, Map.of(
+                        "label", "询问分数",
+                        "toolName", "ask_user",
+                        "toolId", toolPlaceholder("ask_user"),
+                        "inputMappings", List.of(
+                                Map.of("key", "question", "value", "请输入您的高考总分（如有加分请在回答中说明）：")
+                        ),
+                        "outputMappings", List.of(
+                                Map.of("key", "gaokaoScore", "value", "{{answer}}"),
+                                Map.of("key", "answer", "value", "{{answer}}")
+                        )
+                )),
+                node("ask_subjects", "tool", 860, 280, Map.of(
+                        "label", "询问选科",
+                        "toolName", "ask_user",
+                        "toolId", toolPlaceholder("ask_user"),
+                        "inputMappings", List.of(
+                                Map.of("key", "question", "value", "请选择您的选科组合（新高考）或传统文理类别："),
+                                Map.of("key", "options", "value", "物理+化学+生物,物理+化学+地理,物理+生物+地理,历史+政治+地理,历史+地理+生物,理科（传统文理）,文科（传统文理）,其他组合（请在下方说明）")
+                        ),
+                        "outputMappings", List.of(
+                                Map.of("key", "subjects", "value", "{{answer}}"),
+                                Map.of("key", "answer", "value", "{{answer}}")
+                        )
+                )),
+                node("varhandle_1", "variable_handle", 1080, 280, Map.of(
+                        "label", "汇总考生信息",
+                        "handleType", "template",
+                        "templateContent", """
+                                【考生档案】
+                                省份/地区：{{province}}
+                                高考分数：{{gaokaoScore}}
+                                选科组合：{{subjects}}
+
+                                用户补充诉求：{{query}}
+
+                                请基于以上信息给出志愿填报建议（冲稳保院校方向、专业选择思路、注意事项）。"""
+                )),
+                node("llm_1", "llm", 1300, 280, Map.of(
+                        "label", "生成志愿建议",
+                        "sysPrompt", """
+                                你是资深高考志愿填报顾问，熟悉各省录取规则、选科专业限制与平行志愿策略。
+                                请根据考生档案给出结构化、务实的建议，包含：
+                                1. 分数段定位与批次判断（定性描述即可）
+                                2. 冲稳保院校/专业方向（各 2-3 条示例方向，勿编造具体位次）
+                                3. 选科与专业匹配提醒
+                                4. 填报注意事项与信息核实建议
+                                免责声明：建议仅供参考，请以省教育考试院与高校招生简章为准。""",
+                        "promptTemplate", "{{output}}",
+                        "temperature", 0.4,
+                        "enableStreaming", true
+                )),
+                node("output_1", "output", 1520, 280, Map.of(
+                        "label", "输出建议",
+                        "output", "{{llmOutput}}"
+                )),
+                node("end_1", "end", 1720, 280, Map.of())
+        );
+        List<Map<String, Object>> edges = List.of(
+                edge("e_start", "start_1", "input_1"),
+                edge("e_input", "input_1", "ask_province"),
+                edge("e_province", "ask_province", "ask_score"),
+                edge("e_score", "ask_score", "ask_subjects"),
+                edge("e_subjects", "ask_subjects", "varhandle_1"),
+                edge("e_vh", "varhandle_1", "llm_1"),
+                edge("e_llm", "llm_1", "output_1"),
+                edge("e_output", "output_1", "end_1")
+        );
+        return workflowSnapshot(nodes, edges);
+    }
+
+    // ========== 示例 8：人工审核助手 ==========
 
     private static Map<String, Object> buildHumanReviewWorkflow() {
         List<Map<String, Object>> nodes = List.of(

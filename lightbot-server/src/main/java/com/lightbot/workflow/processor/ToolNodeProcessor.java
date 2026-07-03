@@ -89,6 +89,7 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
 
         // ask_user：与 confirm 节点共用 HITL 挂起 / resume 机制
         if (WorkflowHitlPayloadBuilder.isAskUserWaitForUser(toolName, rawResult, objectMapper)) {
+            WorkflowHitlPayloadBuilder.enrichAskUserPhaseOutputs(outputs, toolVars);
             Map<String, Object> suspendPayload = WorkflowHitlPayloadBuilder.fromAskUserTool(
                     context.getCurrentNodeId(), rawResult, objectMapper);
             log.info("[ToolNodeProcessor] ask_user 挂起工作流等待用户回答: nodeId={}", context.getCurrentNodeId());

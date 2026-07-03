@@ -112,7 +112,7 @@ import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, RightOutlined, WarningOutlined } from '@ant-design/icons-vue'
 import WorkflowConfirmInfoBlock from './workflow/confirm/WorkflowConfirmInfoBlock.vue'
 import WorkflowConfirmSubmittedSummary from './workflow/confirm/WorkflowConfirmSubmittedSummary.vue'
-import { normalizeConfirmOptions, buildConfirmSubmittedEntries, isAskUserHitlForm, getHitlPendingTitle, getHitlResolvedTitle, getHitlSubmitLabel, getHitlAbandonLabel } from './workflow/confirm/confirmFormUtils.js'
+import { normalizeConfirmOptions, buildConfirmSubmittedEntries, isAskUserHitlForm, getHitlPendingTitle, getHitlResolvedTitle, getHitlSubmitLabel, getHitlAbandonLabel, validateAskUserFormFields, resolveAskUserSubmitPayload, resolveAskUserDisplayAnswer, ASK_USER_SELECTED_OPTION_KEY } from './workflow/confirm/confirmFormUtils.js'
 
 const props = defineProps({
   confirmForm: { type: Object, default: null },
@@ -182,9 +182,16 @@ const hitlResolvedTitle = computed(() => getHitlResolvedTitle(props.confirmForm)
 const hitlSubmitLabel = computed(() => getHitlSubmitLabel(props.confirmForm))
 const hitlAbandonLabel = computed(() => getHitlAbandonLabel(props.confirmForm))
 
-const submittedEntries = computed(() =>
-  buildConfirmSubmittedEntries(formFields.value, props.submittedData)
-)
+const submittedEntries = computed(() => {
+  if (isAskUserHitl.value && props.submittedData) {
+    return [{
+      key: 'answer',
+      label: '您的回答',
+      value: resolveAskUserDisplayAnswer(props.submittedData),
+    }]
+  }
+  return buildConfirmSubmittedEntries(formFields.value, props.submittedData)
+})
 
 watch(
   () => props.confirmForm,
@@ -202,6 +209,30 @@ watch(
 )
 
 function handleSubmit() {
+  if (isAskUserHitl.value) {
+    const askUserError = validateAskUserFormFields(formFields.value, formValues)
+    if (askUserError) {
+      expanded.value = true
+      message.warning(askUserError)
+      return
+    }
+    const hasChoiceField = formFields.value.some(f => f?.key === ASK_USER_SELECTED_OPTION_KEY && f?.type === 'radio')
+    if (!hasChoiceField) {
+      const missingLabels = validateRequiredFields()
+      if (missingLabels.length) {
+        expanded.value = true
+        message.warning(
+          missingLabels.length === 1
+            ? `请填写必填项：${missingLabels[0]}`
+            : `请填写必填项：${missingLabels.join('、')}`
+        )
+        return
+      }
+    }
+    emit('submit', resolveAskUserSubmitPayload(formValues))
+    return
+  }
+
   const missingLabels = validateRequiredFields()
   if (missingLabels.length) {
     expanded.value = true

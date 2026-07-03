@@ -219,18 +219,30 @@ public class WorkflowExecutorService {
         WorkflowVariableScope.initContext(context);
         WorkflowVariableScope.syncSysBucket(context);
 
-        Map<String, Object> confirmOutputs = new LinkedHashMap<>();
-        if (formData != null) {
-            formData.forEach((key, value) -> {
-                if (key == null || key.isBlank() || key.startsWith("_")) {
-                    return;
-                }
-                confirmOutputs.put(key, value);
-                context.getVariables().put(key, value);
-            });
-        }
-        if (suspended.getSuspendNodeId() != null) {
-            context.getNodeOutputs().put(suspended.getSuspendNodeId(), confirmOutputs);
+        boolean askUserResume = isAskUserSuspend(workflow, suspended);
+        Map<String, Object> submitted = filterSubmittedFormData(
+                askUserResume ? WorkflowHitlPayloadBuilder.normalizeAskUserSubmittedForm(formData) : formData);
+
+        WorkflowNode suspendNode = suspended.getSuspendNodeId() != null
+                ? workflow.getNode(suspended.getSuspendNodeId()) : null;
+
+        if (askUserResume && suspendNode != null) {
+            Map<String, Object> nodeData = suspendNode.getData() != null ? suspendNode.getData() : Map.of();
+            Map<String, Object> phaseOutputs = extractNodeOutputsMap(
+                    context.getNodeOutputs(), suspended.getSuspendNodeId());
+            Map<String, Object> combined = WorkflowHitlPayloadBuilder.mergePhaseOutputsWithAnswer(phaseOutputs, submitted);
+            Map<String, Object> nodeOutputs = WorkflowMappingUtils.applyOutputMappings(
+                    nodeData,
+                    combined,
+                    WorkflowHitlPayloadBuilder.ANSWER_FIELD_KEY,
+                    combined.get(WorkflowHitlPayloadBuilder.ANSWER_FIELD_KEY));
+            WorkflowVariableScope.mergeNodeOutputs(context, suspendNode, nodeOutputs);
+            context.getNodeOutputs().put(suspended.getSuspendNodeId(), nodeOutputs);
+        } else {
+            submitted.forEach((key, value) -> context.getVariables().put(key, value));
+            if (suspended.getSuspendNodeId() != null) {
+                context.getNodeOutputs().put(suspended.getSuspendNodeId(), submitted);
+            }
         }
 
         workflowRunStateUtil.deleteSuspended(runId);
@@ -239,7 +251,15 @@ public class WorkflowExecutorService {
                 ? new ArrayList<>(suspended.getWorkflowEvents()) : new ArrayList<>();
 
         // 2. 将挂起的 confirm 节点标记为已提交，避免前端重复展示待确认态
-        patchConfirmEventsOnResume(events, suspended.getSuspendNodeId(), formData);
+        Map<String, Object> patchData = submitted;
+        if (askUserResume && suspended.getSuspendNodeId() != null) {
+            Map<String, Object> mergedForEvent = extractNodeOutputsMap(
+                    context.getNodeOutputs(), suspended.getSuspendNodeId());
+            if (mergedForEvent != null && !mergedForEvent.isEmpty()) {
+                patchData = mergedForEvent;
+            }
+        }
+        patchConfirmEventsOnResume(events, suspended.getSuspendNodeId(), patchData);
 
         LoopOutcome outcome = runExecutionLoop(
                 agent, workflow, context,
@@ -327,6 +347,50 @@ public class WorkflowExecutorService {
         return submitted;
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> extractNodeOutputsMap(Map<String, Object> nodeOutputs, String nodeId) {
+        if (nodeOutputs == null || nodeId == null) {
+            return null;
+        }
+        Object prior = nodeOutputs.get(nodeId);
+        if (!(prior instanceof Map<?, ?> priorMap)) {
+            return null;
+        }
+        Map<String, Object> copy = new LinkedHashMap<>();
+        priorMap.forEach((k, v) -> copy.put(String.valueOf(k), v));
+        return copy;
+    }
+
+    /**
+     * 判断挂起恢复是否为 ask_user 工具节点（与 confirm 节点区分）
+     */
+    @SuppressWarnings("unchecked")
+    private boolean isAskUserSuspend(WorkflowDefinition workflow, WorkflowSuspendedRun suspended) {
+        if (suspended == null || suspended.getSuspendNodeId() == null) {
+            return false;
+        }
+        if (suspended.getWorkflowEvents() != null) {
+            for (int i = suspended.getWorkflowEvents().size() - 1; i >= 0; i--) {
+                Map<String, Object> e = suspended.getWorkflowEvents().get(i);
+                if (!"workflow_confirm_required".equals(e.get("type"))) {
+                    continue;
+                }
+                if (!suspended.getSuspendNodeId().equals(String.valueOf(e.get("nodeId")))) {
+                    continue;
+                }
+                Object confirmForm = e.get("confirmForm");
+                if (confirmForm instanceof Map<?, ?> form) {
+                    return WorkflowHitlPayloadBuilder.HITL_TYPE_ASK_USER.equals(form.get("hitlType"));
+                }
+            }
+        }
+        if (workflow != null) {
+            WorkflowNode node = workflow.getNode(suspended.getSuspendNodeId());
+            return node != null && node.getType() == NodeType.TOOL;
+        }
+        return false;
+    }
+
     private String serializeWorkflow(WorkflowDefinition workflow) {
         try {
             return objectMapper.writeValueAsString(workflow);
@@ -409,6 +473,12 @@ public class WorkflowExecutorService {
                         () -> processor.execute(context));
 
                 if (nodeResult.isSuspended()) {
+                    // 挂起前仍 merge 第一阶段 outputs（question/options 等），便于 resume 前引用与恢复后合并
+                    if (nodeResult.getOutputs() != null) {
+                        context.getNodeOutputs().put(executingNodeId, nodeResult.getOutputs());
+                        WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
+                    }
+
                     String runId = options != null && options.assignedRunId != null
                             ? options.assignedRunId
                             : UUID.randomUUID().toString().replace("-", "");

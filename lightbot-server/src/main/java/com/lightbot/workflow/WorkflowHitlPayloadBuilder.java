@@ -17,6 +17,8 @@ public final class WorkflowHitlPayloadBuilder {
 
     public static final String HITL_TYPE_ASK_USER = "ask_user";
     public static final String ANSWER_FIELD_KEY = "answer";
+    /** 有选项时单选字段（与 {@link #ANSWER_FIELD_KEY} 自定义文本二选一或优先文本） */
+    public static final String SELECTED_OPTION_FIELD_KEY = "selectedOption";
 
     private WorkflowHitlPayloadBuilder() {
     }
@@ -87,16 +89,90 @@ public final class WorkflowHitlPayloadBuilder {
         return payload;
     }
 
+    /**
+     * 合并 ask_user 表单：自定义文本优先，否则取选项（与 Agent 弹窗行为一致）
+     */
+    public static Map<String, Object> normalizeAskUserSubmittedForm(Map<String, Object> formData) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (formData == null || formData.isEmpty()) {
+            return result;
+        }
+        String customAnswer = trimToNull(formData.get(ANSWER_FIELD_KEY));
+        String selected = trimToNull(formData.get(SELECTED_OPTION_FIELD_KEY));
+        String finalAnswer = customAnswer != null ? customAnswer : selected;
+        if (finalAnswer != null) {
+            result.put(ANSWER_FIELD_KEY, finalAnswer);
+        }
+        formData.forEach((key, value) -> {
+            if (key == null || key.isBlank() || key.startsWith("_")) {
+                return;
+            }
+            if (ANSWER_FIELD_KEY.equals(key) || SELECTED_OPTION_FIELD_KEY.equals(key)) {
+                return;
+            }
+            result.put(key, value);
+        });
+        return result;
+    }
+
+    /**
+     * 合并 ask_user 挂起阶段 outputs 与用户 resume 提交的 answer（保留 question/options 等）
+     */
+    public static Map<String, Object> mergePhaseOutputsWithAnswer(Map<String, Object> phaseOutputs,
+                                                                   Map<String, Object> submitted) {
+        Map<String, Object> merged = new LinkedHashMap<>();
+        if (phaseOutputs != null) {
+            merged.putAll(phaseOutputs);
+        }
+        if (submitted != null) {
+            merged.putAll(submitted);
+        }
+        return merged;
+    }
+
+    /**
+     * 将 ask_user 工具 JSON 解析出的字段写入节点 outputs（挂起阶段，不含 answer）
+     */
+    public static void enrichAskUserPhaseOutputs(Map<String, Object> outputs, Map<String, Object> toolVars) {
+        if (outputs == null || toolVars == null) {
+            return;
+        }
+        copyIfPresent(outputs, toolVars, "question");
+        copyIfPresent(outputs, toolVars, "options");
+        copyIfPresent(outputs, toolVars, "is_open_ended");
+    }
+
+    private static void copyIfPresent(Map<String, Object> target, Map<String, Object> source, String key) {
+        if (source.containsKey(key) && source.get(key) != null) {
+            target.put(key, source.get(key));
+        }
+    }
+
+    private static String trimToNull(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
     private static List<Map<String, Object>> buildAskUserFormFields(boolean openEnded, List<String> options) {
         List<Map<String, Object>> fields = new ArrayList<>();
         if (!openEnded && options != null && !options.isEmpty()) {
             Map<String, Object> choice = new HashMap<>();
-            choice.put("key", ANSWER_FIELD_KEY);
+            choice.put("key", SELECTED_OPTION_FIELD_KEY);
             choice.put("label", "请选择");
             choice.put("type", "radio");
-            choice.put("required", true);
+            choice.put("required", false);
             choice.put("options", options);
             fields.add(choice);
+
+            Map<String, Object> text = new HashMap<>();
+            text.put("key", ANSWER_FIELD_KEY);
+            text.put("label", "或输入自定义回答");
+            text.put("type", "textarea");
+            text.put("required", false);
+            fields.add(text);
         } else {
             Map<String, Object> text = new HashMap<>();
             text.put("key", ANSWER_FIELD_KEY);

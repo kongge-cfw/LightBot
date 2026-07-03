@@ -2103,6 +2103,15 @@ async function onKnowledgeChange(value) {
 function onToolChange(value) {
   const tool = tools.value.find(t => t.id === value)
   selectedNode.value.data.toolName = tool?.name || ''
+  if (tool?.name === 'ask_user') {
+    const mappings = selectedNode.value.data.outputMappings
+    if (!Array.isArray(mappings) || mappings.length === 0) {
+      selectedNode.value.data.outputMappings = [
+        { key: 'answer', value: '{{answer}}', label: '用户回答', desc: 'resume 后用户选择或输入的内容' },
+        { key: 'question', value: '{{question}}', label: '提问内容', desc: '工具执行阶段即可用' },
+      ]
+    }
+  }
   syncNodes()
 }
 

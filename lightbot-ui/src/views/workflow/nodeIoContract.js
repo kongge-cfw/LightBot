@@ -58,6 +58,19 @@ const FIXED_OUTPUTS = {
 
 const DEBUG_KEYS = new Set(['extractRaw', 'classificationRaw', 'traceData'])
 
+/** ask_user 工具节点额外输出（与后端 NodeIoContractRegistry / HITL 对齐） */
+const ASK_USER_OUTPUT_FIELDS = [
+  { key: 'question', label: '提问内容', desc: '挂起后即可用 {{nodeId.question}}' },
+  { key: 'options', label: '选项列表', desc: '选择题时的选项（Array）' },
+  { key: 'is_open_ended', label: '是否开放题', desc: 'true=开放题，false=选择题' },
+  { key: 'answer', label: '用户回答', desc: 'resume 后可用 {{nodeId.answer}} 或 {{answer}}' },
+]
+
+function isAskUserToolNode(data) {
+  const name = data?.toolName
+  return name === 'ask_user' || name === '向用户提问'
+}
+
 export function getFixedOutputFields(nodeType) {
   return FIXED_OUTPUTS[nodeType] ? [...FIXED_OUTPUTS[nodeType]] : []
 }
@@ -77,6 +90,14 @@ export function mergeNodeOutputFields(node) {
     if (!seen.has(f.key) && !isDebugOutputKey(f.key)) {
       seen.add(f.key)
       merged.push(f)
+    }
+  }
+  if (type === 'tool' && isAskUserToolNode(node.data)) {
+    for (const f of ASK_USER_OUTPUT_FIELDS) {
+      if (!seen.has(f.key)) {
+        seen.add(f.key)
+        merged.push(f)
+      }
     }
   }
   return merged

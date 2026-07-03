@@ -3,6 +3,7 @@ package com.lightbot.workflow;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.Tool;
+import com.lightbot.tool.builtin.AskUserTool;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,6 +40,9 @@ public final class ToolIoSchemaUtil {
         if (outputs.isEmpty()) {
             outputs = defaultOutputs();
         }
+        if (AskUserTool.TOOL_NAME.equals(tool.getName())) {
+            appendAskUserOutputHints(outputs);
+        }
         schema.put("outputs", outputs);
         return schema;
     }
@@ -51,6 +55,21 @@ public final class ToolIoSchemaUtil {
         raw.put("description", "工具原始返回（JSON 字符串）");
         outputs.add(raw);
         return outputs;
+    }
+
+    /** ask_user：补充 HITL resume 后才有的 answer 字段说明 */
+    private static void appendAskUserOutputHints(List<Map<String, Object>> outputs) {
+        if (outputs == null) {
+            return;
+        }
+        boolean hasAnswer = outputs.stream().anyMatch(row -> "answer".equals(row.get("key")));
+        if (!hasAnswer) {
+            Map<String, Object> answer = new LinkedHashMap<>();
+            answer.put("key", "answer");
+            answer.put("type", "String");
+            answer.put("description", "用户回答（工作流 resume 后注入）");
+            outputs.add(answer);
+        }
     }
 
     private static List<Map<String, Object>> parseSchemaProperties(String schemaJson, boolean includeRequired) {

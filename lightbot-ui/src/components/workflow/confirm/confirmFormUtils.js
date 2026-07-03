@@ -95,3 +95,39 @@ export function getHitlSubmitLabel(confirmForm) {
 export function getHitlAbandonLabel(confirmForm) {
   return isAskUserHitlForm(confirmForm) ? '放弃回答' : '放弃本次确认'
 }
+
+export const ASK_USER_ANSWER_KEY = 'answer'
+export const ASK_USER_SELECTED_OPTION_KEY = 'selectedOption'
+
+/** ask_user 有选项时：单选 + 自定义文本至少填一项 */
+export function validateAskUserFormFields(formFields, formValues) {
+  const fields = Array.isArray(formFields) ? formFields : []
+  const hasChoice = fields.some(
+    f => f?.key === ASK_USER_SELECTED_OPTION_KEY && f?.type === 'radio'
+  )
+  if (!hasChoice) return null
+
+  const custom = String(formValues?.[ASK_USER_ANSWER_KEY] ?? '').trim()
+  const selected = formValues?.[ASK_USER_SELECTED_OPTION_KEY]
+  const selectedStr = selected != null ? String(selected).trim() : ''
+  if (custom || selectedStr) return null
+  return '请选择一项或填写自定义回答'
+}
+
+/** 提交前合并为单一 answer（自定义文本优先） */
+export function resolveAskUserSubmitPayload(formValues) {
+  const custom = String(formValues?.[ASK_USER_ANSWER_KEY] ?? '').trim()
+  const selected = formValues?.[ASK_USER_SELECTED_OPTION_KEY]
+  const selectedStr = selected != null ? String(selected).trim() : ''
+  return { [ASK_USER_ANSWER_KEY]: custom || selectedStr }
+}
+
+/** 只读回显：合并展示最终 answer */
+export function resolveAskUserDisplayAnswer(submittedData) {
+  if (!submittedData || typeof submittedData !== 'object') return '—'
+  const custom = String(submittedData[ASK_USER_ANSWER_KEY] ?? '').trim()
+  if (custom) return custom
+  const selected = submittedData[ASK_USER_SELECTED_OPTION_KEY]
+  if (selected != null && String(selected).trim()) return String(selected).trim()
+  return '—'
+}

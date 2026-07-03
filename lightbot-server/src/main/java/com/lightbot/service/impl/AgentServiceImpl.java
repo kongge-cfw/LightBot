@@ -698,7 +698,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     /** 按工具名解析内置工具 ID，供示例 tool 节点绑定 */
     private Map<String, Long> resolveExampleToolIds() {
         Map<String, Long> toolIds = new LinkedHashMap<>();
-        for (String toolName : List.of("web_search", "calculator")) {
+        for (String toolName : List.of("web_search", "calculator", "ask_user")) {
             Tool tool = toolService.getOne(new LambdaQueryWrapper<Tool>()
                     .eq(Tool::getName, toolName)
                     .last("LIMIT 1"));
