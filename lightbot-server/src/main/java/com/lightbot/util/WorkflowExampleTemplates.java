@@ -143,8 +143,22 @@ public final class WorkflowExampleTemplates {
         if (snapshot == null) {
             return null;
         }
-        resolveBindings(snapshot, subAgentIds, toolIds);
-        return snapshot;
+        Map<String, Object> mutable = deepCopyMap(snapshot);
+        resolveBindings(mutable, subAgentIds, toolIds);
+        return mutable;
+    }
+
+    /**
+     * 获取解析占位符后的子工作流快照
+     */
+    public static Map<String, Object> buildResolvedSubSnapshot(String subKey, Map<String, Long> toolIds) {
+        Map<String, Object> snapshot = getSubWorkflowSnapshot(subKey);
+        if (snapshot == null) {
+            return null;
+        }
+        Map<String, Object> mutable = deepCopyMap(snapshot);
+        resolveBindings(mutable, Map.of(), toolIds);
+        return mutable;
     }
 
     /**
@@ -875,6 +889,29 @@ public final class WorkflowExampleTemplates {
     }
 
     // ========== 工具方法 ==========
+
+    @SuppressWarnings("unchecked")
+    private static Map<String, Object> deepCopyMap(Map<?, ?> source) {
+        Map<String, Object> copy = new LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : source.entrySet()) {
+            copy.put(String.valueOf(entry.getKey()), deepCopyValue(entry.getValue()));
+        }
+        return copy;
+    }
+
+    private static Object deepCopyValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return deepCopyMap(map);
+        }
+        if (value instanceof List<?> list) {
+            List<Object> copy = new ArrayList<>(list.size());
+            for (Object item : list) {
+                copy.add(deepCopyValue(item));
+            }
+            return copy;
+        }
+        return value;
+    }
 
     private static String toolPlaceholder(String toolName) {
         return TOOL_PLACEHOLDER_PREFIX + toolName + "__";

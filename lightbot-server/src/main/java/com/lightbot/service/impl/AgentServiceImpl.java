@@ -711,11 +711,10 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     private Map<String, Long> createPublishedSubWorkflowExamples(String key, long userId, Map<String, Long> toolIds) {
         Map<String, Long> subAgentIds = new HashMap<>();
         for (String subKey : WorkflowExampleTemplates.getSubWorkflowKeys(key)) {
-            Map<String, Object> subSnapshot = WorkflowExampleTemplates.getSubWorkflowSnapshot(subKey);
+            Map<String, Object> subSnapshot = WorkflowExampleTemplates.buildResolvedSubSnapshot(subKey, toolIds);
             if (subSnapshot == null) {
                 throw new BizException("示例子工作流不存在: " + subKey);
             }
-            WorkflowExampleTemplates.resolveBindings(subSnapshot, Map.of(), toolIds);
 
             Agent subAgent = new Agent();
             subAgent.setUserId(userId);
