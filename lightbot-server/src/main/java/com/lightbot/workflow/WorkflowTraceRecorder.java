@@ -191,7 +191,7 @@ public class WorkflowTraceRecorder {
         boolean hasError = events.stream().anyMatch(e ->
                 "workflow_node_complete".equals(e.get("type")) && Boolean.FALSE.equals(e.get("success")));
         String rootStatus = errorOverride != null ? "failed"
-                : (hasError ? "failed" : (workflowSuspended ? "suspended" : "completed"));
+                : (hasError ? "failed" : (workflowSuspended ? "running" : "completed"));
 
         Map<String, Object> rootAttrs = buildRootAttrs(userInput, workflow, events, result, nodeDefMap);
         spans.add(LlmTraceSpan.of("workflow_run", null, "workflow_run",

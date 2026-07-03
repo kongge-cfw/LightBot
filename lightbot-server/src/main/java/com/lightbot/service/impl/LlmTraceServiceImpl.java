@@ -183,8 +183,8 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
             sanitizeTraceFields(trace);
             LlmTrace existing = findByRequestId(trace.getRequestId());
             if (existing != null) {
-                if (isFinalized(existing.getStatus()) && "suspended".equals(trace.getStatus())) {
-                    log.debug("[LLMTrace] 跳过 stale suspended 快照覆盖: requestId={}", trace.getRequestId());
+                if (isFinalized(existing.getStatus()) && !isFinalized(trace.getStatus())) {
+                    log.debug("[LLMTrace] 跳过 stale 运行中快照覆盖: requestId={}", trace.getRequestId());
                     return;
                 }
                 trace.setId(existing.getId());

@@ -2,7 +2,7 @@
   <div class="observability">
     <!-- 类型切换 Tab -->
     <div class="trace-tabs">
-      <a-radio-group v-model:value="activeTab" button-style="solid" @change="onTabChange">
+      <a-radio-group v-model:value="activeTab" button-style="solid">
         <a-radio-button value="chat">对话型链路</a-radio-button>
         <a-radio-button value="workflow">工作流链路</a-radio-button>
         <a-radio-button value="tool">工具调用链路</a-radio-button>
@@ -545,7 +545,8 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, reactive, onMounted, onUnmounted, computed, nextTick, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   BarChartOutlined,
   ThunderboltOutlined,
@@ -563,17 +564,18 @@ import MediaAttachmentThumb from '../components/MediaAttachmentThumb.vue'
 import MentionTextRenderer from '../components/MentionTextRenderer.vue'
 import { getTraces, getTraceDetail, getTraceOverview, deleteTraces } from '../api/observability'
 import { getToolCalls, deleteToolCalls } from '../api/toolCall'
-import { useRouter } from 'vue-router'
 import { formatTime, formatJson } from '../utils/format'
 import { contentHasMentionTokens } from '../utils/mention_utils'
 import { copyToClipboard as sharedCopy } from '../utils/clipboard'
+import { normalizeObservabilityTab } from '../utils/observabilityTabs'
 
+const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
 const traces = ref([])
 const overview = ref({})
-const activeTab = ref('chat')
+const activeTab = ref(normalizeObservabilityTab(route.query.tab))
 const selectedRowKeys = ref([])
 const selectedToolRowKeys = ref([])
 const detailVisible = ref(false)
@@ -1001,14 +1003,12 @@ function formatDuration(ms) {
 function traceStatusLabel(status) {
   if (status === 'completed') return '成功'
   if (status === 'failed') return '失败'
-  if (status === 'suspended') return '等待确认'
   return '运行中'
 }
 
 function traceStatusColor(status) {
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'error'
-  if (status === 'suspended') return 'warning'
   return 'processing'
 }
 
@@ -1115,8 +1115,22 @@ function formatConfigValue(value) {
 }
 
 onMounted(() => {
-  loadTraces(1)
-  loadOverview()
+  activeTab.value = normalizeObservabilityTab(route.query.tab)
+  onTabChange()
+})
+
+watch(activeTab, (tab) => {
+  if (normalizeObservabilityTab(route.query.tab) !== tab) {
+    router.replace({ query: { tab } })
+  }
+  onTabChange()
+})
+
+watch(() => route.query.tab, (tab) => {
+  const normalized = normalizeObservabilityTab(tab)
+  if (normalized !== activeTab.value) {
+    activeTab.value = normalized
+  }
 })
 
 onUnmounted(() => clearTimeout(copyTimer))
