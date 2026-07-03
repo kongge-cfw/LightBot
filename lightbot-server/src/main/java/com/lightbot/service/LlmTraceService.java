@@ -48,6 +48,21 @@ public interface LlmTraceService extends IService<LlmTrace> {
     void recordTrace(LlmTrace trace);
 
     /**
+     * 按 requestId 查询工作流 trace
+     *
+     * @param requestId 请求 ID
+     * @return 调用链记录，不存在时返回 null
+     */
+    LlmTrace findByRequestId(String requestId);
+
+    /**
+     * 按 requestId 插入或更新工作流 trace（防止 resume 后异步旧快照覆盖）
+     *
+     * @param trace 调用链数据
+     */
+    void upsertWorkflowTrace(LlmTrace trace);
+
+    /**
      * 删除会话下的所有调用链记录
      *
      * @param sessionId 会话ID

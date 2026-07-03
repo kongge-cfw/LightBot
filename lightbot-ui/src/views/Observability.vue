@@ -96,8 +96,8 @@
           {{ formatTime(record.createTime) }}
         </template>
         <template v-else-if="column.key === 'status'">
-          <a-tag :color="record.status === 'completed' ? 'success' : record.status === 'failed' ? 'error' : 'processing'">
-            {{ record.status === 'completed' ? '成功' : record.status === 'failed' ? '失败' : '运行中' }}
+          <a-tag :color="traceStatusColor(record.status)">
+            {{ traceStatusLabel(record.status) }}
           </a-tag>
         </template>
         <template v-else-if="column.key === 'totalTokens'">
@@ -996,6 +996,20 @@ function formatDuration(ms) {
   if (!ms && ms !== 0) return '-'
   if (ms < 1000) return ms + 'ms'
   return (ms / 1000).toFixed(1) + 's'
+}
+
+function traceStatusLabel(status) {
+  if (status === 'completed') return '成功'
+  if (status === 'failed') return '失败'
+  if (status === 'suspended') return '等待确认'
+  return '运行中'
+}
+
+function traceStatusColor(status) {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'suspended') return 'warning'
+  return 'processing'
 }
 
 function formatTokens(tokens) {

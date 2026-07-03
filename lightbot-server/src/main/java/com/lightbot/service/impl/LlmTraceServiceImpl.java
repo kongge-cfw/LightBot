@@ -158,6 +158,56 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
                         .or().isNull(LlmTrace::getTraceSource));
     }
 
+    @Override
+    public LlmTrace findByRequestId(String requestId) {
+        if (!StringUtils.hasText(requestId)) {
+            return null;
+        }
+        return getOne(new LambdaQueryWrapper<LlmTrace>()
+                .eq(LlmTrace::getRequestId, requestId)
+                .eq(LlmTrace::getTraceSource, "workflow")
+                .orderByDesc(LlmTrace::getCreateTime)
+                .last("LIMIT 1"));
+    }
+
+    @Override
+    public void upsertWorkflowTrace(LlmTrace trace) {
+        if (LlmTraceContext.isSuppressed()) {
+            return;
+        }
+        if (trace == null || !StringUtils.hasText(trace.getRequestId())) {
+            return;
+        }
+        trace.setTraceSource("workflow");
+        try {
+            sanitizeTraceFields(trace);
+            LlmTrace existing = findByRequestId(trace.getRequestId());
+            if (existing != null) {
+                if (isFinalized(existing.getStatus()) && "suspended".equals(trace.getStatus())) {
+                    log.debug("[LLMTrace] 跳过 stale suspended 快照覆盖: requestId={}", trace.getRequestId());
+                    return;
+                }
+                trace.setId(existing.getId());
+                updateById(trace);
+            } else {
+                save(trace);
+            }
+        } catch (Exception e) {
+            log.error("[LLMTrace] upsert 工作流 trace 失败, requestId={}", trace.getRequestId(), e);
+        }
+    }
+
+    private static boolean isFinalized(String status) {
+        return "completed".equals(status) || "failed".equals(status);
+    }
+
+    private void sanitizeTraceFields(LlmTrace trace) {
+        trace.setReplyContent(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getReplyContent()));
+        trace.setDisplayContent(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getDisplayContent()));
+        trace.setErrorMessage(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getErrorMessage()));
+        trace.setSpans(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getSpans()));
+    }
+
     @Async("lightBotExecutor")
     @Override
     public void recordTrace(LlmTrace trace) {
@@ -173,10 +223,11 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
             return;
         }
         try {
-            trace.setReplyContent(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getReplyContent()));
-            trace.setDisplayContent(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getDisplayContent()));
-            trace.setErrorMessage(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getErrorMessage()));
-            trace.setSpans(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(trace.getSpans()));
+            if ("workflow".equals(trace.getTraceSource()) && StringUtils.hasText(trace.getRequestId())) {
+                upsertWorkflowTrace(trace);
+                return;
+            }
+            sanitizeTraceFields(trace);
             save(trace);
         } catch (Exception e) {
             log.error("[LLMTrace] 异步写入调用链失败, requestId={}", trace.getRequestId(), e);

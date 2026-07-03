@@ -26,6 +26,7 @@ import com.lightbot.workflow.WorkflowDefinition;
 import com.lightbot.util.WorkflowRunStateUtil;
 import com.lightbot.workflow.WorkflowExecutorService;
 import com.lightbot.workflow.WorkflowSuspendedRun;
+import com.lightbot.workflow.WorkflowTraceRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -60,6 +61,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     private final WorkflowTestSseHelper workflowTestSseHelper;
     private final MessageService messageService;
     private final WorkflowRunStateUtil workflowRunStateUtil;
+    private final WorkflowTraceRecorder workflowTraceRecorder;
 
     @Override
     public Map<String, Object> getWorkflowConfig(Long agentId) {
@@ -217,7 +219,8 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             result.setRunId(request.getRunId());
         }
         result.setTestRunId(workflowTestRunService.findIdByRunId(request.getRunId()));
-        persistChatMessageAfterResume(request.getMessageId(), result);
+        persistChatMessageAfterResume(agentId, request.getMessageId(), result);
+        workflowTraceRecorder.refreshAfterChatResume(agentId, request.getMessageId(), result);
         return result;
     }
 
@@ -240,7 +243,8 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
                     result.setRunId(request.getRunId());
                 }
                 result.setTestRunId(workflowTestRunService.findIdByRunId(request.getRunId()));
-                persistChatMessageAfterResume(request.getMessageId(), result);
+                persistChatMessageAfterResume(agentId, request.getMessageId(), result);
+                workflowTraceRecorder.refreshAfterChatResume(agentId, request.getMessageId(), result);
                 workflowTestSseHelper.sendDone(emitter, result);
             } catch (Exception e) {
                 workflowTestRunService.updateAfterResume(
@@ -260,7 +264,10 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "运行实例与 Agent 不匹配");
         }
         workflowRunStateUtil.deleteSuspended(runId);
-        persistChatMessageAfterAbandon(request.getMessageId(), suspended);
+        List<Map<String, Object>> patchedEvents = persistChatMessageAfterAbandon(agentId, request.getMessageId(), suspended);
+        if (patchedEvents != null) {
+            workflowTraceRecorder.refreshAfterChatAbandon(agentId, request.getMessageId(), patchedEvents);
+        }
         log.info("[WorkflowConfigService] 用户放弃人工确认: agentId={}, runId={}, messageId={}",
                 agentId, runId, request.getMessageId());
     }
@@ -269,13 +276,13 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
      * Chat 场景：放弃确认后回写助手消息，避免刷新后仍显示待确认表单
      */
     @SuppressWarnings("unchecked")
-    private void persistChatMessageAfterAbandon(Long messageId, WorkflowSuspendedRun suspended) {
+    private List<Map<String, Object>> persistChatMessageAfterAbandon(Long agentId, Long messageId, WorkflowSuspendedRun suspended) {
         if (messageId == null) {
-            return;
+            return null;
         }
         Message msg = messageService.getById(messageId);
         if (msg == null) {
-            return;
+            return null;
         }
         try {
             Map<String, Object> meta = new LinkedHashMap<>();
@@ -295,7 +302,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             meta.remove("workflowRunId");
             msg.setMetadata(objectMapper.writeValueAsString(meta));
 
-            String notice = "工作流已终止（用户放弃人工确认）";
+            String notice = "工作流已终止，用户放弃人工确认";
             String existing = msg.getContent() != null ? msg.getContent().trim() : "";
             if (existing.isEmpty()) {
                 msg.setContent(notice);
@@ -303,9 +310,11 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
                 msg.setContent(existing + "\n\n" + notice);
             }
             messageService.updateById(msg);
+            return events;
         } catch (Exception e) {
             log.warn("[WorkflowConfigService] 放弃确认回写 Chat 消息失败: messageId={}, error={}",
                     messageId, e.getMessage());
+            return null;
         }
     }
 
@@ -386,7 +395,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
      * Chat 场景：恢复成功后回写助手消息 content/metadata，避免刷新后仍显示待确认
      */
     @SuppressWarnings("unchecked")
-    private void persistChatMessageAfterResume(Long messageId, WorkflowTestResultVO result) {
+    private void persistChatMessageAfterResume(Long agentId, Long messageId, WorkflowTestResultVO result) {
         if (messageId == null || result == null) {
             return;
         }

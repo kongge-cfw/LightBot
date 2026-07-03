@@ -5,8 +5,8 @@
       <div class="header-left">
         <a-button type="text" @click="router.push('/app/observability')"><ArrowLeftOutlined /> 返回</a-button>
         <span class="header-title">工作流链路详情</span>
-        <a-tag v-if="trace" :color="trace.status === 'completed' ? 'success' : trace.status === 'failed' ? 'error' : 'processing'">
-          {{ trace.status === 'completed' ? '成功' : trace.status === 'failed' ? '失败' : '运行中' }}
+        <a-tag v-if="trace" :color="traceStatusColor(trace.status)">
+          {{ traceStatusLabel(trace.status) }}
         </a-tag>
       </div>
       <div class="header-right">
@@ -478,6 +478,20 @@ function formatDuration(ms) {
   if (!ms && ms !== 0) return '-'
   if (ms < 1000) return ms + 'ms'
   return (ms / 1000).toFixed(1) + 's'
+}
+
+function traceStatusLabel(status) {
+  if (status === 'completed') return '成功'
+  if (status === 'failed') return '失败'
+  if (status === 'suspended') return '等待确认'
+  return '运行中'
+}
+
+function traceStatusColor(status) {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'suspended') return 'warning'
+  return 'processing'
 }
 
 // --- Init ---
