@@ -11,6 +11,8 @@ import com.lightbot.dto.WorkflowTestRunDetailVO;
 import com.lightbot.dto.WorkflowTestRunVO;
 import com.lightbot.dto.WorkflowVersionVO;
 
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
 import java.util.List;
 import java.util.Map;
 
@@ -65,9 +67,19 @@ public interface WorkflowConfigService {
     WorkflowTestResultVO testRun(Long agentId, WorkflowTestRequest request);
 
     /**
+     * 调试运行（SSE 实时推送节点事件）
+     */
+    SseEmitter testRunStream(Long agentId, WorkflowTestRequest request);
+
+    /**
      * 人工确认后恢复工作流
      */
     WorkflowTestResultVO resumeWorkflow(Long agentId, WorkflowResumeRequest request);
+
+    /**
+     * 人工确认后恢复工作流（SSE 实时推送）
+     */
+    SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeRequest request);
 
     /**
      * 单节点调试运行

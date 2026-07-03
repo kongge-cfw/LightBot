@@ -19,12 +19,15 @@ import com.lightbot.service.AgentVersionService;
 import com.lightbot.service.MessageService;
 import com.lightbot.service.WorkflowConfigService;
 import com.lightbot.service.WorkflowTestRunService;
+import com.lightbot.service.workflow.WorkflowTestSseHelper;
 import com.lightbot.workflow.WorkflowConfigParser;
 import com.lightbot.workflow.WorkflowDefinition;
 import com.lightbot.workflow.WorkflowExecutorService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.scheduler.Schedulers;
 
 import cn.dev33.satoken.stp.StpUtil;
 
@@ -35,6 +38,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * 工作流配置：委托 AgentVersionService，版本数据存 agent_version 表
@@ -49,6 +54,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     private final ObjectMapper objectMapper;
     private final WorkflowExecutorService workflowExecutorService;
     private final WorkflowTestRunService workflowTestRunService;
+    private final WorkflowTestSseHelper workflowTestSseHelper;
     private final MessageService messageService;
 
     @Override
@@ -114,6 +120,49 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
 
     @Override
     public WorkflowTestResultVO testRun(Long agentId, WorkflowTestRequest request) {
+        TestRunContext ctx = prepareTestRun(agentId, request);
+        long startMs = System.currentTimeMillis();
+        try {
+            WorkflowTestResultVO result = workflowExecutorService.executeForTest(
+                    ctx.agent(), ctx.definition(), request.getInput(), ctx.events(),
+                    ctx.initialVariables(), ctx.runId());
+            finalizeTestResult(result, ctx);
+            workflowTestRunService.finishRun(ctx.runId(), result, System.currentTimeMillis() - startMs, null);
+            return result;
+        } catch (Exception e) {
+            workflowTestRunService.finishRun(ctx.runId(), null, System.currentTimeMillis() - startMs, e.getMessage());
+            throw e;
+        }
+    }
+
+    @Override
+    public SseEmitter testRunStream(Long agentId, WorkflowTestRequest request) {
+        TestRunContext ctx = prepareTestRun(agentId, request);
+        SseEmitter emitter = workflowTestSseHelper.createEmitter();
+        AtomicInteger counter = new AtomicInteger(0);
+        Consumer<Map<String, Object>> onEvent = workflowTestSseHelper.eventSender(emitter, counter);
+        long startMs = System.currentTimeMillis();
+
+        Schedulers.boundedElastic().schedule(() -> {
+            try {
+                WorkflowTestResultVO result = workflowExecutorService.executeForTest(
+                        ctx.agent(), ctx.definition(), request.getInput(), ctx.events(),
+                        ctx.initialVariables(), ctx.runId(), onEvent);
+                finalizeTestResult(result, ctx);
+                workflowTestRunService.finishRun(ctx.runId(), result, System.currentTimeMillis() - startMs, null);
+                workflowTestSseHelper.sendDone(emitter, result);
+            } catch (Exception e) {
+                workflowTestRunService.finishRun(ctx.runId(), null, System.currentTimeMillis() - startMs, e.getMessage());
+                workflowTestSseHelper.sendErrorAndComplete(emitter, counter, e.getMessage());
+            }
+        });
+        return emitter;
+    }
+
+    /**
+     * 准备调试运行上下文（定义加载、runId、初始变量）
+     */
+    private TestRunContext prepareTestRun(Long agentId, WorkflowTestRequest request) {
         Agent agent = requireAgent(agentId);
         WorkflowDefinition definition;
         if (request.getGraph() != null
@@ -129,27 +178,27 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         }
 
         Map<String, Object> initialVariables = buildTestInitialVariables(request);
-
         boolean usedDraft = request.getGraph() != null
                 || request.getUseDraft() == null
                 || Boolean.TRUE.equals(request.getUseDraft());
-
         long userId = StpUtil.getLoginIdAsLong();
         String runId = workflowTestRunService.startRun(agentId, userId, request, definition, usedDraft);
-        long startMs = System.currentTimeMillis();
-        List<Map<String, Object>> events = new ArrayList<>();
-        try {
-            WorkflowTestResultVO result = workflowExecutorService.executeForTest(
-                    agent, definition, request.getInput(), events, initialVariables, runId);
-            result.setUsedDraft(usedDraft);
-            result.setRunId(runId);
-            result.setTestRunId(workflowTestRunService.findIdByRunId(runId));
-            workflowTestRunService.finishRun(runId, result, System.currentTimeMillis() - startMs, null);
-            return result;
-        } catch (Exception e) {
-            workflowTestRunService.finishRun(runId, null, System.currentTimeMillis() - startMs, e.getMessage());
-            throw e;
-        }
+        return new TestRunContext(agent, definition, initialVariables, usedDraft, runId, new ArrayList<>());
+    }
+
+    private void finalizeTestResult(WorkflowTestResultVO result, TestRunContext ctx) {
+        result.setUsedDraft(ctx.usedDraft());
+        result.setRunId(ctx.runId());
+        result.setTestRunId(workflowTestRunService.findIdByRunId(ctx.runId()));
+    }
+
+    private record TestRunContext(
+            Agent agent,
+            WorkflowDefinition definition,
+            Map<String, Object> initialVariables,
+            boolean usedDraft,
+            String runId,
+            List<Map<String, Object>> events) {
     }
 
     @Override
@@ -166,6 +215,36 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         result.setTestRunId(workflowTestRunService.findIdByRunId(request.getRunId()));
         persistChatMessageAfterResume(request.getMessageId(), result);
         return result;
+    }
+
+    @Override
+    public SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeRequest request) {
+        requireAgent(agentId);
+        Map<String, Object> formData = request.getFormData() != null ? request.getFormData() : Map.of();
+        SseEmitter emitter = workflowTestSseHelper.createEmitter();
+        AtomicInteger counter = new AtomicInteger(0);
+        Consumer<Map<String, Object>> onEvent = workflowTestSseHelper.eventSender(emitter, counter);
+        long startMs = System.currentTimeMillis();
+
+        Schedulers.boundedElastic().schedule(() -> {
+            try {
+                WorkflowTestResultVO result = workflowExecutorService.resumeAfterConfirm(
+                        agentId, request.getRunId(), formData, onEvent);
+                workflowTestRunService.updateAfterResume(
+                        request.getRunId(), result, System.currentTimeMillis() - startMs, null);
+                if (result.getRunId() == null) {
+                    result.setRunId(request.getRunId());
+                }
+                result.setTestRunId(workflowTestRunService.findIdByRunId(request.getRunId()));
+                persistChatMessageAfterResume(request.getMessageId(), result);
+                workflowTestSseHelper.sendDone(emitter, result);
+            } catch (Exception e) {
+                workflowTestRunService.updateAfterResume(
+                        request.getRunId(), null, System.currentTimeMillis() - startMs, e.getMessage());
+                workflowTestSseHelper.sendErrorAndComplete(emitter, counter, e.getMessage());
+            }
+        });
+        return emitter;
     }
 
     /**

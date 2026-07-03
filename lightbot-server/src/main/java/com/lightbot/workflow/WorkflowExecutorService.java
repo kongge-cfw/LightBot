@@ -172,6 +172,20 @@ public class WorkflowExecutorService {
      * @return 调试/恢复结果
      */
     public WorkflowTestResultVO resumeAfterConfirm(Long agentId, String runId, Map<String, Object> formData) {
+        return resumeAfterConfirm(agentId, runId, formData, null);
+    }
+
+    /**
+     * 人工确认后恢复工作流（支持实时推送节点事件）
+     *
+     * @param agentId  Agent ID
+     * @param runId    挂起运行 ID
+     * @param formData 确认表单数据
+     * @param onEvent  实时事件回调（可为 null）
+     * @return 调试/恢复结果
+     */
+    public WorkflowTestResultVO resumeAfterConfirm(Long agentId, String runId, Map<String, Object> formData,
+                                                   Consumer<Map<String, Object>> onEvent) {
         WorkflowSuspendedRun suspended = workflowRunStateUtil.getSuspended(runId);
         if (suspended == null) {
             throw new IllegalArgumentException("挂起的运行不存在或已过期: " + runId);
@@ -233,7 +247,7 @@ public class WorkflowExecutorService {
                 suspended.getStepIndex(),
                 new StringBuilder(),
                 events,
-                null,
+                onEvent,
                 suspended.getWorkflowGraphJson(),
                 ExecutionOptions.fromSuspended(suspended));
 
@@ -247,7 +261,7 @@ public class WorkflowExecutorService {
                     .confirmForm(outcome.getConfirmForm())
                     .output(outcome.getSuspendedMessage());
         } else {
-            emitWorkflowEvent(events, null, Map.of("type", "workflow_complete", "contentOffset", 0));
+            emitWorkflowEvent(events, onEvent, Map.of("type", "workflow_complete", "contentOffset", 0));
             String output = context.getVariables().containsKey("result")
                     ? WorkflowResultUtils.formatAsText(context.getVariables().get("result"))
                     : outcome.getStreamResult();
@@ -927,6 +941,16 @@ public class WorkflowExecutorService {
     public WorkflowTestResultVO executeForTest(Agent agent, WorkflowDefinition workflow,
                                                String userInput, List<Map<String, Object>> workflowEvents,
                                                Map<String, Object> initialVariables, String assignedRunId) {
+        return executeForTest(agent, workflow, userInput, workflowEvents, initialVariables, assignedRunId, null);
+    }
+
+    /**
+     * 调试执行：返回输出内容 + 变量快照，支持实时推送节点事件
+     */
+    public WorkflowTestResultVO executeForTest(Agent agent, WorkflowDefinition workflow,
+                                               String userInput, List<Map<String, Object>> workflowEvents,
+                                               Map<String, Object> initialVariables, String assignedRunId,
+                                               Consumer<Map<String, Object>> onEvent) {
         NodeExecutionContext context = NodeExecutionContext.builder()
                 .agentId(agent.getId())
                 .userInput(userInput)
@@ -956,7 +980,7 @@ public class WorkflowExecutorService {
         ExecutionOptions options = ExecutionOptions.test(assignedRunId);
         LoopOutcome outcome = runExecutionLoop(
                 agent, workflow, context, currentNodeId, 0,
-                new StringBuilder(), workflowEvents, null, workflowJson, options);
+                new StringBuilder(), workflowEvents, onEvent, workflowJson, options);
 
         WorkflowTestResultVO.WorkflowTestResultVOBuilder builder = WorkflowTestResultVO.builder()
                 .nodeEvents(workflowEvents)
@@ -971,7 +995,7 @@ public class WorkflowExecutorService {
             return builder.build();
         }
 
-        emitWorkflowEvent(workflowEvents, null, Map.of("type", "workflow_complete", "contentOffset", 0));
+        emitWorkflowEvent(workflowEvents, onEvent, Map.of("type", "workflow_complete", "contentOffset", 0));
 
         String output = context.getVariables().containsKey("result")
                 ? WorkflowResultUtils.formatAsText(context.getVariables().get("result"))

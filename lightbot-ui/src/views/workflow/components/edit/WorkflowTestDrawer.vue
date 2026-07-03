@@ -3,8 +3,8 @@
     v-model:open="open"
     title="测试运行"
     :width="640"
-    :mask-closable="!testRunning && (!testAnimating || viewingHistory)"
-    :keyboard="!testRunning && (!testAnimating || viewingHistory)"
+    :mask-closable="!testRunning && !testStreaming && (!testAnimating || viewingHistory)"
+    :keyboard="!testRunning && !testStreaming && (!testAnimating || viewingHistory)"
     @close="$emit('close')"
   >
     <a-segmented
@@ -19,7 +19,15 @@
 
     <template v-if="drawerTab === 'current'">
       <a-alert
-        v-if="viewingHistory && testAnimating"
+        v-if="testStreaming"
+        type="info"
+        show-icon
+        message="正在实时执行工作流..."
+        description="节点状态与时间线随 SSE 事件实时更新"
+        class="test-alert"
+      />
+      <a-alert
+        v-else-if="testAnimating && viewingHistory"
         type="info"
         show-icon
         message="正在回放执行过程..."
@@ -31,14 +39,6 @@
         </template>
       </a-alert>
       <a-alert v-else-if="viewingHistory" type="info" show-icon message="正在查看历史测试记录" class="test-alert" />
-      <a-alert
-        v-else-if="testAnimating"
-        type="info"
-        show-icon
-        message="正在执行工作流..."
-        description="画布上当前节点会高亮显示执行状态"
-        class="test-alert"
-      />
       <a-segmented
         :value="testMode"
         :options="[
@@ -72,19 +72,25 @@
             @update:value="val => $emit('update:testInput', val)"
           />
         </a-form-item>
-        <a-form-item label="使用草稿配置">
+        <a-form-item>
+          <template #label>
+            <ConfigFieldLabel
+              label="使用草稿配置"
+              tip="画板测试会优先使用当前画布上的节点（含未暂存的修改），无需先保存草稿。若未传画布图，开启时从「草稿版本」加载，关闭时从「最新已发布版本」加载。正式 Chat 对话始终使用已发布版本。"
+            />
+          </template>
           <a-switch :checked="testUseDraft" @change="val => $emit('update:testUseDraft', val)" />
         </a-form-item>
         <div class="test-actions">
           <a-button
             type="primary"
-            :loading="testRunning || (testAnimating && !viewingHistory)"
+            :loading="testRunning || testStreaming || (testAnimating && viewingHistory)"
             :disabled="viewingHistory"
             @click="$emit('run')"
           >
             {{ runButtonLabel }}
           </a-button>
-          <a-button v-if="testMode === 'conversation'" :disabled="testRunning || testAnimating || viewingHistory" @click="$emit('clear-conversation')">
+          <a-button v-if="testMode === 'conversation'" :disabled="testRunning || testStreaming || testAnimating || viewingHistory" @click="$emit('clear-conversation')">
             清空对话
           </a-button>
           <a-button v-if="viewingHistory && testAnimating" @click="$emit('skip-replay')">跳过动画</a-button>
@@ -92,15 +98,23 @@
         </div>
       </a-form>
 
-      <a-divider v-if="testResult || testAnimating" />
-      <div v-if="testAnimating && testCurrentNodeId" class="test-current-node">
+      <a-divider v-if="testResult || testStreaming || testAnimating" />
+      <div v-if="(testStreaming || testAnimating) && testCurrentNodeId" class="test-current-node">
         {{ viewingHistory ? '回放节点' : '当前节点' }}：<strong>{{ getNodeTitleById(testCurrentNodeId) }}</strong>
       </div>
+      <a-alert
+        v-if="testFailedNodeId && !viewingHistory"
+        type="error"
+        show-icon
+        :message="`节点执行失败：${getNodeTitleById(testFailedNodeId)}`"
+        description="请展开节点轨迹查看 input / outputs 详情"
+        class="test-alert"
+      />
       <div v-if="testResult">
         <WorkflowConfirmForm
           v-if="testPendingConfirm?.confirmForm && !viewingHistory"
           :confirm-form="testPendingConfirm.confirmForm"
-          :submitting="testRunning || testAnimating"
+          :submitting="testRunning || testStreaming"
           @submit="formData => $emit('resume', formData)"
         />
         <a-alert
@@ -191,6 +205,7 @@ import { ref, computed, watch } from 'vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import WorkflowConfirmForm from '../../../../components/WorkflowConfirmForm.vue'
 import WorkflowTestTimeline from '../WorkflowTestTimeline.vue'
+import ConfigFieldLabel from '../ConfigFieldLabel.vue'
 import { formatTestStatus, formatTestDuration } from '../../composables/useWorkflowNodeSteps.js'
 
 const props = defineProps({
@@ -198,7 +213,9 @@ const props = defineProps({
   testInput: String,
   testUseDraft: Boolean,
   testRunning: Boolean,
+  testStreaming: Boolean,
   testAnimating: Boolean,
+  testFailedNodeId: { type: [String, Number], default: null },
   testMessages: { type: Array, default: () => [] },
   testResult: { type: Object, default: null },
   testPendingConfirm: { type: Object, default: null },
@@ -228,7 +245,8 @@ const variableCount = computed(() => {
 })
 
 const runButtonLabel = computed(() => {
-  if (props.testAnimating && !props.viewingHistory) return '执行中...'
+  if (props.testStreaming && !props.viewingHistory) return '执行中...'
+  if (props.testAnimating && props.viewingHistory) return '回放中...'
   if (props.testMode === 'conversation') return '发送并运行'
   return '开始测试'
 })

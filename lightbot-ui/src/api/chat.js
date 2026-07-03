@@ -174,7 +174,7 @@ function decodeSseTextContent(raw) {
   return content.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/\\t/g, '\t')
 }
 
-function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEvent, onRequestId, onDone, onEventId }) {
+export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEvent, onRequestId, onDone, onEventId }) {
   const lines = text.split('\n')
   let currentEventId = null
   for (const line of lines) {

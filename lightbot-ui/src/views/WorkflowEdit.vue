@@ -152,7 +152,7 @@
       </ResizableSidePanel>
 
       <ResizableSidePanel
-        v-else-if="selectedNode && !testAnimating && !testRunning"
+        v-else-if="selectedNode && !testAnimating && !testRunning && !testStreaming"
         storage-key="workflow-node-detail-panel-width"
         :default-width="480"
         :min-width="320"
@@ -219,7 +219,9 @@
     v-model:test-input="testInput"
     v-model:test-use-draft="testUseDraft"
     :test-running="testRunning"
+    :test-streaming="testStreaming"
     :test-animating="testAnimating"
+    :test-failed-node-id="testFailedNodeId"
     :test-messages="testMessages"
     :test-result="testResult"
     :test-current-node-id="testCurrentNodeId"
@@ -266,13 +268,13 @@ import {
   listWorkflowVersions,
   getWorkflowVersionDetail,
   restoreWorkflowVersion,
-  testWorkflow,
-  resumeWorkflow,
   listWorkflowTestRuns,
   getWorkflowTestRun,
   deleteWorkflowTestRun,
   clearWorkflowTestRuns,
 } from '../api/workflow'
+import { testWorkflowStream, resumeWorkflowStream } from '../api/workflowTestStream'
+import { handleLiveWorkflowTestEvent, applyWorkflowTestStreamResult, patchLocalConfirmEventsBeforeResume, findSuspendNodeIdFromEvents } from './workflow/composables/useWorkflowTestLive.js'
 import NodeSingleTestDrawer from '../views/workflow/components/NodeSingleTestDrawer.vue'
 import NodeExampleModal from '../views/workflow/components/NodeExampleModal.vue'
 import WorkflowEditToolbar from '../views/workflow/components/edit/WorkflowEditToolbar.vue'
@@ -410,7 +412,10 @@ const testMessages = ref([])
 const testInput = ref('')
 const testUseDraft = ref(true)
 const testRunning = ref(false)
+const testStreaming = ref(false)
 const testAnimating = ref(false)
+const testFailedNodeId = ref(null)
+const testStreamAbortController = ref(null)
 const testCurrentNodeId = ref(null)
 const testResult = ref(null)
 const testPendingConfirm = ref(null)
@@ -888,6 +893,7 @@ function onKeyDown(event) {
 }
 
 onUnmounted(() => {
+  stopLiveTestStream()
   clearTimeout(nodeInternalsTimer)
   window.removeEventListener('keydown', onKeyDown)
   document.removeEventListener('mousemove', onVersionPanelDragMove)
@@ -2632,11 +2638,27 @@ function onTestTimelineNodeSelect(nodeId) {
   const node = nodes.value.find(n => n.id === nodeId)
   if (!node) return
   // 测试执行/回放中仅定位画布，不展开节点详情侧栏
-  if (testAnimating.value || testRunning.value) {
+  if (testAnimating.value || testRunning.value || testStreaming.value) {
     panToNode(node)
     return
   }
   focusNode(node)
+}
+
+function stopLiveTestStream() {
+  testStreamAbortController.value?.abort()
+  testStreamAbortController.value = null
+  testStreaming.value = false
+}
+
+function buildLiveTestEventCtx() {
+  return {
+    testResult,
+    testPendingConfirm,
+    testCurrentNodeId,
+    testFailedNodeId,
+    setReplayNodeStatus,
+  }
 }
 
 function onTestDrawerClose() {
@@ -2644,6 +2666,7 @@ function onTestDrawerClose() {
   if (viewingTestHistory.value) {
     return
   }
+  stopLiveTestStream()
   testAnimationGeneration.value++
   testAnimating.value = false
   clearReplayNodeStatus()
@@ -2674,45 +2697,57 @@ async function runWorkflowTest() {
   liveTestSnapshot.value = null
   selectedNode.value = null
   clearEdgeSelection()
+  stopLiveTestStream()
   testAnimationGeneration.value++
   testRunning.value = true
+  testStreaming.value = true
   testResult.value = null
   testPendingConfirm.value = null
   testCurrentNodeId.value = null
+  testFailedNodeId.value = null
   clearNodeDebugStatus()
+
+  const payload = {
+    input: userText,
+    useDraft: testUseDraft.value,
+    graph: buildWorkflowPayload(),
+    testMode: testMode.value,
+  }
+  if (testMode.value === 'conversation') {
+    payload.conversationHistory = testMessages.value.map(m => ({
+      role: m.role,
+      content: m.content,
+    }))
+  }
+
+  const abortController = new AbortController()
+  testStreamAbortController.value = abortController
+  const eventCtx = buildLiveTestEventCtx()
+
   try {
-    const payload = {
-      input: userText,
-      useDraft: testUseDraft.value,
-      graph: buildWorkflowPayload(),
-      testMode: testMode.value,
-    }
-    if (testMode.value === 'conversation') {
-      payload.conversationHistory = testMessages.value.map(m => ({
-        role: m.role,
-        content: m.content,
-      }))
-    }
-    const res = await testWorkflow(agentId, payload)
-    testResult.value = res.data
-    if (res.data?.suspended) {
-      testPendingConfirm.value = {
-        runId: res.data.runId,
-        confirmForm: res.data.confirmForm,
-      }
-      await animateWorkflowTest(res.data?.nodeEvents || [])
+    await testWorkflowStream(agentId, payload, {
+      signal: abortController.signal,
+      onEvent: (event) => handleLiveWorkflowTestEvent(event, eventCtx),
+      onDone: (result) => {
+        if (result) {
+          applyWorkflowTestStreamResult(result, eventCtx)
+        }
+      },
+    })
+
+    if (testResult.value?.suspended) {
       message.info('工作流已暂停，请填写确认表单后继续')
       await loadTestHistoryList()
       return
     }
-    if (testMode.value === 'conversation' && res.data?.output) {
-      testMessages.value.push({ role: 'assistant', content: res.data.output })
+    if (testMode.value === 'conversation' && testResult.value?.output) {
+      testMessages.value.push({ role: 'assistant', content: testResult.value.output })
     }
     testInput.value = ''
-    await animateWorkflowTest(res.data?.nodeEvents || [])
     message.success('测试运行完成')
     await loadTestHistoryList()
   } catch (e) {
+    if (e.name === 'AbortError') return
     if (testMode.value === 'conversation' && testMessages.value.length) {
       const last = testMessages.value[testMessages.value.length - 1]
       if (last?.role === 'user' && last.content === userText) {
@@ -2722,6 +2757,8 @@ async function runWorkflowTest() {
     notification.error({ message: '测试失败', description: e.message })
     clearNodeDebugStatus()
   } finally {
+    testStreamAbortController.value = null
+    testStreaming.value = false
     testRunning.value = false
   }
 }
@@ -2730,32 +2767,49 @@ async function resumeWorkflowTest(formData) {
   if (!testPendingConfirm.value?.runId) return
   selectedNode.value = null
   clearEdgeSelection()
+  stopLiveTestStream()
   testRunning.value = true
+  testStreaming.value = true
+  testFailedNodeId.value = null
+
+  const runId = testPendingConfirm.value.runId
+  const suspendNodeId = findSuspendNodeIdFromEvents(testResult.value?.nodeEvents, runId)
+  patchLocalConfirmEventsBeforeResume(testResult, suspendNodeId, formData)
+  if (suspendNodeId) {
+    setReplayNodeStatus(suspendNodeId, 'success')
+  }
+  testPendingConfirm.value = null
+  const abortController = new AbortController()
+  testStreamAbortController.value = abortController
+  const eventCtx = buildLiveTestEventCtx()
+
   try {
-    const res = await resumeWorkflow(agentId, {
-      runId: testPendingConfirm.value.runId,
-      formData,
+    await resumeWorkflowStream(agentId, { runId, formData }, {
+      signal: abortController.signal,
+      onEvent: (event) => handleLiveWorkflowTestEvent(event, eventCtx),
+      onDone: (result) => {
+        if (result) {
+          applyWorkflowTestStreamResult(result, eventCtx)
+        }
+      },
     })
-    testResult.value = res.data
-    if (res.data?.suspended) {
-      testPendingConfirm.value = {
-        runId: res.data.runId,
-        confirmForm: res.data.confirmForm,
-      }
-      await animateWorkflowTest(res.data?.nodeEvents || [])
+
+    if (testResult.value?.suspended) {
       message.info('工作流再次暂停，请继续确认')
       return
     }
     testPendingConfirm.value = null
-    if (testMode.value === 'conversation' && res.data?.output) {
-      testMessages.value.push({ role: 'assistant', content: res.data.output })
+    if (testMode.value === 'conversation' && testResult.value?.output) {
+      testMessages.value.push({ role: 'assistant', content: testResult.value.output })
     }
-    await animateWorkflowTest(res.data?.nodeEvents || [])
     message.success('工作流执行完成')
     await loadTestHistoryList()
   } catch (e) {
+    if (e.name === 'AbortError') return
     notification.error({ message: '恢复执行失败', description: e.message })
   } finally {
+    testStreamAbortController.value = null
+    testStreaming.value = false
     testRunning.value = false
   }
 }

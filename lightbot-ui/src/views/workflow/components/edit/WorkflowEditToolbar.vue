@@ -45,14 +45,18 @@
     </div>
     <div class="toolbar-actions">
       <template v-if="viewingTestHistory">
-        <a-button type="default" @click="$emit('open-test')">测试运行</a-button>
+        <a-button type="default" @click="$emit('open-test')">
+          <PlayCircleOutlined /> 测试运行
+        </a-button>
         <a-button type="primary" danger @click="$emit('exit-test-history')">退出历史快照</a-button>
       </template>
       <template v-else-if="isVersionPreview">
         <a-button type="primary" @click="$emit('back-to-draft')">
           <RollbackOutlined /> 回到当前版本
         </a-button>
-        <a-button type="default" @click="$emit('open-version')">版本管理</a-button>
+        <a-button type="default" @click="$emit('open-version')">
+          <HistoryOutlined /> 版本管理
+        </a-button>
       </template>
       <template v-else>
         <WorkflowTooltip title="撤回 (Ctrl+Z)" placement="bottom">
@@ -60,13 +64,21 @@
             <UndoOutlined /> 撤回
           </a-button>
         </WorkflowTooltip>
-        <a-button type="default" @click="$emit('open-global-config')">全局设置</a-button>
-        <a-button type="default" @click="$emit('open-test')">测试运行</a-button>
-        <a-button type="default" @click="$emit('open-version')">版本管理</a-button>
+        <a-button type="default" @click="$emit('open-global-config')">
+          <SettingOutlined /> 全局设置
+        </a-button>
+        <a-button type="default" @click="$emit('open-test')">
+          <PlayCircleOutlined /> 测试运行
+        </a-button>
+        <a-button type="default" @click="$emit('open-version')">
+          <HistoryOutlined /> 版本管理
+        </a-button>
         <a-button type="default" :disabled="saving" :loading="saving" @click="$emit('save-draft')">
           <SaveOutlined /> 暂存
         </a-button>
-        <a-button type="primary" :disabled="saving" @click="$emit('open-publish')">发布</a-button>
+        <a-button type="primary" :disabled="saving" @click="$emit('open-publish')">
+          <CloudUploadOutlined /> 发布
+        </a-button>
       </template>
     </div>
   </div>
@@ -76,6 +88,7 @@
 import {
   ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   DownOutlined, UndoOutlined, AuditOutlined, RollbackOutlined, ApartmentOutlined,
+  SettingOutlined, PlayCircleOutlined, HistoryOutlined, CloudUploadOutlined,
 } from '@ant-design/icons-vue'
 import WorkflowTooltip from '../WorkflowTooltip.vue'
 

@@ -3,21 +3,18 @@
     <a-alert
       :type="readonly ? 'success' : 'warning'"
       show-icon
-      :message="readonly ? '已提交' : '等待您的选择'"
+      :message="readonly ? '已提交' : '等待人工确认'"
       :description="confirmForm.message || '请查看以下信息并做出选择'"
       class="confirm-alert"
     />
-    <div v-if="readonly && submittedEntries.length" class="submitted-summary">
-      <div v-for="row in submittedEntries" :key="row.key" class="submitted-row">
-        <span class="submitted-label">{{ row.label }}</span>
-        <span class="submitted-value">{{ row.value }}</span>
-      </div>
-    </div>
+    <WorkflowConfirmSubmittedSummary
+      v-if="readonly && submittedEntries.length"
+      :form-fields="formFields"
+      :submitted-data="submittedData"
+    />
     <a-form v-else layout="vertical" class="confirm-fields">
-      <template v-for="field in formFields" :key="field.key">
-        <div v-if="field.type === 'info'" class="info-field">
-          {{ field.label || field.defaultValue || field.key }}
-        </div>
+      <template v-for="field in formFields" :key="field.key || field.label">
+        <WorkflowConfirmInfoBlock v-if="field.type === 'info'" :field="field" />
         <a-form-item
           v-else
           :label="field.label || field.key"
@@ -28,7 +25,7 @@
             v-model:value="formValues[field.key]"
             class="confirm-radio-group"
           >
-            <a-radio v-for="opt in normalizeOptions(field.options)" :key="opt.value" :value="opt.value">
+            <a-radio v-for="opt in normalizeConfirmOptions(field.options)" :key="opt.value" :value="opt.value">
               {{ opt.label }}
             </a-radio>
           </a-radio-group>
@@ -36,7 +33,7 @@
             v-else-if="field.type === 'select'"
             v-model:value="formValues[field.key]"
             :placeholder="`请选择${field.label || field.key}`"
-            :options="normalizeOptions(field.options)"
+            :options="normalizeConfirmOptions(field.options)"
             style="width: 100%"
           />
           <a-textarea
@@ -68,6 +65,9 @@
 
 <script setup>
 import { reactive, watch, computed } from 'vue'
+import WorkflowConfirmInfoBlock from './workflow/confirm/WorkflowConfirmInfoBlock.vue'
+import WorkflowConfirmSubmittedSummary from './workflow/confirm/WorkflowConfirmSubmittedSummary.vue'
+import { normalizeConfirmOptions, buildConfirmSubmittedEntries } from './workflow/confirm/confirmFormUtils.js'
 
 const props = defineProps({
   confirmForm: { type: Object, default: null },
@@ -86,16 +86,9 @@ const formFields = computed(() => {
   return Array.isArray(fields) ? fields.filter(f => f?.key || f?.type === 'info') : []
 })
 
-const submittedEntries = computed(() => {
-  const data = props.submittedData || {}
-  return formFields.value
-    .filter(f => f.type !== 'info' && f.key)
-    .map(f => ({
-      key: f.key,
-      label: f.label || f.key,
-      value: data[f.key] != null ? String(data[f.key]) : '—',
-    }))
-})
+const submittedEntries = computed(() =>
+  buildConfirmSubmittedEntries(formFields.value, props.submittedData)
+)
 
 watch(
   () => props.confirmForm,
@@ -110,14 +103,6 @@ watch(
   },
   { immediate: true, deep: true }
 )
-
-function normalizeOptions(options) {
-  if (!Array.isArray(options)) return []
-  return options.map(opt => {
-    if (typeof opt === 'string') return { label: opt, value: opt }
-    return { label: opt.label ?? opt.value, value: opt.value ?? opt.label }
-  })
-}
 
 function handleSubmit() {
   for (const field of formFields.value) {
@@ -145,22 +130,5 @@ function handleSubmit() {
 }
 .confirm-alert { margin-bottom: 12px; }
 .confirm-fields { margin-top: 4px; }
-.info-field {
-  margin-bottom: 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--color-canvas);
-  border: 1px dashed var(--color-warning-soft);
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--color-text-dark);
-}
 .confirm-radio-group { display: flex; flex-direction: column; gap: 6px; }
-.submitted-summary { display: flex; flex-direction: column; gap: 6px; }
-.submitted-row {
-  display: flex; gap: 8px; font-size: 13px;
-  padding: 6px 8px; background: var(--color-canvas); border-radius: 6px;
-}
-.submitted-label { color: var(--color-mute); min-width: 72px; }
-.submitted-value { color: var(--color-text-dark); font-weight: 500; }
 </style>

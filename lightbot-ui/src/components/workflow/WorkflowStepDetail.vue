@@ -146,13 +146,9 @@
       <div v-if="step.children?.length" class="wf-detail-hint">展开上方子节点查看 {{ step.children.length }} 个内部步骤</div>
     </template>
 
-    <!-- 用户交互 confirm -->
+    <!-- 人工确认 confirm -->
     <template v-else-if="step.nodeType === 'confirm'">
-      <div v-if="step.status === 'suspended'" class="wf-detail-msg suspended">请在下方表单中完成选择</div>
-      <div v-else-if="hasKvData(filteredOutputs)" class="wf-detail-kv confirm">
-        <div class="wf-detail-kv-title">用户提交</div>
-        <pre>{{ formatKv(filteredOutputs) }}</pre>
-      </div>
+      <WorkflowConfirmStepDetail :step="step" :outputs="filteredOutputs" />
     </template>
 
     <!-- 循环 / 批处理容器 -->
@@ -185,6 +181,7 @@
 <script setup>
 import { computed } from 'vue'
 import ToolCallRenderer from '../ToolCallRenderer.vue'
+import WorkflowConfirmStepDetail from './confirm/WorkflowConfirmStepDetail.vue'
 import { HIDE_DETAIL_BODY_TYPES } from './workflowNodeRegistry.js'
 import {
   parseStepOutputs, formatKv, hasKvData, truncateText,
@@ -317,8 +314,6 @@ function formatMessages(msgs) {
 .wf-detail-kv.variable-handle .wf-detail-kv-title { color: var(--color-warning-deep); }
 .wf-detail-kv.script { border-color: var(--gray-200); background: var(--gray-50); }
 .wf-detail-kv.script .wf-detail-kv-title { color: var(--gray-600); }
-.wf-detail-kv.confirm { border-color: var(--color-warning-soft); background: var(--color-warn-bg); }
-.wf-detail-kv.confirm .wf-detail-kv-title { color: var(--color-warning-deep); }
 .wf-detail-kv.muted { border-color: var(--color-border-slate); background: var(--color-canvas-soft); }
 .wf-detail-kv-title { margin-bottom: 4px; font-weight: 600; color: var(--blue-600); font-size: 11px; }
 .wf-detail-kv pre { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: ui-monospace, monospace; line-height: 1.45; }

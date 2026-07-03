@@ -14,7 +14,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 import java.util.Map;
@@ -90,12 +92,28 @@ public class AgentWorkflowController {
         return Result.ok(workflowConfigService.testRun(agentId, request));
     }
 
+    @Operation(summary = "调试运行工作流（SSE 实时推送）")
+    @PostMapping(value = "/test/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter testRunStream(
+            @PathVariable Long agentId,
+            @RequestBody @Valid WorkflowTestRequest request) {
+        return workflowConfigService.testRunStream(agentId, request);
+    }
+
     @Operation(summary = "人工确认后恢复工作流")
     @PostMapping("/resume")
     public Result<WorkflowTestResultVO> resume(
             @PathVariable Long agentId,
             @RequestBody @Valid WorkflowResumeRequest request) {
         return Result.ok(workflowConfigService.resumeWorkflow(agentId, request));
+    }
+
+    @Operation(summary = "人工确认后恢复工作流（SSE 实时推送）")
+    @PostMapping(value = "/resume/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter resumeStream(
+            @PathVariable Long agentId,
+            @RequestBody @Valid WorkflowResumeRequest request) {
+        return workflowConfigService.resumeWorkflowStream(agentId, request);
     }
 
     @Operation(summary = "单节点调试运行")

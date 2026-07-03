@@ -195,7 +195,7 @@ export const FIELD_HINTS = {
   },
   confirm: {
     message: '暂停时展示给用户的说明文字（支持 {{变量}}）',
-    formFields: '交互字段：info=纯展示，radio/select=选项，text/textarea=输入；提交后 key 写入流程变量（_ 开头不入库）',
+    formFields: '确认表单字段：info=展示信息，radio/select=逐项添加选项，text/textarea/number=输入；提交后 key 写入流程变量（_ 开头不入库）',
   },
   output: {
     output: '最终输出模板，可引用上游节点输出变量',
@@ -335,19 +335,21 @@ export const NODE_EXAMPLES = {
   confirm: {
     title: '人工确认节点',
     summary:
-      '流程执行到此节点时会暂停（SUSPENDED），操作者在测试抽屉或对话页填写表单并确认后继续。' +
-      '表单各字段的 key 会写入流程变量，下游节点可通过 {{confirmed}}、{{remark}} 等引用。' +
+      '执行到此节点时流程暂停，在测试抽屉或对话页展示确认表单；用户提交后从下一节点继续执行。' +
+      '字段类型：展示信息（纯文案）、单选/下拉（逐项配置选项）、文本/多行/数字（用户输入）。' +
+      '各字段 key 会写入流程变量（_ 开头仅展示、不入库），下游可通过 {{choice}}、{{confirmed}} 等引用。' +
       '适用于审批通过/驳回、信息补录、质检复核等人机协同场景。',
     example: {
       label: '审批确认',
       message: '请核对生成内容是否符合规范，确认是否通过审批',
       formFields: [
+        { key: '_info', label: '请核对以上内容是否符合发布规范', type: 'info' },
         {
           key: 'confirmed',
-          label: '是否通过',
-          type: 'select',
+          label: '审核结论',
+          type: 'radio',
           required: true,
-          options: ['是', '否'],
+          options: ['通过', '驳回'],
         },
         {
           key: 'remark',
