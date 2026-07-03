@@ -4,6 +4,7 @@ import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowChatExposure;
 import com.lightbot.workflow.WorkflowPromptUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,10 +37,12 @@ public class OutputNodeProcessor extends AbstractFlowNodeProcessor implements No
         log.info("[OutputNodeProcessor] 输出节点完成: nodeId={}, length={}",
                 context.getCurrentNodeId(), output.length());
 
+        String chatContent = WorkflowChatExposure.isOutputStreamSwitchEnabled(nodeData) ? output : null;
+
         return NodeExecutionResult.builder()
                 .nextNodeId(resolveNextNodeId(context))
                 .outputs(outputs)
-                .streamContent(output)
+                .streamContent(chatContent)
                 .finished(false)
                 .build();
     }

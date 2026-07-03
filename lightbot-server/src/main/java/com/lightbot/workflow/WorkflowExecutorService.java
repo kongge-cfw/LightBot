@@ -459,7 +459,7 @@ public class WorkflowExecutorService {
                     WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
                 }
 
-                if (nodeResult.getStreamContent() != null) {
+                if (WorkflowChatExposure.shouldAppendStreamContentToChat(workflow, node, nodeResult)) {
                     result.append(nodeResult.getStreamContent());
                 }
 

@@ -8,6 +8,7 @@ import com.lightbot.util.LlmTraceContext;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowChatExposure;
 import com.lightbot.workflow.WorkflowPromptUtils;
 import com.lightbot.workflow.WorkflowEdge;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
@@ -119,8 +120,11 @@ public class LlmNodeProcessor implements NodeProcessor {
 
         // 6. 调用 LLM（流式 or 非流式）
         ChatModel chatModel = modelFactory.getChatModel(providerId);
-        Consumer<String> streamCallback = context.getOnStreamChunk();
-        boolean useStream = streamCallback != null && Boolean.TRUE.equals(nodeData.get("enableStreaming"));
+        Consumer<String> streamCallback = WorkflowChatExposure.shouldLlmStreamChunks(
+                context.getWorkflow(), context.getCurrentNodeId(), nodeData)
+                ? context.getOnStreamChunk()
+                : null;
+        boolean useStream = streamCallback != null;
 
         int[] tokenUsage = {0, 0};
         String llmOutput;

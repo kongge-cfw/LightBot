@@ -63,7 +63,7 @@ public final class WorkflowExampleTemplates {
                         .build(),
                 WorkflowExampleVO.builder()
                         .key("human_review").name("示例：人工审核助手")
-                        .description("LLM 生成草稿 → 人工确认表单 → 条件分支，演示 confirm 节点的人机协同审核")
+                        .description("LLM 生成草稿 → 人工确认表单（展示/文本/数字/单选/下拉/多行）→ 条件分支，演示 confirm 节点人机协同审核")
                         .nodeTypeTags(List.of("llm", "confirm", "condition", "variable", "output"))
                         .build(),
                 WorkflowExampleVO.builder()
@@ -200,7 +200,7 @@ public final class WorkflowExampleTemplates {
             Map.entry("data_extract", "## 数据提取与转换助手\n我可以从自然语言中提取结构化信息（姓名、邮箱、电话等），并进行格式验证。\n\n> 试试用一句话描述你的个人信息。"),
             Map.entry("external_integration", "## 外部集成与 MCP 助手\n我可以调用外部 API、MCP 工具获取数据，并自动生成分析总结。\n\n> 已预置示例 API，直接对话即可体验。"),
             Map.entry("tool_multi", "## 多工具协作助手\n我会先提取你的问题与计算参数，再调用联网搜索和计算器工具，最后汇总成完整回答。\n\n> 请描述一个需要查资料并做简单计算的问题。"),
-            Map.entry("human_review", "## 人工审核助手\n我会先生成草稿内容，然后暂停等待你在对话中审核确认，通过后再输出正式版本。\n\n> 适合体验 confirm 人工确认节点。"),
+            Map.entry("human_review", "## 人工审核助手\n我会先生成草稿内容，然后暂停等待你在对话中完成人工确认（含展示信息、文本、数字、单选、下拉、多行意见等字段），通过后再输出正式版本。\n\n> 适合体验 confirm 人工确认节点的完整表单能力。"),
             Map.entry("sub_workflow_orchestrator", "## 子工作流编排助手\n我会调用内置子工作流做结构化提取，再请你复核子流程结果，最后生成定稿回复。\n\n> 创建本示例时会自动生成并发布子工作流 Agent。")
     );
 
@@ -635,16 +635,57 @@ public final class WorkflowExampleTemplates {
                         "sysPrompt", "你是专业文案助手。根据用户需求生成一版可直接发布的草稿，语气正式、结构清晰，控制在300字以内。",
                         "promptTemplate", "用户需求：{{query}}",
                         "temperature", 0.7,
-                        "enableStreaming", true
+                        "enableStreaming", false
                 )),
                 node("confirm_1", "confirm", 650, 280, Map.of(
                         "label", "人工审核",
-                        "message", "请审核下方草稿内容，选择是否通过，并填写修改意见（如有）",
+                        "message", "请审核下方 AI 生成的草稿，填写审核信息并选择结论后提交",
                         "formFields", List.of(
-                                Map.of("key", "_preview", "label", "待审核草稿", "type", "info", "defaultValue", "{{llmOutput}}"),
-                                Map.of("key", "confirmed", "label", "审核结论", "type", "radio", "required", true,
-                                        "options", List.of("通过", "驳回")),
-                                Map.of("key", "remark", "label", "审核意见", "type", "textarea", "required", false, "defaultValue", "")
+                                Map.of(
+                                        "key", "_draft",
+                                        "label", "【待审核草稿】\n{{llmOutput}}",
+                                        "type", "info"
+                                ),
+                                Map.of(
+                                        "key", "_tip",
+                                        "label", "请核对内容准确性、语气与合规性；驳回时请填写具体修改意见。",
+                                        "type", "info"
+                                ),
+                                Map.of(
+                                        "key", "reviewer",
+                                        "label", "审核人",
+                                        "type", "text",
+                                        "required", true,
+                                        "defaultValue", ""
+                                ),
+                                Map.of(
+                                        "key", "score",
+                                        "label", "内容评分（1-10）",
+                                        "type", "number",
+                                        "required", false,
+                                        "defaultValue", "8"
+                                ),
+                                Map.of(
+                                        "key", "confirmed",
+                                        "label", "审核结论",
+                                        "type", "radio",
+                                        "required", true,
+                                        "options", List.of("通过", "驳回")
+                                ),
+                                Map.of(
+                                        "key", "priority",
+                                        "label", "处理优先级",
+                                        "type", "select",
+                                        "required", false,
+                                        "options", List.of("普通", "加急", "暂缓")
+                                ),
+                                Map.of(
+                                        "key", "remark",
+                                        "label", "审核意见",
+                                        "type", "textarea",
+                                        "required", false,
+                                        "defaultValue", ""
+                                )
                         )
                 )),
                 node("condition_1", "condition", 900, 280, Map.of(
@@ -665,18 +706,18 @@ public final class WorkflowExampleTemplates {
                 node("llm_final", "llm", 1150, 150, Map.of(
                         "label", "定稿润色",
                         "sysPrompt", "你是编辑。在草稿基础上结合审核意见输出最终定稿，直接给出正文，不要解释流程。",
-                        "promptTemplate", "【草稿】\n{{llmOutput}}\n\n【审核意见】\n{{remark}}\n\n请输出最终定稿：",
+                        "promptTemplate", "【草稿】\n{{llmOutput}}\n\n【审核人】{{reviewer}}\n【评分】{{score}}\n【优先级】{{priority}}\n【审核意见】\n{{remark}}\n\n请输出最终定稿：",
                         "temperature", 0.4,
-                        "enableStreaming", true
+                        "enableStreaming", false
                 )),
                 node("variable_reject", "variable", 1150, 420, Map.of(
                         "label", "驳回说明",
                         "variableName", "rejectReply",
-                        "variableValue", "内容未通过审核。审核意见：{{remark}}"
+                        "variableValue", "内容未通过审核（审核人：{{reviewer}}，评分：{{score}}，优先级：{{priority}}）。意见：{{remark}}"
                 )),
                 node("output_ok", "output", 1400, 150, Map.of(
                         "label", "输出定稿",
-                        "output", "【审核通过 · 正式版本】\n\n{{llmOutput}}"
+                        "output", "【审核通过 · 正式版本】\n审核人：{{reviewer}}\n\n{{llmOutput}}"
                 )),
                 node("output_reject", "output", 1400, 420, Map.of(
                         "label", "输出驳回",
@@ -769,7 +810,7 @@ public final class WorkflowExampleTemplates {
                         "label", "复核子流程结果",
                         "message", "请核对子工作流提取的结构化信息是否准确，确认后继续生成正式回复",
                         "formFields", List.of(
-                                Map.of("key", "_sub_preview", "label", "子工作流输出", "type", "info", "defaultValue", "{{subResult}}"),
+                                Map.of("key", "_sub_preview", "label", "【子工作流输出】\n{{subResult}}", "type", "info"),
                                 Map.of("key", "confirmed", "label", "是否确认继续", "type", "radio", "required", true,
                                         "options", List.of("确认", "退回修改")),
                                 Map.of("key", "remark", "label", "补充说明", "type", "textarea", "required", false, "defaultValue", "")

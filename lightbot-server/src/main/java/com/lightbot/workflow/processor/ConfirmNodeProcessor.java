@@ -5,6 +5,7 @@ import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
 import com.lightbot.workflow.WorkflowNodeDataUtils;
+import com.lightbot.workflow.WorkflowVariableUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -34,9 +35,11 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
         String message = WorkflowNodeDataUtils.parseString(nodeData.get("message"));
         if (message == null || message.isBlank()) {
             message = "请填写以下信息并确认后继续";
+        } else {
+            message = resolveTemplateText(message, context);
         }
 
-        List<Map<String, Object>> formFields = resolveFormFields(nodeData);
+        List<Map<String, Object>> formFields = resolveFormFields(nodeData, context);
 
         Map<String, Object> suspendPayload = new HashMap<>();
         suspendPayload.put("nodeId", context.getCurrentNodeId());
@@ -55,7 +58,7 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
     }
 
     @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> resolveFormFields(Map<String, Object> nodeData) {
+    private List<Map<String, Object>> resolveFormFields(Map<String, Object> nodeData, NodeExecutionContext context) {
         Object raw = nodeData.get("formFields");
         if (raw == null) {
             raw = nodeData.get("form_fields");
@@ -72,14 +75,14 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
             if ("info".equals(fieldType)) {
                 Map<String, Object> field = new HashMap<>();
                 field.put("key", WorkflowNodeDataUtils.parseString(map.get("key")));
-                field.put("label", WorkflowNodeDataUtils.parseString(map.get("label")));
+                field.put("label", resolveTemplateText(WorkflowNodeDataUtils.parseString(map.get("label")), context));
                 field.put("type", "info");
                 Object defaultValue = map.get("defaultValue");
                 if (defaultValue == null) {
                     defaultValue = map.get("default_value");
                 }
                 if (defaultValue != null) {
-                    field.put("defaultValue", defaultValue);
+                    field.put("defaultValue", resolveTemplateValue(defaultValue, context));
                 }
                 fields.add(field);
                 continue;
@@ -90,7 +93,7 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
                 continue;
             }
             field.put("key", key);
-            field.put("label", WorkflowNodeDataUtils.parseString(map.get("label")));
+            field.put("label", resolveTemplateText(WorkflowNodeDataUtils.parseString(map.get("label")), context));
             field.put("type", normalizeFieldType(map.get("type")));
             field.put("required", Boolean.TRUE.equals(map.get("required")));
             Object defaultValue = map.get("defaultValue");
@@ -98,7 +101,7 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
                 defaultValue = map.get("default_value");
             }
             if (defaultValue != null) {
-                field.put("defaultValue", defaultValue);
+                field.put("defaultValue", resolveTemplateValue(defaultValue, context));
             }
             Object options = map.get("options");
             if (options instanceof List<?> optList && !optList.isEmpty()) {
@@ -107,6 +110,24 @@ public class ConfirmNodeProcessor extends AbstractFlowNodeProcessor implements N
             fields.add(field);
         }
         return fields.isEmpty() ? defaultFormFields() : fields;
+    }
+
+    /** 渲染 message / info.label 等模板字符串 */
+    private String resolveTemplateText(String text, NodeExecutionContext context) {
+        if (text == null || text.isBlank() || !text.contains("{{")) {
+            return text;
+        }
+        Object resolved = WorkflowVariableUtils.resolveValue(text, context);
+        return resolved != null ? String.valueOf(resolved) : text;
+    }
+
+    /** 渲染字段 defaultValue 模板（保留非字符串原值） */
+    private Object resolveTemplateValue(Object value, NodeExecutionContext context) {
+        if (value instanceof String str && str.contains("{{")) {
+            Object resolved = WorkflowVariableUtils.resolveValue(str, context);
+            return resolved != null ? resolved : value;
+        }
+        return value;
     }
 
     private List<Map<String, Object>> defaultFormFields() {

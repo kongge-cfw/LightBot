@@ -161,7 +161,7 @@ public class WorkflowMiddleware implements ChatMiddleware {
 
                 // 2. 助手消息由 ChatServiceImpl.buildDoneEvent 统一落库，避免重复写入两条 assistant 消息
                 String contentToSave = ctx.getFullReply().toString();
-                if (contentToSave.isEmpty() && !workflowEvents.isEmpty()) {
+                if (contentToSave.isEmpty() && !workflowEvents.isEmpty() && !workflowSuspended) {
                     contentToSave = resolveAssistantContent(null, workflowEvents);
                     if (!contentToSave.isEmpty()) {
                         ctx.getFullReply().append(contentToSave);

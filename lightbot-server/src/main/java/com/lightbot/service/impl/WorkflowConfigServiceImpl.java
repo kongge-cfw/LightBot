@@ -280,11 +280,14 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             }
             msg.setMetadata(objectMapper.writeValueAsString(meta));
             if (result.getOutput() != null && !result.getOutput().isBlank()) {
-                String existing = msg.getContent() != null ? msg.getContent() : "";
-                if (existing.isBlank()) {
+                if (Boolean.TRUE.equals(result.getSuspended())) {
+                    String existing = msg.getContent() != null ? msg.getContent() : "";
+                    if (existing.isBlank()) {
+                        msg.setContent(result.getOutput());
+                    }
+                } else {
+                    // 人工确认恢复完成后：用最终 output 替换挂起前的中间态正文
                     msg.setContent(result.getOutput());
-                } else if (!existing.contains(result.getOutput())) {
-                    msg.setContent(existing + "\n" + result.getOutput());
                 }
             }
             messageService.updateById(msg);
