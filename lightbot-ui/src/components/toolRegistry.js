@@ -18,6 +18,7 @@ import {
   DatabaseOutlined,
   BranchesOutlined,
   FolderOpenOutlined,
+  ScanOutlined,
 } from '@ant-design/icons-vue'
 import { defineAsyncComponent } from 'vue'
 
@@ -39,6 +40,7 @@ const ReadSkillResult = defineAsyncComponent(() => import('./tools/ReadSkillResu
 const ListSkillFilesResult = defineAsyncComponent(() => import('./tools/ListSkillFilesResult.vue'))
 const ExecuteCodeResult = defineAsyncComponent(() => import('./tools/ExecuteCodeResult.vue'))
 const SandboxFileResult = defineAsyncComponent(() => import('./tools/SandboxFileResult.vue'))
+const OcrParseFileResult = defineAsyncComponent(() => import('./tools/OcrParseFileResult.vue'))
 const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFileResult.vue'))
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
 
@@ -71,6 +73,7 @@ export const TOOL_RENDERERS = {
   sandbox_read_file: SandboxFileResult,
   sandbox_list_files: SandboxFileResult,
   sandbox_write_file: SandboxFileResult,
+  ocr_parse_file: OcrParseFileResult,
   // 交付 / 安装
   present_artifacts: DeliverFileResult,
   install_skill: InstallSkillResult,
@@ -97,6 +100,7 @@ export const TOOL_ICON_MAP = {
   sandbox_read_file: FileTextOutlined,
   sandbox_list_files: FolderOpenOutlined,
   sandbox_write_file: FileTextOutlined,
+  ocr_parse_file: ScanOutlined,
   present_artifacts: FolderOpenOutlined,
   install_skill: ThunderboltOutlined,
   skill_active: ThunderboltOutlined,
@@ -128,6 +132,7 @@ export const TOOL_DISPLAY_NAMES = {
   sandbox_read_file: '读取文件',
   sandbox_list_files: '文件列表',
   sandbox_write_file: '写入文件',
+  ocr_parse_file: 'OCR 解析文件',
   present_artifacts: '文件交付',
   install_skill: '技能安装',
   skill_active: 'Skill 启用',

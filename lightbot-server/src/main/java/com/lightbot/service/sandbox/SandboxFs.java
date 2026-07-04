@@ -37,6 +37,18 @@ public class SandboxFs {
     }
 
     /**
+     * 读取文件原始字节（用于 PDF/图片等二进制文件）
+     *
+     * @param path 沙盒路径
+     * @return 文件字节
+     */
+    public byte[] readBytes(SandboxPath path) {
+        String minioPath = path.toMinioPath();
+        SandboxPathValidator.checkReadable(minioPath);
+        return minioUtil.downloadBytes(minioPath);
+    }
+
+    /**
      * 写入文件（仅工作区）
      *
      * @param path    沙盒路径

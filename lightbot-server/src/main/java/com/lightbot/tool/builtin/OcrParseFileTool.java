@@ -1,0 +1,182 @@
+package com.lightbot.tool.builtin;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightbot.service.sandbox.SandboxFs;
+import com.lightbot.service.sandbox.SandboxPath;
+import com.lightbot.tool.ToolEventEmitter;
+import com.lightbot.tool.annotation.SystemTool;
+import com.lightbot.tool.annotation.ToolParamMeta;
+import com.lightbot.util.OcrUtil;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ToolContext;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.stereotype.Component;
+
+import java.io.ByteArrayInputStream;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 内置工具 — OCR 解析文件
+ * <p>将沙盒中的 PDF / 图片文件解析为文本（复用知识库的 RapidOCR 引擎 {@link OcrUtil}），
+ * 结果写入当前会话工作区 ocr/ 目录，仅返回结果文件路径与短预览，不直接返回完整文本。</p>
+ *
+ * @author finch
+ * @since 2026-07-04
+ */
+@Slf4j
+@Component("ocrParseFileTool")
+@RequiredArgsConstructor
+@SystemTool(displayName = "OCR 解析文件", description = "将沙盒中的 PDF/图片文件 OCR 解析为文本并保存为文件", tags = {"文件", "OCR"},
+        outputExample = "{\"source_path\":\"invoice.pdf\",\"parsed_path\":\"ocr/invoice.md\",\"char_count\":1280,\"preview\":\"识别文本前1200字...\",\"truncated\":true}",
+        outputSchema = "{\"type\":\"object\",\"properties\":{\"source_path\":{\"type\":\"string\",\"description\":\"源文件路径\"},\"parsed_path\":{\"type\":\"string\",\"description\":\"解析结果 Markdown 文件路径（工作区相对路径）\"},\"char_count\":{\"type\":\"integer\",\"description\":\"识别文本字符数\"},\"preview\":{\"type\":\"string\",\"description\":\"识别文本预览（最多1200字）\"},\"truncated\":{\"type\":\"boolean\",\"description\":\"预览是否被截断\"}}}")
+public class OcrParseFileTool {
+
+    /** 预览最大字符数 */
+    private static final int PREVIEW_LIMIT = 1200;
+
+    /** 支持 OCR 的图片扩展名 */
+    private static final Set<String> IMAGE_EXTS = Set.of("jpg", "jpeg", "png", "bmp", "tiff", "tif");
+
+    private final SandboxFs sandboxFs;
+    private final OcrUtil ocrUtil;
+    private final ObjectMapper objectMapper;
+
+    @Tool(name = "ocr_parse_file",
+          description = "将沙盒中的 PDF 或图片文件 OCR 解析为文本。" +
+                  "使用场景：用户上传了 PDF/图片附件需要提取文字，或工作区中已有此类文件需转为可读文本。" +
+                  "path 支持两种模式：1) 工作区文件传相对路径（如 invoice.pdf、data/scan.png）；" +
+                  "2) AI 产出区文件以 outputs/ 开头。支持 pdf/jpg/jpeg/png/bmp/tiff。" +
+                  "结果会写入工作区 ocr/ 目录，工具只返回结果文件路径和短预览，完整文本请用 sandbox_read_file 读取结果文件。")
+    public String parseFile(
+            @ToolParam(description = "待解析的沙盒文件路径。工作区文件传相对路径（如 invoice.pdf）；产出区文件以 outputs/ 开头")
+            @ToolParamMeta(example = "invoice.pdf") String path,
+            ToolContext toolContext) {
+        log.info("[Tool:ocr_parse_file] path={}", path);
+        if (path == null || path.isBlank()) {
+            return errorJson("路径不能为空");
+        }
+
+        String normalized = normalize(path.trim());
+        String ext = extension(normalized);
+        boolean isPdf = "pdf".equals(ext);
+        boolean isImage = IMAGE_EXTS.contains(ext);
+        if (!isPdf && !isImage) {
+            return errorJson("不支持的文件类型: " + (ext.isEmpty() ? "(无扩展名)" : ext) + "，仅支持 pdf/jpg/jpeg/png/bmp/tiff");
+        }
+
+        try {
+            String sessionId = extractSessionId(toolContext);
+
+            // 1. 读取源文件字节
+            ToolEventEmitter.emit("正在读取文件「" + normalized + "」...");
+            byte[] bytes = sandboxFs.readBytes(resolveSource(normalized, sessionId));
+
+            // 2. OCR 识别（复用知识库 RapidOCR 引擎）
+            ToolEventEmitter.emit("正在 OCR 识别...");
+            String text;
+            try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
+                text = isPdf ? ocrUtil.recognizePdf(in) : ocrUtil.recognizeImage(in);
+            }
+            if (text == null) {
+                text = "";
+            }
+
+            // 3. 结果写入工作区 ocr/{stem}.md
+            String outputRelative = "ocr/" + safeStem(normalized) + ".md";
+            sandboxFs.writeFile(SandboxPath.workspace(sessionId, outputRelative), text);
+            ToolEventEmitter.emit("识别完成，共 " + text.length() + " 字，已保存至 " + outputRelative);
+
+            // 4. 组装结果（仅返回路径和预览，避免完整文本占用上下文）
+            boolean truncated = text.length() > PREVIEW_LIMIT;
+            String preview = truncated ? text.substring(0, PREVIEW_LIMIT).stripTrailing() : text;
+
+            Map<String, Object> output = new LinkedHashMap<>();
+            output.put("source_path", normalized);
+            output.put("parsed_path", outputRelative);
+            output.put("char_count", text.length());
+            output.put("preview", preview);
+            output.put("truncated", truncated);
+            return toJson(output);
+        } catch (Exception e) {
+            log.error("[Tool:ocr_parse_file] 解析失败, path={}", normalized, e);
+            return errorJson("OCR 解析失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 解析源文件路径：outputs/ 开头走产出区，其余归属当前会话工作区（不支持 skills/ 只读区）
+     */
+    private SandboxPath resolveSource(String normalized, String sessionId) {
+        if (normalized.startsWith("skills/")) {
+            throw new IllegalArgumentException("不支持解析 skills/ 只读目录下的文件");
+        }
+        if (normalized.startsWith("outputs/")) {
+            return SandboxPath.output(sessionId, normalized.substring("outputs/".length()));
+        }
+        return SandboxPath.workspace(sessionId, normalized);
+    }
+
+    /**
+     * 归一化路径：统一分隔符、去除前导斜杠
+     */
+    private String normalize(String path) {
+        String normalized = path.replace("\\", "/");
+        if (normalized.startsWith("/")) {
+            normalized = normalized.substring(1);
+        }
+        return normalized;
+    }
+
+    /**
+     * 提取小写扩展名，无扩展名返回空串
+     */
+    private String extension(String path) {
+        int slash = path.lastIndexOf('/');
+        int dot = path.lastIndexOf('.');
+        if (dot <= slash || dot == path.length() - 1) {
+            return "";
+        }
+        return path.substring(dot + 1).toLowerCase();
+    }
+
+    /**
+     * 生成安全的输出文件名主干（去扩展名 + 过滤非法字符）
+     */
+    private String safeStem(String path) {
+        int slash = path.lastIndexOf('/');
+        String fileName = slash >= 0 ? path.substring(slash + 1) : path;
+        int dot = fileName.lastIndexOf('.');
+        String stem = dot > 0 ? fileName.substring(0, dot) : fileName;
+        String safe = stem.replaceAll("[^A-Za-z0-9._\\-\\u4e00-\\u9fff]+", "_").replaceAll("^[._-]+|[._-]+$", "");
+        return safe.isBlank() ? "ocr_result" : safe;
+    }
+
+    /**
+     * 从 ToolContext 提取 sessionId
+     */
+    private String extractSessionId(ToolContext toolContext) {
+        if (toolContext != null) {
+            Object sid = toolContext.getContext().get("sessionId");
+            if (sid != null) {
+                return String.valueOf(sid);
+            }
+        }
+        return "default";
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            return "{\"error\":\"序列化失败\"}";
+        }
+    }
+
+    private String errorJson(String message) {
+        return "{\"success\":false,\"error\":\"" + message.replace("\"", "\\\"") + "\"}";
+    }
+}
