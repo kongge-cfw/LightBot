@@ -72,6 +72,7 @@
           :is-node-dragging="isNodeDragging"
           :drag-over-trash="dragOverTrash"
           :can-delete-dragged-node="canDeleteDraggedNode"
+          :trash-label="trashDeleteLabel"
           :get-node-color="getNodeColor"
           :edge-insert-anchor-edge="edgeInsertAnchorEdge"
           :edge-insert-label-style="edgeInsertLabelStyle"
@@ -573,8 +574,13 @@ const isDirty = computed(() => {
   return savedWorkflowSnapshot.value !== getWorkflowSnapshot()
 })
 
-const canDeleteDraggedNode = computed(() => {
-  return isNodeDeletable(draggingNode.value)
+const canDeleteDraggedNode = computed(() => getSelectedDeletableNodes().length > 0 || isNodeDeletable(draggingNode.value))
+
+const trashDeleteLabel = computed(() => {
+  if (!canDeleteDraggedNode.value) return '开始/结束节点不可删除'
+  const count = getSelectedDeletableNodes().length
+  if (count > 1) return `拖到此处删除 ${count} 个节点`
+  return '拖到此处删除'
 })
 
 function isGroupBuiltinNode(node) {
@@ -877,6 +883,60 @@ function formatEdgeHistoryLabel(action, edgeLike) {
   return `${action}${link}`
 }
 
+/** 批量移动/删除节点的撤回说明 */
+function formatBatchNodeHistoryLabel(action, nodeList) {
+  const names = (nodeList || []).map(n => getNodeDisplayName(n)).filter(Boolean)
+  if (!names.length) {
+    return action === 'delete' ? '删除节点' : '移动节点位置'
+  }
+  if (names.length === 1) {
+    return action === 'delete'
+      ? `删除「${names[0]}」节点`
+      : `移动「${names[0]}」节点位置`
+  }
+  if (names.length <= 3) {
+    const joined = names.map(n => `「${n}」`).join('、')
+    return action === 'delete'
+      ? `删除 ${names.length} 个节点：${joined}`
+      : `移动 ${names.length} 个节点：${joined}`
+  }
+  return action === 'delete'
+    ? `批量删除 ${names.length} 个节点`
+    : `批量移动 ${names.length} 个节点`
+}
+
+/** 画布当前选中的可删除节点（Shift 框选 / Ctrl 多选） */
+function getSelectedDeletableNodes() {
+  const selectedIds = new Set(
+    (getNodes.value || []).filter(n => n.selected).map(n => n.id),
+  )
+  if (selectedIds.size) {
+    return nodes.value.filter(n => selectedIds.has(n.id) && isNodeDeletable(n))
+  }
+  if (selectedNode.value && isNodeDeletable(selectedNode.value)) {
+    return [selectedNode.value]
+  }
+  return []
+}
+
+/** 拖到垃圾桶时：优先删除全部选中节点，否则删除当前拖拽节点 */
+function resolveTrashDeleteTargets(dragList) {
+  const selected = getSelectedDeletableNodes()
+  if (selected.length) return selected
+  return (dragList || [])
+    .map(d => nodes.value.find(n => n.id === d.id) || d)
+    .filter(isNodeDeletable)
+}
+
+/** 撤销拖拽开始时误记录的「移动」历史（改为记录删除） */
+function cancelPendingMoveHistory() {
+  const last = history.value[history.value.length - 1]
+  if (!last?.label) return
+  if (last.label.includes('移动') && last.label.includes('节点')) {
+    history.value.pop()
+  }
+}
+
 // 撤回操作
 function undoAction() {
   if (history.value.length === 0) return
@@ -970,8 +1030,8 @@ function onKeyDown(event) {
   event.preventDefault()
   if (selectedEdge.value) {
     deleteSelectedEdge()
-  } else if (selectedNode.value && selectedNode.value.type !== 'start' && selectedNode.value.type !== 'end' && !isGroupBuiltinNode(selectedNode.value)) {
-    deleteSelectedNode()
+  } else if (getSelectedDeletableNodes().length) {
+    deleteSelectedNodes()
   }
 }
 
@@ -1761,11 +1821,12 @@ function onNodesChange(changes) {
   nodes.value = sortNodesParentFirst(nextNodes)
 }
 
-function onNodeDragStart({ node }) {
-  draggingNode.value = node
+function onNodeDragStart({ node, nodes: draggedNodes }) {
+  const dragList = draggedNodes?.length ? draggedNodes : (node ? [node] : [])
+  draggingNode.value = node || dragList[0] || null
   isNodeDragging.value = true
   dragOverTrash.value = false
-  recordHistory(`移动「${getNodeDisplayName(node)}」节点位置`)
+  recordHistory(formatBatchNodeHistoryLabel('move', dragList.map(d => nodes.value.find(n => n.id === d.id) || d)))
   if (node && isGroupNodeType(node.type)) {
     draggingGroupId.value = node.id
     setGroupChildrenDragMask(node.id, true)
@@ -1813,10 +1874,24 @@ function onNodeDragStop({ node, nodes: draggedNodes, event }) {
       event.clientY <= rect.bottom
   }
 
-  if (dragOverTrash.value && activeNode && isNodeDeletable(activeNode)) {
-    removeNodeById(activeNode.id, { skipHistory: true })
-    message.success('节点已删除')
-  } else if (activeNode && isGroupBuiltinType(activeNode.type) && getNodeParentId(activeNode)) {
+  if (dragOverTrash.value) {
+    cancelPendingMoveHistory()
+    const targets = resolveTrashDeleteTargets(dragList)
+    if (targets.length) {
+      const count = removeNodesByIds(targets.map(n => n.id))
+      if (count > 0) {
+        message.success(count > 1 ? `已删除 ${count} 个节点` : '节点已删除')
+      }
+    }
+    isNodeDragging.value = false
+    dragOverTrash.value = false
+    draggingNode.value = null
+    validateWorkflow(false)
+    scheduleAutoSave()
+    return
+  }
+
+  if (activeNode && isGroupBuiltinType(activeNode.type) && getNodeParentId(activeNode)) {
     const pid = getNodeParentId(activeNode)
     const resized = fitGroupBoundsToChildren(
       nodes.value.find(n => n.id === pid),
@@ -1847,28 +1922,52 @@ function onNodeDragStop({ node, nodes: draggedNodes, event }) {
   scheduleAutoSave()
 }
 
-function removeNodeById(nodeId, { skipHistory = false } = {}) {
-  const node = nodes.value.find(n => n.id === nodeId)
-  if (!node || node.type === 'start' || node.type === 'end') return
-  if (isGroupBuiltinType(node.type) && getNodeParentId(node)) {
-    message.warning('容器内置节点不可单独删除，请删除循环/批处理容器')
-    return
-  }
-  if (!skipHistory) recordHistory(`删除「${getNodeDisplayName(node)}」节点`)
+function removeNodesByIds(nodeIds, { skipHistory = false, historyLabel = null } = {}) {
+  const uniqueIds = [...new Set((nodeIds || []).filter(Boolean))]
+  const removeIds = new Set()
+  let blockedBuiltin = false
 
-  const removeIds = new Set([nodeId])
-  if (isGroupNodeType(node.type)) {
-    nodes.value.filter(n => getNodeParentId(n) === nodeId).forEach(c => removeIds.add(c.id))
+  for (const nodeId of uniqueIds) {
+    const node = nodes.value.find(n => n.id === nodeId)
+    if (!node || !isNodeDeletable(node)) continue
+    if (isGroupBuiltinType(node.type) && getNodeParentId(node)) {
+      blockedBuiltin = true
+      continue
+    }
+    removeIds.add(nodeId)
+    if (isGroupNodeType(node.type)) {
+      nodes.value.filter(n => getNodeParentId(n) === nodeId).forEach(c => removeIds.add(c.id))
+    }
+  }
+
+  if (blockedBuiltin && !removeIds.size) {
+    message.warning('容器内置节点不可单独删除，请删除循环/批处理容器')
+    return 0
+  }
+  if (!removeIds.size) return 0
+
+  const removedNodes = nodes.value.filter(n => removeIds.has(n.id))
+  if (!skipHistory) {
+    recordHistory(historyLabel || formatBatchNodeHistoryLabel('delete', removedNodes))
   }
 
   nodes.value = nodes.value.filter(n => !removeIds.has(n.id))
   edges.value = edges.value.filter(e => !removeIds.has(e.source) && !removeIds.has(e.target))
   triggerRef(nodes)
-  if (selectedNode.value?.id === nodeId) {
+  if (selectedNode.value && removeIds.has(selectedNode.value.id)) {
     selectedNode.value = null
   }
+  nodePanelSnapshot.value = null
+  nodePanelHistoryRecorded.value = false
   clearEdgeSelection()
+  clearEdgeInsertUi()
   scheduleFitView()
+  scheduleAutoSave()
+  return removeIds.size
+}
+
+function removeNodeById(nodeId, { skipHistory = false, historyLabel = null } = {}) {
+  return removeNodesByIds([nodeId], { skipHistory, historyLabel })
 }
 
 function isValidWorkflowConnectionFn(connection) {
@@ -2202,10 +2301,15 @@ function clearTestHistorySnapshot() {
   testHistoryNodeStates.value = {}
 }
 
-// 删除选中节点
+// 删除选中节点（支持 Shift/Ctrl 多选批量删除）
+function deleteSelectedNodes() {
+  const selected = getSelectedDeletableNodes()
+  if (!selected.length) return
+  removeNodesByIds(selected.map(n => n.id))
+}
+
 function deleteSelectedNode() {
-  if (!selectedNode.value) return
-  removeNodeById(selectedNode.value.id)
+  deleteSelectedNodes()
 }
 
 // 删除选中连线（必须按 id 删除，避免误删全部）
@@ -3983,90 +4087,12 @@ function goBack() {
 </style>
 
 <style>
-/* 全局 VueFlow 样式 */
-@import '@vue-flow/core/dist/style.css';
-@import '@vue-flow/core/dist/theme-default.css';
-@import '@vue-flow/controls/dist/style.css';
-@import '@vue-flow/minimap/dist/style.css';
-
-/* 缩略图：外层 SVG 随内容自适应，避免宽 viewBox 导致左右留白 */
-.workflow-minimap.vue-flow__minimap {
-  display: inline-block !important;
-  width: fit-content !important;
-  height: fit-content !important;
-  max-width: min(420px, 48vw);
-  max-height: 220px;
-  line-height: 0;
-  border-radius: 8px;
-  border: 1px solid var(--color-hairline);
-  background: var(--color-canvas);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-}
-
-.workflow-minimap.vue-flow__minimap > svg {
-  display: block !important;
-  width: auto !important;
-  height: auto !important;
-  max-width: min(420px, 48vw);
-  max-height: 220px;
-}
-
-.workflow-minimap .vue-flow__minimap-mask {
-  fill: rgba(124, 58, 237, 0.08);
-}
+/* Vue Flow 画板样式由 WorkflowCanvasCore 统一引入 workflowCanvasShell.css */
 
 /* 与 AgentDetail 问号提示一致：限制宽度，箭头对准触发元素 */
 .no-flip-tooltip .ant-tooltip-inner {
   max-width: min(320px, calc(100vw - 24px));
   word-break: break-word;
-}
-
-/* 循环/批处理容器：由自定义节点绘制边框，去掉默认节点壳 */
-.vue-flow__node-loop,
-.vue-flow__node-batch {
-  padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-.vue-flow__node-loop .vue-flow__node-label,
-.vue-flow__node-batch .vue-flow__node-label {
-  display: none;
-}
-
-.vue-flow__node-input,
-.vue-flow__node-output {
-  padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  width: 200px !important;
-  min-width: 200px !important;
-  max-width: 200px !important;
-}
-
-.vue-flow__node-input .vue-flow__node-label,
-.vue-flow__node-output .vue-flow__node-label {
-  display: none;
-}
-
-.vue-flow__node-loop_start,
-.vue-flow__node-loop_end,
-.vue-flow__node-batch_start,
-.vue-flow__node-batch_end {
-  z-index: 12 !important;
-  padding: 0 !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-
-/* 选中连线高亮 */
-.vue-flow__edge.selected .vue-flow__edge-path {
-  stroke: #7c3aed !important;
-  stroke-width: 3 !important;
 }
 
 /* 知识库/工具下拉富选项 */

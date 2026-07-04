@@ -11,7 +11,7 @@
       :class="{ 'is-over': dragOverTrash, 'is-disabled': !canDeleteDraggedNode }"
     >
       <DeleteOutlined class="trash-icon" />
-      <span class="trash-label">{{ canDeleteDraggedNode ? '拖到此处删除' : '开始/结束节点不可删除' }}</span>
+      <span class="trash-label">{{ trashLabel }}</span>
     </div>
 
     <WorkflowCanvasCore
@@ -144,6 +144,7 @@ defineProps({
   isNodeDragging: Boolean,
   dragOverTrash: Boolean,
   canDeleteDraggedNode: Boolean,
+  trashLabel: { type: String, default: '拖到此处删除' },
   getNodeColor: { type: Function, required: true },
   edgeInsertAnchorEdge: { type: Object, default: null },
   edgeInsertLabelStyle: { type: Object, default: null },

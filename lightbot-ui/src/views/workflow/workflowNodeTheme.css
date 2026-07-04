@@ -1,6 +1,6 @@
 /**
  * 工作流画板节点 — 统一文字与深色模式样式
- * 由 WorkflowCanvasCore 引入，编辑/预览/链路回放画板共用
+ * Vue Flow 外壳见 workflowCanvasShell.css；由 WorkflowCanvasCore 一并引入
  */
 
 /* 基础文字色：亮/暗主题均由 CSS 变量驱动 */

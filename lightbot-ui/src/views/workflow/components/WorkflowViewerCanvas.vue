@@ -140,14 +140,3 @@ defineExpose({
 }
 </style>
 
-<style>
-@import '@vue-flow/core/dist/style.css';
-@import '@vue-flow/core/dist/theme-default.css';
-@import '@vue-flow/controls/dist/style.css';
-@import '@vue-flow/minimap/dist/style.css';
-
-.workflow-viewer-canvas .workflow-minimap.vue-flow__minimap {
-  border-radius: 8px;
-  overflow: hidden;
-}
-</style>

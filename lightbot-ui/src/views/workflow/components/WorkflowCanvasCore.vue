@@ -166,5 +166,10 @@ const resolvedEdgeTypes = computed(() => props.edgeTypes || edgeTypes)
 </style>
 
 <style>
+@import '@vue-flow/core/dist/style.css';
+@import '@vue-flow/core/dist/theme-default.css';
+@import '@vue-flow/controls/dist/style.css';
+@import '@vue-flow/minimap/dist/style.css';
+@import '../workflowCanvasShell.css';
 @import '../workflowNodeTheme.css';
 </style>
