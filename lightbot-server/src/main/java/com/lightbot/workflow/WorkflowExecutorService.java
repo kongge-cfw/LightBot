@@ -137,6 +137,7 @@ public class WorkflowExecutorService {
         // 2.1 调试运行预置变量（query / history_list 等）
         if (initialVariables != null && !initialVariables.isEmpty()) {
             context.getVariables().putAll(initialVariables);
+            WorkflowVariableScope.syncSysBucket(context);
         }
 
         // 3. 从 START 节点开始执行 DAG
@@ -1024,6 +1025,7 @@ public class WorkflowExecutorService {
         WorkflowVariableScope.syncSysBucket(context);
         if (initialVariables != null && !initialVariables.isEmpty()) {
             context.getVariables().putAll(initialVariables);
+            WorkflowVariableScope.syncSysBucket(context);
         }
 
         String currentNodeId = workflow.getStartNodeId();

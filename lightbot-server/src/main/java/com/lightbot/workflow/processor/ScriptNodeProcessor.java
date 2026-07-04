@@ -135,9 +135,17 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
                 params.put(key, WorkflowMappingUtils.resolveTemplateValue(valueExpr, context));
             }
         }
+        Object fallbackInput = variables.getOrDefault("input", context.getUserInput());
+        Object fallbackQuery = variables.getOrDefault("query", fallbackInput);
+        if (isBlankValue(params.get("input")) && fallbackInput != null) {
+            params.put("input", fallbackInput);
+        }
+        if (isBlankValue(params.get("query")) && fallbackQuery != null) {
+            params.put("query", fallbackQuery);
+        }
         if (params.isEmpty()) {
-            params.put("query", variables.getOrDefault("query", variables.get("input")));
-            params.put("input", variables.getOrDefault("input", variables.get("query")));
+            params.put("query", fallbackQuery);
+            params.put("input", fallbackInput);
         }
         return params;
     }
@@ -183,5 +191,9 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
 
     private String stringVal(Object o) {
         return o == null ? "" : String.valueOf(o).trim();
+    }
+
+    private boolean isBlankValue(Object value) {
+        return value == null || String.valueOf(value).isBlank();
     }
 }

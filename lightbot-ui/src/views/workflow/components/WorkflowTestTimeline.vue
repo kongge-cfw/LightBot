@@ -12,7 +12,7 @@
           :step-key="i"
           :default-expanded="autoExpand || expandedSteps.has(i)"
         />
-        <div v-if="step.isContainer && step.children?.length && expandedSteps.has(i)" class="trace-container-children">
+        <div v-if="step.isContainer && step.children?.length && expandedSteps.has(i)" class="trace-container-children" @click.stop>
           <WorkflowStepRow
             v-for="(child, ci) in step.children"
             :key="child.stepKey || ci"

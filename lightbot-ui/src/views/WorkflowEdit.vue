@@ -607,34 +607,44 @@ function normalizePosition(pos) {
   }
 }
 
+function deepClonePayloadValue(value) {
+  if (value == null) return value
+  try {
+    return JSON.parse(JSON.stringify(value))
+  } catch (_) {
+    return value
+  }
+}
+
 function buildWorkflowPayload() {
   const flowNodes = getNodes.value?.length ? getNodes.value : nodes.value
   return {
     nodes: flowNodes.map(n => {
       const local = nodes.value.find(item => item.id === n.id)
-      const payload = {
-        id: n.id,
-        type: n.type,
-        position: normalizePosition(n.position),
-        data: local?.data ?? n.data,
-      }
-      if (n.parentNode) payload.parentNode = n.parentNode
-      if (n.extent) payload.extent = n.extent
-      if (n.style) payload.style = n.style
-      if (n.zIndex != null) payload.zIndex = n.zIndex
+      const source = local || n
+      const payload = deepClonePayloadValue(source) || {}
+      payload.id = n.id
+      payload.type = n.type
+      payload.position = normalizePosition(n.position)
+      payload.data = deepClonePayloadValue(local?.data ?? n.data)
+      if ('parentNode' in n) payload.parentNode = n.parentNode
+      if ('extent' in n) payload.extent = n.extent
+      if ('style' in n) payload.style = deepClonePayloadValue(n.style)
+      if ('zIndex' in n) payload.zIndex = n.zIndex
       return payload
     }),
     edges: edges.value.map(e => {
       const m = migrateWorkflowEdge(e)
       return {
+        ...deepClonePayloadValue(e),
         id: m.id,
         source: m.source,
         target: m.target,
         sourceHandle: m.sourceHandle,
-        targetHandle: HANDLE_IN,
+        targetHandle: m.targetHandle || HANDLE_IN,
       }
     }),
-    globalConfig: globalConfig.value
+    globalConfig: deepClonePayloadValue(globalConfig.value)
   }
 }
 
@@ -1051,7 +1061,8 @@ onUnmounted(() => {
 /** 兼容旧数据并补齐默认字段 */
 function migrateWorkflowNode(node) {
   const defaults = buildDefaultNodeData(node.type)
-  const data = { ...(defaults || {}), ...(node.data || {}) }
+  const rawData = node.data || {}
+  const data = { ...(defaults || {}), ...rawData }
   if (node.type === 'llm') {
     if (!data.providerId && data.modelId != null && typeof data.modelId === 'number') {
       data.providerId = data.modelId
@@ -1079,6 +1090,11 @@ function migrateWorkflowNode(node) {
     if (!data.scriptContent) data.scriptContent = defaults.scriptContent || ''
   }
   if (node.type === 'loop') {
+    if (!rawData.input_params?.length && rawData.inputParams?.length) data.input_params = rawData.inputParams
+    if (!rawData.output_params?.length && rawData.outputParams?.length) data.output_params = rawData.outputParams
+    if (rawData.iterator_type == null && rawData.iteratorType != null) data.iterator_type = rawData.iteratorType
+    if (rawData.count_limit == null && rawData.countLimit != null) data.count_limit = rawData.countLimit
+    if (rawData.error_strategy == null && rawData.errorStrategy != null) data.error_strategy = rawData.errorStrategy
     if (!data.iterator_type && data.iteratorType) data.iterator_type = data.iteratorType
     if (!data.iteratorType && data.iterator_type) data.iteratorType = data.iterator_type
     if (data.count_limit == null && data.countLimit != null) data.count_limit = data.countLimit
@@ -1088,6 +1104,11 @@ function migrateWorkflowNode(node) {
     if (!data.output_params?.length) data.output_params = data.outputParams || defaults.output_params || [{ key: 'result', type: 'Object' }]
   }
   if (node.type === 'batch') {
+    if (!rawData.input_params?.length && rawData.inputParams?.length) data.input_params = rawData.inputParams
+    if (!rawData.output_params?.length && rawData.outputParams?.length) data.output_params = rawData.outputParams
+    if (rawData.batch_size == null && rawData.batchSize != null) data.batch_size = rawData.batchSize
+    if (rawData.concurrent_size == null && rawData.concurrentSize != null) data.concurrent_size = rawData.concurrentSize
+    if (rawData.error_strategy == null && rawData.errorStrategy != null) data.error_strategy = rawData.errorStrategy
     if (data.batch_size == null && data.batchSize != null) data.batch_size = data.batchSize
     if (data.concurrent_size == null && data.concurrentSize != null) data.concurrent_size = data.concurrentSize
     if (!data.error_strategy && data.errorStrategy) data.error_strategy = data.errorStrategy
