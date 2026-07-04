@@ -87,6 +87,21 @@ function onPaneClick() {
   emit('pane-click')
 }
 
+function getAbsoluteNodePosition(node) {
+  const position = {
+    x: Number(node?.position?.x) || 0,
+    y: Number(node?.position?.y) || 0,
+  }
+  if (!node?.parentNode) return position
+  const parent = props.nodes.find(n => n.id === node.parentNode)
+  if (!parent?.position) return position
+  const parentPosition = getAbsoluteNodePosition(parent)
+  return {
+    x: parentPosition.x + position.x,
+    y: parentPosition.y + position.y,
+  }
+}
+
 watch(
   () => [props.nodes.length, props.flowId],
   () => {
@@ -107,10 +122,9 @@ defineExpose({
   focusNodeById: (nodeId) => {
     const node = props.nodes.find(n => n.id === nodeId)
     if (!node?.position) return
-    const x = Number(node.position.x) || 0
-    const y = Number(node.position.y) || 0
+    const position = getAbsoluteNodePosition(node)
     try {
-      setCenter(x + 90, y + 40, { zoom: 1, duration: 300 })
+      setCenter(position.x + 90, position.y + 40, { zoom: 1, duration: 300 })
     } catch (_) { /* VueFlow 未就绪 */ }
   },
 })
@@ -139,4 +153,3 @@ defineExpose({
   pointer-events: none;
 }
 </style>
-

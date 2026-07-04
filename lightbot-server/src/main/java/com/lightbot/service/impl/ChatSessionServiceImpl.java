@@ -21,7 +21,9 @@ import com.lightbot.util.SessionStoragePath;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -58,6 +60,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     private final ThreadPoolTaskExecutor lightBotExecutor;
 
     private final ObjectMapper objectMapper;
+
+    /** 自注入代理，避免同类内部调用绕过 @Transactional */
+    @Lazy
+    @Autowired
+    private ChatSessionService self;
 
     private static final String CACHE_PREFIX = "lightbot:session:";
     private static final String LIST_CACHE_PREFIX = "lightbot:session:list:";
@@ -247,18 +254,13 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         evictSessionCache(sessionId);
         evictListCache(session.getUserId());
         // 4. MinIO 文件清理放在事务提交后，避免事务回滚后文件已删除
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                lightBotExecutor.execute(() -> {
-                    try {
-                        minioUtil.deleteByPrefix("sessions/" + sessionId + "/");
-                    } catch (Exception e) {
-                        log.warn("[Session] 清理工作区文件失败, sessionId={}", sessionId, e);
-                    }
-                });
+        runAfterCommit(() -> lightBotExecutor.execute(() -> {
+            try {
+                minioUtil.deleteByPrefix("sessions/" + sessionId + "/");
+            } catch (Exception e) {
+                log.warn("[Session] 清理工作区文件失败, sessionId={}", sessionId, e);
             }
-        });
+        }));
     }
 
     @Override
@@ -325,20 +327,15 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         }
         evictListCache(userId);
         // 5. MinIO 文件清理放在事务提交后
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                lightBotExecutor.execute(() -> {
-                    for (Long id : ids) {
-                        try {
-                            minioUtil.deleteByPrefix("sessions/" + id + "/");
-                        } catch (Exception e) {
-                            log.warn("[Session] 清理工作区文件失败, sessionId={}", id, e);
-                        }
-                    }
-                });
+        runAfterCommit(() -> lightBotExecutor.execute(() -> {
+            for (Long id : ids) {
+                try {
+                    minioUtil.deleteByPrefix("sessions/" + id + "/");
+                } catch (Exception e) {
+                    log.warn("[Session] 清理工作区文件失败, sessionId={}", id, e);
+                }
             }
-        });
+        }));
     }
 
     @Override
@@ -348,14 +345,34 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (sessions.isEmpty()) {
             return;
         }
+        // 必须走代理调用，否则 deleteSession 的 @Transactional 不生效，
+        // registerSynchronization 会抛 Transaction synchronization is not active
         for (ChatSession session : sessions) {
             try {
-                deleteSession(session.getId());
+                self.deleteSession(session.getId());
             } catch (Exception e) {
                 log.warn("[ChatSession] 级联删除会话失败: sessionId={}, error={}", session.getId(), e.getMessage());
             }
         }
         log.info("[ChatSession] 批量删除: agentId={}, count={}", agentId, sessions.size());
+    }
+
+    /**
+     * 事务提交后再执行；无活跃事务时直接执行（兼容同类内部调用等无事务场景）。
+     *
+     * @param action 提交后任务
+     */
+    private void runAfterCommit(Runnable action) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    action.run();
+                }
+            });
+            return;
+        }
+        action.run();
     }
 
     @Override

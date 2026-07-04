@@ -620,7 +620,7 @@
         </template>
         <CodeEditor
           v-model="node.data.scriptContent"
-          v-model:language="node.data.scriptLanguage"
+          :language="node.data.scriptLanguage"
           :disabled="readonly && !readonlyScrollable"
           :read-only="scrollableReadonly"
           :rows="14"
@@ -1245,17 +1245,38 @@ function onConditionGroupsChange() {
   emitSync()
 }
 
-/** 切换脚本语言：直接切换为对应语言的示例模板 */
+const SCRIPT_CONTENT_CACHE_KEY = '__scriptContentCache'
+
+function getScriptContentCache(data) {
+  if (!data) return {}
+  if (!Object.prototype.hasOwnProperty.call(data, SCRIPT_CONTENT_CACHE_KEY)) {
+    Object.defineProperty(data, SCRIPT_CONTENT_CACHE_KEY, {
+      value: {},
+      enumerable: false,
+      configurable: true,
+      writable: true,
+    })
+  }
+  return data[SCRIPT_CONTENT_CACHE_KEY] || {}
+}
+
+/** 切换脚本语言：缓存每种语言的脚本内容，避免来回切换覆盖已编辑代码 */
 function onScriptLanguageChange(lang) {
   if (props.readonly || props.node.type !== 'script') return
+  const data = props.node.data
+  const previousLang = data.scriptLanguage || 'javascript'
+  const cache = getScriptContentCache(data)
+  cache[previousLang] = data.scriptContent || ''
+
   const example = getScriptExampleConfig(lang)
-  props.node.data.scriptLanguage = lang
-  props.node.data.scriptContent = example.scriptContent
-  if (example.inputParams?.length) {
-    props.node.data.inputParams = JSON.parse(JSON.stringify(example.inputParams))
+  const cachedContent = cache[lang]
+  data.scriptLanguage = lang
+  data.scriptContent = cachedContent != null ? cachedContent : example.scriptContent
+  if (cachedContent == null && example.inputParams?.length && !(data.inputParams?.length)) {
+    data.inputParams = JSON.parse(JSON.stringify(example.inputParams))
   }
-  if (example.outputParams?.length) {
-    props.node.data.outputParams = JSON.parse(JSON.stringify(example.outputParams))
+  if (cachedContent == null && example.outputParams?.length && !(data.outputParams?.length)) {
+    data.outputParams = JSON.parse(JSON.stringify(example.outputParams))
   }
   emitSync()
 }

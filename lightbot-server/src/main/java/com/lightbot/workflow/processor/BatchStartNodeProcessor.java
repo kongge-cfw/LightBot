@@ -1,9 +1,10 @@
 package com.lightbot.workflow.processor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
-import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowSubgraphExecutor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,7 +15,11 @@ import org.springframework.stereotype.Component;
  * @since 2026-06-15
  */
 @Component
-public class BatchStartNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
+public class BatchStartNodeProcessor extends AbstractGroupContainerProcessor {
+
+    public BatchStartNodeProcessor(WorkflowSubgraphExecutor subgraphExecutor, ObjectMapper objectMapper) {
+        super(subgraphExecutor, objectMapper);
+    }
 
     @Override
     public NodeType getType() {
@@ -23,6 +28,10 @@ public class BatchStartNodeProcessor extends AbstractFlowNodeProcessor implement
 
     @Override
     public NodeExecutionResult execute(NodeExecutionContext context) {
+        if (context.getParentNodeId() == null) {
+            // 1. 兼容画布将主流程连到内置 batch_start 的图，入口处执行整个批处理容器。
+            return executeContainer(context, NodeType.BATCH_START, NodeType.BATCH_END, true);
+        }
         return passThrough(context, "output", "success");
     }
 }

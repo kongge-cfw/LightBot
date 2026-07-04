@@ -45,7 +45,7 @@ export function workflowGraphToVueFlow(graph, options = {}) {
     return { nodes: [], edges: [] }
   }
 
-  const migratedNodes = (graph.nodes || []).map(n => ({
+  const migratedNodes = normalizeGroupChildPositions((graph.nodes || []).map(n => ({
     ...n,
     type: n.type,
     id: n.id,
@@ -57,7 +57,7 @@ export function workflowGraphToVueFlow(graph, options = {}) {
     ...(n.parentNode
       ? { parentNode: n.parentNode, extent: n.extent || 'parent', zIndex: n.zIndex ?? 10 }
       : {}),
-  }))
+  })))
 
   const withBuiltins = ensureGroupBuiltins(migratedNodes, graph.edges || [])
   const nodes = sortNodesParentFirst(
@@ -101,6 +101,27 @@ export function mergeTraceNodeData(node, span) {
 export function normalizePosition(pos) {
   if (!pos || typeof pos !== 'object') return { x: 0, y: 0 }
   return { x: Number(pos.x) || 0, y: Number(pos.y) || 0 }
+}
+
+function normalizeGroupChildPositions(nodes) {
+  const nodeMap = new Map(nodes.map(n => [n.id, n]))
+  return nodes.map(n => {
+    if (!n.parentNode) return n
+    const parent = nodeMap.get(n.parentNode)
+    if (!parent?.position) return n
+    const pos = normalizePosition(n.position)
+    const parentPos = normalizePosition(parent.position)
+    if (pos.x >= parentPos.x && pos.y >= parentPos.y) {
+      return {
+        ...n,
+        position: {
+          x: Math.max(24, pos.x - parentPos.x),
+          y: Math.max(56, pos.y - parentPos.y),
+        },
+      }
+    }
+    return n
+  })
 }
 
 function normalizeNodeTypeValue(type) {

@@ -43,8 +43,8 @@ public final class WorkflowExampleTemplates {
                         .build(),
                 WorkflowExampleVO.builder()
                         .key("batch_parallel").name("示例：批量并行处理助手")
-                        .description("LLM拆分问题 + 批处理容器 + 循环容器，演示 batch/loop 容器节点的并行与迭代用法")
-                        .nodeTypeTags(List.of("llm", "batch", "batch_start", "batch_end", "loop", "loop_start", "loop_end", "script"))
+                        .description("批量拆分需求 + 并行评审 + 循环格式化，演示 batch/loop 容器节点的并行与迭代用法")
+                        .nodeTypeTags(List.of("batch", "batch_start", "batch_end", "loop", "loop_start", "loop_end", "script"))
                         .build(),
                 WorkflowExampleVO.builder()
                         .key("data_extract").name("示例：数据提取与转换助手")
@@ -216,7 +216,7 @@ public final class WorkflowExampleTemplates {
     private static final Map<String, String> WELCOME_MAP = Map.ofEntries(
             Map.entry("rag_qa", "## RAG 知识问答助手\n我可以从知识库中检索相关信息，为你提供准确的回答。\n\n> 请先在工作流中绑定知识库，然后开始提问。"),
             Map.entry("intent_router", "## 智能意图路由助手\n我会自动识别你的意图类型，分配给不同的处理模块来回答。\n\n> 支持信息查询、投诉建议等多种意图。"),
-            Map.entry("batch_parallel", "## 批量并行处理助手\n我可以同时处理多个问题，大幅提升效率。\n\n> 请输入多个问题，我会并行检索并生成回答。"),
+            Map.entry("batch_parallel", "## 批量并行处理助手\n我可以把多条需求或反馈拆成列表，并行完成初步评审，再逐条格式化为汇总报告。\n\n> 请输入多条需求、缺陷或用户反馈，每行一条即可体验批处理与循环容器。"),
             Map.entry("data_extract", "## 数据提取与转换助手\n我可以从自然语言中提取结构化信息（姓名、邮箱、电话等），并进行格式验证。\n\n> 试试用一句话描述你的个人信息。"),
             Map.entry("external_integration", "## 外部集成与 MCP 助手\n我可以调用外部 API、MCP 工具获取数据，并自动生成分析总结。\n\n> 已预置示例 API，直接对话即可体验。"),
             Map.entry("tool_multi", "## 多工具协作助手\n我会先提取你的问题与计算参数，再调用联网搜索和计算器工具，最后汇总成完整回答。\n\n> 请描述一个需要查资料并做简单计算的问题。"),
@@ -228,7 +228,7 @@ public final class WorkflowExampleTemplates {
     private static final Map<String, String> QUESTIONS_MAP = Map.ofEntries(
             Map.entry("rag_qa", "[\"这个知识库包含哪些内容？\", \"帮我总结一下关键信息\", \"有哪些常见问题？\"]"),
             Map.entry("intent_router", "[\"我想查询一下产品价格\", \"我对服务不满意，要投诉\", \"你好，随便聊聊\"]"),
-            Map.entry("batch_parallel", "[\"同时问3个不同的问题\", \"批量处理的效率如何？\", \"支持多大的并发量？\"]"),
+            Map.entry("batch_parallel", "[\"请批量评审这些需求：\\n1. 登录页偶发白屏，影响客户演示，需要今天修复\\n2. 希望知识库支持批量导入飞书文档\\n3. 工作流编排页节点太多时拖动画布卡顿\\n4. 新增对话消息导出为 Markdown\", \"请把这些用户反馈按优先级整理：\\n1. 客户说支付成功后订单状态偶尔不更新\\n2. 希望移动端对话页面支持语音输入\\n3. 上传大文件时进度提示不明显\\n4. 希望管理员能导出团队成员使用报表\", \"请分析下面的缺陷和优化建议：\\n1. 知识库检索结果偶尔为空，但文档里明明有相关内容\\n2. 希望工作流节点支持复制粘贴\\n3. 对话历史很多时页面滚动变卡\\n4. 发布工作流前希望增加配置完整性检查\"]"),
             Map.entry("data_extract", "[\"我叫张三，邮箱是zhangsan@example.com，电话13800138000\", \"帮我验证一下 test@domain.com 这个邮箱格式对不对\", \"从这段话里提取所有联系方式\"]"),
             Map.entry("external_integration", "[\"帮我调用API获取数据\", \"用MCP工具处理一下任务\", \"外部接口调用失败了怎么办？\"]"),
             Map.entry("tool_multi", "[\"查一下2024年全球AI市场规模，并计算1000×1.15\", \"搜索LightBot是什么，再算一下256+128\", \"帮我调研云原生趋势并计算增长率\"]"),
@@ -346,91 +346,93 @@ public final class WorkflowExampleTemplates {
         List<Map<String, Object>> nodes = List.of(
                 node("start_1", "start", 50, 250, Map.of()),
                 node("input_1", "input", 200, 250, Map.of(
-                        "label", "输入参数",
-                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", ""))
+                        "label", "输入需求列表",
+                        "outputParams", List.of(Map.of("key", "query", "type", "String", "defaultValue", "{{sys.query}}"))
                 )),
                 node("script_split", "script", 420, 250, Map.of(
-                        "label", "问题拆分",
+                        "label", "拆分需求",
                         "scriptLanguage", "javascript",
-                        "scriptContent", "function main(params) {\n  var input = params.input || '';\n  // 1. 尝试 JSON 数组解析\n  try {\n    var arr = JSON.parse(input);\n    if (Array.isArray(arr) && arr.length > 0) {\n      return { questions: arr };\n    }\n  } catch (e) {}\n  // 2. 按中文标点拆分\n  var parts = input.split(/[，,；;。！!？?\\n]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s.length > 0; });\n  if (parts.length === 0) parts = [input];\n  return { questions: parts };\n}",
-                        "inputParams", List.of(Map.of("key", "input", "value", "{{query}}")),
-                        "outputParams", List.of(Map.of("key", "questions"))
+                        "scriptContent", "function main(params) {\n  var input = String(params.input || params.query || '').trim();\n  try {\n    var arr = JSON.parse(input);\n    if (Array.isArray(arr) && arr.length > 0) {\n      return { items: arr.map(function(s) { return String(s).trim(); }).filter(function(s) { return s.length > 0; }) };\n    }\n  } catch (e) {}\n  var text = input.replace(/\\r/g, '\\n');\n  var parts = text.split(/[\\n；;]+/);\n  if (parts.length <= 1) {\n    parts = text.split(/(?=\\s*(?:\\d+[\\.、)]|[-*])\\s+)/);\n  }\n  var items = parts.map(function(s) {\n    return String(s).replace(/^\\s*(?:\\d+[\\.、)]|[-*])\\s*/, '').trim();\n  }).filter(function(s) {\n    return s.length > 0 && !/^请.*(需求|反馈|缺陷|建议).*[:：]?$/.test(s);\n  });\n  if (items.length === 0 && input.length > 0) items = [input];\n  return { items: items };\n}",
+                        "inputParams", List.of(
+                                Map.of("key", "input", "value", "{{query}}"),
+                                Map.of("key", "query", "value", "{{sys.query}}")
+                        ),
+                        "outputParams", List.of(Map.of("key", "items"))
                 )),
                 node("batch_1", "batch", 680, 200, Map.of(
-                        "label", "批量处理",
-                        "inputParams", List.of(Map.of("key", "question", "value", "{{questions}}")),
+                        "label", "并行评审",
+                        "inputParams", List.of(Map.of("key", "item", "value", "{{items}}")),
                         "batchSize", 10,
                         "concurrentSize", 3,
                         "errorStrategy", "continueOnError",
-                        "outputParams", List.of(Map.of("key", "llmOutput", "type", "Array"))
+                        "outputParams", List.of(Map.of("key", "analysisItem", "type", "Array"))
                 )),
                 node("batch_start_1", "batch_start", 780, 280, Map.of(
                         "label", "并行开始"
                 )),
-                node("retrieval_1", "retrieval", 930, 280, Map.of(
-                        "label", "检索相关文档",
-                        "knowledgeId", 0,
-                        "overrideConfig", true,
-                        "topK", 3,
-                        "threshold", 0.5
+                node("script_analyze", "script", 930, 280, Map.of(
+                        "label", "评审单条需求",
+                        "scriptLanguage", "javascript",
+                        "scriptContent", "function main(params) {\n  var text = String(params.item || '').trim();\n  var type = /bug|错误|失败|异常|崩溃|报错/.test(text) ? '缺陷修复' : (/优化|提升|改进|体验|性能/.test(text) ? '体验优化' : (/新增|支持|接入|增加|实现/.test(text) ? '新功能' : '需求澄清'));\n  var priority = /紧急|马上|今天|阻塞|故障|崩溃|支付|登录/.test(text) ? 'P0' : (/重要|本周|核心|客户/.test(text) ? 'P1' : 'P2');\n  var estimate = text.length > 60 ? 'L' : (text.length > 28 ? 'M' : 'S');\n  var action = priority === 'P0' ? '立即排查并安排负责人' : (type === '需求澄清' ? '补充场景、目标用户和验收口径' : '进入需求池排期评审');\n  return { analysisItem: { text: text, type: type, priority: priority, estimate: estimate, action: action } };\n}",
+                        "inputParams", List.of(Map.of("key", "item", "value", "{{item}}")),
+                        "outputParams", List.of(Map.of("key", "analysisItem"))
                 )),
-                node("llm_1", "llm", 1130, 280, Map.of(
-                        "label", "生成回答",
-                        "sysPrompt", "根据检索内容回答问题，简洁准确。",
-                        "promptTemplate", "问题：{{question}}\n\n参考内容：{{retrievalResult}}",
-                        "temperature", 0.5,
-                        "enableStreaming", true
-                )),
-                node("batch_end_1", "batch_end", 1330, 280, Map.of(
+                node("batch_end_1", "batch_end", 1130, 280, Map.of(
                         "label", "并行结束"
                 )),
-                node("loop_1", "loop", 1550, 200, Map.of(
-                        "label", "结果汇总",
-                        "iteratorType", "byCount",
-                        "countLimit", 1,
+                node("loop_1", "loop", 1350, 200, Map.of(
+                        "label", "循环格式化",
+                        "iteratorType", "byArray",
+                        "inputParams", List.of(Map.of("key", "analysis", "value", "{{analysisItem}}")),
                         "errorStrategy", "continueOnError",
-                        "outputParams", List.of(Map.of("key", "summary", "type", "Array"))
+                        "outputParams", List.of(Map.of("key", "line", "type", "Array"))
                 )),
-                node("loop_start_1", "loop_start", 1650, 280, Map.of(
+                node("loop_start_1", "loop_start", 1450, 280, Map.of(
                         "label", "迭代开始"
                 )),
-                node("script_1", "script", 1800, 280, Map.of(
-                        "label", "拼接结果",
+                node("script_format", "script", 1600, 280, Map.of(
+                        "label", "格式化单条结果",
                         "scriptLanguage", "javascript",
-                        "scriptContent", "function main(params) {\n  var results = params.results || [];\n  var summary = '共处理 ' + results.length + ' 个问题：\\n';\n  for (var i = 0; i < results.length; i++) {\n    summary += (i + 1) + '. ' + results[i] + '\\n';\n  }\n  return { summary: summary };\n}",
-                        "inputParams", List.of(Map.of("key", "results", "value", "{{llmOutput}}")),
-                        "outputParams", List.of(Map.of("key", "summary"))
+                        "scriptContent", "function main(params) {\n  var item = params.analysis || {};\n  var line = '- [' + (item.priority || 'P2') + '] ' + (item.type || '需求') + ' / ' + (item.estimate || 'M') + ': ' + (item.text || '') + '; 建议: ' + (item.action || '进入排期评审');\n  return { line: line };\n}",
+                        "inputParams", List.of(Map.of("key", "analysis", "value", "{{analysis}}")),
+                        "outputParams", List.of(Map.of("key", "line"))
                 )),
-                node("loop_end_1", "loop_end", 2000, 280, Map.of(
+                node("loop_end_1", "loop_end", 1800, 280, Map.of(
                         "label", "迭代结束"
                 )),
-                node("output_1", "output", 2200, 250, Map.of(
-                        "label", "输出汇总",
-                        "output", "{{summary}}"
+                node("script_join", "script", 2020, 250, Map.of(
+                        "label", "汇总报告",
+                        "scriptLanguage", "javascript",
+                        "scriptContent", "function main(params) {\n  var lines = params.lines || [];\n  if (!Array.isArray(lines)) lines = [String(lines || '')];\n  var result = '## 批量需求评审结果\\n\\n共处理 ' + lines.length + ' 条输入：\\n\\n' + lines.join('\\n');\n  return { result: result };\n}",
+                        "inputParams", List.of(Map.of("key", "lines", "value", "{{line}}")),
+                        "outputParams", List.of(Map.of("key", "result"))
                 )),
-                node("end_1", "end", 2450, 250, Map.of())
+                node("output_1", "output", 2240, 250, Map.of(
+                        "label", "输出汇总",
+                        "output", "{{result}}"
+                )),
+                node("end_1", "end", 2480, 250, Map.of())
         );
         List<Map<String, Object>> edges = List.of(
                 edge("e_start", "start_1", "input_1"),
                 edge("e_input", "input_1", "script_split"),
                 edge("e_split", "script_split", "batch_start_1"),
-                edge("e_bs", "batch_start_1", "retrieval_1"),
-                edge("e_ret", "retrieval_1", "llm_1"),
-                edge("e_llm", "llm_1", "batch_end_1"),
+                edge("e_bs", "batch_start_1", "script_analyze"),
+                edge("e_analyze", "script_analyze", "batch_end_1"),
                 edge("e_batch_out", "batch_end_1", "loop_start_1"),
-                edge("e_ls", "loop_start_1", "script_1"),
-                edge("e_script", "script_1", "loop_end_1"),
-                edge("e_loop_out", "loop_end_1", "output_1"),
+                edge("e_ls", "loop_start_1", "script_format"),
+                edge("e_format", "script_format", "loop_end_1"),
+                edge("e_loop_out", "loop_end_1", "script_join"),
+                edge("e_join", "script_join", "output_1"),
                 edge("e_output", "output_1", "end_1")
         );
         Map<String, Object> ws = workflowSnapshot(nodes, edges);
         // 设置 batch 和 loop 的父子关系
         setParentNode(nodes, "batch_start_1", "batch_1");
-        setParentNode(nodes, "retrieval_1", "batch_1");
-        setParentNode(nodes, "llm_1", "batch_1");
+        setParentNode(nodes, "script_analyze", "batch_1");
         setParentNode(nodes, "batch_end_1", "batch_1");
         setParentNode(nodes, "loop_start_1", "loop_1");
-        setParentNode(nodes, "script_1", "loop_1");
+        setParentNode(nodes, "script_format", "loop_1");
         setParentNode(nodes, "loop_end_1", "loop_1");
         return ws;
     }
@@ -1094,12 +1096,53 @@ public final class WorkflowExampleTemplates {
 
     @SuppressWarnings("unchecked")
     private static void setParentNode(List<Map<String, Object>> nodes, String childId, String parentId) {
+        Map<String, Object> parent = null;
+        for (Map<String, Object> n : nodes) {
+            if (parentId.equals(n.get("id"))) {
+                parent = n;
+                break;
+            }
+        }
         for (Map<String, Object> n : nodes) {
             if (childId.equals(n.get("id"))) {
+                if (parent != null) {
+                    normalizeChildPosition(n, parent);
+                }
                 n.put("parentNode", parentId);
                 n.put("extent", "parent");
                 break;
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void normalizeChildPosition(Map<String, Object> child, Map<String, Object> parent) {
+        Object childPositionObj = child.get("position");
+        Object parentPositionObj = parent.get("position");
+        if (!(childPositionObj instanceof Map<?, ?> childPosition)
+                || !(parentPositionObj instanceof Map<?, ?> parentPosition)) {
+            return;
+        }
+        double childX = parseDouble(childPosition.get("x"));
+        double childY = parseDouble(childPosition.get("y"));
+        double parentX = parseDouble(parentPosition.get("x"));
+        double parentY = parseDouble(parentPosition.get("y"));
+        child.put("position", Map.of(
+                "x", Math.max(24, childX - parentX),
+                "y", Math.max(56, childY - parentY)
+        ));
+    }
+
+    private static double parseDouble(Object value) {
+        if (value instanceof Number number) {
+            return number.doubleValue();
+        }
+        if (value != null) {
+            try {
+                return Double.parseDouble(value.toString());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return 0D;
     }
 }

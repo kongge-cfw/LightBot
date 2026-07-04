@@ -1,5 +1,6 @@
 package com.lightbot.workflow;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.lightbot.enums.NodeType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -17,6 +18,7 @@ import java.util.Map;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class WorkflowNode {
 
     /**

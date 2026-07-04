@@ -60,13 +60,16 @@ public class WorkflowMiddleware implements ChatMiddleware {
         return Flux.<String>create(sink -> Schedulers.boundedElastic().schedule(() -> {
             long t0 = System.currentTimeMillis();
             try {
-                List<Map<String, Object>> workflowEvents = new ArrayList<>();
+                List<Map<String, Object>> workflowEvents = Collections.synchronizedList(new ArrayList<>());
+                Object workflowEmitLock = new Object();
                 Consumer<Map<String, Object>> emit = event -> {
-                    ctx.getWorkflowEventsList().add(event);
-                    try {
-                        sink.next(STATUS_PREFIX + objectMapper.writeValueAsString(event));
-                    } catch (Exception ex) {
-                        sink.error(ex);
+                    synchronized (workflowEmitLock) {
+                        ctx.getWorkflowEventsList().add(event);
+                        try {
+                            sink.next(STATUS_PREFIX + objectMapper.writeValueAsString(event));
+                        } catch (Exception ex) {
+                            sink.error(ex);
+                        }
                     }
                 };
 

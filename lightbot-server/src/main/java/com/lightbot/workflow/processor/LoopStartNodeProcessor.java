@@ -1,9 +1,10 @@
 package com.lightbot.workflow.processor;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
-import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.WorkflowSubgraphExecutor;
 import org.springframework.stereotype.Component;
 
 /**
@@ -14,7 +15,11 @@ import org.springframework.stereotype.Component;
  * @since 2026-06-15
  */
 @Component
-public class LoopStartNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
+public class LoopStartNodeProcessor extends AbstractGroupContainerProcessor {
+
+    public LoopStartNodeProcessor(WorkflowSubgraphExecutor subgraphExecutor, ObjectMapper objectMapper) {
+        super(subgraphExecutor, objectMapper);
+    }
 
     @Override
     public NodeType getType() {
@@ -23,6 +28,10 @@ public class LoopStartNodeProcessor extends AbstractFlowNodeProcessor implements
 
     @Override
     public NodeExecutionResult execute(NodeExecutionContext context) {
+        if (context.getParentNodeId() == null) {
+            // 1. 兼容画布将主流程连到内置 loop_start 的图，入口处执行整个循环容器。
+            return executeContainer(context, NodeType.LOOP_START, NodeType.LOOP_END, false);
+        }
         return passThrough(context, "output", "success");
     }
 }

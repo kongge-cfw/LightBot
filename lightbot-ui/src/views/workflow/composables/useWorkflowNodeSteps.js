@@ -4,6 +4,23 @@ function isContainerNodeType(type) {
   return type === 'loop' || type === 'batch' || type === 'app_component'
 }
 
+const GROUP_BUILTIN_NODE_TYPES = new Set(['loop_start', 'loop_end', 'batch_start', 'batch_end'])
+
+function isHiddenContainerBuiltinEvent(event) {
+  return !!event?.parentNodeId && GROUP_BUILTIN_NODE_TYPES.has(event.nodeType)
+}
+
+function getEventExecutionKey(event) {
+  if (!event) return ''
+  if (event.executionId) return String(event.executionId)
+  if (event.stepIndex != null) return `step:${event.stepIndex}`
+  return [
+    event.parentNodeId || '-',
+    event.nodeId || '-',
+    event.iterationIndex ?? '-',
+  ].join(':')
+}
+
 /**
  * 将 workflow nodeEvents 合并为时间线步骤
  * @param {import('vue').Ref|import('vue').ComputedRef|Array|Function} nodeEventsSource
@@ -16,20 +33,23 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
     if (!events?.length) return []
 
     const steps = []
-    const runningByNodeId = new Map()
+    const runningByExecutionKey = new Map()
     const stepByIndex = new Map()
     const containerStack = []
 
     for (const e of events) {
+      if (isHiddenContainerBuiltinEvent(e)) continue
+      const executionKey = getEventExecutionKey(e)
       if (e.type === 'workflow_node_start' && e.nodeId) {
         const isContainerStart = !e.parentNodeId && isContainerNodeType(e.nodeType)
         const step = {
           nodeId: e.nodeId,
+          executionId: e.executionId || executionKey,
           nodeType: e.nodeType,
           nodeLabel: e.nodeLabel,
           input: e.input,
           stepIndex: e.stepIndex,
-          stepKey: `start_${e.stepIndex ?? steps.length}_${e.nodeId}`,
+          stepKey: `start_${executionKey || steps.length}_${e.nodeId}`,
           status: 'running',
           parentNodeId: e.parentNodeId || null,
           iterationIndex: e.iterationIndex ?? null,
@@ -43,19 +63,20 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         } else {
           steps.push(step)
         }
-        runningByNodeId.set(e.nodeId, step)
+        runningByExecutionKey.set(executionKey, step)
         if (e.stepIndex != null) stepByIndex.set(e.stepIndex, step)
         if (isContainerStart) containerStack.push(step)
       } else if (e.type === 'workflow_node_complete' && e.nodeId) {
-        let step = (e.stepIndex != null ? stepByIndex.get(e.stepIndex) : null) || runningByNodeId.get(e.nodeId)
+        let step = runningByExecutionKey.get(executionKey) || (e.stepIndex != null ? stepByIndex.get(e.stepIndex) : null)
         if (!step) {
           const isChild = !!e.parentNodeId
           step = {
             nodeId: e.nodeId,
+            executionId: e.executionId || executionKey,
             nodeType: e.nodeType,
             nodeLabel: e.nodeLabel,
             stepIndex: e.stepIndex,
-            stepKey: `complete_${e.stepIndex ?? steps.length}_${e.nodeId}`,
+            stepKey: `complete_${executionKey || steps.length}_${e.nodeId}`,
             status: 'pending',
             parentNodeId: e.parentNodeId || null,
             iterationIndex: e.iterationIndex ?? null,
@@ -83,13 +104,13 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
           step.status = e.success === false ? 'failed' : 'done'
         }
         if (e.isContainer != null) step.isContainer = e.isContainer
-        runningByNodeId.delete(e.nodeId)
+        runningByExecutionKey.delete(executionKey)
         if (e.stepIndex != null) stepByIndex.set(e.stepIndex, step)
         if (step.isContainer && containerStack.length > 0 && containerStack[containerStack.length - 1].nodeId === e.nodeId) {
           containerStack.pop()
         }
       } else if (e.type === 'workflow_confirm_required' && e.nodeId) {
-        const step = runningByNodeId.get(e.nodeId) || stepByIndex.get(e.stepIndex)
+        const step = runningByExecutionKey.get(executionKey) || stepByIndex.get(e.stepIndex)
         if (step) {
           step.confirmForm = e.confirmForm
           if (!e.resolved && !e.submittedData) {

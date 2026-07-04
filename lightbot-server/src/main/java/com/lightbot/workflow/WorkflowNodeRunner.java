@@ -43,9 +43,11 @@ public class WorkflowNodeRunner {
         // 1. 推送子节点开始事件
         if (emitEvents) {
             nodeStartMs = System.currentTimeMillis();
+            String executionId = buildExecutionId(context, nodeId);
             Map<String, Object> startEvent = new HashMap<>();
             startEvent.put("type", "workflow_node_start");
             startEvent.put("nodeId", nodeId);
+            startEvent.put("executionId", executionId);
             startEvent.put("nodeType", nodeTypeCode);
             startEvent.put("nodeLabel", nodeLabel);
             if (context.getParentNodeId() != null) {
@@ -53,6 +55,10 @@ public class WorkflowNodeRunner {
             }
             if (context.getIterationIndex() != null) {
                 startEvent.put("iterationIndex", context.getIterationIndex());
+            }
+            Map<String, Object> inputPreview = buildNodeInputPreview(node, context);
+            if (!inputPreview.isEmpty()) {
+                startEvent.put("input", inputPreview);
             }
             emitEvent(context, startEvent);
         }
@@ -85,9 +91,11 @@ public class WorkflowNodeRunner {
 
         // 2. 推送子节点完成事件
         if (emitEvents) {
+            String executionId = buildExecutionId(context, nodeId);
             Map<String, Object> completeEvent = new HashMap<>();
             completeEvent.put("type", "workflow_node_complete");
             completeEvent.put("nodeId", nodeId);
+            completeEvent.put("executionId", executionId);
             completeEvent.put("nodeType", nodeTypeCode);
             completeEvent.put("nodeLabel", nodeLabel);
             completeEvent.put("message", completeMessage);
@@ -147,11 +155,21 @@ public class WorkflowNodeRunner {
 
     private void emitEvent(NodeExecutionContext context, Map<String, Object> event) {
         if (context.getWorkflowEvents() != null) {
-            context.getWorkflowEvents().add(event);
+            synchronized (context.getWorkflowEvents()) {
+                context.getWorkflowEvents().add(event);
+            }
         }
         if (context.getOnEvent() != null) {
-            context.getOnEvent().accept(event);
+            synchronized (context.getOnEvent()) {
+                context.getOnEvent().accept(event);
+            }
         }
+    }
+
+    private String buildExecutionId(NodeExecutionContext context, String nodeId) {
+        String parent = context.getParentNodeId() != null ? context.getParentNodeId() : "-";
+        String iteration = context.getIterationIndex() != null ? String.valueOf(context.getIterationIndex()) : "-";
+        return parent + ":" + nodeId + ":" + iteration;
     }
 
     private String resolveNodeLabel(WorkflowNode node) {
@@ -162,5 +180,41 @@ public class WorkflowNodeRunner {
             }
         }
         return node.getType() != null ? node.getType().getDesc() : "节点";
+    }
+
+    private Map<String, Object> buildNodeInputPreview(WorkflowNode node, NodeExecutionContext context) {
+        Map<String, Object> preview = new HashMap<>();
+        if (node == null || context == null || node.getData() == null) {
+            return preview;
+        }
+        if (node.getType() == NodeType.RETRIEVAL) {
+            String query = WorkflowVariableUtils.resolveInputText(
+                    WorkflowNodeDataUtils.parseString(node.getData().get("inputVariable")),
+                    context.getVariables(),
+                    context.getUserInput());
+            preview.put("query", query);
+            Object knowledgeId = node.getData().get("knowledgeId");
+            if (knowledgeId != null) {
+                preview.put("knowledgeId", knowledgeId);
+            }
+            return preview;
+        }
+        Object inputParams = node.getData().get("inputParams");
+        if (inputParams == null) {
+            inputParams = node.getData().get("input_params");
+        }
+        if (inputParams instanceof List<?> list) {
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> row)) {
+                    continue;
+                }
+                Object key = row.get("key");
+                if (key == null || key.toString().isBlank()) {
+                    continue;
+                }
+                preview.put(key.toString(), WorkflowMappingUtils.resolveTemplateValue(row.get("value"), context));
+            }
+        }
+        return preview;
     }
 }

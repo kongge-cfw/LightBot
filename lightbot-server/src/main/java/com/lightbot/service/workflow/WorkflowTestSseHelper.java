@@ -46,7 +46,12 @@ public class WorkflowTestSseHelper {
      * @return onEvent 回调
      */
     public Consumer<Map<String, Object>> eventSender(SseEmitter emitter, AtomicInteger counter) {
-        return event -> sendStatusEvent(emitter, counter, event);
+        Object sendLock = new Object();
+        return event -> {
+            synchronized (sendLock) {
+                sendStatusEvent(emitter, counter, event);
+            }
+        };
     }
 
     /**

@@ -438,17 +438,20 @@ public class WorkflowExecutorService {
                 break;
             }
 
+            WorkflowNode eventNode = resolveEventNode(workflow, node, context);
+
             context.setCurrentNodeId(currentNodeId);
             context.setCurrentNodeData(node.getData());
 
-            String nodeLabel = resolveNodeLabel(node);
-            String nodeTypeCode = node.getType() != null ? node.getType().getCode() : "";
+            String nodeLabel = resolveNodeLabel(eventNode);
+            String nodeTypeCode = eventNode.getType() != null ? eventNode.getType().getCode() : "";
             final String executingNodeId = currentNodeId;
+            final String eventNodeId = eventNode.getId();
 
             long nodeStartMs = System.currentTimeMillis();
             Map<String, Object> startEvent = new LinkedHashMap<>();
             startEvent.put("type", "workflow_node_start");
-            startEvent.put("nodeId", executingNodeId);
+            startEvent.put("nodeId", eventNodeId);
             startEvent.put("nodeType", nodeTypeCode);
             startEvent.put("nodeLabel", nodeLabel);
             startEvent.put("stepIndex", stepIndex);
@@ -490,15 +493,15 @@ public class WorkflowExecutorService {
                     Map<String, Object> confirmEvent = new LinkedHashMap<>();
                     confirmEvent.put("type", "workflow_confirm_required");
                     confirmEvent.put("runId", runId);
-                    confirmEvent.put("nodeId", executingNodeId);
+                    confirmEvent.put("nodeId", eventNodeId);
                     confirmEvent.put("nodeLabel", nodeLabel);
                     confirmEvent.put("confirmForm", nodeResult.getSuspendPayload());
                     emitWorkflowEvent(workflowEvents, onEvent, confirmEvent);
 
                     String suspendMessage = resolveSuspendMessage(nodeResult.getSuspendPayload());
                     Map<String, Object> completeEvent = buildCompleteEvent(
-                            executingNodeId, nodeTypeCode, nodeLabel, true,
-                            suspendMessage, stepIndex, nodeStartMs, nodeResult, node, null);
+                            eventNodeId, nodeTypeCode, nodeLabel, true,
+                            suspendMessage, stepIndex, nodeStartMs, nodeResult, eventNode, null);
                     completeEvent.put("suspended", true);
                     emitWorkflowEvent(workflowEvents, onEvent, completeEvent);
 
@@ -555,8 +558,8 @@ public class WorkflowExecutorService {
             }
 
             Map<String, Object> completeEvent = buildCompleteEvent(
-                    executingNodeId, nodeTypeCode, nodeLabel, nodeSuccess,
-                    completeMessage, stepIndex, nodeStartMs, nodeResult, node, nextNodeId);
+                    eventNodeId, nodeTypeCode, nodeLabel, nodeSuccess,
+                    completeMessage, stepIndex, nodeStartMs, nodeResult, eventNode, nextNodeId);
             emitWorkflowEvent(workflowEvents, onEvent, completeEvent);
 
             currentNodeId = nextNodeId;
@@ -571,6 +574,20 @@ public class WorkflowExecutorService {
             return "等待用户回答";
         }
         return "等待人工确认";
+    }
+
+    private WorkflowNode resolveEventNode(WorkflowDefinition workflow, WorkflowNode node, NodeExecutionContext context) {
+        if (workflow == null || node == null || context == null || context.getParentNodeId() != null) {
+            return node;
+        }
+        NodeType type = node.getType();
+        if ((type == NodeType.BATCH_START || type == NodeType.LOOP_START) && node.getParentNode() != null) {
+            WorkflowNode parent = workflow.getNode(node.getParentNode());
+            if (parent != null && (parent.getType() == NodeType.BATCH || parent.getType() == NodeType.LOOP)) {
+                return parent;
+            }
+        }
+        return node;
     }
 
     private Map<String, Object> buildCompleteEvent(String executingNodeId,
@@ -698,6 +715,18 @@ public class WorkflowExecutorService {
         }
 
         Map<String, Object> nodeData = node.getData();
+        if (nodeData != null && node.getType() == NodeType.RETRIEVAL) {
+            String query = WorkflowVariableUtils.resolveInputText(
+                    WorkflowNodeDataUtils.parseString(nodeData.get("inputVariable")),
+                    context.getVariables(),
+                    context.getUserInput());
+            preview.put("query", summarizeValue(query));
+            Object knowledgeId = nodeData.get("knowledgeId");
+            if (knowledgeId != null) {
+                preview.put("knowledgeId", summarizeValue(knowledgeId));
+            }
+            return preview;
+        }
         if (nodeData != null && (node.getType() == NodeType.TOOL || node.getType() == NodeType.APP_COMPONENT)) {
             Map<String, Object> mappedArgs = WorkflowMappingUtils.buildInputArgs(nodeData, context);
             for (Map.Entry<String, Object> entry : mappedArgs.entrySet()) {
@@ -857,10 +886,14 @@ public class WorkflowExecutorService {
                                    Consumer<Map<String, Object>> onEvent,
                                    Map<String, Object> event) {
         if (workflowEvents != null) {
-            workflowEvents.add(event);
+            synchronized (workflowEvents) {
+                workflowEvents.add(event);
+            }
         }
         if (onEvent != null) {
-            onEvent.accept(event);
+            synchronized (onEvent) {
+                onEvent.accept(event);
+            }
         }
     }
 
