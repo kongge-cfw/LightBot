@@ -236,6 +236,8 @@ public class WorkflowExecutorService {
                     combined,
                     WorkflowHitlPayloadBuilder.ANSWER_FIELD_KEY,
                     combined.get(WorkflowHitlPayloadBuilder.ANSWER_FIELD_KEY));
+            // outputMappings 会丢弃 toolResultText/question，需保留供 Chat 工具节点渲染
+            WorkflowHitlPayloadBuilder.preserveAskUserRenderMeta(nodeOutputs, combined);
             WorkflowVariableScope.mergeNodeOutputs(context, suspendNode, nodeOutputs);
             context.getNodeOutputs().put(suspended.getSuspendNodeId(), nodeOutputs);
         } else {

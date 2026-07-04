@@ -99,7 +99,9 @@ export function patchLocalConfirmEventsBeforeResume(testResult, suspendNodeId, f
     e.suspended = false
     e.success = true
     e.message = '用户已提交'
-    if (Object.keys(submitted).length) e.outputs = { ...submitted }
+    if (Object.keys(submitted).length) {
+      e.outputs = { ...(e.outputs || {}), ...submitted }
+    }
     break
   }
   events.forEach((e) => {

@@ -224,12 +224,118 @@ export function extractWorkflowToolResult(outputs) {
 }
 
 /**
+ * 从 ask_user 节点 resume 后的 outputs 中提取用户回答
+ * （优先 answer，其次 outputMappings 写入的业务字段如 province / gaokaoScore）
+ */
+export function pickAskUserAnswerFromOutputs(outputs) {
+  if (!outputs || typeof outputs !== 'object') return ''
+  const skip = new Set([
+    'output', 'toolResult', 'toolResultText', 'toolName', 'toolId', 'toolDisplayName',
+    'question', 'options', 'is_open_ended', 'wait_for_user', 'break_loop',
+  ])
+  const answer = outputs.answer
+  if (answer != null && String(answer).trim()) return String(answer).trim()
+  for (const [key, value] of Object.entries(outputs)) {
+    if (skip.has(key)) continue
+    if (value == null || typeof value === 'object') continue
+    const text = String(value).trim()
+    if (text) return text
+  }
+  return ''
+}
+
+/**
+ * 从 confirmForm（workflow_confirm_required）提取 ask_user 选项列表
+ */
+export function extractAskUserOptionsFromConfirmForm(confirmForm) {
+  const fields = confirmForm?.formFields
+  if (!Array.isArray(fields)) return []
+  for (const field of fields) {
+    if (field?.type !== 'radio' || !Array.isArray(field.options)) continue
+    return field.options
+      .map(opt => (typeof opt === 'string' ? opt : (opt?.label ?? opt?.value ?? '')))
+      .map(s => String(s).trim())
+      .filter(Boolean)
+  }
+  return []
+}
+
+/**
+ * 从 step / outputs / confirmForm 回退解析 ask_user 提问文案
+ */
+export function pickAskUserQuestionFromStep(outputs, step) {
+  const q = outputs?.question
+  if (q != null && String(q).trim()) return String(q).trim()
+  const msg = step?.confirmForm?.message
+  if (msg != null && String(msg).trim()) return String(msg).trim()
+  const raw = outputs?.toolResultText ?? outputs?.output
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (parsed?.question && String(parsed.question).trim()) {
+        return String(parsed.question).trim()
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  return ''
+}
+
+/**
+ * 合并 ask_user 工具 JSON 与用户回答，供工作流 ToolCallRenderer / AskUserResult 展示
+ */
+export function enrichAskUserWorkflowResult(rawResult, outputs, step) {
+  let data = {}
+  let resultText = rawResult
+  if (!resultText && outputs?.toolResultText) {
+    resultText = String(outputs.toolResultText)
+  }
+  if (resultText) {
+    try {
+      const parsed = JSON.parse(resultText)
+      if (parsed && typeof parsed === 'object') data = { ...parsed }
+    } catch {
+      data = { question: resultText }
+    }
+  }
+
+  const question = pickAskUserQuestionFromStep(outputs, step)
+  if (question) {
+    data.question = question
+  }
+  if ((!data.options || !data.options.length) && outputs?.options) {
+    data.options = outputs.options
+  }
+  if ((!data.options || !data.options.length) && step?.confirmForm) {
+    const opts = extractAskUserOptionsFromConfirmForm(step.confirmForm)
+    if (opts.length) data.options = opts
+  }
+
+  const userAnswer = pickAskUserAnswerFromOutputs(outputs)
+  if (userAnswer) {
+    data.user_answer = userAnswer
+    data.wait_for_user = false
+  } else if (step?.status === 'suspended') {
+    data.wait_for_user = true
+  }
+  try {
+    return JSON.stringify(data)
+  } catch {
+    return resultText || rawResult || ''
+  }
+}
+
+/**
  * 构造 toolRegistry / ToolCallRenderer 可用的 pseudo event（对齐对话 Agent tool_result）
  */
 export function buildWorkflowToolEvent(step) {
   const outputs = parseStepOutputs(step?.outputs) || {}
   const toolName = resolveWorkflowToolName(step)
-  const result = extractWorkflowToolResult(outputs)
+  let result = extractWorkflowToolResult(outputs)
+  if (toolName === 'ask_user') {
+    result = enrichAskUserWorkflowResult(result, outputs, step)
+  }
   return {
     toolName,
     displayName: outputs.toolDisplayName || '',

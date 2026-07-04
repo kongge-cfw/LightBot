@@ -142,6 +142,23 @@ public final class WorkflowHitlPayloadBuilder {
         copyIfPresent(outputs, toolVars, "is_open_ended");
     }
 
+    /**
+     * resume 后 applyOutputMappings 仅保留映射字段，需从挂起阶段 outputs 回填 tool 渲染元数据
+     */
+    public static void preserveAskUserRenderMeta(Map<String, Object> target, Map<String, Object> source) {
+        if (target == null || source == null || source.isEmpty()) {
+            return;
+        }
+        for (String key : List.of(
+                "toolResultText", "toolResult", "output",
+                "toolName", "toolId", "toolDisplayName",
+                "question", "options", "is_open_ended")) {
+            if (source.containsKey(key) && source.get(key) != null) {
+                target.putIfAbsent(key, source.get(key));
+            }
+        }
+    }
+
     private static void copyIfPresent(Map<String, Object> target, Map<String, Object> source, String key) {
         if (source.containsKey(key) && source.get(key) != null) {
             target.put(key, source.get(key));

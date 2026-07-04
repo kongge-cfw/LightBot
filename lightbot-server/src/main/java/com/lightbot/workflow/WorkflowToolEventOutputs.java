@@ -24,6 +24,13 @@ public final class WorkflowToolEventOutputs {
         copyMetaField(out, source, "toolName");
         copyMetaField(out, source, "toolId");
         copyMetaField(out, source, "toolDisplayName");
+        copyMetaField(out, source, "answer");
+        copyMetaField(out, source, "question");
+        copyMetaField(out, source, "is_open_ended");
+        Object options = source.get("options");
+        if (options != null) {
+            out.put("options", options);
+        }
 
         Object text = source.get("toolResultText");
         if (text instanceof String s && !s.isBlank()) {

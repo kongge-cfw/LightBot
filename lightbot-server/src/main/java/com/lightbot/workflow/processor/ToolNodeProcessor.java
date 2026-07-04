@@ -62,7 +62,8 @@ public class ToolNodeProcessor extends AbstractFlowNodeProcessor implements Node
         Map<String, Object> toolVars = parseToolResultVars(rawResult);
         Map<String, Object> outputs = WorkflowMappingUtils.applyOutputMappings(
                 nodeData, toolVars, "output", rawResult);
-        // 保留原始 JSON 与结构化对象，便于下游 LLM / script 使用
+        // outputMappings 仅写入映射字段，保留 tool 原始结果与 ask_user 渲染元数据
+        WorkflowHitlPayloadBuilder.preserveAskUserRenderMeta(outputs, toolVars);
         outputs.putIfAbsent("toolResult", toolVars.get("toolResult"));
         outputs.putIfAbsent("output", rawResult);
         outputs.putIfAbsent("toolResultText", rawResult);
