@@ -50,6 +50,29 @@ function scopeEdges(edges, scopeIds) {
   return (edges || []).filter(e => set.has(e.source) && set.has(e.target))
 }
 
+/**
+ * 顶层布局用：把连到容器子节点（如 loop_start/batch_end）的边上提到容器本身
+ * 外部→内部开始节点视为外部→容器，内部结束节点→外部视为容器→外部，
+ * 使容器重新挂回主链，避免因跨界边被丢弃而沦为孤立节点
+ */
+function projectEdgesToTopLevel(edges, nodes, topIdSet) {
+  const parentOf = new Map(nodes.map(n => [n.id, getNodeParentId(n)]))
+  const lift = id => (topIdSet.has(id) ? id : parentOf.get(id))
+  const out = []
+  const seen = new Set()
+  for (const e of edges || []) {
+    const s = lift(e.source)
+    const t = lift(e.target)
+    if (!topIdSet.has(s) || !topIdSet.has(t)) continue
+    if (s === t) continue
+    const key = `${s}->${t}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push({ ...e, source: s, target: t })
+  }
+  return out
+}
+
 /** 确定性排序：按节点 ID 字典序 */
 function deterministicSort(nodes) {
   return [...nodes].sort((a, b) => String(a.id).localeCompare(String(b.id)))
@@ -517,11 +540,12 @@ export function formatWorkflowLayout(nodes, edges) {
     result = result.map(n => (n.id === group.id ? resized : n))
   }
 
-  // 2. 顶层节点（绝对坐标）
+  // 2. 顶层节点（绝对坐标）：跨界边上提到容器，保证容器挂回主链
   const topNodes = result.filter(n => !getNodeParentId(n))
+  const topIdSet = new Set(topNodes.map(n => n.id))
   const topPositions = layoutNodesInScope(
     topNodes,
-    scopeEdges(edgeList, topNodes.map(n => n.id)),
+    projectEdgesToTopLevel(edgeList, result, topIdSet),
     TOP_ORIGIN,
   )
 
