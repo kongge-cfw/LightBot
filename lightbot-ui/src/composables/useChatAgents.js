@@ -2,7 +2,10 @@ import { ref, computed } from 'vue'
 import { getAgents, getAgentDetail, getAgentChatCapabilities, listAgentVersions } from '../api/agent'
 import {
   buildUploadHint,
+  buildImageUploadHint,
   buildFileAcceptTypes,
+  buildImageAcceptTypes,
+  buildDocumentAcceptTypes,
 } from '../utils/chatAttachment'
 
 /**
@@ -32,7 +35,10 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
   const showTtsBtn = computed(() => Boolean(chatCapabilities.value?.enableTts))
 
   const fileAcceptTypes = computed(() => buildFileAcceptTypes(chatCapabilities.value))
+  const imageAcceptTypes = computed(() => buildImageAcceptTypes(chatCapabilities.value))
+  const documentAcceptTypes = computed(() => buildDocumentAcceptTypes(chatCapabilities.value))
   const fileUploadHint = computed(() => buildUploadHint(chatCapabilities.value))
+  const imageUploadHint = computed(() => buildImageUploadHint(chatCapabilities.value))
 
   const currentWelcomeMessage = computed(() => {
     if (currentAgent.value?.welcomeMessage) {
@@ -234,7 +240,10 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
     showVoiceInputBtn,
     showTtsBtn,
     fileAcceptTypes,
+    imageAcceptTypes,
+    documentAcceptTypes,
     fileUploadHint,
+    imageUploadHint,
     currentWelcomeMessage,
     currentRecommendedQuestions,
     handleAgentSelect,

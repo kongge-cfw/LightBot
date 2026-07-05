@@ -99,6 +99,32 @@ public class ChatAttachmentParsedService {
                 """.formatted(filesBlock.toString().trim(), question);
     }
 
+    /**
+     * 非多模态 Agent 上传图片时的兜底：图片不喂 image_url，改为在文本中提示模型可调用 ocr_parse_file 识别。
+     * 文件名用 sanitizeFileName 归一，与落盘 key 后缀一致，保证 OCR 工具按文件名定位。
+     */
+    public String wrapImagesForOcr(String userQuestion, List<ChatAttachmentDTO> images) {
+        if (images == null || images.isEmpty()) {
+            return userQuestion != null ? userQuestion : "";
+        }
+        String question = (userQuestion != null && !userQuestion.isBlank())
+                ? userQuestion.trim()
+                : "请识别并回答上传图片中的内容。";
+
+        StringBuilder fileList = new StringBuilder();
+        for (ChatAttachmentDTO img : images) {
+            String name = SessionStoragePath.sanitizeFileName(img.getFileName());
+            fileList.append("- ").append(name).append("\n");
+        }
+
+        return """
+                用户上传了以下图片，如需读取其中的文字内容，请调用 ocr_parse_file 工具识别（参数 path 传文件名即可）：
+                %s
+                【用户问题】
+                %s
+                """.formatted(fileList.toString().trim(), question);
+    }
+
     private String loadParsedText(ChatAttachmentDTO att, Long sessionId) {
         String key = resolveParsedObjectKey(sessionId, null, att.getId(), att.getFileName(), att.getObjectKey());
         if (key == null || !minioUtil.exists(key)) {

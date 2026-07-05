@@ -159,7 +159,7 @@ public class MessageMiddleware implements ChatMiddleware {
                 validateReplyToMessage(replyToId, ctx.getSessionId());
             }
             Long userMsgId = saveUserMessage(ctx.getSessionId(), userText, ctx.getRequest().getAttachments(), askUserParentId, replyToId,
-                    ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId());
+                    ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap());
             ctx.setUserMessageId(userMsgId);
             if (askUserParentId != null) {
                 ctx.setUserMessageParentId(askUserParentId);
@@ -180,7 +180,7 @@ public class MessageMiddleware implements ChatMiddleware {
         validateAttachments(ctx.getRequest().getAttachments(), ctx.getConfigMap(), ctx.getSessionId());
         String userText = resolveUserText(ctx.getRequest());
         saveUserMessage(ctx.getSessionId(), userText, ctx.getRequest().getAttachments(), null, null,
-                ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId());
+                ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap());
         List<org.springframework.ai.chat.messages.Message> messages = buildMessages(
                 ctx.getSessionId(), userText, ctx.getAgent(), ctx.getRequest(), ctx.getConfigMap(), ctx);
         ctx.setMessages(messages);
@@ -208,9 +208,9 @@ public class MessageMiddleware implements ChatMiddleware {
                 }
                 // 无解析产物（加密/扫描件等）不阻断发送，wrapUserMessage 会以占位文本安全降级
             } else if ("image".equals(att.getType())) {
-                if (!Boolean.TRUE.equals(caps.getAllowMediaUpload())
-                        || !Boolean.TRUE.equals(caps.getEnableImageInput())) {
-                    throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启图像输入");
+                // 图片放开：多模态 Agent 直喂模型，非多模态 Agent 交由 OCR 工具识别；仅需允许上传附件
+                if (!Boolean.TRUE.equals(caps.getAllowFileUpload())) {
+                    throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启附件上传");
                 }
             } else if ("video".equals(att.getType())) {
                 if (!Boolean.TRUE.equals(caps.getAllowMediaUpload())
@@ -237,9 +237,12 @@ public class MessageMiddleware implements ChatMiddleware {
 
     private Long saveUserMessage(Long sessionId, String content, List<ChatAttachmentDTO> attachments,
                                  Long parentId, Long replyToMessageId,
-                                 List<ChatMentionDTO> mentions, Long agentVersionId) {
-        // 检测是否有图片附件 → messageType 为 MULTIMODAL_IMAGE
-        boolean hasImage = attachments != null && attachments.stream()
+                                 List<ChatMentionDTO> mentions, Long agentVersionId,
+                                 Map<String, Object> configMap) {
+        // 图片附件仅在多模态图像输入开启时标记为 MULTIMODAL_IMAGE；OCR 兜底图片按 TEXT 处理
+        boolean enableImageInput = Boolean.TRUE.equals(
+                AgentChatCapabilitiesUtil.fromConfigMap(configMap).getEnableImageInput());
+        boolean hasImage = enableImageInput && attachments != null && attachments.stream()
                 .anyMatch(att -> "image".equals(att.getType()));
         MessageType messageType = hasImage ? MessageType.MULTIMODAL_IMAGE : MessageType.TEXT;
 
@@ -461,7 +464,7 @@ public class MessageMiddleware implements ChatMiddleware {
         for (Message msg : history) {
             if (msg.getRole() == MessageRole.USER) {
                 List<ChatAttachmentDTO> histAttachments = parseAttachmentsFromMetadata(msg.getMetadata());
-                messages.add(buildUserMessageForAttachments(msg.getContent(), histAttachments, sessionId));
+                messages.add(buildUserMessageForAttachments(msg.getContent(), histAttachments, sessionId, agentConfigMap));
             } else if (msg.getRole() == MessageRole.ASSISTANT) {
                 messages.add(new AssistantMessage(msg.getContent()));
             }
@@ -479,7 +482,7 @@ public class MessageMiddleware implements ChatMiddleware {
         }
         List<ChatAttachmentDTO> attachments = request != null ? request.getAttachments() : null;
         messages.add(buildUserMessageForAttachments(
-                appendMentionHintIfNeeded(effectiveUserMessage, ctx), attachments, sessionId));
+                appendMentionHintIfNeeded(effectiveUserMessage, ctx), attachments, sessionId, agentConfigMap));
         return messages;
     }
 
@@ -494,17 +497,32 @@ public class MessageMiddleware implements ChatMiddleware {
     }
 
     /**
-     * 构建用户消息：document 附件拼入文本，image/video 仍走多模态
+     * 构建用户消息：document 附件拼入文本；图片按能力分流——多模态 Agent 走 image_url，
+     * 非多模态 Agent 图片仅提示可用 ocr_parse_file 识别；视频始终走多模态。
      */
     private org.springframework.ai.chat.messages.Message buildUserMessageForAttachments(
-            String content, List<ChatAttachmentDTO> attachments, Long sessionId) {
+            String content, List<ChatAttachmentDTO> attachments, Long sessionId,
+            Map<String, Object> agentConfigMap) {
         if (attachments == null || attachments.isEmpty()) {
             return new UserMessage(content != null ? content : "");
         }
-        // 文档 → 从 MinIO 读取解析文本拼入提示词；图片/视频 → 多模态一并发送（可混合）
         List<ChatAttachmentDTO> documents = ChatDocumentMessageUtil.filterDocuments(attachments);
-        List<ChatAttachmentDTO> media = ChatDocumentMessageUtil.filterMedia(attachments);
         String text = chatAttachmentParsedService.wrapUserMessage(content, documents, sessionId);
+
+        AgentChatCapabilitiesDTO caps = AgentChatCapabilitiesUtil.fromConfigMap(agentConfigMap);
+        boolean imageAsMedia = Boolean.TRUE.equals(caps.getEnableImageInput());
+
+        List<ChatAttachmentDTO> images = ChatDocumentMessageUtil.filterImages(attachments);
+        List<ChatAttachmentDTO> videos = ChatDocumentMessageUtil.filterVideos(attachments);
+
+        // 多模态图片 + 视频走 image_url；非多模态图片改注入 OCR 提示，不喂模型
+        List<ChatAttachmentDTO> media = new ArrayList<>(videos);
+        if (imageAsMedia) {
+            media.addAll(images);
+        } else if (!images.isEmpty()) {
+            text = chatAttachmentParsedService.wrapImagesForOcr(text, images);
+        }
+
         if (!media.isEmpty()) {
             return ChatMessageMediaUtil.buildUserMessage(text, media, minioUtil);
         }

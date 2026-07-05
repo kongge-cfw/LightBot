@@ -60,16 +60,12 @@ export function validateAttachmentCount(currentCount, capabilities) {
 
 export function buildUploadHint(capabilities) {
   const parts = []
-  const allowMedia = Boolean(capabilities?.allowMediaUpload)
-  const mimes = allowMedia ? (capabilities?.allowedFileMimeTypes || []) : []
-  const hasImage = mimes.some(m => IMAGE_MIMES.has(m))
-  const hasVideo = mimes.some(m => VIDEO_MIMES.has(m))
+  const mimes = capabilities?.allowedFileMimeTypes || []
+  const hasImage = Boolean(capabilities?.allowFileUpload) && mimes.some(m => IMAGE_MIMES.has(m))
+  const hasVideo = Boolean(capabilities?.allowMediaUpload) && mimes.some(m => VIDEO_MIMES.has(m))
   const docExts = (capabilities?.allowDocumentUpload ?? capabilities?.enableFileRead)
       ? (capabilities?.allowedDocumentExtensions || [])
       : []
-  if (hasImage && capabilities?.maxImageSizeLabel) {
-    parts.push(`图片 JPG/PNG/WebP/GIF（≤${capabilities.maxImageSizeLabel}）`)
-  }
   if (hasVideo && capabilities?.maxVideoSizeLabel) {
     parts.push(`视频 MP4/WebM/MOV（≤${capabilities.maxVideoSizeLabel}）`)
   }
@@ -84,6 +80,16 @@ export function buildUploadHint(capabilities) {
     parts.push('同一条消息不可同时包含图片与视频，可与文档搭配')
   }
   return parts.join('\n')
+}
+
+/** 图片按钮提示：格式 + 大小上限（与附件通道图片限制一致） */
+export function buildImageUploadHint(capabilities) {
+  if (!capabilities?.allowFileUpload) return ''
+  const parts = ['JPG/PNG/WebP/GIF']
+  if (capabilities?.maxImageSizeLabel) {
+    parts.push(`≤${capabilities.maxImageSizeLabel}`)
+  }
+  return parts.join(' ')
 }
 
 /**
@@ -128,6 +134,24 @@ export function buildFileAcceptTypes(capabilities) {
   return [...mimes, ...exts].join(',')
 }
 
+/** 图片按钮 accept：仅图片 MIME，只要允许上传附件即放开（非多模态走 OCR 兜底） */
+export function buildImageAcceptTypes(capabilities) {
+  if (!capabilities?.allowFileUpload) return ''
+  const mimes = (capabilities?.allowedFileMimeTypes || []).filter(m => IMAGE_MIMES.has(m))
+  return mimes.join(',')
+}
+
+/** 附件按钮 accept：文档扩展名 + 多模态视频 MIME（图片走独立的图片按钮） */
+export function buildDocumentAcceptTypes(capabilities) {
+  const videoMimes = capabilities?.allowMediaUpload
+      ? (capabilities?.allowedFileMimeTypes || []).filter(m => VIDEO_MIMES.has(m))
+      : []
+  const exts = (capabilities?.allowDocumentUpload ?? capabilities?.enableFileRead)
+      ? (capabilities?.allowedDocumentExtensions || [])
+      : []
+  return [...videoMimes, ...exts].join(',')
+}
+
 /**
  * 上传前校验格式与大小
  * @returns {{ ok: boolean, message?: string, type?: string }}
@@ -145,7 +169,10 @@ export function validateChatAttachmentFile(file, capabilities) {
   const allowMedia = Boolean(capabilities?.allowMediaUpload) && allowedMimes.length > 0
   const allowDoc = Boolean(capabilities?.allowDocumentUpload ?? capabilities?.enableFileRead)
       && allowedDocExt.length > 0
-  if (!allowMedia && !allowDoc) {
+  // 图片只要允许上传附件即放行：多模态直喂模型，非多模态走 OCR 兜底
+  const allowImage = Boolean(capabilities?.allowFileUpload)
+      && allowedMimes.some(m => IMAGE_MIMES.has(m))
+  if (!allowImage && !allowMedia && !allowDoc) {
     return { ok: false, message: '当前 Agent 未开启附件上传' }
   }
 
@@ -172,8 +199,8 @@ export function validateChatAttachmentFile(file, capabilities) {
   }
 
   if (type === 'image') {
-    if (!allowMedia || !allowedMimes.includes(mime)) {
-      return { ok: false, message: '当前 Agent 未开启图像输入' }
+    if (!allowImage || !allowedMimes.includes(mime)) {
+      return { ok: false, message: '当前 Agent 未开启附件上传' }
     }
     const maxImage = capabilities?.maxImageBytes != null ? Number(capabilities.maxImageBytes) : null
     if (maxImage == null || maxImage <= 0) {

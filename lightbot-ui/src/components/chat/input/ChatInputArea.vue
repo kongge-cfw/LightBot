@@ -26,31 +26,64 @@
       </div>
       <div class="chat-input">
         <input
+          ref="imageInputRef"
+          type="file"
+          class="hidden-file-input"
+          :accept="imageAcceptTypes"
+          @change="onFileSelected"
+        />
+        <input
           ref="fileInputRef"
           type="file"
           class="hidden-file-input"
-          :accept="fileAcceptTypes"
+          :accept="documentAcceptTypes || fileAcceptTypes"
           @change="onFileSelected"
         />
-        <a-tooltip
+        <a-popover
           v-if="showFileUploadBtn"
-          overlay-class-name="no-flip-tooltip chat-upload-tooltip"
-          :overlay-style="{ maxWidth: '360px' }"
+          trigger="click"
+          placement="topLeft"
+          overlay-class-name="chat-attach-popover"
+          v-model:open="attachMenuOpen"
         >
-          <template #title>
-            <span class="chat-upload-hint">{{ fileUploadHint || '上传附件' }}</span>
+          <template #content>
+            <div class="attach-menu">
+              <button
+                v-if="showImageOption"
+                type="button"
+                class="attach-menu-item"
+                @click="onPickImage"
+              >
+                <PictureOutlined class="attach-menu-icon" />
+                <span class="attach-menu-body">
+                  <span class="attach-menu-title">上传图片</span>
+                  <span class="attach-menu-desc">{{ imageOptionDesc }}</span>
+                </span>
+              </button>
+              <button
+                v-if="showDocumentOption"
+                type="button"
+                class="attach-menu-item"
+                @click="onPickFile"
+              >
+                <PaperClipOutlined class="attach-menu-icon" />
+                <span class="attach-menu-body">
+                  <span class="attach-menu-title">添加附件</span>
+                  <span class="attach-menu-desc">{{ documentOptionDesc }}</span>
+                </span>
+              </button>
+            </div>
           </template>
           <button
             type="button"
             class="btn-attach"
             :class="{ 'btn-attach--uploading': uploading }"
             :disabled="loading || uploading || workflowConfirmBlocked"
-            @click="onTriggerFileUpload"
           >
             <LoadingOutlined v-if="uploading" spin />
             <PaperClipOutlined v-else />
           </button>
-        </a-tooltip>
+        </a-popover>
         <ChatMentionInput
           ref="inputRef"
           :model-value="input"
@@ -113,10 +146,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import {
   LoadingOutlined,
   PaperClipOutlined,
+  PictureOutlined,
   AudioOutlined,
   SendOutlined,
   PauseCircleOutlined,
@@ -128,7 +162,7 @@ import ChatReplyPreviewBar from './ChatReplyPreviewBar.vue'
 import ChatPendingAttachments from './ChatPendingAttachments.vue'
 import ChatInputHint from './ChatInputHint.vue'
 
-defineProps({
+const props = defineProps({
   input: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   canSend: { type: Boolean, default: false },
@@ -143,7 +177,10 @@ defineProps({
   sessionTokenCount: { type: Number, default: 0 },
   showFileUploadBtn: { type: Boolean, default: false },
   fileUploadHint: { type: String, default: '' },
+  imageUploadHint: { type: String, default: '' },
   fileAcceptTypes: { type: String, default: '' },
+  imageAcceptTypes: { type: String, default: '' },
+  documentAcceptTypes: { type: String, default: '' },
   uploading: { type: Boolean, default: false },
   showVoiceInputBtn: { type: Boolean, default: false },
   voiceListening: { type: Boolean, default: false },
@@ -174,9 +211,26 @@ const emit = defineEmits([
 ])
 
 const fileInputRef = ref(null)
+const imageInputRef = ref(null)
 const inputRef = ref(null)
+const attachMenuOpen = ref(false)
 
-function onTriggerFileUpload() {
+const showImageOption = computed(() => Boolean(props.imageAcceptTypes))
+const showDocumentOption = computed(() => Boolean(props.documentAcceptTypes || props.fileAcceptTypes))
+const documentOptionDesc = computed(() => props.fileUploadHint || '上传文档、视频等附件')
+const imageOptionDesc = computed(() => {
+  const limit = props.imageUploadHint ? `（${props.imageUploadHint}）` : ''
+  return `上传图片${limit}`
+})
+
+function onPickImage() {
+  attachMenuOpen.value = false
+  emit('trigger-file-upload')
+  imageInputRef.value?.click()
+}
+
+function onPickFile() {
+  attachMenuOpen.value = false
   emit('trigger-file-upload')
   fileInputRef.value?.click()
 }
@@ -256,6 +310,50 @@ defineExpose({
 }
 .hidden-file-input {
   display: none;
+}
+.attach-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 220px;
+}
+.attach-menu-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+.attach-menu-item:hover {
+  background: var(--color-canvas-soft-2);
+}
+.attach-menu-icon {
+  font-size: 16px;
+  color: var(--color-link);
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+.attach-menu-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.attach-menu-title {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+.attach-menu-desc {
+  font-size: 11px;
+  color: var(--color-mute);
+  line-height: 1.4;
+  white-space: pre-line;
 }
 .btn-attach,
 .btn-voice {
@@ -352,11 +450,6 @@ defineExpose({
 </style>
 
 <style>
-.chat-upload-tooltip .chat-upload-hint {
-  display: block;
-  white-space: pre-line;
-  line-height: 1.5;
-}
 [data-theme="dark"] .toolbar-loading-mask {
   background: rgba(24, 24, 27, 0.7);
 }

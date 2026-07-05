@@ -41,6 +41,24 @@ public final class ChatDocumentMessageUtil {
         return attachments.stream().filter(ChatDocumentMessageUtil::isMediaAttachment).collect(Collectors.toList());
     }
 
+    public static List<ChatAttachmentDTO> filterImages(List<ChatAttachmentDTO> attachments) {
+        if (attachments == null) {
+            return List.of();
+        }
+        return attachments.stream()
+                .filter(att -> att != null && "image".equals(att.getType()))
+                .collect(Collectors.toList());
+    }
+
+    public static List<ChatAttachmentDTO> filterVideos(List<ChatAttachmentDTO> attachments) {
+        if (attachments == null) {
+            return List.of();
+        }
+        return attachments.stream()
+                .filter(att -> att != null && "video".equals(att.getType()))
+                .collect(Collectors.toList());
+    }
+
     /**
      * 同一条消息禁止同时包含图片与视频（可与文档混传）；避免 MiMo 等将文档当 image_url 报错
      */

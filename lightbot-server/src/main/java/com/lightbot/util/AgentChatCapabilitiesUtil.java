@@ -40,7 +40,8 @@ public final class AgentChatCapabilitiesUtil {
         dto.setAllowFileUpload(allowMedia || allowDoc);
 
         List<String> mimes = new ArrayList<>();
-        if (multimodal && Boolean.TRUE.equals(dto.getEnableImageInput())) {
+        // 图片 MIME 只要允许上传附件即放开：不支持多模态的 Agent 也能上传图片，交由 OCR 工具兜底识别
+        if (allowMedia || allowDoc) {
             mimes.add("image/jpeg");
             mimes.add("image/png");
             mimes.add("image/webp");

@@ -289,8 +289,9 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
                 throw new BizException(ErrorCode.BAD_REQUEST.getCode(),
                         "图片扩展名不支持，仅支持 JPG、PNG、WebP、GIF");
             }
-            if (!Boolean.TRUE.equals(caps.getEnableImageInput()) || !allowedMimes.contains(mime)) {
-                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启图像输入");
+            // 图片放开给所有允许上传附件的 Agent：多模态 Agent 直喂模型，非多模态 Agent 交由 OCR 工具识别
+            if (!allowedMimes.contains(mime)) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启附件上传");
             }
             return "image";
         }

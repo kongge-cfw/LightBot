@@ -121,7 +121,10 @@
       :session-token-count="sessionTokenCount"
       :show-file-upload-btn="showFileUploadBtn"
       :file-upload-hint="fileUploadHint"
+      :image-upload-hint="imageUploadHint"
       :file-accept-types="fileAcceptTypes"
+      :image-accept-types="imageAcceptTypes"
+      :document-accept-types="documentAcceptTypes"
       :uploading="uploading"
       :show-voice-input-btn="showVoiceInputBtn"
       :voice-listening="voiceListening"
@@ -273,7 +276,7 @@ const {
   agents, selectedAgentId, currentAgent, chatCapabilities,
   selectedConfigVersion, selectedAgentVersionId, configVersionOptions,
   showFileUploadBtn, showVoiceInputBtn, showTtsBtn,
-  fileAcceptTypes, fileUploadHint,
+  fileAcceptTypes, imageAcceptTypes, documentAcceptTypes, fileUploadHint, imageUploadHint,
   currentWelcomeMessage, currentRecommendedQuestions,
   handleAgentSelect, onConfigVersionChange,
   loadAgentConfigVersions, loadCurrentAgent, loadAgents,

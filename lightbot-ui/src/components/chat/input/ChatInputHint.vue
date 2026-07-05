@@ -3,24 +3,17 @@
   <div v-else class="input-hint-carousel">
     <div class="input-hint-carousel-row">
       <span class="input-question-label">你可以问我</span>
-      <a-tooltip
-        :title="inputHintQuestions[questionRotateIndex]"
-        placement="topLeft"
-        :arrow="{ pointAtCenter: false }"
-        :overlay-style="{ maxWidth: '400px' }"
-      >
-        <div class="input-question-rotate">
-          <transition name="fade" mode="out-in">
-            <span
-              :key="questionRotateIndex"
-              class="input-question-text"
-              @click="onApplyQuestion(inputHintQuestions[questionRotateIndex])"
-            >
-              {{ inputHintQuestions[questionRotateIndex] }}
-            </span>
-          </transition>
-        </div>
-      </a-tooltip>
+      <div class="input-question-rotate">
+        <transition name="fade" mode="out-in">
+          <span
+            :key="questionRotateIndex"
+            class="input-question-text"
+            @click="onApplyQuestion(inputHintQuestions[questionRotateIndex])"
+          >
+            {{ inputHintQuestions[questionRotateIndex] }}
+          </span>
+        </transition>
+      </div>
     </div>
   </div>
 </template>
@@ -58,11 +51,6 @@ function onApplyQuestion(q) {
   align-items: center;
   gap: 10px;
   width: min(560px, 100%);
-}
-.input-hint-carousel-row :deep(.ant-tooltip) {
-  flex: 1;
-  min-width: 0;
-  display: block;
 }
 .input-question-label {
   flex-shrink: 0;
