@@ -88,6 +88,9 @@ export function useChatAttachments({
         }
       }
       pendingAttachments.value.push(att)
+      if (att.warning) {
+        message.warning(att.warning)
+      }
     } catch {
       // 业务/网络错误提示由 request 拦截器统一展示，避免重复 toast
     } finally {

@@ -7,6 +7,7 @@ import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.annotation.SystemTool;
 import com.lightbot.tool.annotation.ToolParamMeta;
 import com.lightbot.util.OcrUtil;
+import com.lightbot.util.SessionStoragePath;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -48,11 +49,12 @@ public class OcrParseFileTool {
     @Tool(name = "ocr_parse_file",
           description = "将沙盒中的 PDF 或图片文件 OCR 解析为文本。" +
                   "使用场景：用户上传了 PDF/图片附件需要提取文字，或工作区中已有此类文件需转为可读文本。" +
-                  "path 支持两种模式：1) 工作区文件传相对路径（如 invoice.pdf、data/scan.png）；" +
-                  "2) AI 产出区文件以 outputs/ 开头。支持 pdf/jpg/jpeg/png/bmp/tiff。" +
+                  "path 传文件名或相对路径即可（如 期音端午通知.pdf、data/scan.png）：" +
+                  "系统自动在当前会话中定位——优先工作区，未找到则在用户上传目录按文件名匹配；" +
+                  "也可显式指定 outputs/、inputs/、workspace/ 前缀。支持 pdf/jpg/jpeg/png/bmp/tiff。" +
                   "结果会写入工作区 ocr/ 目录，工具只返回结果文件路径和短预览，完整文本请用 sandbox_read_file 读取结果文件。")
     public String parseFile(
-            @ToolParam(description = "待解析的沙盒文件路径。工作区文件传相对路径（如 invoice.pdf）；产出区文件以 outputs/ 开头")
+            @ToolParam(description = "待解析的文件名或沙盒相对路径。直接传用户上传的文件名即可（如 report.pdf），系统自动在当前会话定位")
             @ToolParamMeta(example = "invoice.pdf") String path,
             ToolContext toolContext) {
         log.info("[Tool:ocr_parse_file] path={}", path);
@@ -108,7 +110,10 @@ public class OcrParseFileTool {
     }
 
     /**
-     * 解析源文件路径：outputs/ 开头走产出区，其余归属当前会话工作区（不支持 skills/ 只读区）
+     * 解析源文件路径（智能定位当前会话下的文件）：
+     * <p>1) skills/ 只读区不支持；2) 显式前缀 outputs/、inputs/、workspace/ 按对应区解析；
+     * 3) 裸相对路径优先在 workspace/ 精确匹配，未命中则回退到 inputs/（用户上传区）
+     * 按文件名匹配——上传文件带 {attachmentId}_ 前缀，故用后缀匹配。</p>
      */
     private SandboxPath resolveSource(String normalized, String sessionId) {
         if (normalized.startsWith("skills/")) {
@@ -117,7 +122,38 @@ public class OcrParseFileTool {
         if (normalized.startsWith("outputs/")) {
             return SandboxPath.output(sessionId, normalized.substring("outputs/".length()));
         }
-        return SandboxPath.workspace(sessionId, normalized);
+        if (normalized.startsWith("inputs/")) {
+            return SandboxPath.input(sessionId, normalized.substring("inputs/".length()));
+        }
+        if (normalized.startsWith("workspace/")) {
+            return SandboxPath.workspace(sessionId, normalized.substring("workspace/".length()));
+        }
+        // 裸相对路径：先 workspace 精确匹配，未命中回退 inputs 按文件名定位
+        SandboxPath workspacePath = SandboxPath.workspace(sessionId, normalized);
+        if (sandboxFs.fileExists(workspacePath)) {
+            return workspacePath;
+        }
+        SandboxPath inputPath = findInInputs(sessionId, normalized);
+        return inputPath != null ? inputPath : workspacePath;
+    }
+
+    /**
+     * 在会话 inputs/ 目录按文件名定位上传文件（上传对象名形如 {attachmentId}_{文件名}）。
+     *
+     * @return 命中的 INPUT 路径，未命中返回 null
+     */
+    private SandboxPath findInInputs(String sessionId, String normalized) {
+        String fileName = normalized.contains("/")
+                ? normalized.substring(normalized.lastIndexOf('/') + 1)
+                : normalized;
+        String inputsPrefix = "sessions/" + sessionId + "/" + SessionStoragePath.INPUTS_DIR + "/";
+        for (String objectName : sandboxFs.listFiles(SandboxPath.input(sessionId, ""))) {
+            String base = objectName.substring(objectName.lastIndexOf('/') + 1);
+            if (base.equals(fileName) || base.endsWith("_" + fileName)) {
+                return SandboxPath.input(sessionId, objectName.substring(inputsPrefix.length()));
+            }
+        }
+        return null;
     }
 
     /**

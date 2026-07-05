@@ -111,9 +111,14 @@ public class ChatAttachmentServiceImpl implements ChatAttachmentService {
                     "不支持的文档格式，支持：MD/TXT/PDF/Word/PPT/Excel/CSV/HTML");
         }
         String parsed = parseDocumentText(bytes, file.getOriginalFilename(), extNoDot);
+
+        // 未能提取文本（如加密/扫描件）：不阻断上传，仅附带提示，允许作为附件引用
         if (parsed == null || parsed.isBlank()) {
-            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "未能从文件中解析出文本，请换一份文件或检查是否加密/扫描件");
+            ChatAttachmentDTO dto = storeAndBuildDto(file, bytes, mime, "document", agentId, sessionId, null);
+            dto.setWarning("未能从该文件中提取文本，可能是加密文档或扫描件；文件已上传，但对话中无法引用其文本内容");
+            return dto;
         }
+
         boolean[] truncated = new boolean[1];
         String text = ChatAttachmentConstants.truncateParsedText(parsed.trim(), truncated);
 

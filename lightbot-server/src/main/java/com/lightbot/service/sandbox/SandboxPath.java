@@ -15,6 +15,8 @@ public record SandboxPath(PathType type, String relativePath) {
     public enum PathType {
         /** skills/{slug}/xxx（只读） */
         SKILL,
+        /** sessions/{sessionId}/inputs/xxx（用户上传，工具只读引用） */
+        INPUT,
         /** sessions/{sessionId}/workspace/xxx（读写） */
         WORKSPACE,
         /** sessions/{sessionId}/outputs/xxx（读写，AI 交付物） */
@@ -42,6 +44,16 @@ public record SandboxPath(PathType type, String relativePath) {
     }
 
     /**
+     * 构建用户上传路径（MinIO 落在 sessions/{sessionId}/inputs/{relativePath}）。
+     *
+     * @param sessionId    会话 ID
+     * @param relativePath 相对 inputs/ 的路径（如 {attachmentId}_报告.pdf）
+     */
+    public static SandboxPath input(String sessionId, String relativePath) {
+        return new SandboxPath(PathType.INPUT, sessionId + "/" + SessionStoragePath.INPUTS_DIR + "/" + relativePath);
+    }
+
+    /**
      * 构建 AI 产出路径（MinIO 落在 sessions/{sessionId}/outputs/{relativePath}）。
      *
      * @param sessionId    会话 ID
@@ -57,7 +69,7 @@ public record SandboxPath(PathType type, String relativePath) {
     public String toMinioPath() {
         return switch (type) {
             case SKILL -> "skills/" + relativePath;
-            case WORKSPACE, OUTPUT -> "sessions/" + relativePath;
+            case INPUT, WORKSPACE, OUTPUT -> "sessions/" + relativePath;
         };
     }
 }

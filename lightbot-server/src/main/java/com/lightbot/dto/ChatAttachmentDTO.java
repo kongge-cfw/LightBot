@@ -29,4 +29,7 @@ public class ChatAttachmentDTO {
 
     @Schema(description = "原始文件名")
     private String fileName;
+
+    @Schema(description = "非阻断性提示（如未能提取文本时的说明），无提示时为 null")
+    private String warning;
 }

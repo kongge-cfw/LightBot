@@ -206,9 +206,7 @@ public class MessageMiddleware implements ChatMiddleware {
                 if (!Boolean.TRUE.equals(caps.getEnableFileRead())) {
                     throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前 Agent 未开启文件读取");
                 }
-                if (!chatAttachmentParsedService.hasParsedContent(att, sessionId)) {
-                    throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "文档附件缺少解析内容，请重新上传");
-                }
+                // 无解析产物（加密/扫描件等）不阻断发送，wrapUserMessage 会以占位文本安全降级
             } else if ("image".equals(att.getType())) {
                 if (!Boolean.TRUE.equals(caps.getAllowMediaUpload())
                         || !Boolean.TRUE.equals(caps.getEnableImageInput())) {
