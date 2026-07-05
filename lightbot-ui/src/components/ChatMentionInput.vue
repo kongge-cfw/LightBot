@@ -29,6 +29,7 @@
       spellcheck="false"
       @input="onInput"
       @keydown="onKeydown"
+      @paste="onPaste"
       @compositionstart="onCompositionStart"
       @compositionend="onCompositionEnd"
       @blur="onBlur"
@@ -250,6 +251,15 @@ function onKeydown(e) {
     return
   }
 
+  // 屏蔽富文本样式快捷键（加粗/斜体/下划线）：输入框仅纯文本，样式发送时会被丢弃，避免视觉误导与 DOM 污染
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    const k = e.key.toLowerCase()
+    if (k === 'b' || k === 'i' || k === 'u') {
+      e.preventDefault()
+      return
+    }
+  }
+
   // 浮层打开时优先处理 picker 键盘导航
   if (picker.value.open) {
     if (e.key === 'ArrowDown') {
@@ -296,6 +306,16 @@ function onKeydown(e) {
       }
     }
   }
+}
+
+/** 粘贴净化：仅保留纯文本，剥离富文本样式（加粗/字号等），避免视觉误导与 DOM 污染 */
+function onPaste(e) {
+  e.preventDefault()
+  const plain = e.clipboardData?.getData('text/plain') ?? ''
+  if (!plain) return
+  // 用浏览器原生 insertText 写入，保留光标位置与撤销栈，且不会引入样式标签
+  document.execCommand('insertText', false, plain)
+  onInput()
 }
 
 function previousSiblingVisible(node, offset) {
