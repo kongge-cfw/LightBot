@@ -40,21 +40,25 @@
 
         <a-modal v-model:open="showModal" title="OCR 识别预览" :footer="null" :width="680"
           :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
-          <div style="display:flex;align-items:center;gap:24px;padding:12px 16px;margin-bottom:20px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">源文件</span>
-              <span style="font-size:13px;font-weight:500;color:#6d28d9;font-family:'Monaco','Menlo',monospace;word-break:break-all;">{{ data.source_path }}</span>
+          <div class="opr-modal-meta">
+            <div class="opr-path-chip">
+              <FileSearchOutlined class="opr-path-chip-icon" />
+              <span class="opr-path-chip-label">源文件</span>
+              <span class="opr-path-chip-value">{{ data.source_path }}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">结果文件</span>
-              <span style="font-size:13px;font-weight:500;color:#6d28d9;font-family:'Monaco','Menlo',monospace;word-break:break-all;">{{ data.parsed_path }}</span>
+            <div class="opr-path-chip">
+              <FileTextOutlined class="opr-path-chip-icon" />
+              <span class="opr-path-chip-label">结果文件</span>
+              <span class="opr-path-chip-value">{{ data.parsed_path }}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">字符数</span>
-              <span style="font-size:14px;font-weight:700;color:#6d28d9;">{{ data.char_count }}</span>
+            <div class="opr-char-row">
+              <span class="opr-char-count">
+                <span class="opr-char-count-num">{{ data.char_count }}</span>
+                <span class="opr-char-count-unit">字</span>
+              </span>
             </div>
           </div>
-          <pre style="margin:0;padding:16px;background:#1e1e1e;color:#d4d4d4;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;border-radius:8px;font-family:'Monaco','Menlo',monospace;">{{ data.preview }}{{ data.truncated ? '\n\n... 预览已截断，完整内容请读取结果文件' : '' }}</pre>
+          <pre class="opr-modal-preview">{{ data.preview }}{{ data.truncated ? '\n\n... 预览已截断，完整内容请读取结果文件' : '' }}</pre>
         </a-modal>
       </div>
 
@@ -69,7 +73,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import {
-  FileTextOutlined, ScanOutlined, EyeOutlined,
+  FileTextOutlined, ScanOutlined, EyeOutlined, FileSearchOutlined,
   CloseCircleOutlined, ApiOutlined
 } from '@ant-design/icons-vue'
 
@@ -225,5 +229,78 @@ const errorIcon = computed(() => isConnFailed.value ? ApiOutlined : CloseCircleO
     white-space: pre-wrap; word-break: break-word;
     font-family: 'Monaco', 'Menlo', monospace;
   }
+}
+
+// ── 预览弹窗（非 scoped 父级下的 modal 内容仍受 scoped 属性约束，故保持在组件内） ──
+.opr-modal-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.opr-path-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 12px;
+  background: var(--color-purple-bg, #f5f3ff);
+  border: 1px solid #ddd6fe;
+  border-left: 3px solid #8b5cf6;
+  border-radius: 6px;
+}
+.opr-path-chip-icon {
+  font-size: 14px;
+  color: #7c3aed;
+  flex-shrink: 0;
+}
+.opr-path-chip-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b5cf6;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.opr-path-chip-value {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6d28d9;
+  font-family: 'Monaco', 'Menlo', monospace;
+  word-break: break-all;
+  min-width: 0;
+}
+.opr-char-row {
+  display: flex;
+  justify-content: flex-end;
+}
+.opr-char-count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 3px 10px;
+  background: #6d28d9;
+  border-radius: 12px;
+}
+.opr-char-count-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+.opr-char-count-unit {
+  font-size: 11px;
+  color: #ddd6fe;
+}
+.opr-modal-preview {
+  margin: 0;
+  padding: 16px;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 8px;
+  font-family: 'Monaco', 'Menlo', monospace;
 }
 </style>

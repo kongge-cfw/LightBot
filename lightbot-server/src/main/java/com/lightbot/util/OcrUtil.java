@@ -32,6 +32,18 @@ public class OcrUtil {
 
     private static final Model MODEL = Model.ONNX_PPOCR_V4;
 
+    /** PDF 逐页识别进度回调 */
+    @FunctionalInterface
+    public interface PageProgressListener {
+        /**
+         * 每页识别前回调
+         *
+         * @param currentPage 当前页码（从 1 开始）
+         * @param totalPages  总页数
+         */
+        void onPage(int currentPage, int totalPages);
+    }
+
     private final OcrProperties properties;
     private volatile InferenceEngine engine;
     private volatile boolean initialized = false;
@@ -105,6 +117,17 @@ public class OcrUtil {
      * @return 识别结果文本
      */
     public String recognizePdf(InputStream pdfStream) throws Exception {
+        return recognizePdf(pdfStream, null);
+    }
+
+    /**
+     * PDF OCR 识别（逐页转图片再识别），支持逐页进度回调
+     *
+     * @param pdfStream PDF 输入流
+     * @param listener  逐页进度回调，为 null 时不回调
+     * @return 识别结果文本
+     */
+    public String recognizePdf(InputStream pdfStream, PageProgressListener listener) throws Exception {
         ensureInitialized();
 
         List<String> pageResults = new ArrayList<>();
@@ -114,6 +137,9 @@ public class OcrUtil {
             log.info("[OCR] PDF共{}页, 开始逐页识别", totalPages);
 
             for (int i = 0; i < totalPages; i++) {
+                if (listener != null) {
+                    listener.onPage(i + 1, totalPages);
+                }
                 BufferedImage image = renderer.renderImageWithDPI(i, 200, ImageType.RGB);
 
                 Path tempFile = Files.createTempFile("ocr_pdf_", ".png");

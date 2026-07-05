@@ -570,7 +570,13 @@ public class ChatServiceImpl implements ChatService {
                 })
                 .doFinally(signal -> eventSink.tryEmitComplete());
 
-        Flux<String> coreContent = toolStatusFlux.mergeWith(modelFlux);
+        // 主内容流会被订阅两次：一次作为输出，一次被下方 takeUntilOther 当作完成信号。
+        // modelFlux 是冷流，若不做热化，第二次订阅会整条流水线重跑一遍——工具真实执行两次，
+        // 且其 tool_result 等事件经共享的 eventSink 泄漏进输出，导致结果回显两次、OCR 等慢工具耗时翻倍。
+        // publish().autoConnect(2) 保证两个订阅者共享同一次上游执行，且等两者都订阅后才启动（不丢事件）。
+        Flux<String> coreContent = toolStatusFlux.mergeWith(modelFlux)
+                .publish()
+                .autoConnect(2);
 
         // 心跳在主内容流完成时停止；mergeWith 取两者都完成的时间点
         return coreContent.mergeWith(heartbeatFlux.takeUntilOther(coreContent));

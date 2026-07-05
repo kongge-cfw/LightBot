@@ -81,7 +81,10 @@ public class OcrParseFileTool {
             ToolEventEmitter.emit("正在 OCR 识别...");
             String text;
             try (ByteArrayInputStream in = new ByteArrayInputStream(bytes)) {
-                text = isPdf ? ocrUtil.recognizePdf(in) : ocrUtil.recognizeImage(in);
+                text = isPdf
+                        ? ocrUtil.recognizePdf(in, (current, total) ->
+                                ToolEventEmitter.emit("正在识别第 " + current + "/" + total + " 页..."))
+                        : ocrUtil.recognizeImage(in);
             }
             if (text == null) {
                 text = "";
