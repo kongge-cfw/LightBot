@@ -4,6 +4,7 @@ import {
   ClusterOutlined, CodeOutlined, CloudServerOutlined, ImportOutlined,
   ExportOutlined, FunctionOutlined, FilterOutlined, AppstoreOutlined, PauseCircleOutlined
 } from '@ant-design/icons-vue'
+import { NODE_RESILIENCE_PROFILES } from './nodeResilienceMeta.js'
 
 export const SHORT_MEMORY_DEFAULT = {
   enabled: false,
@@ -88,6 +89,33 @@ export function createConditionId() {
   return `cond_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
 }
 
+function buildDefaultTimeoutConfig(type) {
+  const profile = NODE_RESILIENCE_PROFILES[type]
+  if (!profile) return undefined
+  const cfg = {}
+  if (profile.showConnectTimeout && profile.connectTimeout) {
+    cfg.connectTimeout = profile.connectTimeout.default
+  }
+  if (profile.showReadTimeout && profile.readTimeout) {
+    cfg.readTimeout = profile.readTimeout.default
+  }
+  return Object.keys(cfg).length ? cfg : undefined
+}
+
+function buildDefaultRetryConfig(type) {
+  const profile = NODE_RESILIENCE_PROFILES[type]
+  if (!profile?.showRetry || !profile.retryConfig) return undefined
+  return { ...profile.retryConfig }
+}
+
+function withResilienceDefaults(type, data) {
+  const timeoutConfig = buildDefaultTimeoutConfig(type)
+  const retryConfig = buildDefaultRetryConfig(type)
+  if (timeoutConfig) data.timeoutConfig = timeoutConfig
+  if (retryConfig) data.retryConfig = retryConfig
+  return data
+}
+
 export function getDefaultNodeData(type) {
   const defaults = {
     llm: {
@@ -100,7 +128,6 @@ export function getDefaultNodeData(type) {
       sysPrompt: '',
       temperature: 0.7,
       enableStreaming: true,
-      timeout: 120,
       short_memory: { ...SHORT_MEMORY_DEFAULT }
     },
     condition: {
@@ -118,16 +145,14 @@ export function getDefaultNodeData(type) {
       knowledgeBaseTopK: null,
       knowledgeBaseThreshold: null,
       inputVariable: '{{input}}',
-      timeout: 30
     },
-    tool: { label: '工具调用', toolId: null, toolName: '', timeout: 30, inputMappings: [{ key: 'query', value: '{{query}}' }], outputMappings: [{ key: 'toolResult', value: '{{output}}' }] },
+    tool: { label: '工具调用', toolId: null, toolName: '', inputMappings: [{ key: 'query', value: '{{query}}' }], outputMappings: [{ key: 'toolResult', value: '{{output}}' }] },
     api: {
       label: 'HTTP API',
       url: '',
       method: 'GET',
       headers: '{}',
       body: '{}',
-      timeout: 30
     },
     loop: {
       label: '循环',
@@ -151,7 +176,6 @@ export function getDefaultNodeData(type) {
       modelName: '',
       conditions: [{ id: createConditionId(), subject: '' }],
       mode_switch: 'efficient',
-      timeout: 60,
       short_memory: { ...SHORT_MEMORY_DEFAULT },
       instruction: ''
     },
@@ -183,12 +207,10 @@ export function getDefaultNodeData(type) {
         { key: 'history_list', value: '{{history_list}}' },
       ],
       outputParams: [{ key: 'result', type: 'String' }],
-      timeout: 15,
-      retryConfig: { enabled: false, maxAttempts: 3, delayMs: 1000 },
       errorStrategy: 'defaultValue',
       defaultOutput: '{"result":""}',
     },
-    mcp: { label: 'MCP', mcpServerId: null, mcpServerName: '', toolName: '', inputParams: '{}', timeout: 60 },
+    mcp: { label: 'MCP', mcpServerId: null, mcpServerName: '', toolName: '', inputParams: '{}' },
     input: {
       label: '流程输入',
       outputParams: [{ key: 'query', type: 'String', defaultValue: '' }]
@@ -225,7 +247,6 @@ export function getDefaultNodeData(type) {
         { key: 'city', type: 'String', required: true, desc: '城市' },
         { key: 'date', type: 'String', required: true, desc: '日期' }
       ],
-      timeout: 30,
       short_memory: { ...SHORT_MEMORY_DEFAULT }
     },
     app_component: {
@@ -249,5 +270,6 @@ export function getDefaultNodeData(type) {
       jsonParams: [],
     },
   }
-  return defaults[type] || { label: getNodeTitle(type) }
+  const base = defaults[type] || { label: getNodeTitle(type) }
+  return withResilienceDefaults(type, { ...base })
 }

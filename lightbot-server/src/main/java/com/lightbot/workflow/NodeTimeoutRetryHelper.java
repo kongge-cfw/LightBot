@@ -4,13 +4,14 @@ import com.lightbot.enums.NodeType;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
 /**
  * 节点超时与重试辅助类
- * <p>从 nodeData 中提取超时/重试配置，包装节点执行逻辑</p>
+ * <p>从 nodeData 中提取连接/响应超时与重试配置，包装节点执行逻辑</p>
  *
  * @author finch
  * @since 2026-06-26
@@ -18,71 +19,94 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public final class NodeTimeoutRetryHelper {
 
-    /** 各节点类型默认超时（秒） */
-    private static final Map<NodeType, Integer> DEFAULT_TIMEOUT_SECONDS = Map.ofEntries(
-            Map.entry(NodeType.LLM, 120),
-            Map.entry(NodeType.API, 60),
-            Map.entry(NodeType.TOOL, 30),
-            Map.entry(NodeType.MCP, 60),
-            Map.entry(NodeType.SCRIPT, 15),
-            Map.entry(NodeType.RETRIEVAL, 30),
-            Map.entry(NodeType.CLASSIFIER, 60),
-            Map.entry(NodeType.CONDITION, 5),
-            Map.entry(NodeType.VARIABLE, 5),
-            Map.entry(NodeType.LOOP, 300),
-            Map.entry(NodeType.BATCH, 300),
-            Map.entry(NodeType.PARAMETER_EXTRACTOR, 30)
+    /** 各节点类型默认超时（秒）：connect=连接超时，read=响应/执行超时 */
+    private static final Map<NodeType, TimeoutProfile> DEFAULT_TIMEOUTS = Map.ofEntries(
+            Map.entry(NodeType.LLM, new TimeoutProfile(10, 60)),
+            Map.entry(NodeType.CLASSIFIER, new TimeoutProfile(10, 30)),
+            Map.entry(NodeType.PARAMETER_EXTRACTOR, new TimeoutProfile(10, 30)),
+            Map.entry(NodeType.RETRIEVAL, new TimeoutProfile(5, 15)),
+            Map.entry(NodeType.TOOL, new TimeoutProfile(5, 20)),
+            Map.entry(NodeType.API, new TimeoutProfile(5, 30)),
+            Map.entry(NodeType.MCP, new TimeoutProfile(5, 30)),
+            Map.entry(NodeType.SCRIPT, new TimeoutProfile(0, 10)),
+            Map.entry(NodeType.LOOP, new TimeoutProfile(0, 120)),
+            Map.entry(NodeType.BATCH, new TimeoutProfile(0, 120)),
+            Map.entry(NodeType.APP_COMPONENT, new TimeoutProfile(0, 60)),
+            Map.entry(NodeType.CONDITION, new TimeoutProfile(0, 3)),
+            Map.entry(NodeType.VARIABLE, new TimeoutProfile(0, 3)),
+            Map.entry(NodeType.VARIABLE_HANDLE, new TimeoutProfile(0, 5)),
+            Map.entry(NodeType.CONFIRM, new TimeoutProfile(0, 3600))
     );
 
-    private static final int DEFAULT_TIMEOUT_FALLBACK = 30;
-    private static final int MAX_RETRY_COUNT = 3;
-    private static final long DEFAULT_RETRY_DELAY_MS = 1000;
+    private static final TimeoutProfile DEFAULT_FALLBACK = new TimeoutProfile(5, 30);
+
+    /** 允许配置重试的节点类型 */
+    private static final Set<NodeType> RETRY_CAPABLE = Set.of(
+            NodeType.LLM,
+            NodeType.CLASSIFIER,
+            NodeType.PARAMETER_EXTRACTOR,
+            NodeType.RETRIEVAL,
+            NodeType.TOOL,
+            NodeType.API,
+            NodeType.MCP,
+            NodeType.SCRIPT
+    );
+
+    /** 含首次执行在内的最大尝试次数上限 */
+    private static final int MAX_ATTEMPTS = 2;
+    private static final long DEFAULT_RETRY_DELAY_MS = 500;
     private static final double BACKOFF_MULTIPLIER = 2.0;
 
     private NodeTimeoutRetryHelper() {
     }
 
     /**
-     * 从 nodeData 读取超时配置，未配置则使用节点类型默认值
+     * 连接超时（秒）；无连接阶段的节点返回 0
      */
-    public static int resolveTimeoutSeconds(Map<String, Object> nodeData, NodeType nodeType) {
-        if (nodeData != null) {
-            Object timeout = nodeData.get("timeout");
-            if (timeout instanceof Number n) {
-                return Math.max(1, n.intValue());
-            }
-            if (timeout != null) {
-                try {
-                    return Math.max(1, Integer.parseInt(timeout.toString()));
-                } catch (NumberFormatException ignored) {
-                }
-            }
+    public static int resolveConnectTimeoutSeconds(Map<String, Object> nodeData, NodeType nodeType) {
+        Integer configured = readTimeoutConfigField(nodeData, "connectTimeout");
+        if (configured != null) {
+            return configured;
         }
-        return DEFAULT_TIMEOUT_SECONDS.getOrDefault(nodeType, DEFAULT_TIMEOUT_FALLBACK);
+        return profileOf(nodeType).connectSeconds();
     }
 
     /**
-     * 包装节点执行：超时 + 重试
-     *
-     * @param nodeId    节点 ID（用于日志）
-     * @param nodeType  节点类型
-     * @param nodeData  节点配置
-     * @param action    执行逻辑
-     * @return 执行结果
+     * 响应/执行超时（秒），作为引擎层节点执行上限
+     */
+    public static int resolveReadTimeoutSeconds(Map<String, Object> nodeData, NodeType nodeType) {
+        Integer configured = readTimeoutConfigField(nodeData, "readTimeout");
+        if (configured != null) {
+            return configured;
+        }
+        Integer legacy = readLegacyTimeout(nodeData);
+        if (legacy != null) {
+            return legacy;
+        }
+        return profileOf(nodeType).readSeconds();
+    }
+
+    /**
+     * 兼容旧字段 {@code timeout}，等价于响应超时
+     */
+    public static int resolveTimeoutSeconds(Map<String, Object> nodeData, NodeType nodeType) {
+        return resolveReadTimeoutSeconds(nodeData, nodeType);
+    }
+
+    /**
+     * 包装节点执行：响应超时 + 重试
      */
     public static NodeExecutionResult executeWithTimeoutAndRetry(
             String nodeId, NodeType nodeType, Map<String, Object> nodeData,
             NodeExecutionCallable action) {
 
-        int timeoutSec = resolveTimeoutSeconds(nodeData, nodeType);
-        RetryConfig retryConfig = resolveRetryConfig(nodeData);
-        int maxAttempts = 1 + retryConfig.maxRetryCount;
+        int timeoutSec = resolveReadTimeoutSeconds(nodeData, nodeType);
+        RetryConfig retryConfig = resolveRetryConfig(nodeData, nodeType);
+        int maxAttempts = retryConfig.maxAttempts;
 
         Exception lastException = null;
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
-                // 带超时的执行
-                final int currentAttempt = attempt;
                 NodeExecutionResult result = CompletableFuture.supplyAsync(() -> {
                     try {
                         return action.execute();
@@ -91,7 +115,6 @@ public final class NodeTimeoutRetryHelper {
                     }
                 }).get(timeoutSec, TimeUnit.SECONDS);
 
-                // 成功则返回
                 if (attempt > 1) {
                     log.info("[NodeTimeoutRetry] 节点重试成功: nodeId={}, attempt={}/{}", nodeId, attempt, maxAttempts);
                 }
@@ -99,7 +122,7 @@ public final class NodeTimeoutRetryHelper {
 
             } catch (TimeoutException e) {
                 lastException = new TimeoutException("节点执行超时（" + timeoutSec + "秒）");
-                log.warn("[NodeTimeoutRetry] 节点执行超时: nodeId={}, timeout={}s, attempt={}/{}",
+                log.warn("[NodeTimeoutRetry] 节点执行超时: nodeId={}, readTimeout={}s, attempt={}/{}",
                         nodeId, timeoutSec, attempt, maxAttempts);
             } catch (Exception e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
@@ -108,7 +131,6 @@ public final class NodeTimeoutRetryHelper {
                         nodeId, cause.getMessage(), attempt, maxAttempts);
             }
 
-            // 还有重试机会则等待
             if (attempt < maxAttempts) {
                 long delay = calculateDelay(retryConfig.delayMs, attempt - 1, retryConfig.backoffType);
                 log.info("[NodeTimeoutRetry] 等待重试: nodeId={}, delay={}ms", nodeId, delay);
@@ -121,7 +143,6 @@ public final class NodeTimeoutRetryHelper {
             }
         }
 
-        // 所有重试均失败
         if (lastException instanceof RuntimeException re) {
             throw re;
         }
@@ -132,29 +153,72 @@ public final class NodeTimeoutRetryHelper {
      * 从 nodeData 读取重试配置
      */
     @SuppressWarnings("unchecked")
-    public static RetryConfig resolveRetryConfig(Map<String, Object> nodeData) {
+    public static RetryConfig resolveRetryConfig(Map<String, Object> nodeData, NodeType nodeType) {
+        if (!RETRY_CAPABLE.contains(nodeType)) {
+            return RetryConfig.DISABLED;
+        }
         if (nodeData == null) {
-            return RetryConfig.DEFAULT;
+            return RetryConfig.DISABLED;
         }
         Object retryObj = nodeData.get("retryConfig");
         if (!(retryObj instanceof Map<?, ?> retryMap)) {
-            return RetryConfig.DEFAULT;
+            return RetryConfig.DISABLED;
         }
         boolean enabled = Boolean.TRUE.equals(retryMap.get("enabled"));
         if (!enabled) {
-            return RetryConfig.DEFAULT;
+            return RetryConfig.DISABLED;
         }
-        int maxAttempts = 3;
+        int maxAttempts = 2;
         Object maxObj = retryMap.get("maxAttempts");
         if (maxObj instanceof Number n) {
-            maxAttempts = Math.min(MAX_RETRY_COUNT, Math.max(1, n.intValue()));
+            maxAttempts = Math.min(MAX_ATTEMPTS, Math.max(1, n.intValue()));
         }
         long delayMs = DEFAULT_RETRY_DELAY_MS;
         Object delayObj = retryMap.get("delayMs");
         if (delayObj instanceof Number n) {
             delayMs = Math.max(0, n.longValue());
         }
-        return new RetryConfig(maxAttempts - 1, delayMs, BackoffType.EXPONENTIAL);
+        return new RetryConfig(maxAttempts, delayMs, BackoffType.EXPONENTIAL);
+    }
+
+    private static TimeoutProfile profileOf(NodeType nodeType) {
+        return DEFAULT_TIMEOUTS.getOrDefault(nodeType, DEFAULT_FALLBACK);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Integer readTimeoutConfigField(Map<String, Object> nodeData, String field) {
+        if (nodeData == null) {
+            return null;
+        }
+        Object timeoutConfigObj = nodeData.get("timeoutConfig");
+        if (timeoutConfigObj instanceof Map<?, ?> timeoutMap) {
+            Object value = timeoutMap.get(field);
+            Integer parsed = parsePositiveInt(value);
+            if (parsed != null) {
+                return parsed;
+            }
+        }
+        return null;
+    }
+
+    private static Integer readLegacyTimeout(Map<String, Object> nodeData) {
+        if (nodeData == null) {
+            return null;
+        }
+        return parsePositiveInt(nodeData.get("timeout"));
+    }
+
+    private static Integer parsePositiveInt(Object value) {
+        if (value instanceof Number n) {
+            return Math.max(1, n.intValue());
+        }
+        if (value != null) {
+            try {
+                return Math.max(1, Integer.parseInt(value.toString()));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return null;
     }
 
     private static long calculateDelay(long baseMs, int retryIndex, BackoffType backoffType) {
@@ -164,26 +228,21 @@ public final class NodeTimeoutRetryHelper {
         return baseMs;
     }
 
-    /**
-     * 节点执行回调
-     */
     @FunctionalInterface
     public interface NodeExecutionCallable {
         NodeExecutionResult execute() throws Exception;
     }
 
-    /**
-     * 退避策略
-     */
     public enum BackoffType {
         FIXED,
         EXPONENTIAL
     }
 
-    /**
-     * 重试配置
-     */
-    public record RetryConfig(int maxRetryCount, long delayMs, BackoffType backoffType) {
-        public static final RetryConfig DEFAULT = new RetryConfig(0, 0, BackoffType.EXPONENTIAL);
+    public record RetryConfig(int maxAttempts, long delayMs, BackoffType backoffType) {
+        public static final RetryConfig DISABLED = new RetryConfig(1, 0, BackoffType.EXPONENTIAL);
+    }
+
+    /** 节点默认超时画像 */
+    record TimeoutProfile(int connectSeconds, int readSeconds) {
     }
 }

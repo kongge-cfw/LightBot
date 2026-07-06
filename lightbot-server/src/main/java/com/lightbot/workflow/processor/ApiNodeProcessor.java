@@ -5,6 +5,7 @@ import com.lightbot.enums.NodeType;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.NodeTimeoutRetryHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -29,9 +30,6 @@ import java.util.regex.Pattern;
 public class ApiNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
 
     private static final Pattern VAR_PATTERN = Pattern.compile("\\{\\{([^}]+)}}");
-    private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
-            .connectTimeout(Duration.ofSeconds(30))
-            .build();
 
     private final ObjectMapper objectMapper;
 
@@ -60,23 +58,19 @@ public class ApiNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
         String method = stringVal(nodeData.get("method"));
         if (method.isBlank()) method = "GET";
 
-        int timeoutSec = 30;
-        Object timeout = nodeData.get("timeout");
-        if (timeout instanceof Number n) {
-            timeoutSec = n.intValue();
-        } else if (timeout != null) {
-            try {
-                timeoutSec = Integer.parseInt(timeout.toString());
-            } catch (NumberFormatException ignored) {
-            }
-        }
+        int connectTimeoutSec = NodeTimeoutRetryHelper.resolveConnectTimeoutSeconds(nodeData, NodeType.API);
+        int readTimeoutSec = NodeTimeoutRetryHelper.resolveReadTimeoutSeconds(nodeData, NodeType.API);
 
         String body = resolveTemplate(stringVal(nodeData.get("body")), context.getVariables());
         Map<String, String> headers = parseHeaders(nodeData.get("headers"), context.getVariables());
 
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(Math.max(1, connectTimeoutSec)))
+                .build();
+
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofSeconds(Math.max(1, timeoutSec)));
+                .timeout(Duration.ofSeconds(Math.max(1, readTimeoutSec)));
 
         headers.forEach(builder::header);
         if (!headers.containsKey("Content-Type") && !body.isBlank()) {
@@ -95,7 +89,7 @@ public class ApiNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
         }
 
         try {
-            HttpResponse<String> response = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+            HttpResponse<String> response = httpClient.send(builder.build(), HttpResponse.BodyHandlers.ofString());
             Map<String, Object> outputs = new HashMap<>();
             outputs.put("statusCode", response.statusCode());
             outputs.put("body", response.body());

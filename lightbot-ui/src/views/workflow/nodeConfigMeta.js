@@ -100,7 +100,7 @@ const SCRIPT_EXAMPLE_BASE = {
     { key: 'history_list', value: '{{history_list}}' },
   ],
   outputParams: [{ key: 'result', type: 'String' }],
-  retryConfig: { enabled: true, maxAttempts: 3, delayMs: 1000 },
+  retryConfig: { enabled: false, maxAttempts: 2, delayMs: 500 },
   errorStrategy: 'defaultValue',
   defaultOutput: '{"result":""}',
 }
@@ -160,9 +160,6 @@ export const FIELD_HINTS = {
     scriptContent: '入口函数 main(params)，params 含输入变量，需 return 对象作为输出',
     inputParams: '脚本可读入的变量映射，key 为 params 字段名，value 支持 {{变量}}',
     outputParams: '脚本 return 的字段声明，供下游节点引用',
-    retryEnabled: '开启后失败将按次数与间隔自动重试',
-    maxAttempts: '最大重试次数（含首次执行）',
-    retryDelayMs: '两次重试间隔（毫秒）',
     errorStrategy: '失败时：使用默认值继续，或终止流程',
     defaultOutput: '失败且选择「默认值」时写入的 JSON 对象',
   },
@@ -171,7 +168,6 @@ export const FIELD_HINTS = {
     method: 'HTTP 方法',
     headers: '请求头 JSON，如 {"Authorization":"Bearer xxx"}',
     body: '请求体 JSON，支持 {{query}} 变量',
-    timeout: '请求超时时间（秒）',
   },
   loop: {
     iteratorType: '按数组遍历元素，或固定次数循环',
@@ -306,7 +302,6 @@ export const NODE_EXAMPLES = {
       method: 'POST',
       headers: '{"Content-Type":"application/json"}',
       body: '{"query":"{{query}}"}',
-      timeout: 30,
     },
   },
   tool: {

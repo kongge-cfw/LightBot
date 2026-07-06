@@ -1,5 +1,5 @@
 <template>
-  <div class="config-readonly-value" :title="displayText">{{ displayText }}</div>
+  <div class="config-readonly-value">{{ displayText }}</div>
 </template>
 
 <script setup>

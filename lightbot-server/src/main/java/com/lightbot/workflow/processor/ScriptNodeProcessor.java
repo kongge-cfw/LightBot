@@ -7,6 +7,7 @@ import com.lightbot.service.sandbox.SandboxService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.NodeTimeoutRetryHelper;
 import com.lightbot.workflow.WorkflowMappingUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,8 +28,6 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements NodeProcessor {
-
-    private static final long SCRIPT_TIMEOUT_MS = 5000;
 
     private final SandboxService sandboxService;
     private final ObjectMapper objectMapper;
@@ -52,17 +51,8 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
             throw new IllegalArgumentException("脚本内容不能为空");
         }
 
-        // 读取超时配置：优先 nodeData.timeout，否则使用默认值
-        long timeoutMs = SCRIPT_TIMEOUT_MS;
-        Object timeoutObj = nodeData.get("timeout");
-        if (timeoutObj instanceof Number n) {
-            timeoutMs = Math.max(1000, n.longValue() * 1000);
-        } else if (timeoutObj != null) {
-            try {
-                timeoutMs = Math.max(1000, Long.parseLong(timeoutObj.toString()) * 1000);
-            } catch (NumberFormatException ignored) {
-            }
-        }
+        int readTimeoutSec = NodeTimeoutRetryHelper.resolveReadTimeoutSeconds(nodeData, NodeType.SCRIPT);
+        long timeoutMs = Math.max(1000L, readTimeoutSec * 1000L);
 
         // 委托统一沙盒执行
         String lang = language.isBlank() ? "javascript" : language;

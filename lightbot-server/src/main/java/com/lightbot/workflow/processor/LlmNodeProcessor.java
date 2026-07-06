@@ -8,6 +8,7 @@ import com.lightbot.util.LlmTraceContext;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
 import com.lightbot.workflow.NodeProcessor;
+import com.lightbot.workflow.NodeTimeoutRetryHelper;
 import com.lightbot.workflow.WorkflowChatExposure;
 import com.lightbot.workflow.WorkflowPromptUtils;
 import com.lightbot.workflow.WorkflowEdge;
@@ -48,9 +49,6 @@ public class LlmNodeProcessor implements NodeProcessor {
 
     private final ModelFactory modelFactory;
 
-    /** LLM 调用默认超时时间（秒） */
-    private static final int DEFAULT_LLM_TIMEOUT_SECONDS = 120;
-
     @Override
     public NodeType getType() {
         return NodeType.LLM;
@@ -65,17 +63,7 @@ public class LlmNodeProcessor implements NodeProcessor {
             nodeData = new HashMap<>();
         }
 
-        // 读取超时配置：优先 nodeData.timeout，否则使用默认值
-        int llmTimeoutSeconds = DEFAULT_LLM_TIMEOUT_SECONDS;
-        Object timeoutObj = nodeData.get("timeout");
-        if (timeoutObj instanceof Number n) {
-            llmTimeoutSeconds = Math.max(1, n.intValue());
-        } else if (timeoutObj != null) {
-            try {
-                llmTimeoutSeconds = Math.max(1, Integer.parseInt(timeoutObj.toString()));
-            } catch (NumberFormatException ignored) {
-            }
-        }
+        int llmTimeoutSeconds = NodeTimeoutRetryHelper.resolveReadTimeoutSeconds(nodeData, NodeType.LLM);
 
         // 2. 获取提供商 ID 与具体模型名
         Long providerId = resolveProviderId(nodeData, context.getAgent().getConfig());

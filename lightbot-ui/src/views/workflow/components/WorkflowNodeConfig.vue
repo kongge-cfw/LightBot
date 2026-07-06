@@ -32,7 +32,6 @@
           type="button"
           class="builtin-var-tag"
           :disabled="readonly"
-          :title="`复制 ${v.example}`"
           @click="copyBuiltinVar(v.example)"
         >
           <code>{{ v.example }}</code>
@@ -85,9 +84,6 @@
         <a-switch v-model:checked="node.data.enableStreaming" @change="emitSync" />
       </a-form-item>
       <ShortMemoryForm v-model="node.data.short_memory" :disabled="readonly" @update:model-value="emitSync" />
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="300" :placeholder="'默认120'" @change="emitSync" />
-      </a-form-item>
     </template>
 
     <!-- 意图分类 -->
@@ -134,10 +130,10 @@
         </a-select>
       </a-form-item>
       <ShortMemoryForm v-model="node.data.short_memory" :disabled="readonly" @update:model-value="emitSync" />
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="300" :placeholder="'默认60'" @change="emitSync" />
-      </a-form-item>
-      <a-form-item label="提示词（额外约束）">
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="提示词（额外约束）" />
+        </template>
         <a-textarea v-model:value="node.data.instruction" :rows="3" placeholder="为意图识别提供额外要求" @change="emitSync" />
       </a-form-item>
       <a-form-item label="输出">
@@ -230,12 +226,12 @@
         </div>
       </div>
 
-      <a-form-item label="覆盖知识库配置">
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="覆盖知识库配置" />
+        </template>
         <a-switch v-model:checked="node.data.overrideConfig" @change="onOverrideToggle" />
         <div class="field-hint">关闭时沿用知识库默认 TopK / 阈值；开启后可在此节点单独调整</div>
-      </a-form-item>
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="120" :placeholder="'默认30'" @change="emitSync" />
       </a-form-item>
     </template>
 
@@ -262,9 +258,6 @@
             <EntitySelectOption type="tool" :name="t.displayName || t.name" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
           </a-select-option>
         </a-select>
-      </a-form-item>
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="120" :placeholder="'默认30'" @change="emitSync" />
       </a-form-item>
       <a-form-item>
         <template #label>
@@ -401,9 +394,6 @@
         <a-button type="dashed" block size="small" class="param-add-btn" @click="addExtractParam"><PlusOutlined /> 添加参数</a-button>
       </a-form-item>
       <ShortMemoryForm v-model="node.data.short_memory" :disabled="readonly" @update:model-value="emitSync" />
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="120" :placeholder="'默认30'" @change="emitSync" />
-      </a-form-item>
     </template>
 
     <!-- 应用组件 / 子工作流 -->
@@ -497,10 +487,12 @@
       <a-form-item label="Headers (JSON)">
         <JsonInput v-model="node.data.headers" :rows="3" :readonly="scrollableReadonly" placeholder='{"Content-Type":"application/json"}' @update:model-value="emitSync" />
       </a-form-item>
-      <a-form-item label="Body (JSON)">
+      <a-form-item>
+        <template #label>
+          <ConfigFieldLabel label="Body (JSON)" />
+        </template>
         <JsonInput v-model="node.data.body" :rows="4" :readonly="scrollableReadonly" placeholder='{"key":"value"}' @update:model-value="emitSync" />
       </a-form-item>
-      <a-form-item label="超时(秒)"><a-input-number v-model:value="node.data.timeout" :min="1" :max="120" @change="emitSync" /></a-form-item>
     </template>
 
     <!-- 循环（对齐 spring-ai-alibaba-admin Iterator） -->
@@ -660,29 +652,6 @@
           <PlusOutlined /> 添加出参
         </a-button>
       </div>
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="60" :placeholder="'默认15'" @change="emitSync" />
-      </a-form-item>
-      <a-form-item>
-        <template #label>
-          <ConfigFieldLabel label="启用重试" :tip="hint('script', 'retryEnabled')" />
-        </template>
-        <a-switch v-model:checked="node.data.retryConfig.enabled" :disabled="readonly" @change="emitSync" />
-      </a-form-item>
-      <template v-if="node.data.retryConfig?.enabled">
-        <a-form-item>
-          <template #label>
-            <ConfigFieldLabel label="最大次数" :tip="hint('script', 'maxAttempts')" />
-          </template>
-          <a-input-number v-model:value="node.data.retryConfig.maxAttempts" :min="1" :max="10" :disabled="readonly" @change="emitSync" />
-        </a-form-item>
-        <a-form-item>
-          <template #label>
-            <ConfigFieldLabel label="重试间隔(ms)" :tip="hint('script', 'retryDelayMs')" />
-          </template>
-          <a-input-number v-model:value="node.data.retryConfig.delayMs" :min="0" :max="60000" :step="500" :disabled="readonly" @change="emitSync" />
-        </a-form-item>
-      </template>
       <a-form-item>
         <template #label>
           <ConfigFieldLabel label="失败策略" :tip="hint('script', 'errorStrategy')" />
@@ -760,7 +729,7 @@
                 <div class="resource-option-header">
                   <EntitySelectOption type="tool" :name="t.name" :tag-muted="t.enabled === false ? '已禁用' : ''" />
                 </div>
-                <div v-if="t.description" class="resource-option-desc" :title="t.description">{{ truncateText(t.description, 50) }}</div>
+                <div v-if="t.description" class="resource-option-desc">{{ truncateText(t.description, 50) }}</div>
               </div>
             </a-select-option>
           </a-select>
@@ -780,10 +749,15 @@
       <a-form-item label="输入参数 JSON">
         <JsonInput v-model="mcpInputParamsJson" :rows="4" :readonly="scrollableReadonly" placeholder='{"chat_id":"oc_xxx","text":"{{query}}"}' />
       </a-form-item>
-      <a-form-item label="超时(秒)">
-        <a-input-number v-model:value="node.data.timeout" :min="1" :max="120" :placeholder="'默认60'" @change="emitSync" />
-      </a-form-item>
     </template>
+
+    <NodeResilienceConfig
+      v-if="supportsNodeResilience(node.type)"
+      :node-type="node.type"
+      :node-data="node.data"
+      :readonly="readonly"
+      @change="emitSync"
+    />
   </a-form>
   </div>
 </template>
@@ -819,8 +793,10 @@ import {
 import { getToolTypeLabel } from '../../../utils/bindingTheme'
 import { createConditionId } from '../nodeMeta'
 import { BUILTIN_VARIABLES, getFieldHint, getScriptExampleConfig } from '../nodeConfigMeta'
+import { supportsNodeResilience } from '../nodeResilienceMeta.js'
 import { truncateText } from '../../../utils/format'
 import { syncConditionBranches, ensureConditionGroups } from '../conditionUtils'
+import NodeResilienceConfig from './NodeResilienceConfig.vue'
 
 const props = defineProps({
   node: { type: Object, required: true },
@@ -1698,6 +1674,20 @@ function removeGroupVar(idx) {
 .config-readonly :deep(.ant-input),
 .config-readonly :deep(.ant-input-number),
 .config-readonly :deep(.ant-switch) {
+  pointer-events: none;
+}
+/* 禁止 label / disabled 控件触发浏览器原生 title tooltip，问号 icon 仍可用 */
+.workflow-node-config-form :deep(.ant-form-item-label > label) {
+  pointer-events: none;
+}
+.workflow-node-config-form :deep(.config-field-label),
+.workflow-node-config-form :deep(.config-field-help-icon) {
+  pointer-events: auto;
+}
+.workflow-node-config-form :deep(input[disabled]),
+.workflow-node-config-form :deep(.ant-input-disabled),
+.workflow-node-config-form :deep(.ant-input-number-disabled),
+.workflow-node-config-form :deep(.ant-select-disabled .ant-select-selector) {
   pointer-events: none;
 }
 </style>
