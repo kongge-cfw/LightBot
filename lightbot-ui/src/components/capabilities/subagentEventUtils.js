@@ -54,6 +54,70 @@ export function findSubagentResult(events, call) {
   return resultEvt?.result || null
 }
 
+/** 获取 subagent_result 事件对象 */
+export function findSubagentResultEvent(events, call) {
+  if (!call || call.type !== 'subagent_call') return null
+  return (events || []).find(
+    e => e.type === 'subagent_result' && matchSubagentScope(e, call)
+  ) || null
+}
+
+/** 从委派结果 JSON 中解析 reply 展示文本 */
+export function parseSubagentReplyText(result) {
+  if (!result) return ''
+  if (typeof result === 'object' && result.reply != null) {
+    return String(result.reply)
+  }
+  const raw = String(result)
+  try {
+    const obj = JSON.parse(raw)
+    if (obj && typeof obj.reply === 'string') return obj.reply
+  } catch {
+    // 非 JSON 直接展示
+  }
+  return raw
+}
+
+/** SubAgent 执行结果的用户可读文本 */
+export function findSubagentResultReply(events, call) {
+  const evt = findSubagentResultEvent(events, call)
+  if (!evt) return ''
+  if (evt.replyText) return evt.replyText
+  return parseSubagentReplyText(evt.result)
+}
+
+/** SubAgent 返回的原始 JSON（弹窗展示） */
+export function findSubagentResultRawJson(events, call) {
+  const evt = findSubagentResultEvent(events, call)
+  if (!evt?.result) return ''
+  try {
+    return JSON.stringify(JSON.parse(evt.result), null, 2)
+  } catch {
+    return String(evt.result)
+  }
+}
+
+/** 是否包含可查看的结构化 JSON 返回 */
+export function hasSubagentResultJson(events, call) {
+  const evt = findSubagentResultEvent(events, call)
+  if (!evt?.result) return false
+  try {
+    const obj = JSON.parse(evt.result)
+    return obj != null && typeof obj === 'object'
+  } catch {
+    return false
+  }
+}
+
+/** 合并 SubAgent 流式 token 为完整模型输出文本 */
+export function mergeSubagentModelOutput(events, call) {
+  const steps = groupSubagentSteps(collectSubagentSteps(events, call))
+  return steps
+    .filter(s => s.type === 'subagent_token_stream')
+    .map(s => s.content || '')
+    .join('')
+}
+
 export function findSubagentError(events, call) {
   if (!call || call.type !== 'subagent_call') return null
   return (events || []).find(

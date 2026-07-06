@@ -11,6 +11,7 @@ import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.InlineThinkingStreamParser;
 import com.lightbot.util.RagParamResolver;
 import com.lightbot.util.SensitiveWordFilter;
+import com.lightbot.util.ToolEventCompactUtil;
 import com.lightbot.util.ToolArgsSanitizer;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.ModelProvider;
@@ -348,7 +349,7 @@ public class ChatServiceImpl implements ChatService {
             // 2. 添加工具事件
             List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
             if (!toolEventsList.isEmpty()) {
-                meta.put("toolEvents", toolEventsList);
+                meta.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
                 // 计算toolBlockOffsets
                 List<Integer> offsets = toolEventsList.stream()
                         .map(e -> e.get("contentOffset"))
@@ -818,7 +819,7 @@ public class ChatServiceImpl implements ChatService {
                         if (!kbResultsRef.isEmpty() || !toolEventsList.isEmpty()) {
                             Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                             if (!toolEventsList.isEmpty()) {
-                                metadataMap.put("toolEvents", toolEventsList);
+                                metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
                                 List<Integer> offsets = toolEventsList.stream()
                                         .map(e -> e.get("contentOffset"))
                                         .filter(java.util.Objects::nonNull)
@@ -1268,7 +1269,7 @@ public class ChatServiceImpl implements ChatService {
             if (!kbResultsRef.isEmpty() || !toolEventsList.isEmpty()) {
                 Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                 if (!toolEventsList.isEmpty()) {
-                    metadataMap.put("toolEvents", toolEventsList);
+                    metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
                     List<Integer> offsets = toolEventsList.stream()
                             .map(e -> e.get("contentOffset"))
                             .filter(java.util.Objects::nonNull)
@@ -1578,6 +1579,10 @@ public class ChatServiceImpl implements ChatService {
             evt.put("subagentName", subName);
             evt.put("displayName", displayName);
             evt.put("result", truncated);
+            String replyText = ToolEventCompactUtil.extractSubagentReplyText(truncated);
+            if (replyText != null && !replyText.isBlank()) {
+                evt.put("replyText", replyText);
+            }
             evt.put("contentOffset", contentOffset);
             toolEventsList.add(evt);
             String resultJson = toolEventGenerator.subagentResultEvent(subName, displayName, truncated, contentOffset);
