@@ -13,15 +13,10 @@
         @preview="$emit('preview-attachment', $event)"
       />
     </div>
-    <!-- 敏感词拦截提示 -->
-    <div v-if="msg?._sensitiveBlock" class="sensitive-block-alert" :class="msg._sensitiveBlock">
-      <WarningOutlined class="sensitive-block-icon" />
-      <span class="sensitive-block-text">{{ msg.content }}</span>
-    </div>
     <!-- 深度思考面板 -->
     <ChatReasoningPanel :msg="msg" @reasoning-toggle="$emit('reasoning-toggle')" />
     <!-- Skill 启用 -->
-    <div v-if="getTopSkillEvents(msg).length > 0 && !msg._sensitiveBlock" class="capability-block-inline">
+    <div v-if="getTopSkillEvents(msg).length > 0 && !hasErrors" class="capability-block-inline">
       <AgentCapabilityPanel
         :events="getTopSkillEvents(msg)"
         :is-done="!msg._streaming || msg._toolsDone"
@@ -30,7 +25,7 @@
       />
     </div>
     <!-- 工作流节点执行（步骤面板） -->
-    <div v-if="msg?._workflowEvents?.length > 0 && !msg._sensitiveBlock" class="workflow-block-inline">
+    <div v-if="msg?._workflowEvents?.length > 0 && !hasErrors" class="workflow-block-inline">
       <WorkflowNodesGroupComponent
         :workflow-events="msg._workflowEvents"
         :is-done="!msg._streaming && !msg._workflowConfirmPending && !isWorkflowAwaitingConfirm(msg._workflowEvents)"
@@ -39,7 +34,7 @@
       />
     </div>
     <!-- 有工具事件：按 offset 分段渲染，工具块在对应位置插入，后续文本在其下方 -->
-    <template v-if="!msg._sensitiveBlock && msg._toolEvents?.length > 0">
+    <template v-if="!hasErrors && msg._toolEvents?.length > 0">
       <template v-for="(segment, si) in splitContentByOffsets(msg)" :key="si">
         <div v-if="segment.type === 'text'" class="message-content">
           <MentionTextRenderer
@@ -54,6 +49,7 @@
           <AgentCapabilityPanel
             v-if="getCapabilityEventsForOffset(msg, segment.offset).length > 0"
             :events="getCapabilityEventsForOffset(msg, segment.offset)"
+            :all-events="msg._toolEvents || []"
             :is-done="isToolBlockDone(msg, segment.offset)"
             :default-expanded="true"
             @heightChange="$emit('height-change', $event)"
@@ -70,7 +66,7 @@
       </template>
     </template>
     <!-- 无工具事件：正常渲染 -->
-    <template v-else-if="!msg._sensitiveBlock">
+    <template v-else-if="!hasErrors">
       <div v-if="msg.content && msg.content !== '[附件]'" class="message-content">
         <MentionTextRenderer
           v-if="shouldRenderMentions(msg, msg.content)"
@@ -83,7 +79,7 @@
     </template>
     <!-- 人工确认：仅待提交时展示，支持展开/收起 -->
     <WorkflowConfirmForm
-      v-if="msg._workflowConfirmPending?.confirmForm && !msg._sensitiveBlock"
+      v-if="msg._workflowConfirmPending?.confirmForm && !hasErrors"
       class="workflow-confirm-inline"
       :confirm-form="msg._workflowConfirmPending.confirmForm"
       :submitting="loading"
@@ -96,7 +92,7 @@
 </template>
 
 <script setup>
-import { WarningOutlined } from '@ant-design/icons-vue'
+import { computed } from 'vue'
 import MarkdownPreview from '../../MarkdownPreview.vue'
 import ToolCallsGroupComponent from '../../ToolCallsGroupComponent.vue'
 import WorkflowNodesGroupComponent from '../../WorkflowNodesGroupComponent.vue'
@@ -120,8 +116,9 @@ import {
   getMsgMentions,
   shouldRenderMentions,
 } from '../../../composables/chat/useChatMessageModel.js'
+import { hasMessageErrorState } from '../../../utils/chat/messageErrorState.js'
 
-defineProps({
+const props = defineProps({
   msg: { type: Object, required: true },
   index: { type: Number, required: true },
   loading: { type: Boolean, default: false },
@@ -129,6 +126,8 @@ defineProps({
   selectedAgentVersionId: { type: [String, Number], default: null },
   getAttThumbUrl: { type: Function, required: true },
 })
+
+const hasErrors = computed(() => hasMessageErrorState(props.msg) && !props.msg?._terminated)
 
 defineEmits([
   'preview-attachment',
@@ -259,44 +258,6 @@ defineEmits([
 .workflow-confirm-inline {
   margin: 10px 0 4px;
   width: 100%;
-}
-.sensitive-block-alert {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  font-size: 14px;
-  line-height: 1.6;
-  animation: fadeIn 0.3s ease;
-}
-.sensitive-block-alert.user_input {
-  background: var(--color-error-bg);
-  border: 1px solid var(--color-error-soft);
-  color: #991b1b;
-}
-.sensitive-block-alert.user_input .sensitive-block-icon {
-  color: #ef4444;
-}
-.sensitive-block-alert.ai_output {
-  background: var(--color-warn-bg);
-  border: 1px solid var(--color-warn-bg-deep);
-  color: #9a3412;
-}
-.sensitive-block-alert.ai_output .sensitive-block-icon {
-  color: #f97316;
-}
-.sensitive-block-icon {
-  font-size: 16px;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-.sensitive-block-text {
-  flex: 1;
-}
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 </style>
 

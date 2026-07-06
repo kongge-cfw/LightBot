@@ -38,9 +38,14 @@ public class ChatRequest {
     private List<ChatAttachmentDTO> attachments;
 
     /**
-     * 重新生成：删除上一轮助手回复后，基于最近一条用户消息再次调用模型（不重复落库用户消息）
+     * 重新生成：基于最近一条用户消息再次调用模型（不重复落库用户消息）
      */
     private Boolean regenerate;
+
+    /**
+     * 重新生成时要删除的助手消息 ID；为空时不删除库中记录（未落库的失败/终止回复重试）
+     */
+    private Long deleteAssistantMessageId;
 
     /**
      * 编辑重发：更新指定用户消息内容后，删除助手回复并重新生成

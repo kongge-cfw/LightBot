@@ -49,6 +49,15 @@ public class SubAgentRequest {
     @Schema(description = "可选的模型名称覆盖（如 gpt-4o）")
     private String llmModel;
 
+    @Schema(description = "模型连接超时（秒），默认 10")
+    private Integer connectTimeoutSeconds;
+
+    @Schema(description = "整体响应超时（秒），默认 45")
+    private Integer readTimeoutSeconds;
+
+    @Schema(description = "模型调用失败重试次数，默认 1")
+    private Integer modelRetryTimes;
+
     /** @deprecated 兼容旧字段，等同于 providerId */
     @Schema(description = "可选的 Provider ID（兼容旧字段）")
     private Long modelId;

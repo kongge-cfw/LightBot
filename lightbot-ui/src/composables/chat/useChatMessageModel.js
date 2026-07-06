@@ -3,6 +3,7 @@ import { resolveWorkflowConfirmPending, resolveWorkflowFailureFromEvents, stripW
 import { safeJsonParse } from '../../utils/request'
 import { contentHasMentionTokens, parseMentionsFromMetadata } from '../../utils/mention_utils'
 import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
+import { normalizeAssistantMessageErrors, applyMessageErrorFromDoneMeta } from '../../utils/chat/messageErrorState.js'
 
 export function parseAttachmentsFromMetadata(metadata) {
   if (!metadata) return []
@@ -126,7 +127,7 @@ export function parseMessage(m) {
     content = stripWorkflowErrorContent(content)
   }
 
-  return {
+  const msg = {
     role,
     content,
     metadata: metadata ?? m.metadata,
@@ -153,10 +154,21 @@ export function parseMessage(m) {
     _replyToRole: null,
     _starred: !!m.starred,
     _createTime: m.createTime || null,
+    _persisted: !!m.id,
   }
+
+  if (metadata?.error) {
+    msg._error = {
+      message: metadata.error.message || '未知错误',
+      code: metadata.error.code || 'UNKNOWN',
+    }
+  }
+
+  normalizeAssistantMessageErrors(msg)
+  return msg
 }
 
-/** 仅最后一条助手回复可重新生成（其后无用户新消息） */
+/** 后端结构化错误（流式 error 事件或 metadata.error） */
 export function isBackendErrorMessage(msg) {
   return msg?.role === 'assistant' && !!msg._error
 }
@@ -166,6 +178,7 @@ export function applyStreamDoneMetadata(assistantMsg, meta, sessionTokenCount) {
   if (!assistantMsg || !meta) return
   if (meta.assistantMessageId) {
     assistantMsg._id = meta.assistantMessageId
+    assistantMsg._persisted = true
   }
   if (meta.totalTokens) {
     sessionTokenCount.value += meta.totalTokens
@@ -177,6 +190,7 @@ export function applyStreamDoneMetadata(assistantMsg, meta, sessionTokenCount) {
   if (restMeta.reasoningContent && !assistantMsg._reasoningContent) {
     assistantMsg._reasoningContent = String(restMeta.reasoningContent).replace(/^\s+/, '')
   }
+  applyMessageErrorFromDoneMeta(assistantMsg, meta)
 }
 
 /**

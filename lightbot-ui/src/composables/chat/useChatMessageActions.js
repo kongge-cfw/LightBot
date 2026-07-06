@@ -3,6 +3,7 @@ import { message, Modal } from 'ant-design-vue'
 import { deleteMessage as deleteMessageApi, toggleMessageStar } from '../../api/chatSession'
 import { copyToClipboard } from '../../utils/clipboard'
 import { getMsgMentions } from './useChatMessageModel.js'
+import { resolveMessageFatalErrorState, resolveDeleteAssistantMessageId } from '../../utils/chat/messageErrorState.js'
 
 /**
  * 消息操作：编辑/回复/删除/收藏/复制/原文弹窗/滚动定位
@@ -202,7 +203,9 @@ export function useChatMessageActions(deps) {
     editContent.value = ''
 
     const lastIdx = messages.value.length - 1
+    let deleteAssistantMessageId
     if (lastIdx > editIdx && messages.value[lastIdx].role === 'assistant') {
+      deleteAssistantMessageId = resolveDeleteAssistantMessageId(messages.value[lastIdx])
       messages.value.pop()
     }
 
@@ -216,11 +219,16 @@ export function useChatMessageActions(deps) {
       mentions: sentMentions?.length ? sentMentions : undefined,
       regenerate: true,
       editMessageId: msg._id || null,
+      deleteAssistantMessageId,
     })
   }
 
   async function copyMessage(msg) {
-    await copyToClipboard(msg.content)
+    const fatal = resolveMessageFatalErrorState(msg)
+    const text = (msg.content && msg.content !== '[附件]')
+      ? msg.content
+      : (fatal?.message || msg.content || '')
+    await copyToClipboard(text)
     msg._copied = true
     setTimeout(() => { msg._copied = false }, 2000)
   }

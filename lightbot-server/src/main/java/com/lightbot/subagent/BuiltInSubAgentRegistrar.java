@@ -102,6 +102,9 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                 subAgent.setDescription((String) data.get("description"));
                 subAgent.setSystemPrompt((String) data.get("systemPrompt"));
                 subAgent.setToolIds(resolveToolIds((List<String>) data.get("tools")));
+                subAgent.setConnectTimeoutSeconds(10);
+                subAgent.setReadTimeoutSeconds(30);
+                subAgent.setModelRetryTimes(1);
                 subAgent.setEnabled(1);
                 subAgent.setIsBuiltin(1);
                 subAgentMapper.insert(subAgent);
@@ -116,13 +119,19 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                 boolean changed = !strEquals(existing.getDisplayName(), newDisplayName)
                         || !strEquals(existing.getDescription(), newDescription)
                         || !strEquals(existing.getSystemPrompt(), newSystemPrompt)
-                        || !strEquals(existing.getToolIds(), newToolIds);
+                        || !strEquals(existing.getToolIds(), newToolIds)
+                        || !Integer.valueOf(10).equals(existing.getConnectTimeoutSeconds())
+                        || !Integer.valueOf(30).equals(existing.getReadTimeoutSeconds())
+                        || !Integer.valueOf(1).equals(existing.getModelRetryTimes());
 
                 if (changed) {
                     existing.setDisplayName(newDisplayName);
                     existing.setDescription(newDescription);
                     existing.setSystemPrompt(newSystemPrompt);
                     existing.setToolIds(newToolIds);
+                    existing.setConnectTimeoutSeconds(10);
+                    existing.setReadTimeoutSeconds(30);
+                    existing.setModelRetryTimes(1);
                     subAgentMapper.updateById(existing);
                     log.info("[BuiltInSubAgentRegistrar] 更新内置 SubAgent: name={}", name);
                 } else {

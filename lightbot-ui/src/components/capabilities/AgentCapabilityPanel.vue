@@ -6,6 +6,7 @@
       :is="entry.renderer"
       :event="entry.event"
       :events="events"
+      :all-events="allEvents || events"
       :event-index="entry.index"
       :is-done="isDone"
       :default-expanded="defaultExpanded"
@@ -20,6 +21,7 @@ import { getCapabilityBlockRenderer } from './capabilityRegistry.js'
 
 const props = defineProps({
   events: { type: Array, default: () => [] },
+  allEvents: { type: Array, default: null },
   isDone: { type: Boolean, default: true },
   defaultExpanded: { type: Boolean, default: true },
 })

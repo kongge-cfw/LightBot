@@ -64,7 +64,10 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
     const container = messagesRef.value
     if (container) container.style.overflowAnchor = 'none'
     virtualizer.value.measureElement(rowEl)
-    nextTick(() => { if (container) container.style.overflowAnchor = '' })
+    nextTick(() => {
+      if (container) container.style.overflowAnchor = ''
+      scrollToBottom()
+    })
   }
 
   function scrollToBottom() {

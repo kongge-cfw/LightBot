@@ -377,7 +377,7 @@ const {
 })
 
 const { handleChatCapabilityStreamEvent } = createChatCapabilityStreamHandlers({
-  currentStatus, hasStreamContent, scrollToBottom,
+  currentStatus, hasStreamContent, scrollToBottom, messages, messagesRef,
 })
 
 const { canSend, workflowConfirmBlocked } = useChatSendGate({
@@ -486,6 +486,13 @@ function handleChatKeydown(e) {
   }
 }
 
+function abortActiveStreamOnUnload() {
+  if (streaming.value && abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
+  }
+}
+
 const scrollHandler = createScrollHandler({ loadOlderMessages, hasMoreMessages, loadingOlder })
 
 onMounted(async () => {
@@ -503,9 +510,11 @@ onMounted(async () => {
     messagesRef.value.addEventListener('scroll', scrollHandler)
   }
   document.addEventListener('keydown', handleChatKeydown)
+  window.addEventListener('beforeunload', abortActiveStreamOnUnload)
 })
 
 onUnmounted(() => {
+  abortActiveStreamOnUnload()
   voiceCleanup()
   cleanupPollTitleTimer()
   cleanupEditClickOutside()
@@ -513,6 +522,7 @@ onUnmounted(() => {
     messagesRef.value.removeEventListener('scroll', scrollHandler)
   }
   document.removeEventListener('keydown', handleChatKeydown)
+  window.removeEventListener('beforeunload', abortActiveStreamOnUnload)
 })
 
 watch(() => route.params.sessionId, () => {

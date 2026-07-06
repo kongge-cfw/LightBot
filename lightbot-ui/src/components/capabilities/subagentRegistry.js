@@ -25,11 +25,13 @@ export function formatSubagentCallTitle(event) {
 }
 
 export function formatSubagentCallStatus(event) {
-  return `委派 SubAgent: ${event?.displayName || event?.subagentName || ''}`
+  const name = event?.displayName || event?.subagentName || ''
+  return name ? `委派 SubAgent：${name}` : '委派 SubAgent'
 }
 
 export function formatSubagentToolCallStatus(event) {
-  return `SubAgent 调用工具: ${event?.toolName || ''}`
+  const tool = event?.toolDisplayName || event?.toolName || ''
+  return tool ? `SubAgent 调用工具：${tool}` : 'SubAgent 调用工具'
 }
 
 export function getSubagentIcon() {

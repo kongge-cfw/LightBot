@@ -7,6 +7,7 @@ import com.lightbot.constant.ToolResultPrefixes;
 import com.lightbot.dto.ChatRequest;
 import com.lightbot.dto.RagReferenceVO;
 import com.lightbot.util.ChatDocumentMessageUtil;
+import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.InlineThinkingStreamParser;
 import com.lightbot.util.RagParamResolver;
 import com.lightbot.util.SensitiveWordFilter;
@@ -100,6 +101,7 @@ public class ChatServiceImpl implements ChatService {
     private final ToolArgsSanitizer toolArgsSanitizer;
     private final RagParamResolver ragParamResolver;
     private final SessionAttachmentRegistrar sessionAttachmentRegistrar;
+    private final SubAgentService subAgentService;
 
     /** SSE 心跳注释行（SSE 协议：以冒号开头的行是注释，客户端应忽略） */
     private static final String HEARTBEAT_PREFIX = ":heartbeat";
@@ -245,15 +247,8 @@ public class ChatServiceImpl implements ChatService {
 
             String safeArgs = toolArgs != null ? toolArgs : "";
 
-            // 记录工具调用开始
-            String dnSync = getToolDisplayName(ctx, toolName);
-            Map<String, Object> callEvtSync = new java.util.LinkedHashMap<>();
-            callEvtSync.put("type", "tool_call");
-            callEvtSync.put("toolName", toolName);
-            if (dnSync != null) callEvtSync.put("displayName", dnSync);
-            callEvtSync.put("args", safeArgs);
-            callEvtSync.put("contentOffset", toolContentOffset);
-            toolEventsList.add(callEvtSync);
+            // 记录工具调用开始（SubAgent 委派走专用 subagent_call 事件）
+            appendToolCallStart(ctx, toolEventsList, null, toolName, safeArgs, toolContentOffset);
 
             // 执行工具
             String toolResult = executeToolCallback(toolCallbackMap, toolName, safeArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
@@ -275,15 +270,8 @@ public class ChatServiceImpl implements ChatService {
                 }
             }
 
-            // 记录工具结果（JSON结果不截断，纯文本限制2000字符）
-            String sseResult = toolEventGenerator.truncateForSse(toolResult);
-            Map<String, Object> resEvtSync = new java.util.LinkedHashMap<>();
-            resEvtSync.put("type", "tool_result");
-            resEvtSync.put("toolName", toolName);
-            if (dnSync != null) resEvtSync.put("displayName", dnSync);
-            resEvtSync.put("result", sseResult);
-            resEvtSync.put("contentOffset", toolContentOffset);
-            toolEventsList.add(resEvtSync);
+            // 记录工具结果（SubAgent 委派走 subagent_result）
+            appendToolCallResult(ctx, toolEventsList, null, toolName, safeArgs, toolResult, toolContentOffset);
 
             toolResponses.add(new org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse(
                     firstTool.id(), toolName, toolResult));
@@ -405,7 +393,15 @@ public class ChatServiceImpl implements ChatService {
 
         return Flux.just(REQUEST_ID_PREFIX + ctx.getRequestId())
                 .concatWith(ChatMiddlewareChain.of(middlewares, core).proceed(ctx))
-                .concatWith(Mono.fromCallable(() -> buildDoneEvent(ctx)));
+                .concatWith(Mono.fromCallable(() -> buildDoneEvent(ctx)))
+                .doOnCancel(() -> ctx.requestAbort("CLIENT_DISCONNECT"))
+                .doFinally(signal -> {
+                    if (signal == reactor.core.publisher.SignalType.CANCEL) {
+                        ctx.requestAbort("CLIENT_DISCONNECT");
+                        log.info("[Chat] stream cancelled: requestId={}, sessionId={}",
+                                ctx.getRequestId(), ctx.getSessionId());
+                    }
+                });
     }
 
     /**
@@ -593,6 +589,9 @@ public class ChatServiceImpl implements ChatService {
      */
     private Flux<String> processToolCallsRecursively(ChatContext ctx, int depth, long llmCallStart,
                                                       Sinks.Many<String> eventSink) {
+        if (ctx.isAborted()) {
+            return Flux.empty();
+        }
         int maxSteps = resolveMaxExecutionSteps(ctx.getConfigMap());
         if (depth >= maxSteps) {
             log.warn("[Chat][Trace] 工具调用递归深度达到上限({})，停止循环", depth);
@@ -1063,24 +1062,11 @@ public class ChatServiceImpl implements ChatService {
             List<CompletableFuture<String>> futures = new ArrayList<>();
             for (AssistantMessage.ToolCall tc : toolCalls) {
                 String tcArgs = tc.arguments() != null ? tc.arguments() : "";
-                // 按需推送 skill_active
-                Flux<String> skFlux = emitSkillActiveIfNeeded(ctx, tc.name(), toolEventsList, toolContentOffset);
-                if (skFlux != null) {
-                    statusFluxes.add(skFlux);
-                }
-                String dn = getToolDisplayName(ctx, tc.name());
-                Map<String, Object> callEvt = new java.util.LinkedHashMap<>();
-                callEvt.put("type", "tool_call");
-                callEvt.put("toolName", tc.name());
-                if (dn != null) callEvt.put("displayName", dn);
-                callEvt.put("args", tcArgs);
-                callEvt.put("contentOffset", toolContentOffset);
-                toolEventsList.add(callEvt);
-                statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolCallEvent(tc.name(), dn, tcArgs, toolContentOffset)));
+                appendToolCallStart(ctx, toolEventsList, statusFluxes, tc.name(), tcArgs, toolContentOffset);
                 toolCallCountHolder[0]++;
                 final String tcName = tc.name();
                 final String safeTcArgs = toolArgsSanitizer.forChatCall(tcArgs);
-                final String dnFinal = dn;
+                final int offsetFinal = toolContentOffset;
                 futures.add(CompletableFuture.supplyAsync(() -> {
                     long tStart = System.currentTimeMillis();
                     String result = executeToolCallback(toolCallbackMap, tcName, safeTcArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
@@ -1105,13 +1091,9 @@ public class ChatServiceImpl implements ChatService {
                         ctx.getPendingToolCalls().add(toolCallLog);
                     }
 
-                    Map<String, Object> resEvt = new java.util.LinkedHashMap<>();
-                    resEvt.put("type", "tool_result");
-                    resEvt.put("toolName", tcName);
-                    if (dnFinal != null) resEvt.put("displayName", dnFinal);
-                    resEvt.put("result", toolEventGenerator.truncateForSse(result));
-                    resEvt.put("contentOffset", toolContentOffset);
-                    toolEventsList.add(resEvt);
+                    synchronized (toolEventsList) {
+                        appendToolCallResult(ctx, toolEventsList, statusFluxes, tcName, tcArgs, result, offsetFinal);
+                    }
                     return result;
                 }, lightBotExecutor));
             }
@@ -1131,20 +1113,7 @@ public class ChatServiceImpl implements ChatService {
 
             String safeArgs = toolArgs != null ? toolArgs : "";
             String callArgs = toolArgsSanitizer.forChatCall(safeArgs);
-            // 按需推送 skill_active
-            Flux<String> skillFlux = emitSkillActiveIfNeeded(ctx, toolName, toolEventsList, toolContentOffset);
-            if (skillFlux != null) {
-                statusFluxes.add(skillFlux);
-            }
-            String dnSeq = getToolDisplayName(ctx, toolName);
-            Map<String, Object> callEvtSeq = new java.util.LinkedHashMap<>();
-            callEvtSeq.put("type", "tool_call");
-            callEvtSeq.put("toolName", toolName);
-            if (dnSeq != null) callEvtSeq.put("displayName", dnSeq);
-            callEvtSeq.put("args", safeArgs);
-            callEvtSeq.put("contentOffset", toolContentOffset);
-            toolEventsList.add(callEvtSeq);
-            statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolCallEvent(toolName, dnSeq, safeArgs, toolContentOffset)));
+            appendToolCallStart(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolContentOffset);
 
             long tToolStart = System.currentTimeMillis();
             String toolResult = executeToolCallback(toolCallbackMap, toolName, callArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
@@ -1176,13 +1145,7 @@ public class ChatServiceImpl implements ChatService {
                 statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolStatusEvent(event, toolContentOffset)));
             }
 
-            Map<String, Object> resEvtSeq = new java.util.LinkedHashMap<>();
-            resEvtSeq.put("type", "tool_result");
-            resEvtSeq.put("toolName", toolName);
-            if (dnSeq != null) resEvtSeq.put("displayName", dnSeq);
-            resEvtSeq.put("result", toolEventGenerator.truncateForSse(toolResult));
-            resEvtSeq.put("contentOffset", toolContentOffset);
-            toolEventsList.add(resEvtSeq);
+            appendToolCallResult(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolResult, toolContentOffset);
             toolResponses.add(new org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse(
                     firstTool.id(), toolName, toolResult));
         }
@@ -1215,55 +1178,7 @@ public class ChatServiceImpl implements ChatService {
      * @param messages 消息列表（会被原地修改）
      */
     private void trimToolCallContext(List<org.springframework.ai.chat.messages.Message> messages) {
-        // 1. 估算总字符数
-        int totalChars = 0;
-        for (var msg : messages) {
-            String text = msg.getText();
-            if (text != null) totalChars += text.length();
-        }
-        if (totalChars <= MAX_TOOL_CONTEXT_CHARS) return;
-
-        // 2. 收集工具调用轮次边界：每轮 = [AssistantMessage(hasToolCalls), ToolResponseMessage]
-        List<int[]> rounds = new ArrayList<>();
-        for (int i = 0; i < messages.size() - 1; i++) {
-            var cur = messages.get(i);
-            if (cur instanceof AssistantMessage am && am.hasToolCalls()) {
-                var next = messages.get(i + 1);
-                String nextType = next.getClass().getSimpleName();
-                if ("ToolResponseMessage".equals(nextType)) {
-                    rounds.add(new int[]{i, i + 1});
-                    i++; // 跳过 ToolResponseMessage
-                }
-            }
-        }
-
-        if (rounds.size() <= TOOL_ROUNDS_TO_KEEP) return;
-
-        // 3. 计算需压缩的轮次
-        int compressUpTo = rounds.size() - TOOL_ROUNDS_TO_KEEP;
-        int removeStart = rounds.get(0)[0];
-        int removeEnd = rounds.get(compressUpTo - 1)[1];
-
-        // 4. 统计被压缩的工具数量
-        int toolCount = 0;
-        for (int r = 0; r < compressUpTo; r++) {
-            var am = (AssistantMessage) messages.get(rounds.get(r)[0]);
-            toolCount += am.getToolCalls().size();
-        }
-
-        // 5. 替换为摘要消息
-        String summary = "[已省略第 1-" + compressUpTo + " 轮工具调用详情，共执行 "
-                + toolCount + " 个工具，上下文已压缩]";
-        List<org.springframework.ai.chat.messages.Message> trimmed = new ArrayList<>(messages);
-        for (int i = removeEnd; i >= removeStart; i--) {
-            trimmed.remove(i);
-        }
-        trimmed.add(removeStart, new SystemMessage(summary));
-        messages.clear();
-        messages.addAll(trimmed);
-
-        log.info("[Chat][ContextTrim] 压缩了 {} 轮工具调用（{} 个工具），消息字符 {} → ~{}",
-                compressUpTo, toolCount, totalChars, totalChars - (removeEnd - removeStart + 1) * 500);
+        ChatMessageContextUtil.trimToolCallContext(messages, MAX_TOOL_CONTEXT_CHARS, TOOL_ROUNDS_TO_KEEP);
     }
 
     private String executeToolCallback(Map<String, ToolCallback> toolCallbackMap, String toolName,
@@ -1272,7 +1187,11 @@ public class ChatServiceImpl implements ChatService {
         ToolCallback callback = toolCallbackMap.get(toolName);
         if (callback != null) {
             try {
+                if (chatContext != null && chatContext.isAborted()) {
+                    return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
+                }
                 // 2.1 工具执行超时保护：CompletableFuture 包装 + get(timeout)，防止 MCP 工具卡死
+                long timeoutSeconds = resolveToolExecutionTimeoutSeconds(toolName, callArgs);
                 Map<String, Object> ctxMap = new java.util.HashMap<>();
                 ctxMap.put("agentId", agentId);
                 ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
@@ -1283,6 +1202,9 @@ public class ChatServiceImpl implements ChatService {
                 }
                 String result = CompletableFuture.supplyAsync(() -> {
                     try {
+                        if (chatContext != null && chatContext.isAborted()) {
+                            return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
+                        }
                         // 流式模式：绑定 Sink 使工具内部的 emit() 实时推送给前端
                         if (eventSink != null) {
                             ToolEventEmitter.setupSink(eventSink);
@@ -1293,14 +1215,18 @@ public class ChatServiceImpl implements ChatService {
                             ToolEventEmitter.teardownSink();
                         }
                     }
-                }, lightBotExecutor).get(TOOL_EXECUTION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                }, lightBotExecutor).get(timeoutSeconds, TimeUnit.SECONDS);
+                if (chatContext != null && chatContext.isAborted()) {
+                    return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
+                }
                 if (!ToolResultPrefixes.isError(result)) {
                     sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, result);
                 }
                 return result;
             } catch (TimeoutException e) {
-                log.error("[Chat] 工具执行超时: name={}, timeout={}s", toolName, TOOL_EXECUTION_TIMEOUT_SECONDS);
-                return ToolResultPrefixes.failureJson("工具执行超时（" + TOOL_EXECUTION_TIMEOUT_SECONDS + "秒），请稍后重试");
+                long timeoutSeconds = resolveToolExecutionTimeoutSeconds(toolName, callArgs);
+                log.error("[Chat] 工具执行超时: name={}, timeout={}s", toolName, timeoutSeconds);
+                return ToolResultPrefixes.failureJson("工具执行超时（" + timeoutSeconds + "秒），请稍后重试");
             } catch (Exception e) {
                 log.error("[Chat] 工具执行异常: name={}, error={}", toolName, e.getMessage(), e);
                 return ToolResultPrefixes.failureJson(ToolResultPrefixes.FAILURE + ": " + e.getMessage());
@@ -1308,6 +1234,31 @@ public class ChatServiceImpl implements ChatService {
         }
         log.warn("[Chat][Trace] 工具不存在: name={}, 可用工具={}", toolName, toolCallbackMap.keySet());
         return ToolResultPrefixes.failureJson(ToolResultPrefixes.NOT_FOUND + ": " + toolName);
+    }
+
+    private long resolveToolExecutionTimeoutSeconds(String toolName, String callArgs) {
+        if (!DelegateSubAgentTool.TOOL_NAME.equals(toolName)) {
+            return TOOL_EXECUTION_TIMEOUT_SECONDS;
+        }
+        long timeoutSeconds = TOOL_EXECUTION_TIMEOUT_SECONDS;
+        try {
+            Map<String, String> parsed = parseSubagentArgs(callArgs);
+            String subName = parsed.get("subagentName");
+            if (subName == null || subName.isBlank()) {
+                return timeoutSeconds;
+            }
+            com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subName);
+            if (subAgent == null) {
+                return timeoutSeconds;
+            }
+            int readTimeout = subAgent.getReadTimeoutSeconds() != null
+                    ? Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()))
+                    : (int) TOOL_EXECUTION_TIMEOUT_SECONDS;
+            timeoutSeconds = Math.max(30L, readTimeout + 30L);
+        } catch (Exception e) {
+            log.warn("[Chat] SubAgent tool timeout resolve failed, fallback to default: {}", e.getMessage());
+        }
+        return Math.min(timeoutSeconds, 360L);
     }
 
     private Flux<String> buildToolMetadataFlux(List<Map<String, Object>> kbResultsRef,
@@ -1574,7 +1525,7 @@ public class ChatServiceImpl implements ChatService {
         if (DelegateSubAgentTool.TOOL_NAME.equals(toolName)) {
             Map<String, String> parsed = parseSubagentArgs(args);
             String subName = parsed.get("subagentName");
-            String displayName = parsed.get("displayName");
+            String displayName = resolveSubAgentDisplayName(subName);
             String task = parsed.get("task");
             Map<String, Object> evt = new HashMap<>();
             evt.put("type", "subagent_call");
@@ -1586,7 +1537,7 @@ public class ChatServiceImpl implements ChatService {
             if (ctx != null) {
                 ctx.setSubAgentContentOffset(contentOffset);
                 ctx.emitRealtimeStatus(toolEventGenerator.subagentCallEvent(subName, displayName, task, contentOffset));
-            } else {
+            } else if (statusFluxes != null) {
                 statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.subagentCallEvent(subName, displayName, task, contentOffset)));
             }
             return;
@@ -1602,7 +1553,7 @@ public class ChatServiceImpl implements ChatService {
         String callJson = toolEventGenerator.toolCallEvent(toolName, dn, args, contentOffset);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(callJson);
-        } else {
+        } else if (statusFluxes != null) {
             statusFluxes.add(Flux.just(STATUS_PREFIX + callJson));
         }
     }
@@ -1621,7 +1572,7 @@ public class ChatServiceImpl implements ChatService {
             // 2. 推送 subagent_result 事件
             Map<String, String> parsed = parseSubagentArgs(args);
             String subName = parsed.get("subagentName");
-            String displayName = parsed.get("displayName");
+            String displayName = resolveSubAgentDisplayName(subName);
             Map<String, Object> evt = new HashMap<>();
             evt.put("type", "subagent_result");
             evt.put("subagentName", subName);
@@ -1632,7 +1583,7 @@ public class ChatServiceImpl implements ChatService {
             String resultJson = toolEventGenerator.subagentResultEvent(subName, displayName, truncated, contentOffset);
             if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
                 ctx.emitRealtimeStatus(resultJson);
-            } else {
+            } else if (statusFluxes != null) {
                 statusFluxes.add(Flux.just(STATUS_PREFIX + resultJson));
             }
             if (ctx != null) {
@@ -1699,18 +1650,27 @@ public class ChatServiceImpl implements ChatService {
                 json = toolEventGenerator.subagentTokenEvent(se.subagentName(), se.content(), contentOffset);
             }
             case "tool_call" -> {
+                String toolName = se.content();
                 evt.put("type", "subagent_tool_call");
                 evt.put("subagentName", se.subagentName());
-                evt.put("toolName", se.content());
+                evt.put("displayName", resolveSubAgentDisplayName(se.subagentName()));
+                evt.put("toolName", toolName);
+                evt.put("args", "{}");
                 evt.put("contentOffset", contentOffset);
-                json = toolEventGenerator.subagentToolCallEvent(se.subagentName(), se.content(), contentOffset);
+                json = toolEventGenerator.subagentToolCallEvent(
+                        se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
+                        toolName, toolName, "{}", contentOffset);
             }
             case "tool_result" -> {
                 evt.put("type", "subagent_tool_result");
                 evt.put("subagentName", se.subagentName());
-                evt.put("content", se.content());
+                evt.put("displayName", resolveSubAgentDisplayName(se.subagentName()));
+                evt.put("toolName", "");
+                evt.put("result", se.content());
                 evt.put("contentOffset", contentOffset);
-                json = toolEventGenerator.subagentToolResultEvent(se.subagentName(), se.content(), contentOffset);
+                json = toolEventGenerator.subagentToolResultEvent(
+                        se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
+                        "", "", se.content(), contentOffset);
             }
             default -> {
                 return;
@@ -1719,9 +1679,20 @@ public class ChatServiceImpl implements ChatService {
         toolEventsList.add(evt);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(json);
-        } else {
+        } else if (statusFluxes != null) {
             statusFluxes.add(Flux.just(STATUS_PREFIX + json));
         }
+    }
+
+    private String resolveSubAgentDisplayName(String subagentName) {
+        if (subagentName == null || subagentName.isBlank()) {
+            return subagentName;
+        }
+        com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subagentName);
+        if (subAgent != null && subAgent.getDisplayName() != null && !subAgent.getDisplayName().isBlank()) {
+            return subAgent.getDisplayName();
+        }
+        return subagentName;
     }
 
     private Map<String, String> parseSubagentArgs(String args) {

@@ -210,7 +210,8 @@ const { handleChatCapabilityStreamEvent } = createChatCapabilityStreamHandlers({
   currentStatus,
   hasStreamContent,
   scrollToBottom,
-  registerToolBlockOffset,
+  messages,
+  messagesRef,
 })
 
 const hasStreamingAssistantMessage = computed(() =>
@@ -358,6 +359,13 @@ function handleChatKeydown(e) {
   }
 }
 
+function abortActiveStreamOnUnload() {
+  if (streaming.value && abortController.value) {
+    abortController.value.abort()
+    abortController.value = null
+  }
+}
+
 function handleEditKeydown(e) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
@@ -373,6 +381,7 @@ function goToKnowledge(knowledgeId, documentId) {
 }
 
 onUnmounted(() => {
+  abortActiveStreamOnUnload()
   voiceCleanup()
   cleanupPollTitleTimer()
   const container = messagesRef.value
@@ -380,6 +389,7 @@ onUnmounted(() => {
     container.removeEventListener('scroll', scrollHandler)
   }
   document.removeEventListener('keydown', handleChatKeydown)
+  window.removeEventListener('beforeunload', abortActiveStreamOnUnload)
   cleanupEditClickOutside()
 })
 
@@ -400,6 +410,7 @@ onMounted(async () => {
     container.addEventListener('scroll', scrollHandler)
   }
   document.addEventListener('keydown', handleChatKeydown)
+  window.addEventListener('beforeunload', abortActiveStreamOnUnload)
 })
 
 watch(() => route.params.sessionId, () => {

@@ -20,6 +20,7 @@
           :disabled="disabled"
           style="width: 100%"
           show-search
+          :search-value="searchText"
           :filter-option="false"
           :loading="loading"
           allow-clear
@@ -27,6 +28,7 @@
           option-label-prop="label"
           :popup-class-name="modelSelectDropdownClass"
           @search="onSearch"
+          @clear="resetSearch"
           @dropdown-visible-change="onDropdownVisibleChange"
         >
           <template #dropdownRender="{ menuNode }">
@@ -254,6 +256,7 @@ function onDropdownVisibleChange(open) {
   } else {
     unbindDropdownTooltipEvents()
     stripSelectionNativeTitle()
+    resetSearch()
   }
 }
 
@@ -310,8 +313,17 @@ function simulateProgress() {
   }, 16)
 }
 
+function resetSearch() {
+  searchText.value = ''
+  debouncedSearch.value = ''
+  searching.value = false
+  progress.value = 0
+  clearTimeout(searchTimer)
+  clearInterval(progressTimer)
+}
+
 function onSearch(val) {
-  searchText.value = val
+  searchText.value = val ?? ''
   clearTimeout(searchTimer)
   clearInterval(progressTimer)
   if (!val) {
@@ -385,6 +397,7 @@ function emitSelection(parsed) {
 function handleUpdate(val) {
   checkStatus.value = null
   if (!val) {
+    resetSearch()
     emitSelection({ providerId: null, modelId: null })
     return
   }

@@ -248,8 +248,12 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 Map<String, Object> toolCtxMap = new HashMap<>();
                 toolCtxMap.put("agentId", agent.getId());
                 toolCtxMap.put("sessionId", sessionId);
+                toolCtxMap.put("parentThreadId", sessionId != null ? sessionId.toString() : "default");
                 if (requestId != null) {
                     toolCtxMap.put("requestId", requestId);
+                }
+                if (ctx != null) {
+                    toolCtxMap.put("chatContext", ctx);
                 }
                 toolBuilder.toolContext(toolCtxMap);
                 log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}",

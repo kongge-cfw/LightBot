@@ -83,12 +83,14 @@ export function getToolEventsForOffset(msg, offset) {
 export function isToolBlockDone(msg, offset) {
   if (offset === -1) {
     if (!msg._streaming) return true
-    return (msg._toolEvents || []).some(e => e.type === 'tool_result' || e.type === 'subagent_result')
+    return (msg._toolEvents || []).some(e =>
+      e.type === 'tool_result' || e.type === 'subagent_result' || e.type === 'subagent_error')
   }
   if (msg._toolBlocksDone?.some(o => o == offset)) return true
   if (!msg._streaming) return true
   const atOffset = getToolEventsForOffset(msg, offset)
-  return atOffset.some(e => e.type === 'tool_result' || e.type === 'subagent_result')
+  return atOffset.some(e =>
+    e.type === 'tool_result' || e.type === 'subagent_result' || e.type === 'subagent_error')
 }
 
 export function markToolBlockDone(msg, offset) {

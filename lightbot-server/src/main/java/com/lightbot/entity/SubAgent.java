@@ -3,9 +3,11 @@ package com.lightbot.entity;
 import com.baomidou.mybatisplus.annotation.*;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
+import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
+import org.apache.ibatis.type.JdbcType;
 
 /**
  * 子智能体配置表
@@ -42,7 +44,7 @@ public class SubAgent {
     @Schema(description = "系统提示词")
     private String systemPrompt;
 
-    @TableField(value = "tool_ids", typeHandler = com.lightbot.handler.JsonbTypeHandler.class)
+    @TableField(value = "tool_ids", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
     @Schema(description = "绑定工具ID列表（JSON数组）")
     private String toolIds;
 
@@ -54,6 +56,18 @@ public class SubAgent {
     @TableField("llm_model")
     @Schema(description = "可选的模型名称覆盖（如 gpt-4o），与 model_id 配合")
     private String llmModel;
+
+    @TableField("connect_timeout_seconds")
+    @Schema(description = "模型连接超时（秒），默认 10")
+    private Integer connectTimeoutSeconds;
+
+    @TableField("read_timeout_seconds")
+    @Schema(description = "整体响应超时（秒），默认 45")
+    private Integer readTimeoutSeconds;
+
+    @TableField("model_retry_times")
+    @Schema(description = "模型调用失败重试次数，默认 1")
+    private Integer modelRetryTimes;
 
     @TableField("enabled")
     @Schema(description = "是否启用")

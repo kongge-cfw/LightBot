@@ -8,6 +8,7 @@ import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
 import { safeJsonParse } from '../../utils/request'
 import { getToolBlockOffsets, markToolBlockDone } from './useChatEventPartition.js'
 import { registerToolBlockOffset } from './useChatCapabilityStream.js'
+import { normalizeAssistantMessageErrors, hasMessageErrorState, resolveDeleteAssistantMessageId } from '../../utils/chat/messageErrorState.js'
 
 export function clearErrorRetry(msg) {
   if (msg?._errorRetry) {
@@ -81,11 +82,16 @@ export function useChatStream(deps) {
     await runChatStream({ message: text, attachments: [], regenerate: false })
   }
 
-  /** 流被用户终止后，后端仍可能异步落库，轮询同步最新消息 ID 以启用收藏/反馈 */
-  async function syncAbortedAssistantMessageId(sid, assistantMsg) {
-    if (!sid || !assistantMsg || assistantMsg._id) return
+  /** 流被用户终止后，仅在本次请求确实落库时同步消息 ID（禁止借用历史助手消息 ID） */
+  async function syncAbortedAssistantMessageId(sid, assistantMsg, sendStartMs) {
+    if (!sid || !assistantMsg || assistantMsg._persisted) return
+    // 终止/错误/敏感拦截等未通过 DONE 落库的消息，不应绑定会话里其它助手消息的 ID
+    if (assistantMsg._terminated || assistantMsg._error || hasMessageErrorState(assistantMsg)) {
+      return
+    }
     for (let attempt = 0; attempt < 4; attempt++) {
       await new Promise(r => setTimeout(r, 250 * (attempt + 1)))
+      if (assistantMsg._persisted) return
       try {
         const res = await getSessionMessages(sid, { pageNum: 1, pageSize: 5 })
         const records = res.data?.records || []
@@ -93,12 +99,16 @@ export function useChatStream(deps) {
           const role = String(m.role?.code || m.role || '').toLowerCase()
           return role === 'assistant'
         })
-        if (latestAssistant?.id) {
-          assistantMsg._id = String(latestAssistant.id)
-          assistantMsg._createTime = latestAssistant.createTime || assistantMsg._createTime
-          await loadBatchFeedbacks([assistantMsg])
-          return
+        if (!latestAssistant?.id) continue
+        const createdAt = latestAssistant.createTime ? new Date(latestAssistant.createTime).getTime() : 0
+        if (sendStartMs && createdAt > 0 && createdAt < sendStartMs - 3000) {
+          continue
         }
+        assistantMsg._id = String(latestAssistant.id)
+        assistantMsg._persisted = true
+        assistantMsg._createTime = latestAssistant.createTime || assistantMsg._createTime
+        await loadBatchFeedbacks([assistantMsg])
+        return
       } catch {
         // 忽略，继续重试
       }
@@ -139,6 +149,7 @@ export function useChatStream(deps) {
         _reasoningExpanded: true,
         _reasoningDone: true,
         _terminated: true,
+        _persisted: false,
       }
       messages.value.push(targetMsg)
     } else if (assistantMsg) {
@@ -155,6 +166,13 @@ export function useChatStream(deps) {
       targetMsg = assistantMsg
     }
 
+    if (!targetMsg._persisted) {
+      targetMsg._id = null
+      targetMsg._persisted = false
+    }
+
+    normalizeAssistantMessageErrors(targetMsg)
+
     loading.value = false
     streaming.value = false
     hasStreamContent.value = false
@@ -164,7 +182,7 @@ export function useChatStream(deps) {
     userStoppedStream.value = false
     // 后端可能在流中断后仍落库并生成标题，继续轮询
     pollSessionTitle(sessionId.value)
-    syncAbortedAssistantMessageId(sessionId.value, targetMsg)
+    syncAbortedAssistantMessageId(sessionId.value, targetMsg, sendStartTime)
 
     if (isNearBottom.value) {
       nextTick(() => {
@@ -176,7 +194,7 @@ export function useChatStream(deps) {
 
   const router = useRouter()
 
-  async function runChatStream({ message: msgText, attachments, mentions, regenerate, editMessageId: editMsgId, replyToMessageId: replyMsgId }) {
+  async function runChatStream({ message: msgText, attachments, mentions, regenerate, editMessageId: editMsgId, replyToMessageId: replyMsgId, deleteAssistantMessageId }) {
     loading.value = true
     streaming.value = true
     hasStreamContent.value = false
@@ -211,6 +229,7 @@ export function useChatStream(deps) {
         _reasoningContent: '',
         _reasoningExpanded: true,
         _reasoningDone: false,
+        _persisted: false,
       })
       assistantMsg = messages.value[messages.value.length - 1]
       setCurrentStreamingMsg(assistantMsg)
@@ -239,6 +258,7 @@ export function useChatStream(deps) {
         configVersion: selectedConfigVersion.value ?? 0,
         agentVersionId: selectedAgentVersionId.value || undefined,
         regenerate: regenerate || undefined,
+        deleteAssistantMessageId: deleteAssistantMessageId || undefined,
         editMessageId: editMsgId || undefined,
         replyToMessageId: replyMsgId || undefined,
         mentions: mentions?.length ? mentions.map(m => ({
@@ -269,7 +289,7 @@ export function useChatStream(deps) {
           onChunk: (chunk) => {
             if (reconnecting.value) reconnecting.value = false
             if (!pushed) {
-              messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false })
+              messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false, _persisted: false })
               assistantMsg = messages.value[messages.value.length - 1]
               setCurrentStreamingMsg(assistantMsg)
               attachRequestId(assistantMsg)
@@ -294,7 +314,7 @@ export function useChatStream(deps) {
             }
             if (event.type === 'reasoning_content') {
               if (!pushed) {
-                messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false })
+                messages.value.push({ role: 'assistant', content: '', _streaming: true, _toolsDone: false, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: false, _persisted: false })
                 assistantMsg = messages.value[messages.value.length - 1]
                 setCurrentStreamingMsg(assistantMsg)
                 attachRequestId(assistantMsg)
@@ -342,6 +362,9 @@ export function useChatStream(deps) {
                 code: event.code || 'UNKNOWN',
               }
               assistantMsg._errorRetry = null
+              assistantMsg._persisted = false
+              assistantMsg._id = null
+              normalizeAssistantMessageErrors(assistantMsg)
               assistantMsg._streaming = false
               assistantMsg._toolsDone = true
               loading.value = false
@@ -462,6 +485,10 @@ export function useChatStream(deps) {
           currentStatus.value = '正在重连...'
         }}
       )
+      if (userStoppedStream.value) {
+        finalizeAbortedStream(assistantMsg, pushed)
+        return
+      }
     } catch (e) {
       reconnecting.value = false
       if (e.name === 'AbortError') {
@@ -471,13 +498,16 @@ export function useChatStream(deps) {
       streamSmoother.stop()
       setCurrentStreamingMsg(null)
       if (!assistantMsg) {
-        messages.value.push({ role: 'assistant', content: '', _streaming: false, _toolsDone: true, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: true })
+        messages.value.push({ role: 'assistant', content: '', _streaming: false, _toolsDone: true, _toolEvents: [], _workflowEvents: [], _toolBlockOffsets: [], _toolBlocksDone: [], _toolExpanded: false, _reasoningContent: '', _reasoningExpanded: true, _reasoningDone: true, _persisted: false })
         assistantMsg = messages.value[messages.value.length - 1]
       }
       assistantMsg._error = {
         message: 'AI 大模型调用失败，请检查模型配置是否正确。\n\n错误详情：' + (e.message || '未知错误'),
         code: 'REQUEST_ERROR',
       }
+      assistantMsg._persisted = false
+      assistantMsg._id = null
+      normalizeAssistantMessageErrors(assistantMsg)
       assistantMsg._streaming = false
       assistantMsg._toolsDone = true
       loading.value = false
@@ -559,7 +589,14 @@ export function useChatStream(deps) {
     }
     if (userIdx < 0) return
     const userMsg = messages.value[userIdx]
-    messages.value.pop()
+    const assistantMsg = messages.value[assistantIndex]
+    const deleteId = resolveDeleteAssistantMessageId(assistantMsg)
+    // 仅移除当前助手消息；未落库时不传 deleteAssistantMessageId，避免误删历史成功回复
+    if (assistantIndex === messages.value.length - 1) {
+      messages.value.pop()
+    } else {
+      messages.value.splice(assistantIndex, 1)
+    }
     isNearBottom.value = true
     userScrolledUp.value = false
     scrollToBottom()
@@ -568,6 +605,7 @@ export function useChatStream(deps) {
       attachments: userMsg._attachments || [],
       mentions: getMsgMentions(userMsg).length ? getMsgMentions(userMsg) : undefined,
       regenerate: true,
+      deleteAssistantMessageId: deleteId,
     })
   }
 

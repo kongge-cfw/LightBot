@@ -1,6 +1,7 @@
 package com.lightbot.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,6 +36,10 @@ import java.util.List;
 public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         implements SubAgentService {
 
+    private static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
+    private static final int DEFAULT_READ_TIMEOUT_SECONDS = 120;
+    private static final int DEFAULT_MODEL_RETRY_TIMES = 1;
+
     private final ObjectMapper objectMapper;
     private final ToolService toolService;
 
@@ -67,6 +72,9 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         subAgent.setToolIds(toJson(request.getToolIds()));
         subAgent.setModelId(request.resolveProviderId());
         subAgent.setLlmModel(request.getLlmModel());
+        subAgent.setConnectTimeoutSeconds(resolveConnectTimeoutSeconds(request.getConnectTimeoutSeconds()));
+        subAgent.setReadTimeoutSeconds(resolveReadTimeoutSeconds(request.getReadTimeoutSeconds()));
+        subAgent.setModelRetryTimes(resolveModelRetryTimes(request.getModelRetryTimes()));
         subAgent.setEnabled(request.getEnabled() != null ? (request.getEnabled() ? 1 : 0) : 1);
         subAgent.setIsBuiltin(0);
         save(subAgent);
@@ -74,6 +82,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
     }
 
     @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_SUBAGENT, key = "#request.id")
     public SubAgent update(SubAgentRequest request) {
         // 1. 校验存在性
         SubAgent subAgent = getById(request.getId());
@@ -91,20 +100,36 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
                 throw new BizException(ErrorCode.SUBAGENT_NAME_EXISTS);
             }
         }
-        // 4. 清理悬空工具引用后更新字段
+        // 4. 清理悬空工具引用后更新字段（tool_ids 走 updateById 以应用 JSONB TypeHandler；model 为 null 时单独清空）
         request.setToolIds(cleanStaleToolIds(request.getToolIds()));
         subAgent.setName(request.getName());
         subAgent.setDisplayName(request.getDisplayName());
         subAgent.setDescription(request.getDescription());
         subAgent.setSystemPrompt(request.getSystemPrompt());
         subAgent.setToolIds(toJson(request.getToolIds()));
-        subAgent.setModelId(request.resolveProviderId());
-        subAgent.setLlmModel(request.getLlmModel());
+        subAgent.setConnectTimeoutSeconds(resolveConnectTimeoutSeconds(request.getConnectTimeoutSeconds()));
+        subAgent.setReadTimeoutSeconds(resolveReadTimeoutSeconds(request.getReadTimeoutSeconds()));
+        subAgent.setModelRetryTimes(resolveModelRetryTimes(request.getModelRetryTimes()));
         if (request.getEnabled() != null) {
             subAgent.setEnabled(request.getEnabled() ? 1 : 0);
         }
-        updateById(subAgent);
-        return subAgent;
+        Long providerId = request.resolveProviderId();
+        if (providerId != null) {
+            subAgent.setModelId(providerId);
+            subAgent.setLlmModel(request.getLlmModel());
+            if (!updateById(subAgent)) {
+                throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
+            }
+        } else {
+            if (!updateById(subAgent)) {
+                throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
+            }
+            update(new LambdaUpdateWrapper<SubAgent>()
+                    .eq(SubAgent::getId, subAgent.getId())
+                    .set(SubAgent::getModelId, null)
+                    .set(SubAgent::getLlmModel, null));
+        }
+        return getById(subAgent.getId());
     }
 
     @Override
@@ -169,5 +194,26 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
 
     private List<String> cleanStaleToolIds(List<String> toolIds) {
         return toolService.cleanStaleToolIds(toolIds);
+    }
+
+    private int resolveConnectTimeoutSeconds(Integer connectTimeoutSeconds) {
+        if (connectTimeoutSeconds == null) {
+            return DEFAULT_CONNECT_TIMEOUT_SECONDS;
+        }
+        return Math.max(1, Math.min(60, connectTimeoutSeconds));
+    }
+
+    private int resolveReadTimeoutSeconds(Integer readTimeoutSeconds) {
+        if (readTimeoutSeconds != null) {
+            return Math.max(10, Math.min(300, readTimeoutSeconds));
+        }
+        return DEFAULT_READ_TIMEOUT_SECONDS;
+    }
+
+    private int resolveModelRetryTimes(Integer modelRetryTimes) {
+        if (modelRetryTimes == null) {
+            return DEFAULT_MODEL_RETRY_TIMES;
+        }
+        return Math.max(0, Math.min(10, modelRetryTimes));
     }
 }

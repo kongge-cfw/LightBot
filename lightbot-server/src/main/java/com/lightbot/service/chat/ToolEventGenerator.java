@@ -257,13 +257,21 @@ public class ToolEventGenerator {
     /**
      * SubAgent 子工具调用事件
      */
-    public String subagentToolCallEvent(String subagentName, String toolName, int contentOffset) {
+    public String subagentToolCallEvent(String subagentName, String subagentDisplayName,
+                                        String toolName, String toolDisplayName,
+                                        String args, int contentOffset) {
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "type", "subagent_tool_call",
-                    "subagentName", subagentName != null ? subagentName : "",
-                    "toolName", toolName != null ? toolName : "",
-                    "contentOffset", contentOffset));
+            Map<String, Object> evt = new java.util.LinkedHashMap<>();
+            evt.put("type", "subagent_tool_call");
+            evt.put("subagentName", subagentName != null ? subagentName : "");
+            evt.put("displayName", subagentDisplayName != null ? subagentDisplayName : subagentName);
+            evt.put("toolName", toolName != null ? toolName : "");
+            if (toolDisplayName != null && !toolDisplayName.isBlank()) {
+                evt.put("toolDisplayName", toolDisplayName);
+            }
+            evt.put("args", args != null ? args : "{}");
+            evt.put("contentOffset", contentOffset);
+            return objectMapper.writeValueAsString(evt);
         } catch (Exception e) {
             return safeFallbackJson(Map.of("type", "subagent_tool_call", "subagentName", subagentName != null ? subagentName : "", "contentOffset", contentOffset));
         }
@@ -272,14 +280,22 @@ public class ToolEventGenerator {
     /**
      * SubAgent 子工具结果事件
      */
-    public String subagentToolResultEvent(String subagentName, String result, int contentOffset) {
+    public String subagentToolResultEvent(String subagentName, String subagentDisplayName,
+                                          String toolName, String toolDisplayName,
+                                          String result, int contentOffset) {
         try {
-            String truncated = result != null && result.length() > 500 ? result.substring(0, 500) + "..." : (result != null ? result : "");
-            return objectMapper.writeValueAsString(Map.of(
-                    "type", "subagent_tool_result",
-                    "subagentName", subagentName != null ? subagentName : "",
-                    "content", truncated,
-                    "contentOffset", contentOffset));
+            String truncated = truncateForSse(result);
+            Map<String, Object> evt = new java.util.LinkedHashMap<>();
+            evt.put("type", "subagent_tool_result");
+            evt.put("subagentName", subagentName != null ? subagentName : "");
+            evt.put("displayName", subagentDisplayName != null ? subagentDisplayName : subagentName);
+            evt.put("toolName", toolName != null ? toolName : "");
+            if (toolDisplayName != null && !toolDisplayName.isBlank()) {
+                evt.put("toolDisplayName", toolDisplayName);
+            }
+            evt.put("result", truncated);
+            evt.put("contentOffset", contentOffset);
+            return objectMapper.writeValueAsString(evt);
         } catch (Exception e) {
             return safeFallbackJson(Map.of("type", "subagent_tool_result", "subagentName", subagentName != null ? subagentName : "", "contentOffset", contentOffset));
         }

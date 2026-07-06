@@ -2,11 +2,10 @@ package com.lightbot.subagent;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.constant.ChatConstants;
-import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.ToolResultPrefixes;
 import com.lightbot.entity.SubAgent;
 import com.lightbot.entity.SubAgentRun;
+import com.lightbot.entity.Tool;
 import com.lightbot.mapper.SubAgentRunMapper;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.model.DashScopeModelSupport;
@@ -17,6 +16,7 @@ import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.chat.ChatContext;
 import com.lightbot.service.chat.ToolEventGenerator;
+import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.TextNormalizeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +34,7 @@ import org.springframework.ai.model.tool.ToolCallingChatOptions;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -57,6 +58,9 @@ import java.util.Map;
 public class SubAgentRuntime {
 
     private final ModelProviderService modelProviderService;
+    private static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
+    private static final int DEFAULT_READ_TIMEOUT_SECONDS = 120;
+    private static final int DEFAULT_MODEL_RETRY_TIMES = 1;
     private static final int MAX_LOOP_DEPTH = 6;
 
     private final ModelFactory modelFactory;
@@ -115,9 +119,13 @@ public class SubAgentRuntime {
         }
 
         long start = System.currentTimeMillis();
-        long deadlineMs = start + ChatConstants.TOOL_EXECUTION_TIMEOUT_SECONDS * 1000L;
-        log.info("[SubAgent] 委派开始: name={}, threadId={}, taskLen={}",
-                subAgent.getName(), threadId, taskDescription != null ? taskDescription.length() : 0);
+        int connectTimeoutSeconds = resolveConnectTimeoutSeconds(subAgent);
+        int readTimeoutSeconds = resolveReadTimeoutSeconds(subAgent, chatContext);
+        int modelRetryTimes = resolveModelRetryTimes(subAgent);
+        long deadlineMs = start + readTimeoutSeconds * 1000L;
+        log.info("[SubAgent] 委派开始: name={}, threadId={}, taskLen={}, connect={}s, read={}s, retry={}",
+                subAgent.getName(), threadId, taskDescription != null ? taskDescription.length() : 0,
+                connectTimeoutSeconds, readTimeoutSeconds, modelRetryTimes);
 
         // 3. 创建运行记录
         SubAgentRun run = new SubAgentRun();
@@ -139,14 +147,23 @@ public class SubAgentRuntime {
                     ? List.of()
                     : toolService.resolveToolCallbacksByIds(toolIds);
             Map<String, ToolCallback> toolMap = new HashMap<>();
+            Map<String, String> toolDisplayNameMap = new HashMap<>();
             for (ToolCallback cb : toolCallbacks) {
                 toolMap.put(cb.getToolDefinition().name(), cb);
+            }
+            if (!toolIds.isEmpty()) {
+                for (Tool tool : toolService.listByIds(toolIds)) {
+                    if (tool != null && tool.getName() != null) {
+                        toolDisplayNameMap.put(tool.getName(),
+                                tool.getDisplayName() != null && !tool.getDisplayName().isBlank()
+                                        ? tool.getDisplayName() : tool.getName());
+                    }
+                }
             }
 
             // 5. 准备模型：独立配置优先，否则继承主 Agent（含版本快照 configMap）
             ResolvedModel resolved = resolveModel(subAgent, chatContext);
             ChatModel chatModel = modelFactory.getChatModel(resolved.providerId());
-            int modelRetryTimes = resolveModelRetryTimes(resolved.configMap());
             log.info("[SubAgent] 模型: name={}, providerId={}, modelId={}, inherit={}",
                     subAgent.getName(), resolved.providerId(),
                     resolved.configMap().get("modelId"),
@@ -175,19 +192,25 @@ public class SubAgentRuntime {
             String reply = "";
             int toolCallCount = 0;
             for (int depth = 0; depth < MAX_LOOP_DEPTH; depth++) {
+                if (chatContext != null && chatContext.isAborted()) {
+                    markFailed(run, "SubAgent execution cancelled by client", start);
+                    return new SubAgentResult("", threadId, continued);
+                }
                 long remainingMs = deadlineMs - System.currentTimeMillis();
                 if (remainingMs <= 0) {
-                    String timeoutMsg = "SubAgent 执行超时（" + ChatConstants.TOOL_EXECUTION_TIMEOUT_SECONDS + "秒），请稍后重试";
-                    emitSubAgentError(chatContext, subAgent, timeoutMsg, "TIMEOUT");
+                    String timeoutMsg = readTimeoutMessage(readTimeoutSeconds);
+                    emitSubAgentError(chatContext, subAgent, timeoutMsg, "READ_TIMEOUT");
                     markFailed(run, timeoutMsg, start);
                     return new SubAgentResult(timeoutMsg, threadId, continued);
                 }
                 StringBuilder replyBuilder = new StringBuilder();
                 AssistantMessage assistant;
                 try {
+                    prepareMessagesForLlm(messages);
                     assistant = streamLlmWithRetry(
                             chatModel, new Prompt(new ArrayList<>(messages), options),
-                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth, deadlineMs);
+                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth, deadlineMs,
+                            connectTimeoutSeconds, readTimeoutSeconds);
                 } catch (Exception e) {
                     String errorMsg = classifyErrorMessage(e);
                     log.error("[SubAgent] 模型调用失败: name={}, depth={}, error={}",
@@ -210,9 +233,7 @@ public class SubAgentRuntime {
                 messages.add(assistant);
                 List<ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
                 for (AssistantMessage.ToolCall tc : assistant.getToolCalls()) {
-                    // 推送子工具调用事件
-                    pushEvent(chatContext, new ChatContext.SubAgentEvent(
-                            "tool_call", subAgent.getName(), tc.name(), 0));
+                    emitSubAgentToolCall(chatContext, subAgent, tc, toolDisplayNameMap);
 
                     String result;
                     ToolCallback cb = toolMap.get(tc.name());
@@ -232,11 +253,9 @@ public class SubAgentRuntime {
                         }
                     }
 
-                    // 推送子工具结果事件
-                    pushEvent(chatContext, new ChatContext.SubAgentEvent(
-                            "tool_result", subAgent.getName(),
-                            truncate(result, 500), 0));
+                    emitSubAgentToolResult(chatContext, subAgent, tc, result, toolDisplayNameMap);
 
+                    result = ChatMessageContextUtil.capToolResult(result, ChatMessageContextUtil.MAX_SINGLE_TOOL_RESULT_CHARS);
                     toolResponses.add(new ToolResponseMessage.ToolResponse(tc.id(), tc.name(), result));
                     toolCallCount++;
                 }
@@ -265,6 +284,17 @@ public class SubAgentRuntime {
             markFailed(run, errorMsg, start);
             return new SubAgentResult(errorMsg, threadId, false);
         }
+    }
+
+    /**
+     * LLM 调用前规范化并裁剪消息，避免空 content 或工具结果撑爆 DashScope 输入上限
+     */
+    private void prepareMessagesForLlm(List<Message> messages) {
+        ChatMessageContextUtil.normalizeMessagesForLlm(messages);
+        ChatMessageContextUtil.trimToolCallContext(
+                messages,
+                ChatMessageContextUtil.DASHSCOPE_SAFE_INPUT_CHARS,
+                ChatMessageContextUtil.DEFAULT_TOOL_ROUNDS_TO_KEEP);
     }
 
     /** 解析后的模型配置：Provider ID + 模型参数字典 */
@@ -348,28 +378,31 @@ public class SubAgentRuntime {
      */
     private AssistantMessage streamLlmWithRetry(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
                                                  ChatContext chatContext, int retryTimes,
-                                                 StringBuilder replyBuilder, int depth, long deadlineMs) throws Exception {
+                                                 StringBuilder replyBuilder, int depth, long deadlineMs,
+                                                 int connectTimeoutSeconds, int readTimeoutSeconds) throws Exception {
         Exception lastError = null;
         for (int attempt = 0; attempt <= retryTimes; attempt++) {
             long remainingMs = deadlineMs - System.currentTimeMillis();
             if (remainingMs <= 0) {
-                throw new RuntimeException("SubAgent 执行超时（" + ChatConstants.TOOL_EXECUTION_TIMEOUT_SECONDS + "秒），请稍后重试");
+                throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
             }
             try {
-                return streamLlmOnce(chatModel, prompt, subAgent, chatContext, replyBuilder, remainingMs);
+                return streamLlmOnce(chatModel, prompt, subAgent, chatContext, replyBuilder, remainingMs,
+                        connectTimeoutSeconds, readTimeoutSeconds);
             } catch (Exception e) {
                 lastError = e;
                 if (attempt < retryTimes) {
                     int retryNo = attempt + 1;
                     long delayMs = Math.min((long) Math.pow(2, attempt) * 1000, Math.max(0, deadlineMs - System.currentTimeMillis()));
                     if (delayMs <= 0) {
-                        throw new RuntimeException("SubAgent 执行超时（" + ChatConstants.TOOL_EXECUTION_TIMEOUT_SECONDS + "秒），请稍后重试");
+                        throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
                     }
-                    log.warn("[SubAgent] 模型调用失败，第{}次重试，等待{}ms: name={}, depth={}, error={}",
-                            retryNo, delayMs, subAgent.getName(), depth, e.getMessage());
+                    String reason = classifyFailureReason(e);
+                    log.warn("[SubAgent] 模型调用失败，第{}次重试，等待{}ms: name={}, depth={}, reason={}, error={}",
+                            retryNo, delayMs, subAgent.getName(), depth, reason, e.getMessage());
                     emitSubAgentErrorRetry(chatContext, subAgent,
-                            "SubAgent 连接异常，正在重试 " + retryNo + "/" + retryTimes,
-                            classifyErrorCode(e), retryNo, retryTimes);
+                            buildRetryMessage(subAgent, reason, retryNo, retryTimes),
+                            reasonToCode(reason), retryNo, retryTimes);
                     Thread.sleep(delayMs);
                 }
             }
@@ -377,13 +410,17 @@ public class SubAgentRuntime {
         throw lastError != null ? lastError : new RuntimeException("SubAgent 模型调用失败");
     }
 
-    /** 单次流式 LLM 调用（受整体墙钟预算约束，与主 Agent 工具超时一致） */
+    /** 单次流式 LLM 调用（连接超时 + 响应超时） */
     private AssistantMessage streamLlmOnce(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
-                                          ChatContext chatContext, StringBuilder replyBuilder, long remainingMs) {
+                                          ChatContext chatContext, StringBuilder replyBuilder, long remainingMs,
+                                          int connectTimeoutSeconds, int readTimeoutSeconds) {
         List<AssistantMessage> lastAssistant = new ArrayList<>();
         java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        java.util.concurrent.atomic.AtomicBoolean firstReceived = new java.util.concurrent.atomic.AtomicBoolean(false);
+        StringBuilder streamSnapshot = new StringBuilder();
         Flux<ChatResponse> flux = chatModel.stream(prompt);
-        flux.doOnNext(response -> {
+        Flux<ChatResponse> guardedFlux = flux.doOnNext(response -> {
+            firstReceived.set(true);
             Generation gen = response.getResult();
             if (gen != null && gen.getOutput() != null) {
                 AssistantMessage output = gen.getOutput();
@@ -394,28 +431,140 @@ public class SubAgentRuntime {
                 }
                 String text = output.getText();
                 if (text != null && !text.isEmpty()) {
-                    replyBuilder.append(text);
-                    pushEvent(chatContext, new ChatContext.SubAgentEvent(
-                            "token", subAgent.getName(), text, 0));
+                    String delta = consumeStreamTextDelta(streamSnapshot, text);
+                    if (!delta.isEmpty()) {
+                        replyBuilder.append(delta);
+                        pushTokenEvent(chatContext, subAgent, delta);
+                    }
                 }
             }
-        }).doOnComplete(() -> completed.set(true))
+        }).doOnComplete(() -> completed.set(true));
+        if (chatContext != null) {
+            guardedFlux = guardedFlux.takeUntilOther(Mono.delay(Duration.ofMillis(200))
+                    .repeat()
+                    .filter(tick -> chatContext.isAborted())
+                    .next());
+        }
+        guardedFlux
           .take(Duration.ofMillis(Math.max(1, remainingMs)))
           .blockLast();
+        if (chatContext != null && chatContext.isAborted()) {
+            throw new RuntimeException("SubAgent execution cancelled by client");
+        }
+        if (!firstReceived.get()) {
+            throw new RuntimeException(connectTimeoutMessage(connectTimeoutSeconds));
+        }
         if (!completed.get()) {
-            throw new RuntimeException("SubAgent 执行超时（" + ChatConstants.TOOL_EXECUTION_TIMEOUT_SECONDS + "秒），请稍后重试");
+            throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
         }
         return lastAssistant.isEmpty() ? null : lastAssistant.get(0);
     }
 
-    private int resolveModelRetryTimes(Map<String, Object> configMap) {
-        if (configMap == null) return 2;
-        Object val = configMap.get(ConfigKeys.Agent.MODEL_RETRY_TIMES);
-        if (val instanceof Number n) return Math.max(0, Math.min(10, n.intValue()));
-        if (val != null) {
-            try { return Math.max(0, Math.min(10, Integer.parseInt(val.toString()))); } catch (Exception ignored) {}
+    private int resolveConnectTimeoutSeconds(SubAgent subAgent) {
+        if (subAgent != null && subAgent.getConnectTimeoutSeconds() != null) {
+            return Math.max(1, Math.min(60, subAgent.getConnectTimeoutSeconds()));
         }
-        return 2;
+        return DEFAULT_CONNECT_TIMEOUT_SECONDS;
+    }
+
+    private int resolveReadTimeoutSeconds(SubAgent subAgent, ChatContext chatContext) {
+        int configured = DEFAULT_READ_TIMEOUT_SECONDS;
+        if (subAgent != null && subAgent.getReadTimeoutSeconds() != null) {
+            configured = Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()));
+        }
+        return configured;
+    }
+
+    private int resolveModelRetryTimes(SubAgent subAgent) {
+        if (subAgent == null || subAgent.getModelRetryTimes() == null) {
+            return DEFAULT_MODEL_RETRY_TIMES;
+        }
+        return Math.max(0, Math.min(10, subAgent.getModelRetryTimes()));
+    }
+
+    private String connectTimeoutMessage(int connectTimeoutSeconds) {
+        return "SubAgent 连接超时（" + connectTimeoutSeconds + "秒），请检查网络或模型服务";
+    }
+
+    private String readTimeoutMessage(int readTimeoutSeconds) {
+        return "SubAgent 响应超时（" + readTimeoutSeconds + "秒），请稍后重试";
+    }
+
+    private String resolveSubAgentDisplayName(SubAgent subAgent) {
+        if (subAgent == null) {
+            return "";
+        }
+        return subAgent.getDisplayName() != null && !subAgent.getDisplayName().isBlank()
+                ? subAgent.getDisplayName() : subAgent.getName();
+    }
+
+    private String classifyFailureReason(Throwable e) {
+        if (e == null) {
+            return "execution_error";
+        }
+        String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
+        if (msg.contains("连接超时") || msg.contains("connect timed out") || msg.contains("connection timed out")
+                || msg.contains("connect timeout") || msg.contains("连接失败")) {
+            return "connect_timeout";
+        }
+        if (msg.contains("响应超时") || msg.contains("timeout") || msg.contains("timed out")) {
+            return "read_timeout";
+        }
+        return "execution_error";
+    }
+
+    private String reasonToCode(String reason) {
+        return switch (reason) {
+            case "connect_timeout" -> "CONNECT_TIMEOUT";
+            case "read_timeout" -> "READ_TIMEOUT";
+            default -> "LLM_ERROR";
+        };
+    }
+
+    private String reasonLabel(String reason) {
+        return switch (reason) {
+            case "connect_timeout" -> "连接超时";
+            case "read_timeout" -> "响应超时";
+            default -> "执行失败";
+        };
+    }
+
+    private String buildRetryMessage(SubAgent subAgent, String reason, int attempt, int maxRetries) {
+        return resolveSubAgentDisplayName(subAgent) + "：" + reasonLabel(reason)
+                + "，正在重试 " + attempt + "/" + maxRetries;
+    }
+
+    /**
+     * 从流式 getText() 提取增量（兼容累积全文与纯增量两种 provider 行为）
+     */
+    private String consumeStreamTextDelta(StringBuilder snapshot, String currentText) {
+        if (currentText == null || currentText.isEmpty()) {
+            return "";
+        }
+        String consumed = snapshot.toString();
+        if (!consumed.isEmpty()
+                && currentText.startsWith(consumed)
+                && currentText.length() > consumed.length()) {
+            String delta = currentText.substring(consumed.length());
+            snapshot.setLength(0);
+            snapshot.append(currentText);
+            return delta;
+        }
+        if (currentText.contentEquals(consumed)) {
+            return "";
+        }
+        if (!consumed.isEmpty()
+                && currentText.length() <= consumed.length()
+                && consumed.startsWith(currentText)) {
+            return "";
+        }
+        if (!consumed.isEmpty()
+                && currentText.length() <= consumed.length()
+                && consumed.endsWith(currentText)) {
+            return "";
+        }
+        snapshot.append(currentText);
+        return currentText;
     }
 
     private void emitSubAgentError(ChatContext chatContext, SubAgent subAgent, String message, String code) {
@@ -462,8 +611,12 @@ public class SubAgentRuntime {
         if (e == null) return "SubAgent 执行失败：未知错误";
         String msg = e.getMessage();
         if (msg == null) return "SubAgent 执行失败：" + e.getClass().getSimpleName();
-        if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("Timeout")) {
-            return "SubAgent 响应超时，请稍后重试";
+        String reason = classifyFailureReason(e);
+        if ("connect_timeout".equals(reason)) {
+            return msg.contains("SubAgent") ? msg : connectTimeoutMessage(resolveConnectTimeoutSeconds(null));
+        }
+        if ("read_timeout".equals(reason)) {
+            return msg.contains("SubAgent") ? msg : readTimeoutMessage(resolveReadTimeoutSeconds(null, null));
         }
         if (msg.contains("429") || msg.contains("rate") || msg.contains("Rate")) {
             return "SubAgent 请求被限流，请稍后重试";
@@ -471,75 +624,100 @@ public class SubAgentRuntime {
         if (msg.contains("401") || msg.contains("403")) {
             return "SubAgent 模型认证失败，请检查 API Key 配置";
         }
+        if (msg.contains("input length") || (msg.contains("InvalidParameter") && msg.contains("202745"))) {
+            return "SubAgent 上下文过长，请缩小任务范围或减少工具返回数据";
+        }
         return "SubAgent 执行失败：" + (msg.length() > 200 ? msg.substring(0, 200) + "..." : msg);
     }
 
     private String classifyErrorCode(Throwable e) {
         if (e == null) return "UNKNOWN";
+        String code = reasonToCode(classifyFailureReason(e));
+        if (!"LLM_ERROR".equals(code)) {
+            return code;
+        }
         String msg = e.getMessage();
         if (msg == null) return "UNKNOWN";
-        if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("Timeout")) return "TIMEOUT";
         if (msg.contains("429") || msg.contains("rate") || msg.contains("Rate")) return "RATE_LIMITED";
         if (msg.contains("401") || msg.contains("403")) return "AUTH_ERROR";
         if (msg.contains("token") && (msg.contains("limit") || msg.contains("exceed"))) return "TOKEN_LIMIT";
         return "LLM_ERROR";
     }
 
-    private void pushEvent(ChatContext chatContext, ChatContext.SubAgentEvent event) {
-        if (chatContext == null || event == null) {
+    private void pushTokenEvent(ChatContext chatContext, SubAgent subAgent, String delta) {
+        if (chatContext == null || delta == null) {
             return;
         }
-        int offset = chatContext.getSubAgentContentOffset() != null
-                ? chatContext.getSubAgentContentOffset() : event.contentOffset();
-        String json = switch (event.type()) {
-            case "token" -> toolEventGenerator.subagentTokenEvent(event.subagentName(), event.content(), offset);
-            case "tool_call" -> toolEventGenerator.subagentToolCallEvent(event.subagentName(), event.content(), offset);
-            case "tool_result" -> toolEventGenerator.subagentToolResultEvent(event.subagentName(), event.content(), offset);
-            default -> null;
-        };
-        if (json == null) {
-            chatContext.pushSubAgentEvent(event);
-            return;
-        }
+        int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        String json = toolEventGenerator.subagentTokenEvent(subAgent.getName(), delta, offset);
         Map<String, Object> evt = new HashMap<>();
-        switch (event.type()) {
-            case "token" -> {
-                evt.put("type", "subagent_token");
-                evt.put("subagentName", event.subagentName());
-                evt.put("content", event.content());
-                evt.put("contentOffset", offset);
-            }
-            case "tool_call" -> {
-                evt.put("type", "subagent_tool_call");
-                evt.put("subagentName", event.subagentName());
-                evt.put("toolName", event.content());
-                evt.put("contentOffset", offset);
-            }
-            case "tool_result" -> {
-                evt.put("type", "subagent_tool_result");
-                evt.put("subagentName", event.subagentName());
-                evt.put("content", event.content());
-                evt.put("contentOffset", offset);
-            }
-            default -> {
-                chatContext.pushSubAgentEvent(event);
-                return;
-            }
+        evt.put("type", "subagent_token");
+        evt.put("subagentName", subAgent.getName());
+        evt.put("content", delta);
+        evt.put("contentOffset", offset);
+        emitSubAgentStreamEvent(chatContext, evt, json);
+    }
+
+    private void emitSubAgentToolCall(ChatContext chatContext, SubAgent subAgent, AssistantMessage.ToolCall tc,
+                                      Map<String, String> toolDisplayNameMap) {
+        if (chatContext == null || tc == null) {
+            return;
         }
-        // 流式路径：实时推送并写入 toolEventsList；非流式路径：入队待批量 drain
+        int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        String toolName = tc.name() != null ? tc.name() : "";
+        String toolDisplayName = toolDisplayNameMap.getOrDefault(toolName, toolName);
+        String args = tc.arguments() != null ? tc.arguments() : "{}";
+        String subDisplayName = resolveSubAgentDisplayName(subAgent);
+        String json = toolEventGenerator.subagentToolCallEvent(
+                subAgent.getName(), subDisplayName, toolName, toolDisplayName, args, offset);
+        Map<String, Object> evt = new java.util.LinkedHashMap<>();
+        evt.put("type", "subagent_tool_call");
+        evt.put("subagentName", subAgent.getName());
+        evt.put("displayName", subDisplayName);
+        evt.put("toolName", toolName);
+        evt.put("toolDisplayName", toolDisplayName);
+        evt.put("args", args);
+        evt.put("contentOffset", offset);
+        emitSubAgentStreamEvent(chatContext, evt, json);
+    }
+
+    private void emitSubAgentToolResult(ChatContext chatContext, SubAgent subAgent, AssistantMessage.ToolCall tc,
+                                        String result, Map<String, String> toolDisplayNameMap) {
+        if (chatContext == null || tc == null) {
+            return;
+        }
+        int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        String toolName = tc.name() != null ? tc.name() : "";
+        String toolDisplayName = toolDisplayNameMap.getOrDefault(toolName, toolName);
+        String subDisplayName = resolveSubAgentDisplayName(subAgent);
+        String json = toolEventGenerator.subagentToolResultEvent(
+                subAgent.getName(), subDisplayName, toolName, toolDisplayName, result, offset);
+        Map<String, Object> evt = new java.util.LinkedHashMap<>();
+        evt.put("type", "subagent_tool_result");
+        evt.put("subagentName", subAgent.getName());
+        evt.put("displayName", subDisplayName);
+        evt.put("toolName", toolName);
+        evt.put("toolDisplayName", toolDisplayName);
+        evt.put("result", toolEventGenerator.truncateForSse(result));
+        evt.put("contentOffset", offset);
+        emitSubAgentStreamEvent(chatContext, evt, json);
+    }
+
+    private void emitSubAgentStreamEvent(ChatContext chatContext, Map<String, Object> evt, String json) {
         if (chatContext.getRealtimeStatusEmitter() != null) {
             if (chatContext.getToolEventsList() != null) {
                 chatContext.getToolEventsList().add(evt);
             }
             chatContext.emitRealtimeStatus(json);
         } else {
-            chatContext.pushSubAgentEvent(event);
+            Object payload = evt.get("result") != null ? evt.get("result")
+                    : (evt.get("content") != null ? evt.get("content") : evt.get("args"));
+            chatContext.pushSubAgentEvent(new ChatContext.SubAgentEvent(
+                    evt.get("type").toString().replace("subagent_", ""),
+                    (String) evt.get("subagentName"),
+                    payload != null ? payload.toString() : "",
+                    (Integer) evt.getOrDefault("contentOffset", 0)));
         }
-    }
-
-    private String truncate(String s, int maxLen) {
-        if (s == null) return "";
-        return s.length() > maxLen ? s.substring(0, maxLen) + "..." : s;
     }
 
     private void markFailed(SubAgentRun run, String errorMessage, long start) {

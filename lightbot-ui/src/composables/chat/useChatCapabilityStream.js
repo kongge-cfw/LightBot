@@ -1,6 +1,7 @@
 /**
  * Chat 能力类 SSE 事件处理（Skill / SubAgent，从 Chat.vue 解耦）
  */
+import { nextTick } from 'vue'
 import { SKILL_ACTIVE_EVENT_TYPE, formatSkillActiveStatus } from '../../components/skills/skillRegistry.js'
 import {
   isSubagentEvent,
@@ -19,8 +20,39 @@ export function createChatCapabilityStreamHandlers(deps) {
     currentStatus,
     hasStreamContent,
     scrollToBottom,
-    registerToolBlockOffset,
+    messages,
+    messagesRef,
   } = deps
+
+  function scrollToCapabilityBlock(assistantMsg, selector) {
+    if (!assistantMsg) {
+      scrollToBottom()
+      return
+    }
+    nextTick(() => {
+      requestAnimationFrame(() => {
+        const idx = messages?.value?.indexOf(assistantMsg) ?? -1
+        const container = messagesRef?.value
+        if (idx < 0 || !container) {
+          scrollToBottom()
+          return
+        }
+        const row = container.querySelector(`[data-index="${idx}"]`)
+        const block = row?.querySelector(selector)
+        if (!block) {
+          scrollToBottom()
+          return
+        }
+        const containerRect = container.getBoundingClientRect()
+        const blockRect = block.getBoundingClientRect()
+        if (blockRect.bottom > containerRect.bottom - 16) {
+          container.scrollTop += blockRect.bottom - containerRect.bottom + 16
+        } else if (blockRect.top < containerRect.top + 16) {
+          container.scrollTop += blockRect.top - containerRect.top - 16
+        }
+      })
+    })
+  }
 
   /**
    * 处理 Skill / SubAgent SSE 事件
@@ -53,18 +85,30 @@ export function createChatCapabilityStreamHandlers(deps) {
       assistantMsg._currentToolOffset = offset
       registerToolBlockOffset(assistantMsg, offset)
       currentStatus.value = formatSubagentCallStatus(event)
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
     } else if (event.type === 'subagent_tool_call') {
       currentStatus.value = formatSubagentToolCallStatus(event)
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
     } else if (event.type === 'subagent_token') {
       currentStatus.value = 'SubAgent 输出中...'
+      scrollToBottom()
     } else if (event.type === 'subagent_error_retry') {
+      assistantMsg._toolExpanded = true
+      registerToolBlockOffset(assistantMsg, offset)
       currentStatus.value = event.message || `SubAgent 重试 ${event.attempt}/${event.maxRetries}`
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
     } else if (event.type === 'subagent_error') {
+      assistantMsg._toolExpanded = true
+      registerToolBlockOffset(assistantMsg, offset)
       currentStatus.value = event.message || 'SubAgent 执行失败'
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
+    } else {
+      hasStreamContent.value = true
+      scrollToBottom()
+      return true
     }
 
     hasStreamContent.value = true
-    scrollToBottom()
     return true
   }
 

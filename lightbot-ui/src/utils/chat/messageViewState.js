@@ -1,4 +1,5 @@
 import { getTopSkillEvents } from '../../composables/chat/useChatEventPartition.js'
+import { hasMessageErrorState } from './messageErrorState.js'
 
 /**
  * 从 ctx 解析 editingMessageId（支持 Ref 或原始值）
@@ -20,7 +21,9 @@ function resolveMessages(messages) {
 export function hasMessageActionContext(msg) {
   if (!msg) return false
   return !!(msg.content || msg._error || msg._workflowError
-    || (msg._workflowEvents?.length > 0))
+    || (msg._workflowEvents?.length > 0)
+    || msg._sensitiveBlock || msg._terminated
+    || hasMessageErrorState(msg))
 }
 
 /**
@@ -86,28 +89,30 @@ export function buildMessageViewState(msg, ctx) {
     : []
 
   const len = messagesLength ?? resolveMessages(messages).length
+  const hasErrors = hasMessageErrorState(msg)
 
   return {
     mode: isEditing ? 'edit' : 'normal',
     showReplyQuote: !!replyToInfo,
     showUserAttachments: msg?.role === 'user' && attachments.length > 0 && !sensitiveBlock,
-    showSensitiveBlock: sensitiveBlock,
-    showReasoning: !!msg?._reasoningContent && !sensitiveBlock,
-    showTopSkills: getTopSkillEvents(msg).length > 0 && !sensitiveBlock,
-    showWorkflow: (msg?._workflowEvents?.length ?? 0) > 0 && !sensitiveBlock,
-    showToolSegments: !sensitiveBlock && (msg?._toolEvents?.length ?? 0) > 0,
-    showPlainContent: !sensitiveBlock && !(msg?._toolEvents?.length > 0),
+    showSensitiveBlock: false,
+    showReasoning: !!msg?._reasoningContent && !sensitiveBlock && !hasErrors,
+    showTopSkills: getTopSkillEvents(msg).length > 0 && !sensitiveBlock && !hasErrors,
+    showWorkflow: (msg?._workflowEvents?.length ?? 0) > 0 && !sensitiveBlock && !hasErrors,
+    showToolSegments: !sensitiveBlock && !hasErrors && (msg?._toolEvents?.length ?? 0) > 0,
+    showPlainContent: !sensitiveBlock && !hasErrors && !(msg?._toolEvents?.length > 0),
     showPlainContentBlock: !sensitiveBlock
+      && !hasErrors
       && !(msg?._toolEvents?.length > 0)
       && !!msg?.content
       && msg.content !== '[附件]',
-    showWorkflowConfirm: !!msg?._workflowConfirmPending?.confirmForm && !sensitiveBlock,
-    showErrorRetry: !!msg?._errorRetry,
-    showError: !!msg?._error,
-    showWorkflowResilience: !!msg?._workflowNodeRetry,
-    showWorkflowError: !!msg?._workflowError,
-    showErrors: !!msg?._errorRetry || !!msg?._error || !!msg?._workflowNodeRetry || !!msg?._workflowError,
-    showActions: !msg?._streaming && hasMessageActionContext(msg) && !sensitiveBlock,
+    showWorkflowConfirm: !!msg?._workflowConfirmPending?.confirmForm && !sensitiveBlock && !hasErrors,
+    showErrorRetry: false,
+    showError: false,
+    showWorkflowResilience: false,
+    showWorkflowError: false,
+    showErrors: hasErrors,
+    showActions: !msg?._streaming && hasMessageActionContext(msg),
     showRagRefs: msg?.role === 'assistant' && ragRefs.length > 0 && !msg?._streaming,
     showReplyElapsed: msg?.role === 'assistant'
       && index === len - 1

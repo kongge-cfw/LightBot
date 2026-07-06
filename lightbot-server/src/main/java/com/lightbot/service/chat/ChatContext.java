@@ -107,6 +107,9 @@ public class ChatContext {
     /** 流式模型调用最终失败错误码 */
     private String streamErrorCode;
 
+    private volatile boolean aborted;
+    private volatile String abortReason;
+
     /** 流式敏感词过滤状态（按累积全文过滤，避免分片漏拦） */
     private SensitiveWordFilter.StreamState sensitiveStreamState;
 
@@ -155,6 +158,11 @@ public class ChatContext {
         if (realtimeStatusEmitter != null && statusJson != null && !statusJson.isBlank()) {
             realtimeStatusEmitter.accept(statusJson);
         }
+    }
+
+    public void requestAbort(String reason) {
+        this.aborted = true;
+        this.abortReason = reason;
     }
 
     /**

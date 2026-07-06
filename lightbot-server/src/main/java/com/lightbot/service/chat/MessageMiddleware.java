@@ -142,12 +142,13 @@ public class MessageMiddleware implements ChatMiddleware {
         validateAttachments(ctx.getRequest().getAttachments(), ctx.getConfigMap(), ctx.getSessionId());
         String userText = resolveUserText(ctx.getRequest());
         if (Boolean.TRUE.equals(ctx.getRequest().getRegenerate())) {
-            // 编辑重发时不删除之前的AI回复（那是针对旧问题的有效回答）
-            // 只有纯"重新生成"（无编辑消息ID）时才删除之前不完整的AI回复
-            if (ctx.getRequest().getEditMessageId() == null) {
-                deleteLastAssistantMessage(ctx.getSessionId());
-            } else {
-                // 编辑重发：仅更新用户消息内容
+            // 指定 ID 时删除对应助手消息（已落库的失败/成功回复）；未指定则跳过（未落库重试）
+            Long deleteId = ctx.getRequest().getDeleteAssistantMessageId();
+            if (deleteId != null) {
+                deleteAssistantMessageById(ctx.getSessionId(), deleteId);
+            }
+            if (ctx.getRequest().getEditMessageId() != null) {
+                // 编辑重发：更新用户消息内容
                 updateUserMessageContent(ctx.getRequest().getEditMessageId(), userText);
             }
         } else {
@@ -743,6 +744,46 @@ public class MessageMiddleware implements ChatMiddleware {
      */
     public Long saveMessage(Long sessionId, MessageRole role, String content) {
         return saveMessage(sessionId, role, content, null, 0, MessageType.TEXT, null);
+    }
+
+    /**
+     * 重新生成：按 ID 删除助手消息（及统计），须属于当前会话且为最后一轮用户消息之后的回复
+     */
+    public void deleteAssistantMessageById(Long sessionId, Long messageId) {
+        if (sessionId == null || messageId == null) {
+            return;
+        }
+        Message target = messageMapper.selectById(messageId);
+        if (target == null) {
+            log.info("[MessageMiddleware] regenerate 跳过删除：messageId={} 在库中不存在", messageId);
+            return;
+        }
+        if (!sessionId.equals(target.getSessionId())
+                || target.getRole() != MessageRole.ASSISTANT) {
+            log.info("[MessageMiddleware] regenerate 跳过删除：messageId={} 不属于当前会话或非助手消息", messageId);
+            return;
+        }
+        Message lastUser = messageMapper.selectOne(
+                new LambdaQueryWrapper<Message>()
+                        .eq(Message::getSessionId, sessionId)
+                        .eq(Message::getRole, MessageRole.USER)
+                        .orderByDesc(Message::getCreateTime)
+                        .last("LIMIT 1"));
+        if (lastUser != null && lastUser.getCreateTime() != null && target.getCreateTime() != null
+                && target.getCreateTime().isBefore(lastUser.getCreateTime())) {
+            log.warn("[MessageMiddleware] 跳过删除助手消息 id={}：早于最后一条用户消息，可能为误删历史回复", messageId);
+            return;
+        }
+        messageMapper.deleteById(messageId);
+        var session = chatSessionService.getById(sessionId);
+        if (session != null && session.getMessageCount() != null && session.getMessageCount() > 0) {
+            session.setMessageCount(session.getMessageCount() - 1);
+            int tokens = target.getTokenCount() != null ? target.getTokenCount() : 0;
+            if (tokens > 0 && session.getTotalTokens() != null) {
+                session.setTotalTokens(Math.max(0L, session.getTotalTokens() - tokens));
+            }
+            chatSessionService.updateById(session);
+        }
     }
 
     /**

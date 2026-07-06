@@ -24,6 +24,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.BufferOverflowStrategy;
 import reactor.core.scheduler.Schedulers;
@@ -32,7 +33,9 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Tag(name = "AI对话", description = "基于通义千问的AI对话接口")
@@ -81,10 +84,21 @@ public class ChatController {
         final String[] activeRequestId = {null};
         final Long[] activeUserId = {null};
         try { activeUserId[0] = StpUtil.getLoginIdAsLong(); } catch (Exception ignored) {}
+        AtomicReference<Disposable> subscriptionRef = new AtomicReference<>();
+        AtomicBoolean disposed = new AtomicBoolean(false);
+        Runnable disposeSubscription = () -> {
+            if (disposed.compareAndSet(false, true)) {
+                Disposable subscription = subscriptionRef.getAndSet(null);
+                if (subscription != null && !subscription.isDisposed()) {
+                    subscription.dispose();
+                }
+                log.debug("[Chat] SSE subscription disposed: requestId={}", activeRequestId[0]);
+            }
+        };
 
         // 在 boundedElastic 调度器上订阅 Flux，避免阻塞 Servlet 线程
         Flux<String> flux = chatService.chatStream(request);
-        flux.publishOn(Schedulers.boundedElastic(), 256)
+        Disposable subscription = flux.publishOn(Schedulers.boundedElastic(), 256)
                 .onBackpressureBuffer(512,
                         dropped -> log.warn("[Chat] SSE 背压丢弃: requestId={}", activeRequestId[0]),
                         reactor.core.publisher.BufferOverflowStrategy.DROP_OLDEST)
@@ -115,10 +129,13 @@ public class ChatController {
                                             Integer.parseInt(eventId), safe, activeUserId[0]);
                                 }
                             } catch (IOException e) {
+                                disposeSubscription.run();
+                                emitter.complete();
                                 log.debug("[Chat] 客户端断开连接: {}", e.getMessage());
                             }
                         },
                         error -> {
+                            disposeSubscription.run();
                             emitter.completeWithError(error);
                         },
                         () -> {
@@ -126,12 +143,23 @@ public class ChatController {
                             if (activeRequestId[0] != null) {
                                 eventBuffer.markCompleted(activeRequestId[0]);
                             }
+                            disposeSubscription.run();
                             emitter.complete();
                         }
                 );
+        subscriptionRef.set(subscription);
+        if (disposed.get() && !subscription.isDisposed()) {
+            subscription.dispose();
+        }
 
         // 清理回调
-        emitter.onTimeout(emitter::complete);
+        emitter.onCompletion(disposeSubscription);
+        emitter.onTimeout(() -> {
+            log.debug("[Chat] SSE timeout: requestId={}", activeRequestId[0]);
+            disposeSubscription.run();
+            emitter.complete();
+        });
+        emitter.onError(e -> disposeSubscription.run());
         emitter.onError(e -> log.warn("[Chat] SSE连接异常: {}", e.getMessage()));
 
         return emitter;

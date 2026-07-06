@@ -53,7 +53,10 @@ public class WorkflowMiddleware implements ChatMiddleware {
 
         // 1. 持久化用户消息（工作流不走 MessageMiddleware 链）；重新生成时不重复落库
         if (Boolean.TRUE.equals(ctx.getRequest().getRegenerate())) {
-            messageMiddleware.deleteLastAssistantMessage(ctx.getSessionId());
+            Long deleteId = ctx.getRequest().getDeleteAssistantMessageId();
+            if (deleteId != null) {
+                messageMiddleware.deleteAssistantMessageById(ctx.getSessionId(), deleteId);
+            }
         } else {
             messageMiddleware.saveMessage(ctx.getSessionId(), MessageRole.USER, ctx.getRequest().getMessage());
         }

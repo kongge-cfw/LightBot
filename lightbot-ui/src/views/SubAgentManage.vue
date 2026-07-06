@@ -69,7 +69,8 @@
         <span>{{ editingId ? '编辑 SubAgent' : '新增 SubAgent' }}</span>
         <QuestionCircleOutlined class="help-icon" @click.stop="guideVisible = true" />
       </template>
-      <a-form :label-col="{ span: 4 }" :wrapper-col="{ span: 20 }">
+      <div class="dialog-scroll-body">
+      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 19 }">
         <a-form-item label="标识名称" required>
           <a-input v-model:value="form.name" placeholder="英文标识，如 research-agent（不超过30字）" :maxlength="30" show-count />
         </a-form-item>
@@ -107,10 +108,44 @@
             style="margin-top: 8px"
           />
         </a-form-item>
+        <a-form-item label="连接超时">
+          <a-input-number
+            v-model:value="form.connectTimeoutSeconds"
+            :min="1"
+            :max="60"
+            :step="1"
+            addon-after="秒"
+            style="width: 160px"
+          />
+          <div class="form-hint">建立模型连接的最长等待，默认 10 秒</div>
+        </a-form-item>
+        <a-form-item label="响应超时">
+          <a-input-number
+            v-model:value="form.readTimeoutSeconds"
+            :min="10"
+            :max="300"
+            :step="5"
+            addon-after="秒"
+            style="width: 160px"
+          />
+          <div class="form-hint">SubAgent 整体执行上限，默认 120 秒</div>
+        </a-form-item>
+        <a-form-item label="失败重试">
+          <a-input-number
+            v-model:value="form.modelRetryTimes"
+            :min="0"
+            :max="10"
+            :step="1"
+            addon-after="次"
+            style="width: 160px"
+          />
+          <div class="form-hint">模型连接失败时的重试次数，默认 1 次</div>
+        </a-form-item>
         <a-form-item label="是否启用">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- SubAgent 说明弹窗 -->
@@ -155,6 +190,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div class="detail-section">
         <div class="detail-row">
           <span class="detail-label">标识名称</span>
@@ -182,6 +218,18 @@
           </span>
         </div>
         <div class="detail-row">
+          <span class="detail-label">连接超时</span>
+          <span class="detail-value">{{ currentDetail?.connectTimeoutSeconds ?? 10 }} 秒</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">响应超时</span>
+          <span class="detail-value">{{ currentDetail?.readTimeoutSeconds ?? 120 }} 秒</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">失败重试</span>
+          <span class="detail-value">{{ currentDetail?.modelRetryTimes ?? 1 }} 次</span>
+        </div>
+        <div class="detail-row">
           <span class="detail-label">状态</span>
           <span class="detail-value">
             <a-tag :color="currentDetail?.enabled === 1 ? 'green' : 'red'">
@@ -194,6 +242,7 @@
           <span class="detail-label">系统提示词</span>
           <pre class="detail-prompt">{{ currentDetail?.systemPrompt }}</pre>
         </div>
+      </div>
       </div>
       <div class="dialog-footer">
         <div class="dialog-footer-left">
@@ -244,6 +293,9 @@ const form = reactive({
   toolIds: [],
   providerId: null,
   llmModel: null,
+  connectTimeoutSeconds: 10,
+  readTimeoutSeconds: 120,
+  modelRetryTimes: 1,
   enabled: true
 })
 
@@ -324,7 +376,7 @@ function openDialog() {
   editingId.value = null
   inheritModel.value = true
   staleToolOptions.value = []
-  Object.assign(form, { name: '', displayName: '', description: '', systemPrompt: '', toolIds: [], providerId: null, llmModel: null, enabled: true })
+  Object.assign(form, { name: '', displayName: '', description: '', systemPrompt: '', toolIds: [], providerId: null, llmModel: null, connectTimeoutSeconds: 10, readTimeoutSeconds: 120, modelRetryTimes: 1, enabled: true })
   dialogVisible.value = true
 }
 
@@ -350,6 +402,9 @@ function openEditDialog(record) {
     toolIds: selectedIds,
     providerId: record.modelId ? String(record.modelId) : null,
     llmModel: record.llmModel || null,
+    connectTimeoutSeconds: record.connectTimeoutSeconds ?? 10,
+    readTimeoutSeconds: record.readTimeoutSeconds ?? 120,
+    modelRetryTimes: record.modelRetryTimes ?? 1,
     enabled: record.enabled === 1
   })
   dialogVisible.value = true
@@ -407,6 +462,9 @@ async function doSave() {
       toolIds: form.toolIds,
       providerId: inheritModel.value ? null : (form.providerId || null),
       llmModel: inheritModel.value ? null : (form.llmModel || null),
+      connectTimeoutSeconds: form.connectTimeoutSeconds ?? 10,
+      readTimeoutSeconds: form.readTimeoutSeconds ?? 120,
+      modelRetryTimes: form.modelRetryTimes ?? 1,
       enabled: form.enabled
     }
     if (editingId.value) {
@@ -598,8 +656,6 @@ defineExpose({ openDialog, search, refresh })
   color: var(--color-ink);
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 300px;
-  overflow-y: auto;
 }
 
 .help-icon {
@@ -611,6 +667,18 @@ defineExpose({ openDialog, search, refresh })
 }
 .help-icon:hover {
   color: #d97706;
+}
+.dialog-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 8px);
+  scrollbar-gutter: stable;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.5;
 }
 .dialog-footer {
   display: flex;
