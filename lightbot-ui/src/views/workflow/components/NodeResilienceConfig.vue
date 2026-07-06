@@ -93,6 +93,7 @@ import {
 } from '../nodeResilienceMeta.js'
 
 const props = defineProps({
+  nodeId: { type: String, default: '' },
   nodeType: { type: String, required: true },
   nodeData: { type: Object, required: true },
   readonly: { type: Boolean, default: false },
@@ -129,11 +130,11 @@ const summaryText = computed(() => {
 })
 
 watch(
-  () => [props.nodeType, props.nodeData],
+  () => [props.nodeId, props.nodeType],
   () => {
     ensureNodeResilienceConfig(props.nodeData, props.nodeType)
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 function hint(field) {

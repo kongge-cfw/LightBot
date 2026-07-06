@@ -753,6 +753,7 @@
 
     <NodeResilienceConfig
       v-if="supportsNodeResilience(node.type)"
+      :node-id="node.id"
       :node-type="node.type"
       :node-data="node.data"
       :readonly="readonly"

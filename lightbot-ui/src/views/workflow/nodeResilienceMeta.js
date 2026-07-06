@@ -170,10 +170,12 @@ export function ensureNodeResilienceConfig(nodeData, nodeType) {
     if (!nodeData.retryConfig || typeof nodeData.retryConfig !== 'object') {
       nodeData.retryConfig = { ...profile.retryConfig }
     } else {
-      nodeData.retryConfig = {
-        enabled: !!nodeData.retryConfig.enabled,
-        maxAttempts: nodeData.retryConfig.maxAttempts ?? profile.retryConfig.maxAttempts,
-        delayMs: nodeData.retryConfig.delayMs ?? profile.retryConfig.delayMs,
+      const enabled = !!nodeData.retryConfig.enabled
+      const maxAttempts = nodeData.retryConfig.maxAttempts ?? profile.retryConfig.maxAttempts
+      const delayMs = nodeData.retryConfig.delayMs ?? profile.retryConfig.delayMs
+      const cur = nodeData.retryConfig
+      if (cur.enabled !== enabled || cur.maxAttempts !== maxAttempts || cur.delayMs !== delayMs) {
+        nodeData.retryConfig = { enabled, maxAttempts, delayMs }
       }
     }
   }

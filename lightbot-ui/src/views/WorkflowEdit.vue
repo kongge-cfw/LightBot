@@ -849,6 +849,11 @@ function panToNode(node) {
 }
 
 function focusNode(node) {
+  if (!node?.id) return
+  if (selectedNode.value?.id === node.id && !selectedEdge.value) {
+    panToNode(node)
+    return
+  }
   selectedNode.value = node
   clearEdgeSelection()
   captureNodePanelSnapshot(node)
@@ -1818,11 +1823,11 @@ function onNodesChange(changes) {
     return
   }
 
-  const actionable = changes.filter(c => c.type !== 'position' && c.type !== 'dimensions')
+  const actionable = changes.filter(c => c.type !== 'position' && c.type !== 'dimensions' && c.type !== 'select')
   if (!actionable.length) return
 
   const type = actionable[0]?.type
-  if (!['remove', 'select'].includes(type)) return
+  if (type !== 'remove') return
 
   const prevMap = new Map(nodes.value.map(n => [n.id, n]))
   const nextNodes = applyNodeChanges(actionable, nodes.value).map(n => {
@@ -2152,12 +2157,16 @@ function onEdgeSourceHandleChange(sourceHandle) {
   applyEdgePatch(selectedEdge.value.id, { sourceHandle })
 }
 
-// 点击节点
+// 点击节点：从 nodes 源数据取引用，避免 VueFlow 内部节点与侧栏双向同步死循环
 function onNodeClick(event) {
+  const nodeId = event?.node?.id
+  if (!nodeId) return
+  if (selectedNode.value?.id === nodeId && !selectedEdge.value) return
   clearEdgeSelection()
   selectedEdge.value = null
-  selectedNode.value = event.node
-  captureNodePanelSnapshot(event.node)
+  const stored = nodes.value.find(n => n.id === nodeId) || event.node
+  selectedNode.value = stored
+  captureNodePanelSnapshot(stored)
 }
 
 // 点击连线（仅选中，不触发删除）
