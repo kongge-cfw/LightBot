@@ -25,6 +25,7 @@ import com.lightbot.workflow.WorkflowConfigParser;
 import com.lightbot.workflow.WorkflowDefinition;
 import com.lightbot.util.WorkflowRunStateUtil;
 import com.lightbot.workflow.WorkflowExecutorService;
+import com.lightbot.workflow.WorkflowGraphValidateUtil;
 import com.lightbot.workflow.WorkflowSuspendedRun;
 import com.lightbot.workflow.WorkflowTraceRecorder;
 import lombok.RequiredArgsConstructor;
@@ -658,6 +659,8 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         if (cycleResult != null) {
             errors.add("工作流存在环路: " + cycleResult);
         }
+
+        errors.addAll(WorkflowGraphValidateUtil.validateMultiOutgoingEdges(nodes, edges));
 
         return errors;
     }

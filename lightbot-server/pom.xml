@@ -124,6 +124,13 @@
         <dependency>
             <groupId>org.springframework.ai</groupId>
             <artifactId>spring-ai-tika-document-reader</artifactId>
+            <exclusions>
+                <!-- Tika 3.3.x 通过 pdfbox-tools 拉入 picocli，仅用于命令行工具；服务端文档读取不依赖它，避免镜像 502 阻塞依赖解析。 -->
+                <exclusion>
+                    <groupId>info.picocli</groupId>
+                    <artifactId>picocli</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springframework.ai</groupId>

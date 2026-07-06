@@ -302,6 +302,11 @@ import { getNodeExample, canApplyNodeExample } from '../views/workflow/nodeConfi
 import { canSingleTestNodeType } from '../views/workflow/workflowNodeTest'
 import { ensureConditionGroups } from '../views/workflow/conditionUtils'
 import { validateWorkflowReferences } from '../views/workflow/workflowReferValidate'
+import {
+  validateMultiOutgoingEdges,
+  wouldViolateMultiOutgoingEdge,
+  getMultiOutgoingEdgeHint,
+} from '../views/workflow/workflowGraphValidate'
 import { applyWorkflowAutoLayout, applyWorkflowBezierEdgeStyle } from '../views/workflow/workflowLayout'
 import { WORKFLOW_DRAGGING_GROUP_ID_KEY } from '../views/workflow/useGroupDragMask'
 import '../views/workflow/workflowGroupDragMask.css'
@@ -2092,6 +2097,10 @@ function onConnect(params) {
     message.warning('无法连接：请从上游节点右侧「出」拖到下游节点左侧「入」')
     return
   }
+  if (wouldViolateMultiOutgoingEdge(nodes.value, edges.value, redirected)) {
+    message.warning(getMultiOutgoingEdgeHint())
+    return
+  }
   recordHistory(formatEdgeHistoryLabel('新建', redirected))
   const newEdge = {
     id: `edge_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
@@ -2409,6 +2418,9 @@ function validateWorkflow(showToast = true) {
       errors.push({ nodeId: n.id, field: 'connection', message: '节点未连接到工作流' })
     }
   })
+
+  // 3.1 非分支节点禁止多条出边（当前引擎仅执行第一条）
+  validateMultiOutgoingEdges(nodes.value, edges.value).forEach(err => errors.push(err))
 
   // 4. 检查节点配置
   nodes.value.forEach(n => {
