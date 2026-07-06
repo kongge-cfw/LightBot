@@ -74,13 +74,14 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useUserStore } from '../stores/user'
 import { checkHealth } from '../api/systemConfig'
 import { UserOutlined, LockOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const loading = ref(false)
 const isBackendDown = ref(false)
@@ -104,10 +105,23 @@ async function handleLogin() {
   try {
     await userStore.login(form)
     message.success('登录成功')
-    router.push('/app')
+    router.push(resolveRedirectTarget())
   } finally {
     loading.value = false
   }
+}
+
+/**
+ * 解析登录后的跳转目标：优先跳回被拦截的原地址，否则进入应用首页
+ * @returns {string} 目标路径
+ */
+function resolveRedirectTarget() {
+  const redirect = route.query.redirect
+  // 仅允许站内相对路径（以单个 / 开头），防止开放重定向到外部站点
+  if (typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')) {
+    return redirect
+  }
+  return '/app'
 }
 </script>
 

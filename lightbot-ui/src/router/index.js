@@ -249,7 +249,8 @@ router.beforeEach(async (to, from, next) => {
 
   // 4. 原有认证逻辑
   if (!to.meta.public && !localStorage.getItem('token')) {
-    next('/login')
+    // 未登录访问受保护页面：携带原目标地址，登录后跳回
+    next({ path: '/login', query: { redirect: to.fullPath } })
   } else if (to.meta.requiresAdmin && localStorage.getItem('role') !== 'admin') {
     next('/app/chat')
   } else {

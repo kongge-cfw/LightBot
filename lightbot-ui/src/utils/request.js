@@ -93,6 +93,20 @@ const HTTP_STATUS_MSG = {
   503: '服务暂时不可用',
 }
 
+/**
+ * 构建登录页跳转目标，携带当前受保护路由作为 redirect，登录后可跳回
+ * @returns {object} router.push 的目标对象
+ */
+function buildLoginTarget() {
+  try {
+    const current = router.currentRoute.value
+    if (current && !current.meta?.public && current.path !== '/login') {
+      return { path: '/login', query: { redirect: current.fullPath } }
+    }
+  } catch { /* ignore */ }
+  return { path: '/login' }
+}
+
 request.interceptors.response.use(
   (response) => {
     const res = response.data
@@ -103,7 +117,7 @@ request.interceptors.response.use(
       }
       if (res.code === 401) {
         localStorage.removeItem('token')
-        router.push('/login')
+        router.push(buildLoginTarget())
       }
       return Promise.reject(new Error(res.message))
     }
@@ -131,7 +145,7 @@ request.interceptors.response.use(
     // 401 → 跳登录页
     if (status === 401) {
       localStorage.removeItem('token')
-      router.push('/login')
+      router.push(buildLoginTarget())
     }
 
     // 优先从 response body 中提取业务错误信息（GlobalExceptionHandler 返回的 Result）
