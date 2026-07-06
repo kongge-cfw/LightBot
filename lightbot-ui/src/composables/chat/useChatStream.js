@@ -356,6 +356,8 @@ export function useChatStream(deps) {
             const isWorkflowStreamEvent = event.type === 'workflow_llm_chunk'
               || event.type === 'workflow_node_start'
               || event.type === 'workflow_node_complete'
+              || event.type === 'workflow_node_retry'
+              || event.type === 'workflow_node_failure'
               || event.type === 'workflow_complete'
               || event.type === 'workflow_confirm_required'
               || event.type === 'workflow_suspended'

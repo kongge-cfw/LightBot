@@ -91,6 +91,8 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         step.nodeType = e.nodeType ?? step.nodeType
         step.nodeLabel = e.nodeLabel ?? step.nodeLabel
         step.message = e.message
+        step.userMessage = e.userMessage || (e.success === false ? e.message : null)
+        step.failureReason = e.failureReason ?? step.failureReason
         step.detail = e.detail
         step.durationMs = e.durationMs
         step.success = e.success
@@ -109,6 +111,10 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
         if (step.isContainer && containerStack.length > 0 && containerStack[containerStack.length - 1].nodeId === e.nodeId) {
           containerStack.pop()
         }
+      } else if (e.type === 'workflow_node_retry' && e.nodeId) {
+        attachResilienceEvent(runningByExecutionKey, stepByIndex, executionKey, e, 'retry')
+      } else if (e.type === 'workflow_node_failure' && e.nodeId) {
+        attachResilienceEvent(runningByExecutionKey, stepByIndex, executionKey, e, 'failure')
       } else if (e.type === 'workflow_confirm_required' && e.nodeId) {
         const step = runningByExecutionKey.get(executionKey) || stepByIndex.get(e.stepIndex)
         if (step) {
@@ -123,6 +129,20 @@ export function useWorkflowNodeSteps(nodeEventsSource) {
   })
 
   return { nodeSteps, isContainerNodeType }
+}
+
+function attachResilienceEvent(runningByExecutionKey, stepByIndex, executionKey, event, kind) {
+  let step = runningByExecutionKey.get(executionKey)
+  if (!step && event.stepIndex != null) {
+    step = stepByIndex.get(event.stepIndex)
+  }
+  if (!step) return
+  if (!step.resilienceEvents) step.resilienceEvents = []
+  step.resilienceEvents.push({ ...event, kind })
+  step.lastResilienceMessage = event.message
+  if (kind === 'failure') {
+    step.failureReason = event.reason
+  }
 }
 
 export function getNodeTypeName(type) {

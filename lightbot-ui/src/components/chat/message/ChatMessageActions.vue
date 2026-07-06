@@ -1,6 +1,6 @@
 <template>
   <div
-    v-if="!msg._streaming && (msg.content || msg._error) && !msg._sensitiveBlock"
+    v-if="!msg._streaming && hasActionContext && !msg._sensitiveBlock"
     class="message-actions"
   >
     <a-tooltip
@@ -129,6 +129,7 @@ import {
 } from '@ant-design/icons-vue'
 import { formatTime } from '../../../utils/format'
 import { isBackendErrorMessage } from '../../../composables/chat/useChatMessageModel.js'
+import { hasMessageActionContext } from '../../../utils/chat/messageViewState.js'
 import { computed } from 'vue'
 
 const props = defineProps({
@@ -158,6 +159,7 @@ defineEmits([
 ])
 
 const isBackendError = computed(() => isBackendErrorMessage(props.msg))
+const hasActionContext = computed(() => hasMessageActionContext(props.msg))
 </script>
 
 <style scoped>

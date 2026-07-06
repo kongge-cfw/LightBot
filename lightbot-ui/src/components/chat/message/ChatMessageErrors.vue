@@ -1,4 +1,29 @@
 <template>
+  <!-- 工作流节点最终失败（专用错误块） -->
+  <div v-if="msg._workflowError" class="error-block workflow-error-block">
+    <div class="error-block-header">
+      <CloseCircleOutlined class="error-block-icon" />
+      <span class="error-block-title">工作流执行失败</span>
+      <span v-if="msg._workflowError.reason" class="error-block-code">
+        {{ workflowFailureReasonLabel(msg._workflowError.reason) }}
+      </span>
+    </div>
+    <div class="workflow-error-node">节点「{{ msg._workflowError.nodeLabel }}」</div>
+    <div class="error-block-message">{{ msg._workflowError.message }}</div>
+  </div>
+  <!-- 工作流节点重试/超时提示 -->
+  <div v-if="msg._workflowNodeRetry" class="error-retry-block workflow-resilience-block" :class="{ 'is-failure': msg._workflowNodeRetry.kind === 'failure' }">
+    <div class="error-retry-header">
+      <LoadingOutlined v-if="msg._workflowNodeRetry.kind === 'retry' && msg._streaming" class="error-retry-icon" spin />
+      <WarningOutlined v-else-if="msg._workflowNodeRetry.kind === 'retry'" class="error-retry-icon" />
+      <CloseCircleOutlined v-else class="error-retry-icon failure-icon" />
+      <span class="error-retry-title">{{ workflowResilienceTitle(msg._workflowNodeRetry) }}</span>
+      <span v-if="msg._workflowNodeRetry.attempt != null" class="error-retry-count">
+        {{ msg._workflowNodeRetry.attempt }}/{{ workflowRetryTotal(msg._workflowNodeRetry) }}
+      </span>
+    </div>
+    <div class="error-retry-message">{{ msg._workflowNodeRetry.message }}</div>
+  </div>
   <!-- 1.3 模型重试提示 -->
   <div v-if="msg._errorRetry" class="error-retry-block">
     <div class="error-retry-header">
@@ -22,10 +47,26 @@
 
 <script setup>
 import { LoadingOutlined, WarningOutlined, CloseCircleOutlined } from '@ant-design/icons-vue'
+import { workflowFailureReasonLabel } from '../../workflow/workflowStepUtils.js'
 
 defineProps({
   msg: { type: Object, required: true },
 })
+
+function workflowResilienceTitle(item) {
+  if (item.kind === 'failure') return '工作流节点失败'
+  const map = {
+    connect_timeout: '节点连接超时',
+    read_timeout: '节点响应超时',
+    execution_error: '节点执行异常',
+  }
+  return map[item.reason] || '工作流节点重试中'
+}
+
+function workflowRetryTotal(item) {
+  if (item.maxAttempts == null) return item.attempt || '—'
+  return Math.max(1, item.maxAttempts - 1)
+}
 </script>
 
 <style scoped>
@@ -66,6 +107,19 @@ defineProps({
 .error-retry-message {
   color: #92400e;
 }
+.workflow-resilience-block.is-failure {
+  background: var(--color-error-bg);
+  border-color: var(--color-error-soft);
+}
+.workflow-resilience-block.is-failure .error-retry-title,
+.workflow-resilience-block.is-failure .error-retry-message {
+  color: #991b1b;
+}
+.workflow-resilience-block.is-failure .error-retry-count {
+  color: #991b1b;
+  background: rgba(239, 68, 68, 0.1);
+}
+.failure-icon { color: #ef4444 !important; }
 .error-block {
   background: var(--color-error-bg);
   border: 1px solid var(--color-error-soft);
@@ -101,6 +155,12 @@ defineProps({
 }
 .error-block-message {
   color: #991b1b;
+}
+.workflow-error-block .workflow-error-node {
+  font-size: 13px;
+  color: #7f1d1d;
+  margin-bottom: 4px;
+  font-weight: 500;
 }
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(4px); }

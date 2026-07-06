@@ -3,6 +3,8 @@ import { processSseLines } from './chat'
 const WORKFLOW_SSE_EVENT_TYPES = new Set([
   'workflow_node_start',
   'workflow_node_complete',
+  'workflow_node_retry',
+  'workflow_node_failure',
   'workflow_complete',
   'workflow_llm_chunk',
   'workflow_confirm_required',

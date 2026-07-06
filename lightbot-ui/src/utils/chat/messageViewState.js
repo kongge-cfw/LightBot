@@ -16,6 +16,13 @@ function resolveMessages(messages) {
   return messages?.value ?? messages ?? []
 }
 
+/** 消息是否具备可展示操作栏的上下文（正文、错误、工作流轨迹等） */
+export function hasMessageActionContext(msg) {
+  if (!msg) return false
+  return !!(msg.content || msg._error || msg._workflowError
+    || (msg._workflowEvents?.length > 0))
+}
+
 /**
  * 推导单条消息的展示态，镜像 Chat.vue 消息行模板中的 v-if 条件
  * @param {object} msg
@@ -97,8 +104,10 @@ export function buildMessageViewState(msg, ctx) {
     showWorkflowConfirm: !!msg?._workflowConfirmPending?.confirmForm && !sensitiveBlock,
     showErrorRetry: !!msg?._errorRetry,
     showError: !!msg?._error,
-    showErrors: !!msg?._errorRetry || !!msg?._error,
-    showActions: !msg?._streaming && !!(msg?.content || msg?._error) && !sensitiveBlock,
+    showWorkflowResilience: !!msg?._workflowNodeRetry,
+    showWorkflowError: !!msg?._workflowError,
+    showErrors: !!msg?._errorRetry || !!msg?._error || !!msg?._workflowNodeRetry || !!msg?._workflowError,
+    showActions: !msg?._streaming && hasMessageActionContext(msg) && !sensitiveBlock,
     showRagRefs: msg?.role === 'assistant' && ragRefs.length > 0 && !msg?._streaming,
     showReplyElapsed: msg?.role === 'assistant'
       && index === len - 1

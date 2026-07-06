@@ -25,6 +25,7 @@
             :step="step"
             :step-key="i"
             :default-expanded="!!isStreaming && step.status === 'running'"
+            :is-streaming="!!isStreaming"
           />
           <div v-if="step.isContainer && step.children?.length" class="container-children">
             <WorkflowStepRow

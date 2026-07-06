@@ -1,6 +1,6 @@
 <template>
   <div class="wf-step-detail">
-    <div v-if="step.status === 'failed'" class="wf-detail-msg fail">{{ step.message || '执行失败' }}</div>
+    <div v-if="step.status === 'failed'" class="wf-detail-msg fail">{{ step.userMessage || step.message || '执行失败' }}</div>
     <div v-else-if="step.status === 'suspended' && step.nodeType !== 'confirm'" class="wf-detail-msg suspended">
       {{ step.message || '等待处理' }}
     </div>

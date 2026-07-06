@@ -1,5 +1,5 @@
 import { refreshChatAttachmentPreviews } from '../../api/chat'
-import { resolveWorkflowConfirmPending } from '../../components/workflow/workflowStepUtils.js'
+import { resolveWorkflowConfirmPending, resolveWorkflowFailureFromEvents, stripWorkflowErrorContent } from '../../components/workflow/workflowStepUtils.js'
 import { safeJsonParse } from '../../utils/request'
 import { contentHasMentionTokens, parseMentionsFromMetadata } from '../../utils/mention_utils'
 import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
@@ -115,10 +115,20 @@ export function parseMessage(m) {
   const roleRaw = m.role?.code || m.role
   const role = roleRaw != null ? String(roleRaw).toLowerCase() : ''
   const workflowConfirmPending = resolveWorkflowConfirmPending(workflowEvents, metadata)
+  const workflowFailure = resolveWorkflowFailureFromEvents(workflowEvents)
+    || (metadata?.workflowError ? {
+      nodeLabel: '工作流',
+      message: metadata.workflowError.message || '工作流执行失败',
+      reason: metadata.workflowError.failureReason,
+    } : null)
+  let content = m.content
+  if (workflowFailure) {
+    content = stripWorkflowErrorContent(content)
+  }
 
   return {
     role,
-    content: m.content,
+    content,
     metadata: metadata ?? m.metadata,
     _id: m.id,
     _parentId: m.parentId || null,
@@ -128,6 +138,7 @@ export function parseMessage(m) {
     _toolEvents: toolEvents,
     _workflowEvents: workflowEvents,
     _workflowConfirmPending: workflowConfirmPending,
+    _workflowError: workflowFailure,
     _toolBlockOffsets: toolBlockOffsets,
     _toolBlocksDone: [],
     _toolExpanded: false,

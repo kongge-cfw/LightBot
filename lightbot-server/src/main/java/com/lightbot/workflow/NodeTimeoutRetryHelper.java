@@ -3,6 +3,7 @@ package com.lightbot.workflow;
 import com.lightbot.enums.NodeType;
 import lombok.extern.slf4j.Slf4j;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -99,12 +100,22 @@ public final class NodeTimeoutRetryHelper {
     public static NodeExecutionResult executeWithTimeoutAndRetry(
             String nodeId, NodeType nodeType, Map<String, Object> nodeData,
             NodeExecutionCallable action) {
+        return executeWithTimeoutAndRetry(nodeId, nodeType, nodeData, action, null);
+    }
+
+    /**
+     * 包装节点执行：响应超时 + 重试，并通过 SSE 推送重试/失败事件
+     */
+    public static NodeExecutionResult executeWithTimeoutAndRetry(
+            String nodeId, NodeType nodeType, Map<String, Object> nodeData,
+            NodeExecutionCallable action, NodeResilienceEventContext eventContext) {
 
         int timeoutSec = resolveReadTimeoutSeconds(nodeData, nodeType);
         RetryConfig retryConfig = resolveRetryConfig(nodeData, nodeType);
         int maxAttempts = retryConfig.maxAttempts;
 
         Exception lastException = null;
+        String lastReason = "execution_error";
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
                 NodeExecutionResult result = CompletableFuture.supplyAsync(() -> {
@@ -121,17 +132,22 @@ public final class NodeTimeoutRetryHelper {
                 return result;
 
             } catch (TimeoutException e) {
+                lastReason = "read_timeout";
                 lastException = new TimeoutException("节点执行超时（" + timeoutSec + "秒）");
                 log.warn("[NodeTimeoutRetry] 节点执行超时: nodeId={}, readTimeout={}s, attempt={}/{}",
                         nodeId, timeoutSec, attempt, maxAttempts);
             } catch (Exception e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
+                lastReason = NodeResilienceEventContext.classifyFailureReason(cause, false);
                 lastException = cause instanceof Exception ex ? ex : new RuntimeException(cause);
                 log.warn("[NodeTimeoutRetry] 节点执行失败: nodeId={}, error={}, attempt={}/{}",
                         nodeId, cause.getMessage(), attempt, maxAttempts);
             }
 
             if (attempt < maxAttempts) {
+                if (eventContext != null) {
+                    eventContext.emitRetry(lastReason, attempt, maxAttempts);
+                }
                 long delay = calculateDelay(retryConfig.delayMs, attempt - 1, retryConfig.backoffType);
                 log.info("[NodeTimeoutRetry] 等待重试: nodeId={}, delay={}ms", nodeId, delay);
                 try {
@@ -141,6 +157,11 @@ public final class NodeTimeoutRetryHelper {
                     throw new RuntimeException("节点执行被中断", ie);
                 }
             }
+        }
+
+        if (eventContext != null) {
+            String detail = lastException != null ? lastException.getMessage() : null;
+            eventContext.emitFailure(lastReason, maxAttempts, maxAttempts, detail);
         }
 
         if (lastException instanceof RuntimeException re) {

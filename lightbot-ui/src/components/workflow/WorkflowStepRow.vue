@@ -22,6 +22,11 @@
           <span v-if="step.durationMs != null" class="event-duration">{{ step.durationMs }}ms</span>
           <RightOutlined v-if="expandable" :class="{ expanded: expanded }" class="step-toggle-icon" />
         </div>
+        <WorkflowStepResilienceAlerts
+          v-if="step.resilienceEvents?.length"
+          :step="step"
+          :is-streaming="isStreaming && step.status === 'running'"
+        />
         <div v-show="expanded && expandable" class="step-detail-body">
           <WorkflowStepDetail :step="step" />
         </div>
@@ -37,6 +42,7 @@ import {
   PlayCircleOutlined, CloseCircleOutlined, PauseCircleOutlined,
 } from '@ant-design/icons-vue'
 import WorkflowStepDetail from './WorkflowStepDetail.vue'
+import WorkflowStepResilienceAlerts from './WorkflowStepResilienceAlerts.vue'
 import {
   stepStatusClass, stepStatusIcon, getStepSummary, hasExpandableStepContent,
   isHiddenInChat, isWeakenedInChat, getNodeTypeLabel, getNodeChatStyle,
@@ -48,6 +54,7 @@ const props = defineProps({
   stepKey: { type: [String, Number], default: '' },
   nested: { type: Boolean, default: false },
   defaultExpanded: { type: Boolean, default: false },
+  isStreaming: { type: Boolean, default: false },
 })
 
 const expanded = ref(props.defaultExpanded || shouldAutoExpandToolStep(props.step))

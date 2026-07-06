@@ -7,6 +7,7 @@ import com.lightbot.service.AgentVersionService;
 import com.lightbot.util.SensitiveWordFilter;
 import com.lightbot.workflow.WorkflowDefinition;
 import com.lightbot.workflow.WorkflowExecutorService;
+import com.lightbot.workflow.NodeResilienceMessageFormatter;
 import com.lightbot.workflow.WorkflowTraceRecorder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -149,6 +150,10 @@ public class WorkflowMiddleware implements ChatMiddleware {
                 if (ctx.getRequest().getConfigVersion() != null) {
                     metadataMap.put("configVersion", ctx.getRequest().getConfigVersion());
                 }
+                if (workflowEvents.stream().anyMatch(e -> "workflow_node_complete".equals(e.get("type"))
+                        && Boolean.FALSE.equals(e.get("success")))) {
+                    metadataMap.put("workflowFailed", true);
+                }
                 ctx.getRagMetadataHolder()[0] = objectMapper.writeValueAsString(metadataMap);
 
                 // 流式已逐 token 推送，挂起时不补发正文（避免前端误判为「已完成」）
@@ -200,19 +205,30 @@ public class WorkflowMiddleware implements ChatMiddleware {
             } catch (Exception e) {
                 log.error("[WorkflowMiddleware] 工作流执行失败: agentId={}, error={}",
                         ctx.getAgent().getId(), e.getMessage(), e);
-                String err = "工作流执行失败: " + e.getMessage();
-                ctx.getFullReply().append(err);
-                sink.next(err);
+                String userMsg = NodeResilienceMessageFormatter.formatUserMessage(e);
+                Map<String, Object> metadataMap = new LinkedHashMap<>();
+                metadataMap.put("workflowFailed", true);
+                metadataMap.put("workflowError", Map.of(
+                        "message", userMsg,
+                        "failureReason", NodeResilienceMessageFormatter.resolveFailureReason(e)
+                ));
+                if (ctx.getRequestId() != null && !ctx.getRequestId().isBlank()) {
+                    metadataMap.put("requestId", ctx.getRequestId());
+                }
+                try {
+                    sink.next(METADATA_PREFIX + objectMapper.writeValueAsString(metadataMap));
+                } catch (Exception jsonEx) {
+                    log.warn("[WorkflowMiddleware] 失败 metadata 序列化异常: {}", jsonEx.getMessage());
+                }
                 sink.complete();
 
-                // 异常时也记录 trace
                 taskExecutor.execute(() -> workflowTraceRecorder.recordFailureFromChat(
                         ctx.getRequestId(),
                         ctx.getSessionId(),
                         ctx.getAgent().getId(),
                         ctx.getAgent().getName(),
                         ctx.getAgent().getUserId(),
-                        err,
+                        userMsg,
                         e.getMessage(),
                         t0));
             }
@@ -248,16 +264,14 @@ public class WorkflowMiddleware implements ChatMiddleware {
             }
             return "";
         }
-        // 1. 优先返回最后一个失败节点的错误信息
+        // 1. 节点失败时不写入对话正文，由前端根据 workflowEvents 展示专用错误样式
         for (int i = events.size() - 1; i >= 0; i--) {
             Map<String, Object> e = events.get(i);
             if (!"workflow_node_complete".equals(e.get("type"))) {
                 continue;
             }
             if (Boolean.FALSE.equals(e.get("success"))) {
-                String nodeLabel = e.get("nodeLabel") != null ? e.get("nodeLabel").toString() : "";
-                String message = e.get("message") != null ? e.get("message").toString() : "未知错误";
-                return "节点【" + nodeLabel + "】执行失败：" + message;
+                return "";
             }
         }
         // 2. 从最后一个成功节点提取输出

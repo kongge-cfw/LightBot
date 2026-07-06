@@ -114,9 +114,11 @@ export function getStepSummary(step) {
   const type = step.nodeType
   const outputs = parseStepOutputs(step.outputs) || {}
 
-  if (step.status === 'running') return '执行中'
+  if (step.status === 'running') {
+    return step.lastResilienceMessage || '执行中'
+  }
   if (step.status === 'suspended') return type === 'confirm' ? '等待您的选择' : '等待确认'
-  if (step.status === 'failed') return step.message || '执行失败'
+  if (step.status === 'failed') return step.userMessage || step.message || '执行失败'
 
   switch (type) {
     case 'start': {

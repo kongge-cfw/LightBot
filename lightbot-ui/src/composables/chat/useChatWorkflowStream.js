@@ -1,6 +1,6 @@
 import { nextTick } from 'vue'
 import { message } from 'ant-design-vue'
-import { resolveWorkflowConfirmPending } from '../../components/workflow/workflowStepUtils.js'
+import { resolveWorkflowConfirmPending, resolveWorkflowFailureFromEvents, stripWorkflowErrorContent } from '../../components/workflow/workflowStepUtils.js'
 import { resumeWorkflowStream } from '../../api/workflowTestStream.js'
 import { abandonWorkflowConfirm as abandonWorkflowConfirmApi } from '../../api/workflow.js'
 import {
@@ -12,6 +12,8 @@ import {
 export const WORKFLOW_SSE_EVENT_TYPES = [
   'workflow_node_start',
   'workflow_node_complete',
+  'workflow_node_retry',
+  'workflow_node_failure',
   'workflow_complete',
   'workflow_confirm_required',
   'workflow_suspended',
@@ -84,14 +86,41 @@ export function createChatWorkflowStreamHandlers(deps) {
       nextTick(() => scrollToBottom())
     } else if (event.type === 'workflow_node_start') {
       assistantMsg._streaming = true
+      assistantMsg._workflowNodeRetry = null
       currentStatus.value = `正在执行: ${event.nodeLabel || event.nodeType || '节点'}`
+    } else if (event.type === 'workflow_node_retry' || event.type === 'workflow_node_failure') {
+      assistantMsg._streaming = event.type === 'workflow_node_retry'
+      assistantMsg._workflowNodeRetry = {
+        message: event.message || (event.type === 'workflow_node_retry' ? '节点重试中' : '节点执行失败'),
+        reason: event.reason,
+        attempt: event.attempt,
+        maxAttempts: event.maxAttempts,
+        kind: event.type === 'workflow_node_failure' ? 'failure' : 'retry',
+        nodeLabel: event.nodeLabel,
+      }
+      currentStatus.value = event.message || currentStatus.value
     } else if (event.type === 'workflow_node_complete') {
+      if (event.success === false) {
+        assistantMsg._workflowNodeRetry = null
+        assistantMsg._workflowError = {
+          nodeId: event.nodeId,
+          nodeLabel: event.nodeLabel || event.nodeType || '节点',
+          nodeType: event.nodeType,
+          message: event.userMessage || event.message || '节点执行失败',
+          reason: event.failureReason,
+          durationMs: event.durationMs,
+        }
+        assistantMsg.content = stripWorkflowErrorContent(assistantMsg.content)
+      } else {
+        assistantMsg._workflowNodeRetry = null
+      }
       const label = event.nodeLabel || event.nodeType || '节点'
       const dur = event.durationMs != null ? ` (${event.durationMs}ms)` : ''
       currentStatus.value = event.success === false
         ? `${label} 执行失败`
         : `${label} 已完成${dur}`
     } else if (event.type === 'workflow_complete') {
+      assistantMsg._workflowNodeRetry = null
       currentStatus.value = '工作流执行完成，正在整理回复…'
     }
 
@@ -272,6 +301,19 @@ export function createChatWorkflowStreamHandlers(deps) {
     }
     if (meta.workflowEvents?.length) {
       msg._workflowEvents = meta.workflowEvents
+    }
+    const failure = resolveWorkflowFailureFromEvents(msg._workflowEvents)
+    if (failure || meta.workflowFailed) {
+      msg._workflowError = failure || msg._workflowError
+      msg.content = stripWorkflowErrorContent(msg.content)
+    }
+    if (!msg._workflowError && meta.workflowError) {
+      msg._workflowError = {
+        nodeLabel: '工作流',
+        message: meta.workflowError.message || '工作流执行失败',
+        reason: meta.workflowError.failureReason,
+      }
+      msg.content = stripWorkflowErrorContent(msg.content)
     }
     if (meta.workflowAbandoned === true || meta.workflowConfirmResolved === true || meta.workflowSuspended === false) {
       msg._workflowConfirmPending = null

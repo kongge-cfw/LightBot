@@ -69,19 +69,31 @@ public class WorkflowNodeRunner {
         boolean nodeSuccess = true;
         String completeMessage = "执行完成";
         NodeExecutionResult nodeResult = null;
+        Exception nodeFailure = null;
 
         try {
+            NodeResilienceEventContext resilienceCtx = NodeResilienceEventContext.builder()
+                    .nodeId(nodeId)
+                    .nodeLabel(nodeLabel)
+                    .nodeType(nodeTypeCode)
+                    .executionId(emitEvents ? buildExecutionId(context, nodeId) : null)
+                    .parentNodeId(context.getParentNodeId())
+                    .iterationIndex(context.getIterationIndex())
+                    .eventEmitter(emitEvents ? e -> emitEvent(context, e) : null)
+                    .build();
             // 带超时 + 重试的节点执行
             nodeResult = NodeTimeoutRetryHelper.executeWithTimeoutAndRetry(
                     nodeId, node.getType(), node.getData(),
-                    () -> processor.execute(context));
+                    () -> processor.execute(context),
+                    resilienceCtx);
             if (nodeResult.getOutputs() != null) {
                 context.getNodeOutputs().put(nodeId, nodeResult.getOutputs());
                 WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
             }
         } catch (Exception e) {
             nodeSuccess = false;
-            completeMessage = "执行失败: " + e.getMessage();
+            nodeFailure = e;
+            completeMessage = NodeResilienceMessageFormatter.formatUserMessage(e);
             log.error("[WorkflowNodeRunner] 子图节点执行失败: nodeId={}, error={}", nodeId, e.getMessage(), e);
             NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
             if (observability != null) {
@@ -101,6 +113,10 @@ public class WorkflowNodeRunner {
             completeEvent.put("message", completeMessage);
             completeEvent.put("success", nodeSuccess);
             completeEvent.put("durationMs", System.currentTimeMillis() - nodeStartMs);
+            if (!nodeSuccess) {
+                completeEvent.put("userMessage", completeMessage);
+                completeEvent.put("failureReason", NodeResilienceMessageFormatter.resolveFailureReason(nodeFailure));
+            }
             if (context.getParentNodeId() != null) {
                 completeEvent.put("parentNodeId", context.getParentNodeId());
             }

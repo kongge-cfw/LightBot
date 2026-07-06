@@ -68,6 +68,51 @@ export function isWorkflowAwaitingConfirm(workflowEvents) {
   return !!findUnresolvedConfirmEvent(workflowEvents)
 }
 
+const WORKFLOW_ERROR_CONTENT_PATTERNS = [
+  /节点【[^】]+】执行失败[^\n]*/g,
+  /执行失败:\s*java\.[^\n]*/g,
+  /工作流执行失败[^\n]*/g,
+]
+
+/** 从正文移除工作流失败类脏文本（历史消息兼容） */
+export function stripWorkflowErrorContent(content) {
+  if (!content) return ''
+  let result = String(content)
+  for (const pattern of WORKFLOW_ERROR_CONTENT_PATTERNS) {
+    result = result.replace(pattern, '')
+  }
+  return result.replace(/\n{3,}/g, '\n\n').trim()
+}
+
+/** 从 workflowEvents 解析最终失败节点 */
+export function resolveWorkflowFailureFromEvents(workflowEvents) {
+  if (!Array.isArray(workflowEvents) || !workflowEvents.length) return null
+  for (let i = workflowEvents.length - 1; i >= 0; i--) {
+    const ev = workflowEvents[i]
+    if (ev?.type !== 'workflow_node_complete') continue
+    if (ev.success !== false) continue
+    return {
+      nodeId: ev.nodeId,
+      nodeLabel: ev.nodeLabel || ev.nodeType || '节点',
+      nodeType: ev.nodeType,
+      message: ev.userMessage || ev.message || '节点执行失败',
+      reason: ev.failureReason,
+      durationMs: ev.durationMs,
+    }
+  }
+  return null
+}
+
+/** 工作流失败原因中文标签 */
+export function workflowFailureReasonLabel(reason) {
+  const map = {
+    connect_timeout: '连接超时',
+    read_timeout: '响应超时',
+    execution_error: '执行异常',
+  }
+  return map[reason] || '执行失败'
+}
+
 /** 从 events / metadata 恢复挂起确认态 */
 export function resolveWorkflowConfirmPending(workflowEvents, metadata) {
   if (metadata?.workflowConfirmResolved === true || metadata?.workflowAbandoned === true) {

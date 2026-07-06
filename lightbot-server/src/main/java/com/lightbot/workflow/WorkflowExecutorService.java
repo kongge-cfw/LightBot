@@ -469,14 +469,25 @@ public class WorkflowExecutorService {
             String nextNodeId = null;
             NodeExecutionResult nodeResult = null;
 
+            Exception nodeFailure = null;
+
             try {
                 NodeProcessor processor = registry.getProcessor(node.getType());
                 log.info("[WorkflowExecutorService] 执行节点: nodeId={}, type={}",
                         executingNodeId, node.getType());
 
+                NodeResilienceEventContext resilienceCtx = NodeResilienceEventContext.builder()
+                        .nodeId(eventNodeId)
+                        .nodeLabel(nodeLabel)
+                        .nodeType(nodeTypeCode)
+                        .stepIndex(stepIndex)
+                        .eventEmitter(e -> emitWorkflowEvent(workflowEvents, onEvent, e))
+                        .build();
+
                 nodeResult = NodeTimeoutRetryHelper.executeWithTimeoutAndRetry(
                         executingNodeId, node.getType(), node.getData(),
-                        () -> processor.execute(context));
+                        () -> processor.execute(context),
+                        resilienceCtx);
 
                 if (nodeResult.isSuspended()) {
                     // 挂起前仍 merge 第一阶段 outputs（question/options 等），便于 resume 前引用与恢复后合并
@@ -548,7 +559,8 @@ public class WorkflowExecutorService {
                 }
             } catch (Exception e) {
                 nodeSuccess = false;
-                completeMessage = "执行失败: " + e.getMessage();
+                nodeFailure = e;
+                completeMessage = NodeResilienceMessageFormatter.formatUserMessage(e);
                 log.error("[WorkflowExecutorService] 节点执行失败: nodeId={}, error={}",
                         executingNodeId, e.getMessage(), e);
                 NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
@@ -561,6 +573,10 @@ public class WorkflowExecutorService {
             Map<String, Object> completeEvent = buildCompleteEvent(
                     eventNodeId, nodeTypeCode, nodeLabel, nodeSuccess,
                     completeMessage, stepIndex, nodeStartMs, nodeResult, eventNode, nextNodeId);
+            if (!nodeSuccess) {
+                completeEvent.put("userMessage", completeMessage);
+                completeEvent.put("failureReason", NodeResilienceMessageFormatter.resolveFailureReason(nodeFailure));
+            }
             emitWorkflowEvent(workflowEvents, onEvent, completeEvent);
 
             currentNodeId = nextNodeId;
@@ -1109,13 +1125,20 @@ public class WorkflowExecutorService {
         String completeMessage = "执行完成";
         NodeExecutionResult nodeResult = null;
         String output = "";
+        Exception nodeFailure = null;
 
         try {
             NodeProcessor processor = registry.getProcessor(node.getType());
-            // 带超时 + 重试的节点执行
+            NodeResilienceEventContext resilienceCtx = NodeResilienceEventContext.builder()
+                    .nodeId(nodeId)
+                    .nodeLabel(nodeLabel)
+                    .nodeType(nodeTypeCode)
+                    .eventEmitter(e -> emitWorkflowEvent(events, null, e))
+                    .build();
             nodeResult = NodeTimeoutRetryHelper.executeWithTimeoutAndRetry(
                     nodeId, node.getType(), node.getData(),
-                    () -> processor.execute(context));
+                    () -> processor.execute(context),
+                    resilienceCtx);
             if (nodeResult.getOutputs() != null) {
                 context.getNodeOutputs().put(nodeId, nodeResult.getOutputs());
                 WorkflowVariableScope.mergeNodeOutputs(context, node, nodeResult.getOutputs());
@@ -1123,7 +1146,8 @@ public class WorkflowExecutorService {
             output = formatSingleNodeOutput(nodeResult);
         } catch (Exception e) {
             nodeSuccess = false;
-            completeMessage = "执行失败: " + e.getMessage();
+            nodeFailure = e;
+            completeMessage = NodeResilienceMessageFormatter.formatUserMessage(e);
             output = completeMessage;
             NodeExecutionResult observability = ParameterExtractParseException.toObservabilityResult(e);
             if (observability != null) {
@@ -1140,6 +1164,10 @@ public class WorkflowExecutorService {
         completeEvent.put("message", completeMessage);
         completeEvent.put("success", nodeSuccess);
         completeEvent.put("durationMs", System.currentTimeMillis() - nodeStartMs);
+        if (!nodeSuccess) {
+            completeEvent.put("userMessage", completeMessage);
+            completeEvent.put("failureReason", NodeResilienceMessageFormatter.resolveFailureReason(nodeFailure));
+        }
         String detail = buildNodeDetail(node, nodeResult, nodeSuccess, completeMessage, nodeTypeCode);
         if (detail != null && !detail.isBlank()) {
             completeEvent.put("detail", detail);
