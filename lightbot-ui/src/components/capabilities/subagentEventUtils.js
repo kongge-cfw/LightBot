@@ -86,23 +86,31 @@ export function findSubagentResultReply(events, call) {
   return parseSubagentReplyText(evt.result)
 }
 
-/** SubAgent 返回的原始 JSON（弹窗展示） */
+/** SubAgent 返回的完整 JSON（弹窗展示；兼容历史 slim 数据，自动补回 reply） */
 export function findSubagentResultRawJson(events, call) {
   const evt = findSubagentResultEvent(events, call)
   if (!evt?.result) return ''
   try {
-    return JSON.stringify(JSON.parse(evt.result), null, 2)
+    const obj = JSON.parse(String(evt.result))
+    if (obj && typeof obj === 'object') {
+      const full = { ...obj }
+      if (!full.reply && evt.replyText) {
+        full.reply = evt.replyText
+      }
+      return JSON.stringify(full, null, 2)
+    }
   } catch {
-    return String(evt.result)
+    // 非 JSON
   }
+  return String(evt.result)
 }
 
-/** 是否包含可查看的结构化 JSON 返回 */
+/** 是否已有 SubAgent 委派结果（含可查看 JSON） */
 export function hasSubagentResultJson(events, call) {
   const evt = findSubagentResultEvent(events, call)
   if (!evt?.result) return false
   try {
-    const obj = JSON.parse(evt.result)
+    const obj = JSON.parse(String(evt.result))
     return obj != null && typeof obj === 'object'
   } catch {
     return false
@@ -116,6 +124,18 @@ export function mergeSubagentModelOutput(events, call) {
     .filter(s => s.type === 'subagent_token_stream')
     .map(s => s.content || '')
     .join('')
+}
+
+/**
+ * 统一的 SubAgent 模型输出：流式 token 与落库 replyText 同源展示
+ * @param {Array} events 全部工具事件
+ * @param {Object} call subagent_call 事件
+ * @returns {string}
+ */
+export function resolveSubagentModelOutput(events, call) {
+  const streamed = mergeSubagentModelOutput(events, call)
+  if (streamed?.trim()) return streamed
+  return findSubagentResultReply(events, call)
 }
 
 export function findSubagentError(events, call) {

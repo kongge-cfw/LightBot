@@ -4,6 +4,7 @@ import { safeJsonParse } from '../../utils/request'
 import { contentHasMentionTokens, parseMentionsFromMetadata } from '../../utils/mention_utils'
 import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
 import { normalizeAssistantMessageErrors, applyMessageErrorFromDoneMeta } from '../../utils/chat/messageErrorState.js'
+import { getToolBlockOffsets } from './useChatEventPartition.js'
 
 export function parseAttachmentsFromMetadata(metadata) {
   if (!metadata) return []
@@ -165,6 +166,7 @@ export function parseMessage(m) {
   }
 
   normalizeAssistantMessageErrors(msg)
+  msg._toolBlockOffsets = getToolBlockOffsets(msg)
   return msg
 }
 

@@ -457,6 +457,8 @@ const lastAutoSaveTime = ref(null)
 const autoSaving = ref(false)
 const agentStatusLabels = ref(null)
 const workflowLoaded = ref(false)
+/** 初始化加载阶段跳过脏检查，避免 VueFlow 同步后误报未保存 */
+const workflowInitializing = ref(true)
 let autoSaveTimer = null
 const versionList = ref([])
 const publishedVersionList = computed(() =>
@@ -575,6 +577,7 @@ const edgeInsertMenuOpen = ref(false)
 let edgeHoverLeaveTimer = null
 
 const isDirty = computed(() => {
+  if (workflowInitializing.value || !workflowLoaded.value) return false
   if (!savedWorkflowSnapshot.value) return false
   return savedWorkflowSnapshot.value !== getWorkflowSnapshot()
 })
@@ -622,16 +625,14 @@ function deepClonePayloadValue(value) {
 }
 
 function buildWorkflowPayload() {
-  const flowNodes = getNodes.value?.length ? getNodes.value : nodes.value
+  // 始终以 nodes 源数据为准，避免 VueFlow 内部节点与源数据 position 不一致导致误报 dirty
   return {
-    nodes: flowNodes.map(n => {
-      const local = nodes.value.find(item => item.id === n.id)
-      const source = local || n
-      const payload = deepClonePayloadValue(source) || {}
+    nodes: nodes.value.map(n => {
+      const payload = deepClonePayloadValue(n) || {}
       payload.id = n.id
       payload.type = n.type
       payload.position = normalizePosition(n.position)
-      payload.data = deepClonePayloadValue(local?.data ?? n.data)
+      payload.data = deepClonePayloadValue(n.data)
       if ('parentNode' in n) payload.parentNode = n.parentNode
       if ('extent' in n) payload.extent = n.extent
       if ('style' in n) payload.style = deepClonePayloadValue(n.style)
@@ -1012,13 +1013,10 @@ onMounted(async () => {
     knowledgeList.value = knowledgeRes.data.records || []
     tools.value = toolRes.data.records || []
 
-    markWorkflowSaved()
-    nextTick(() => {
-      workflowLoaded.value = true
-      scheduleUpdateNodeInternals()
-    })
+    await nextTick()
+    await finalizeWorkflowGraphAfterLoad()
+    workflowLoaded.value = true
     scheduleFitView(true)
-    validateWorkflow(false)
         } catch (e) {
     notification.error({ message: '加载失败', description: e.message })
   }
@@ -1447,7 +1445,7 @@ function getDefaultNodeData(type) {
 watch(
   () => getWorkflowSnapshot(),
   () => {
-    if (isNodeDragging.value) return
+    if (workflowInitializing.value || isNodeDragging.value) return
     validateWorkflow(false)
     scheduleAutoSave()
   }
@@ -2549,6 +2547,16 @@ async function openVersionDrawer() {
   }
 }
 
+async function finalizeWorkflowGraphAfterLoad() {
+  workflowInitializing.value = true
+  await nextTick()
+  scheduleUpdateNodeInternals()
+  validateWorkflow(false)
+  await nextTick()
+  markWorkflowSaved()
+  workflowInitializing.value = false
+}
+
 async function selectVersion(version) {
   if (version !== 'draft' && (version == null || version === 'undefined')) {
     message.warning('该版本无效，请选择已发布的版本')
@@ -2564,7 +2572,7 @@ async function selectVersion(version) {
       const wfRes = await getWorkflowConfig(agentId)
       workflowStatus.value = wfRes.data.status || 'draft'
       applyWorkflowGraph(wfRes.data.draft)
-      markWorkflowSaved()
+      await finalizeWorkflowGraphAfterLoad()
       scheduleFitView(false)
     } catch (e) {
       notification.error({ message: '加载草稿失败', description: e.message })
@@ -2575,7 +2583,7 @@ async function selectVersion(version) {
   try {
     const res = await getWorkflowVersionDetail(agentId, version)
     applyWorkflowGraph(res.data)
-    markWorkflowSaved()
+    await finalizeWorkflowGraphAfterLoad()
     versionVisible.value = true
     await nextTick()
     ensureVersionPanelPosition()

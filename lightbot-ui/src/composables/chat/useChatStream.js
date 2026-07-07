@@ -437,14 +437,12 @@ export function useChatStream(deps) {
             reconnecting.value = false
             if (assistantMsg) {
               assistantMsg._reasoningDone = true
-              if (!assistantMsg._toolBlockOffsets?.length) {
-                assistantMsg._toolBlockOffsets = getToolBlockOffsets(assistantMsg)
-              }
               assistantMsg._streaming = false
               assistantMsg._toolsDone = true
               assistantMsg._toolExpanded = false
               applyStreamDoneMetadata(assistantMsg, meta)
               applyToolMetadata(assistantMsg, typeof assistantMsg.metadata === 'object' ? assistantMsg.metadata : null)
+              assistantMsg._toolBlockOffsets = getToolBlockOffsets(assistantMsg)
               if (assistantMsg._workflowConfirmPending) {
                 loading.value = false
                 streaming.value = false

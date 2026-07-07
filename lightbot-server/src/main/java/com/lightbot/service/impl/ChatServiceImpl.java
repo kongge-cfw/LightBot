@@ -238,6 +238,7 @@ public class ChatServiceImpl implements ChatService {
             List<AssistantMessage.ToolCall> toolCalls = assistantMsg.getToolCalls();
 
             List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
+            appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg != null ? assistantMsg.getText() : null);
             int toolContentOffset = fullReply.length();
 
             // 目前非流式只处理第一个工具调用（简化处理）
@@ -350,14 +351,8 @@ public class ChatServiceImpl implements ChatService {
             List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
             if (!toolEventsList.isEmpty()) {
                 meta.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                // 计算toolBlockOffsets
-                List<Integer> offsets = toolEventsList.stream()
-                        .map(e -> e.get("contentOffset"))
-                        .filter(Objects::nonNull)
-                        .map(o -> ((Number) o).intValue())
-                        .distinct()
-                        .sorted()
-                        .toList();
+                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
+                        (List<Map<String, Object>>) meta.get("toolEvents"));
                 if (!offsets.isEmpty()) {
                     meta.put("toolBlockOffsets", offsets);
                 }
@@ -437,7 +432,7 @@ public class ChatServiceImpl implements ChatService {
             String fullReplyText = ctx.getFullReply().toString();
             // 仅做数据库安全清理（非法字符），不做敏感词二次过滤
             String replyToSave = com.lightbot.util.TextNormalizeUtil.sanitizeForAiMessage(fullReplyText, 0);
-            String metadataStr = buildPersistMetadata(ctx);
+            String metadataStr = buildPersistMetadata(ctx, replyToSave);
             Long assistantMessageId = messageMiddleware.saveMessage(
                     ctx.getSessionId(), MessageRole.ASSISTANT,
                     replyToSave, metadataStr, (int) totalTokens);
@@ -502,8 +497,11 @@ public class ChatServiceImpl implements ChatService {
 
     /**
      * 构建持久化 metadata：合并 ragMetadata + reasoningContent + sensitiveBlock + requestId
+     *
+     * @param ctx          对话上下文
+     * @param finalContent 最终落库正文（用于对齐 toolEvents contentOffset）
      */
-    private String buildPersistMetadata(ChatContext ctx) {
+    private String buildPersistMetadata(ChatContext ctx, String finalContent) {
         try {
             Map<String, Object> meta = new java.util.LinkedHashMap<>();
             String ragMeta = ctx.getRagMetadataHolder()[0];
@@ -511,6 +509,18 @@ public class ChatServiceImpl implements ChatService {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> existing = objectMapper.readValue(ragMeta, Map.class);
                 meta.putAll(existing);
+            }
+            List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
+            if (!toolEventsList.isEmpty()) {
+                List<Map<String, Object>> compactEvents = ToolEventCompactUtil.compactForPersistence(
+                        toolEventsList, finalContent);
+                meta.put("toolEvents", compactEvents);
+                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(compactEvents);
+                if (!offsets.isEmpty()) {
+                    meta.put("toolBlockOffsets", offsets);
+                } else {
+                    meta.remove("toolBlockOffsets");
+                }
             }
             if (ctx.getReasoningContent().length() > 0) {
                 meta.put("reasoningContent", com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(
@@ -712,8 +722,9 @@ public class ChatServiceImpl implements ChatService {
 
                     List<Flux<String>> statusFluxes = new ArrayList<>();
                     List<Map<String, Object>> kbResultsHolder = new ArrayList<>();
-                    List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
-                    int toolContentOffset = fullReply.length();
+            List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
+            appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg.getText());
+            int toolContentOffset = fullReply.length();
 
                     if (asyncEnabled && toolCalls.size() > 1) {
                         // 并行执行所有工具
@@ -830,13 +841,8 @@ public class ChatServiceImpl implements ChatService {
                             Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                             if (!toolEventsList.isEmpty()) {
                                 metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                                List<Integer> offsets = toolEventsList.stream()
-                                        .map(e -> e.get("contentOffset"))
-                                        .filter(java.util.Objects::nonNull)
-                                        .map(o -> ((Number) o).intValue())
-                                        .distinct()
-                                        .sorted()
-                                        .toList();
+                                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
+                                        (List<Map<String, Object>>) metadataMap.get("toolEvents"));
                                 if (!offsets.isEmpty()) metadataMap.put("toolBlockOffsets", offsets);
                             }
                             if (!kbResultsRef.isEmpty()) {
@@ -1068,6 +1074,7 @@ public class ChatServiceImpl implements ChatService {
         List<Flux<String>> statusFluxes = new ArrayList<>();
         List<Map<String, Object>> kbResultsHolder = new ArrayList<>();
         List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
+        appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg != null ? assistantMsg.getText() : null);
         int toolContentOffset = fullReply.length();
 
         if (asyncEnabled && toolCalls.size() > 1) {
@@ -1282,13 +1289,8 @@ public class ChatServiceImpl implements ChatService {
                 Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                 if (!toolEventsList.isEmpty()) {
                     metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                    List<Integer> offsets = toolEventsList.stream()
-                            .map(e -> e.get("contentOffset"))
-                            .filter(java.util.Objects::nonNull)
-                            .map(o -> ((Number) o).intValue())
-                            .distinct()
-                            .sorted()
-                            .toList();
+                    List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
+                            (List<Map<String, Object>>) metadataMap.get("toolEvents"));
                     if (!offsets.isEmpty()) {
                         metadataMap.put("toolBlockOffsets", offsets);
                     }
@@ -1526,6 +1528,50 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /**
+     * 工具调用前记录正文前缀锚点，入库时据此重新对齐 contentOffset。
+     */
+    private void putContentPrefixAnchor(ChatContext ctx, Map<String, Object> evt, int contentOffset) {
+        if (ctx == null || evt == null || contentOffset <= 0) {
+            return;
+        }
+        String reply = ctx.getFullReply().toString();
+        int end = Math.min(contentOffset, reply.length());
+        if (end > 0) {
+            evt.put("contentPrefixAnchor", reply.substring(0, end));
+        }
+    }
+
+    /**
+     * 非流式 / 阻塞路径：同一轮 assistant 消息若携带正文，须先写入 fullReply 再计算 tool offset。
+     */
+    private void appendAssistantLeadingTextBeforeToolCall(ChatContext ctx, Agent agent, String assistantText) {
+        if (ctx == null || assistantText == null || assistantText.isEmpty()) {
+            return;
+        }
+        String text = assistantText;
+        ctx.appendTraceCompleteReply(text);
+        if (ctx.getReasoningContent().length() == 0) {
+            InlineThinkingStreamParser.ParseResult parsed = InlineThinkingStreamParser.parseComplete(text);
+            if (!parsed.reasoningDelta().isEmpty()) {
+                ctx.appendReasoningContent(parsed.reasoningDelta());
+            }
+            text = parsed.contentDelta();
+        } else if (InlineThinkingStreamParser.containsThinkingTags(text)) {
+            text = InlineThinkingStreamParser.stripTags(text);
+        }
+        if (text == null || text.isEmpty()) {
+            return;
+        }
+        Map<String, Object> configMap = ctx.getConfigMap();
+        Long agentId = agent != null ? agent.getId() : null;
+        String filtered = SensitiveWordFilter.filterAiOutput(
+                text, configMap, agentId, ctx.getSessionId()).text();
+        if (!filtered.isEmpty()) {
+            ctx.getFullReply().append(filtered);
+        }
+    }
+
     private void appendToolCallStart(ChatContext ctx, List<Map<String, Object>> toolEventsList,
                                      List<Flux<String>> statusFluxes,
                                      String toolName, String args, int contentOffset) {
@@ -1546,6 +1592,7 @@ public class ChatServiceImpl implements ChatService {
             evt.put("displayName", displayName);
             evt.put("task", task);
             evt.put("contentOffset", contentOffset);
+            putContentPrefixAnchor(ctx, evt, contentOffset);
             toolEventsList.add(evt);
             if (ctx != null) {
                 ctx.setSubAgentContentOffset(contentOffset);
@@ -1562,6 +1609,7 @@ public class ChatServiceImpl implements ChatService {
         if (dn != null) callEvt.put("displayName", dn);
         callEvt.put("args", args);
         callEvt.put("contentOffset", contentOffset);
+        putContentPrefixAnchor(ctx, callEvt, contentOffset);
         toolEventsList.add(callEvt);
         String callJson = toolEventGenerator.toolCallEvent(toolName, dn, args, contentOffset);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {

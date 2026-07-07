@@ -8,6 +8,7 @@ import {
   patchLocalConfirmEventsOnAbandon,
   findSuspendNodeIdFromEvents,
 } from '../../views/workflow/composables/useWorkflowTestLive.js'
+import { getToolBlockOffsets } from './useChatEventPartition.js'
 
 export const WORKFLOW_SSE_EVENT_TYPES = [
   'workflow_node_start',
@@ -323,8 +324,10 @@ export function createChatWorkflowStreamHandlers(deps) {
       msg._workflowConfirmPending = pending
     }
     if (meta.toolBlockOffsets?.length) {
-      msg._toolBlockOffsets = meta.toolBlockOffsets
+      msg._toolBlockOffsets = meta.toolBlockOffsets.map(o => Number(o))
     }
+    // 以 toolEvents 中的 contentOffset 为准，避免 stale toolBlockOffsets 导致历史消息切分错位
+    msg._toolBlockOffsets = getToolBlockOffsets(msg)
   }
 
   return {

@@ -11,7 +11,7 @@
         <CloseCircleOutlined class="subagent-step-icon" />
         {{ errorLabel || '执行失败' }}
       </span>
-      <LoadingOutlined v-else-if="!isDone && !hasResult" class="subagent-spinner" spin />
+      <LoadingOutlined v-else-if="!isDone && !hasModelOutput" class="subagent-spinner" spin />
       <RightOutlined :class="{ expanded: expanded }" class="subagent-toggle" />
     </button>
 
@@ -45,25 +45,10 @@
         @heightChange="onToolHeightChange"
       />
 
-      <div v-if="showModelOutput" class="subagent-section">
+      <div v-if="modelOutput" class="subagent-section">
         <div class="subagent-section-header">
           <span class="subagent-label">模型输出</span>
-          <div class="subagent-section-actions">
-            <button type="button" class="subagent-action-btn" @click.stop="openRawModal">
-              <FileTextOutlined />
-              <span>查看原文</span>
-            </button>
-          </div>
-        </div>
-        <div class="subagent-markdown">
-          <MarkdownPreview :content="modelOutput" :finalized="isDone" :image-preview="false" />
-        </div>
-      </div>
-
-      <div v-if="resultReply" class="subagent-section">
-        <div class="subagent-section-header">
-          <span class="subagent-label">执行结果</span>
-          <div v-if="hasResultJson" class="subagent-section-actions">
+          <div v-if="canViewResultJson" class="subagent-section-actions">
             <a-tooltip title="查看返回 JSON">
               <button type="button" class="subagent-action-btn icon-only" @click.stop="openJsonModal">
                 <CodeOutlined />
@@ -72,32 +57,11 @@
           </div>
         </div>
         <div class="subagent-markdown">
-          <MarkdownPreview :content="resultReply" :finalized="true" :image-preview="false" />
+          <MarkdownPreview :content="modelOutput" :finalized="isDone" :image-preview="false" />
         </div>
       </div>
     </div>
 
-    <!-- 模型输出原文 -->
-    <a-modal
-      v-model:open="rawModalOpen"
-      :footer="null"
-      width="680px"
-      :body-style="{ maxHeight: '70vh', overflow: 'auto' }"
-      destroy-on-close
-    >
-      <template #title>
-        <span>SubAgent 模型输出原文</span>
-        <a-tooltip title="复制">
-          <button class="subagent-modal-btn" @click="copyText(modelOutput, 'raw')">
-            <CheckOutlined v-if="rawCopied" style="color:#16a34a;" />
-            <CopyOutlined v-else />
-          </button>
-        </a-tooltip>
-      </template>
-      <pre class="subagent-modal-pre">{{ modelOutput }}</pre>
-    </a-modal>
-
-    <!-- 返回 JSON -->
     <a-modal
       v-model:open="jsonModalOpen"
       :footer="null"
@@ -108,7 +72,7 @@
       <template #title>
         <span>SubAgent 返回 JSON</span>
         <a-tooltip title="复制">
-          <button class="subagent-modal-btn" @click="copyText(resultRawJson, 'json')">
+          <button class="subagent-modal-btn" @click="copyText(resultRawJson)">
             <CheckOutlined v-if="jsonCopied" style="color:#16a34a;" />
             <CopyOutlined v-else />
           </button>
@@ -124,7 +88,7 @@ import { ref, computed, watch, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   RobotOutlined, LoadingOutlined, RightOutlined, CloseCircleOutlined,
-  FileTextOutlined, CodeOutlined, CopyOutlined, CheckOutlined,
+  CodeOutlined, CopyOutlined, CheckOutlined,
 } from '@ant-design/icons-vue'
 import ToolCallsGroupComponent from '../ToolCallsGroupComponent.vue'
 import MarkdownPreview from '../MarkdownPreview.vue'
@@ -133,10 +97,9 @@ import {
   findSubagentErrorRetry,
   mapSubagentToolsToStandardEvents,
   formatSubagentErrorLabel,
-  findSubagentResultReply,
+  resolveSubagentModelOutput,
   findSubagentResultRawJson,
   hasSubagentResultJson,
-  mergeSubagentModelOutput,
 } from './subagentEventUtils.js'
 
 const props = defineProps({
@@ -145,6 +108,7 @@ const props = defineProps({
   allEvents: { type: Array, default: null },
   eventIndex: { type: Number, default: 0 },
   isDone: { type: Boolean, default: true },
+  streamFinished: { type: Boolean, default: true },
   defaultExpanded: { type: Boolean, default: true },
 })
 
@@ -154,9 +118,7 @@ const expanded = ref(props.defaultExpanded)
 const bodyRef = ref(null)
 let userToggled = false
 
-const rawModalOpen = ref(false)
 const jsonModalOpen = ref(false)
-const rawCopied = ref(false)
 const jsonCopied = ref(false)
 
 const scopedEvents = computed(() => props.allEvents || props.events || [])
@@ -165,33 +127,25 @@ const subagentTitle = computed(() => props.event.displayName || props.event.suba
 const error = computed(() => findSubagentError(scopedEvents.value, props.event))
 const errorLabel = computed(() => formatSubagentErrorLabel(error.value?.code))
 const errorRetry = computed(() => {
-  if (error.value || resultReply.value) return null
+  if (error.value || modelOutput.value) return null
   if (props.isDone) return null
   return findSubagentErrorRetry(scopedEvents.value, props.event)
 })
 const isActivelyRetrying = computed(() => !!errorRetry.value && !props.isDone)
-const hasResult = computed(() => !!resultReply.value || !!error.value)
-const toolEvents = computed(() => mapSubagentToolsToStandardEvents(scopedEvents.value, props.event))
-const toolsDone = computed(() => props.isDone || !!resultReply.value || !!error.value)
-
-const modelOutput = computed(() => mergeSubagentModelOutput(scopedEvents.value, props.event))
-const resultReply = computed(() => findSubagentResultReply(scopedEvents.value, props.event))
-const showModelOutput = computed(() => {
-  if (!modelOutput.value) return false
-  // 完成后有可读结果时，避免与「执行结果」重复展示流式 token
-  if (resultReply.value && props.isDone) return false
-  return true
-})
+const modelOutput = computed(() => resolveSubagentModelOutput(scopedEvents.value, props.event))
+const hasModelOutput = computed(() => !!modelOutput.value?.trim())
 const resultRawJson = computed(() => findSubagentResultRawJson(scopedEvents.value, props.event))
-const hasResultJson = computed(() => hasSubagentResultJson(scopedEvents.value, props.event))
+const canViewResultJson = computed(() => props.streamFinished && hasSubagentResultJson(scopedEvents.value, props.event))
+const toolEvents = computed(() => mapSubagentToolsToStandardEvents(scopedEvents.value, props.event))
+const toolsDone = computed(() => props.isDone || hasModelOutput.value || !!error.value)
 
 watch(() => props.defaultExpanded, (val) => {
   if (!userToggled) expanded.value = val
   if (val && !userToggled) scrollBodyToBottom()
 }, { immediate: true })
 
-watch([errorRetry, error, toolEvents, modelOutput, resultReply], () => {
-  if (errorRetry.value || error.value || toolEvents.value.length || modelOutput.value || resultReply.value) {
+watch([errorRetry, error, toolEvents, modelOutput, canViewResultJson], () => {
+  if (errorRetry.value || error.value || toolEvents.value.length || modelOutput.value || canViewResultJson.value) {
     expanded.value = true
     nextTick(() => emit('heightChange'))
   }
@@ -214,7 +168,7 @@ watch(expanded, (val) => {
   if (val) scrollBodyToBottom()
 })
 
-watch([modelOutput, resultReply], () => {
+watch(modelOutput, () => {
   if (expanded.value) scrollBodyToBottom()
 })
 
@@ -225,25 +179,16 @@ function toggle(event) {
   else nextTick(() => emit('heightChange', event))
 }
 
-function openRawModal() {
-  rawModalOpen.value = true
-}
-
 function openJsonModal() {
   jsonModalOpen.value = true
 }
 
-async function copyText(text, kind) {
+async function copyText(text) {
   if (!text) return
   try {
     await navigator.clipboard.writeText(text)
-    if (kind === 'raw') {
-      rawCopied.value = true
-      setTimeout(() => { rawCopied.value = false }, 2000)
-    } else {
-      jsonCopied.value = true
-      setTimeout(() => { jsonCopied.value = false }, 2000)
-    }
+    jsonCopied.value = true
+    setTimeout(() => { jsonCopied.value = false }, 2000)
     message.success('已复制')
   } catch {
     message.error('复制失败')

@@ -81,6 +81,11 @@ export function createChatCapabilityStreamHandlers(deps) {
     assistantMsg._toolEvents.push(event)
 
     if (event.type === 'subagent_call') {
+      const content = assistantMsg.content || ''
+      const splitEnd = Math.min(Math.max(0, offset), content.length)
+      if (!event.contentPrefixAnchor && splitEnd > 0) {
+        event.contentPrefixAnchor = content.substring(0, splitEnd)
+      }
       assistantMsg._toolExpanded = true
       assistantMsg._currentToolOffset = offset
       registerToolBlockOffset(assistantMsg, offset)

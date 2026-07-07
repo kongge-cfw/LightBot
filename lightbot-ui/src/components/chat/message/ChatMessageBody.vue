@@ -20,6 +20,7 @@
       <AgentCapabilityPanel
         :events="getTopSkillEvents(msg)"
         :is-done="!msg._streaming || msg._toolsDone"
+        :stream-finished="!msg._streaming"
         :default-expanded="true"
         @heightChange="$emit('height-change', $event)"
       />
@@ -33,9 +34,9 @@
         :is-streaming="!!msg._streaming"
       />
     </div>
-    <!-- 有工具事件：按 offset 分段渲染，工具块在对应位置插入，后续文本在其下方 -->
+    <!-- 有工具事件：按 offset 分段渲染，SubAgent 块插入在对应正文位置 -->
     <template v-if="!hasErrors && msg._toolEvents?.length > 0">
-      <template v-for="(segment, si) in splitContentByOffsets(msg)" :key="si">
+      <template v-for="(segment, si) in splitContentByOffsets(msg)" :key="'seg-' + si">
         <div v-if="segment.type === 'text'" class="message-content">
           <MentionTextRenderer
             v-if="shouldRenderMentions(msg, segment.text)"
@@ -51,6 +52,7 @@
             :events="getCapabilityEventsForOffset(msg, segment.offset)"
             :all-events="msg._toolEvents || []"
             :is-done="isToolBlockDone(msg, segment.offset)"
+            :stream-finished="!msg._streaming"
             :default-expanded="true"
             @heightChange="$emit('height-change', $event)"
           />

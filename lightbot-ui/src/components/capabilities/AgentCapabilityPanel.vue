@@ -9,6 +9,7 @@
       :all-events="allEvents || events"
       :event-index="entry.index"
       :is-done="isDone"
+      :stream-finished="streamFinished"
       :default-expanded="defaultExpanded"
       @heightChange="onHeightChange"
     />
@@ -23,6 +24,8 @@ const props = defineProps({
   events: { type: Array, default: () => [] },
   allEvents: { type: Array, default: null },
   isDone: { type: Boolean, default: true },
+  /** 主消息流式已结束（或历史消息），用于控制「查看返回 JSON」等仅完成后展示的 UI */
+  streamFinished: { type: Boolean, default: true },
   defaultExpanded: { type: Boolean, default: true },
 })
 
