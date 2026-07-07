@@ -51,7 +51,7 @@ function toggle(event) {
 <style scoped>
 .skill-active-block {
   border-radius: 8px;
-  border: 1px solid #f9a8d4;
+  border: 1px solid var(--color-purple-border);
   background: var(--color-purple-bg);
   overflow: hidden;
 }
@@ -96,5 +96,14 @@ function toggle(event) {
 }
 .skill-active-item + .skill-active-item {
   margin-top: 0;
+}
+</style>
+
+<style>
+[data-theme="dark"] .skill-active-block {
+  border-color: var(--color-purple-border);
+}
+[data-theme="dark"] .skill-active-icon {
+  color: #f472b6;
 }
 </style>

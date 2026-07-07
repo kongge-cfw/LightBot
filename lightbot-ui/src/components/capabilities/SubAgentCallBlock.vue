@@ -360,7 +360,7 @@ async function copyText(text) {
 <style scoped>
 .subagent-call-block {
   border-radius: 10px;
-  border: 1px solid #fcd34d;
+  border: 1px solid var(--color-warning-soft);
   background: var(--color-warn-bg);
   overflow: hidden;
   margin-top: 4px;
@@ -368,12 +368,12 @@ async function copyText(text) {
 }
 .subagent-call-block.is-retrying,
 .subagent-call-block.retry-pulse {
-  border-color: rgba(245, 158, 11, 0.55);
+  border-color: color-mix(in srgb, var(--color-warning) 55%, transparent);
   animation: errorFadeIn 0.3s ease, retryPulse 1.6s ease-in-out infinite;
 }
 .subagent-call-block.is-failed {
-  border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(254, 242, 242, 0.7);
+  border-color: color-mix(in srgb, var(--color-error) 40%, transparent);
+  background: var(--color-error-bg);
 }
 .subagent-header {
   appearance: none;
@@ -389,9 +389,9 @@ async function copyText(text) {
   font-size: 14px;
   color: var(--color-text-dark);
 }
-.subagent-icon { font-size: 16px; color: #d97706; flex-shrink: 0; }
+.subagent-icon { font-size: 16px; color: var(--color-warning); flex-shrink: 0; }
 .subagent-title { flex: 1; min-width: 0; line-height: 1.5; }
-.subagent-title strong { font-weight: 600; color: #92400e; }
+.subagent-title strong { font-weight: 600; color: var(--color-warning-deep); }
 .subagent-attempt-count {
   font-size: 12px;
   color: var(--color-mute);
@@ -409,12 +409,12 @@ async function copyText(text) {
   flex-shrink: 0;
 }
 .subagent-header-badge.retry {
-  color: #b45309;
-  background: rgba(251, 191, 36, 0.2);
+  color: var(--color-warning-deep);
+  background: color-mix(in srgb, var(--color-warning) 18%, transparent);
 }
 .subagent-header-badge.error {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-error-deep);
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
 }
 .subagent-toggle {
   font-size: 11px;
@@ -434,13 +434,13 @@ async function copyText(text) {
   line-height: 1.6;
 }
 .subagent-status-banner.retry {
-  background: rgba(251, 191, 36, 0.18);
-  color: #b45309;
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
+  color: var(--color-warning-deep);
   animation: errorFadeIn 0.3s ease, retryPulse 1.6s ease-in-out infinite;
 }
 .subagent-status-banner.error {
-  background: rgba(239, 68, 68, 0.1);
-  color: #dc2626;
+  background: color-mix(in srgb, var(--color-error) 12%, transparent);
+  color: var(--color-error-deep);
 }
 .subagent-status-text {
   flex: 1;
@@ -456,7 +456,7 @@ async function copyText(text) {
 .subagent-attempt {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px dashed rgba(217, 119, 6, 0.25);
+  border-top: 1px dashed color-mix(in srgb, var(--color-warning) 28%, transparent);
 }
 .subagent-attempt:first-child {
   margin-top: 4px;
@@ -464,7 +464,7 @@ async function copyText(text) {
   border-top: none;
 }
 .subagent-attempt.is-active {
-  border-left: 3px solid rgba(245, 158, 11, 0.45);
+  border-left: 3px solid color-mix(in srgb, var(--color-warning) 45%, transparent);
   padding-left: 10px;
   margin-left: -2px;
 }
@@ -477,7 +477,7 @@ async function copyText(text) {
 .subagent-attempt-label {
   font-size: 12px;
   font-weight: 600;
-  color: #92400e;
+  color: var(--color-warning-deep);
 }
 .subagent-attempt-status {
   font-size: 11px;
@@ -485,17 +485,17 @@ async function copyText(text) {
   border-radius: 999px;
 }
 .subagent-attempt-status.success {
-  color: #15803d;
-  background: rgba(34, 197, 94, 0.15);
+  color: var(--green-400);
+  background: color-mix(in srgb, var(--color-success) 16%, transparent);
 }
 .subagent-attempt-status.error {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.12);
+  color: var(--color-error-deep);
+  background: color-mix(in srgb, var(--color-error) 14%, transparent);
 }
 .subagent-attempt-status.retry,
 .subagent-attempt-status.running {
-  color: #b45309;
-  background: rgba(251, 191, 36, 0.18);
+  color: var(--color-warning-deep);
+  background: color-mix(in srgb, var(--color-warning) 16%, transparent);
 }
 .subagent-timeline {
   display: flex;
@@ -511,21 +511,21 @@ async function copyText(text) {
   line-height: 1.5;
   padding: 6px 10px;
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.55);
+  background: var(--color-canvas-soft);
   animation: errorFadeIn 0.25s ease;
 }
 .subagent-timeline-item.kind-retry,
 .subagent-timeline-item.kind-running {
-  color: #b45309;
-  background: rgba(251, 191, 36, 0.14);
+  color: var(--color-warning-deep);
+  background: color-mix(in srgb, var(--color-warning) 14%, transparent);
 }
 .subagent-timeline-item.kind-error {
-  color: #dc2626;
-  background: rgba(239, 68, 68, 0.08);
+  color: var(--color-error-deep);
+  background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 .subagent-timeline-item.kind-success {
-  color: #15803d;
-  background: rgba(34, 197, 94, 0.12);
+  color: var(--green-400);
+  background: color-mix(in srgb, var(--color-success) 14%, transparent);
 }
 .subagent-timeline-text {
   flex: 1;
@@ -561,17 +561,17 @@ async function copyText(text) {
   align-items: center;
   gap: 4px;
   padding: 4px 10px;
-  border: 1px solid rgba(217, 119, 6, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-warning) 28%, transparent);
   border-radius: 6px;
-  background: rgba(255, 255, 255, 0.65);
-  color: #b45309;
+  background: var(--color-canvas-soft);
+  color: var(--color-warning-deep);
   font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
 }
 .subagent-action-btn:hover {
-  background: rgba(255, 255, 255, 0.95);
-  border-color: rgba(217, 119, 6, 0.45);
+  background: var(--color-canvas-soft-2);
+  border-color: color-mix(in srgb, var(--color-warning) 45%, transparent);
 }
 .subagent-action-btn.icon-only {
   padding: 4px 8px;
@@ -579,7 +579,7 @@ async function copyText(text) {
 }
 .subagent-task-box {
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.75);
+  background: var(--color-canvas-soft);
   border-radius: 8px;
   white-space: pre-wrap;
   word-break: break-word;
@@ -589,7 +589,7 @@ async function copyText(text) {
 }
 .subagent-markdown {
   padding: 10px 12px;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--color-canvas-soft);
   border-radius: 8px;
   font-size: 14px;
   line-height: 1.7;
@@ -597,23 +597,24 @@ async function copyText(text) {
 .subagent-markdown :deep(.markdown-preview) {
   font-size: 14px;
   line-height: 1.7;
+  color: var(--color-ink);
 }
 .subagent-tools {
   margin-top: 10px;
 }
 .subagent-tools :deep(.tool-calls-group) {
   margin-top: 0;
-  background: rgba(255, 255, 255, 0.82);
+  background: var(--color-canvas-soft);
   font-size: 14px;
 }
 .subagent-step-icon { font-size: 12px; }
-.subagent-step-icon.error { color: #ef4444; }
-.subagent-step-icon.success { color: #16a34a; }
+.subagent-step-icon.error { color: var(--color-error); }
+.subagent-step-icon.success { color: var(--color-success); }
 .subagent-error-code {
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(0, 0, 0, 0.06);
+  background: var(--color-canvas-soft-2);
   color: var(--color-mute);
   flex-shrink: 0;
 }
@@ -656,7 +657,28 @@ async function copyText(text) {
   to { opacity: 1; transform: translateY(0); }
 }
 @keyframes retryPulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
-  50% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-warning) 0%, transparent); }
+  50% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-warning) 14%, transparent); }
+}
+</style>
+
+<style>
+[data-theme="dark"] .subagent-markdown :deep(.markdown-preview) :not(pre) > code {
+  background-color: var(--color-canvas-soft-2);
+}
+[data-theme="dark"] .subagent-markdown :deep(.markdown-preview pre) {
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-hairline);
+}
+[data-theme="dark"] .subagent-tools :deep(.tool-calls-summary) {
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-hairline);
+  color: var(--color-body);
+}
+[data-theme="dark"] .subagent-tools :deep(.tool-calls-summary:hover),
+[data-theme="dark"] .subagent-tools :deep(.tool-calls-summary.is-expanded) {
+  background: var(--color-canvas-soft-3);
+  border-color: var(--color-hairline-strong);
+  color: var(--color-ink);
 }
 </style>
