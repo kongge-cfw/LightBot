@@ -37,17 +37,18 @@
       <span v-else-if="activeError.code" class="subagent-error-code">{{ activeError.code }}</span>
     </div>
 
-    <div v-show="expanded" ref="bodyRef" class="subagent-body">
-      <div
-        v-for="(attempt, ai) in attemptViews"
-        :key="attempt.key"
-        class="subagent-attempt"
-        :class="{
-          'is-active': attempt.isActive,
-          'is-done': attempt.isDone,
-          'is-failed': attempt.error && attempt.isDone,
-        }"
-      >
+    <CollapseTransition :open="expanded">
+      <div ref="bodyRef" class="subagent-body">
+        <div
+          v-for="(attempt, ai) in attemptViews"
+          :key="attempt.key"
+          class="subagent-attempt"
+          :class="{
+            'is-active': attempt.isActive,
+            'is-done': attempt.isDone,
+            'is-failed': attempt.error && attempt.isDone,
+          }"
+        >
         <div v-if="attemptViews.length > 1" class="subagent-attempt-header">
           <span class="subagent-attempt-label">第 {{ ai + 1 }} 次委派</span>
           <span v-if="attempt.isDone && attempt.error" class="subagent-attempt-status error">失败</span>
@@ -117,7 +118,7 @@
           </div>
         </div>
       </div>
-    </div>
+    </CollapseTransition>
 
     <a-modal
       v-model:open="jsonModalOpen"
@@ -149,6 +150,7 @@ import {
 } from '@ant-design/icons-vue'
 import ToolCallsGroupComponent from '../ToolCallsGroupComponent.vue'
 import MarkdownPreview from '../MarkdownPreview.vue'
+import CollapseTransition from '../common/CollapseTransition.vue'
 import {
   normalizeSubagentCalls,
   buildSubagentAttemptTimeline,

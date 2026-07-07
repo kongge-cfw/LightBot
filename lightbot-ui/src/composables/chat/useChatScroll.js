@@ -67,7 +67,8 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
 
   /**
    * 内联块（SubAgent / 工具 / Skill / 参考文献等）高度变化：
-   * 按高度差补偿 scrollTop，收起时下方内容上移但不带走用户视角。
+   * 仅当整行位于视口上方时补偿 scrollTop（滚动锚定），
+   * 展开可见面板时不补偿，让内容自然向下撑开、点击的标题保持不动。
    */
   function onCapabilityHeightChange(evt) {
     const rowEl = resolveMeasureRow(evt)
@@ -86,12 +87,9 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
         const heightAfter = rowEl.getBoundingClientRect().height
         const delta = heightAfter - heightBefore
 
-        if (Math.abs(delta) > 0.5) {
-          const rowRect = rowEl.getBoundingClientRect()
-          // 该行在视口上方或与视口相交：补偿高度差，保持用户正在看的内容不动
-          if (rowRect.top < containerRect.bottom) {
-            container.scrollTop = scrollTopBefore + delta
-          }
+        // 仅当整行已滚出视口上方时才补偿，避免展开可见面板导致视角上移
+        if (Math.abs(delta) > 0.5 && rowEl.getBoundingClientRect().bottom < containerRect.top) {
+          container.scrollTop = scrollTopBefore + delta
         }
 
         container.style.overflowAnchor = ''

@@ -6,14 +6,16 @@
       <LoadingOutlined v-if="!isDone" class="skill-active-spinner" />
       <RightOutlined :class="{ expanded: expanded }" class="skill-active-toggle" />
     </button>
-    <div v-show="expanded" class="skill-active-body">
-      <SkillItemRenderer
-        v-for="(sk, si) in skills"
-        :key="sk.slug || sk.name || si"
-        :skill="sk"
-        class="skill-active-item"
-      />
-    </div>
+    <CollapseTransition :open="expanded">
+      <div class="skill-active-body">
+        <SkillItemRenderer
+          v-for="(sk, si) in skills"
+          :key="sk.slug || sk.name || si"
+          :skill="sk"
+          class="skill-active-item"
+        />
+      </div>
+    </CollapseTransition>
   </div>
 </template>
 
@@ -21,6 +23,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { ThunderboltOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons-vue'
 import SkillItemRenderer from './SkillItemRenderer.vue'
+import CollapseTransition from '../common/CollapseTransition.vue'
 import { formatSkillActiveTitle } from './skillRegistry.js'
 
 const props = defineProps({

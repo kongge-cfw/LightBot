@@ -16,8 +16,9 @@
       </span>
     </button>
 
-    <div v-show="isExpanded" class="tool-calls-panel">
-      <div v-for="(evt, ti) in toolEvents" :key="ti" class="tool-event-item">
+    <CollapseTransition :open="isExpanded">
+      <div class="tool-calls-panel">
+        <div v-for="(evt, ti) in toolEvents" :key="ti" class="tool-event-item">
         <!-- tool_call: 工具调用发起 -->
         <div v-if="evt.type === 'tool_call'" class="event-call-wrap">
           <div class="event-row event-call">
@@ -54,11 +55,14 @@
           </button>
         </div>
         <!-- 结果详情展开 -->
-        <div v-if="evt.type === 'tool_result' && expandedResults.has(ti)" class="result-detail">
-          <ToolCallRenderer :event="evt" :messageIndex="messageIndex" />
-        </div>
+        <CollapseTransition v-if="evt.type === 'tool_result'" :open="expandedResults.has(ti)">
+          <div class="result-detail">
+            <ToolCallRenderer :event="evt" :messageIndex="messageIndex" />
+          </div>
+        </CollapseTransition>
       </div>
-    </div>
+      </div>
+    </CollapseTransition>
 
     <!-- 参数详情弹窗 -->
     <a-modal
@@ -82,6 +86,7 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { CheckCircleOutlined, LoadingOutlined, RightOutlined, SearchOutlined, FileSearchOutlined } from '@ant-design/icons-vue'
 import ToolCallRenderer from './ToolCallRenderer.vue'
+import CollapseTransition from './common/CollapseTransition.vue'
 import { getToolDisplayName } from './toolRegistry'
 
 const props = defineProps({

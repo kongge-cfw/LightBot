@@ -455,13 +455,24 @@ function initGraph() {
     node: {
       type: 'circle',
       style: {
-        labelText: (d) => {
-          const s = d.data.score
-          return s != null ? `${d.data.label}  ${(s * 100).toFixed(1)}%` : d.data.label
-        },
+        labelText: (d) => d.data.label,
         labelFill: '#374151',
         labelWordWrap: true,
         labelMaxWidth: '300%',
+        // 语义搜索命中时以徽标展示相似度，避免拼接进标签导致省略号
+        badge: (d) => d.data.score != null,
+        badges: (d) => {
+          if (d.data.score == null) return []
+          return [{
+            text: `${(d.data.score * 100).toFixed(1)}%`,
+            placement: 'right-top',
+            backgroundFill: '#2563eb',
+            fill: '#ffffff',
+            fontSize: 10,
+            padding: [2, 5],
+            backgroundRadius: 8
+          }]
+        },
         size: (d) => {
           const deg = d.data.degree || 0
           return Math.min(15 + deg * 5, 50)

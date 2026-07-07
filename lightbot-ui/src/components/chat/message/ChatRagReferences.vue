@@ -6,29 +6,33 @@
       <FileTextOutlined />
       <span>参考文献 ({{ ragRefs.length }})</span>
     </div>
-    <div v-if="refsSectionExpanded" class="rag-list">
-      <div v-for="(ref, ri) in ragRefs" :key="ri" class="rag-item">
-        <div class="rag-item-header" @click="$emit('rag-toggle', { kind: 'item', refIndex: ri })">
-          <div class="rag-title-left">
-            <RightOutlined :class="{ expanded: isRefExpanded(ri) }" />
-            <template v-if="ref.sourceType === 'qa_pair'">
-              <a-tag color="success" class="rag-qa-tag">问答对</a-tag>
-              <span class="rag-doc-name">{{ getRagQaQuestion(ref) }}</span>
-            </template>
-            <span v-else class="rag-doc-name">{{ ref.documentName }}</span>
+    <CollapseTransition :open="refsSectionExpanded">
+      <div class="rag-list">
+        <div v-for="(ref, ri) in ragRefs" :key="ri" class="rag-item">
+          <div class="rag-item-header" @click="$emit('rag-toggle', { kind: 'item', refIndex: ri })">
+            <div class="rag-title-left">
+              <RightOutlined :class="{ expanded: isRefExpanded(ri) }" />
+              <template v-if="ref.sourceType === 'qa_pair'">
+                <a-tag color="success" class="rag-qa-tag">问答对</a-tag>
+                <span class="rag-doc-name">{{ getRagQaQuestion(ref) }}</span>
+              </template>
+              <span v-else class="rag-doc-name">{{ ref.documentName }}</span>
+            </div>
+            <div class="rag-title-right">
+              <span class="rag-score">{{ (ref.score * 100).toFixed(1) }}%</span>
+              <a-tooltip v-if="ref.knowledgeId" title="查看知识库">
+                <LinkOutlined class="rag-nav-btn" @click.stop="$emit('go-knowledge', { knowledgeId: ref.knowledgeId, documentId: ref.documentId })" />
+              </a-tooltip>
+            </div>
           </div>
-          <div class="rag-title-right">
-            <span class="rag-score">{{ (ref.score * 100).toFixed(1) }}%</span>
-            <a-tooltip v-if="ref.knowledgeId" title="查看知识库">
-              <LinkOutlined class="rag-nav-btn" @click.stop="$emit('go-knowledge', { knowledgeId: ref.knowledgeId, documentId: ref.documentId })" />
-            </a-tooltip>
-          </div>
-        </div>
-        <div v-if="isRefExpanded(ri)" class="rag-item-content">
-          {{ ref.contentPreview }}
+          <CollapseTransition :open="isRefExpanded(ri)">
+            <div class="rag-item-content">
+              {{ ref.contentPreview }}
+            </div>
+          </CollapseTransition>
         </div>
       </div>
-    </div>
+    </CollapseTransition>
   </div>
   <!-- 耗时显示 -->
   <div v-if="showReplyElapsed" class="reply-elapsed">
@@ -38,6 +42,7 @@
 
 <script setup>
 import { FileTextOutlined, RightOutlined, LinkOutlined } from '@ant-design/icons-vue'
+import CollapseTransition from '../../common/CollapseTransition.vue'
 import { getRagQaQuestion, formatElapsed } from '../../../composables/chat/useChatMessageModel.js'
 
 defineProps({

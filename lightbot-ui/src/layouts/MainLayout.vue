@@ -138,10 +138,12 @@
             <a-menu @click="handleCommand">
               <a-menu-item key="user-info" class="menu-user-info" @click="router.push('/app/profile')">
                 <div class="user-info-display">
-                  <div class="user-info-name">{{ userStore.user?.username || userStore.user?.nickname || '用户' }}</div>
+                  <div class="user-info-name-row">
+                    <span class="user-info-name">{{ userStore.user?.username || userStore.user?.nickname || '用户' }}</span>
+                    <span class="user-info-role">{{ userRoleText }}</span>
+                  </div>
                   <div class="user-info-meta">
                     <span class="user-info-id">ID: {{ userStore.user?.id }}</span>
-                    <span class="user-info-role">{{ userRoleText }}</span>
                   </div>
                 </div>
               </a-menu-item>
@@ -912,11 +914,30 @@ watch(sessionLoadMoreRef, (el) => {
 .user-info-display {
   padding: 2px 0;
 }
+.user-info-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
 .user-info-name {
   font-size: 14px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.user-info-role {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  font-size: 12px;
+  color: var(--color-mute);
+  background: var(--color-canvas-soft-2);
+  border-radius: 10px;
+  white-space: nowrap;
 }
 .user-info-meta {
   display: flex;

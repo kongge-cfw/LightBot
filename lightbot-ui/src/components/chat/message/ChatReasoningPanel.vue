@@ -6,12 +6,15 @@
       <LoadingOutlined v-if="msg._streaming && !msg._reasoningDone" class="reasoning-spinner" />
       <RightOutlined :class="{ expanded: msg._reasoningExpanded }" class="tool-expand-icon" />
     </div>
-    <div v-show="msg._reasoningExpanded" class="reasoning-content">{{ msg._reasoningContent }}</div>
+    <CollapseTransition :open="!!msg._reasoningExpanded">
+      <div class="reasoning-content">{{ msg._reasoningContent }}</div>
+    </CollapseTransition>
   </div>
 </template>
 
 <script setup>
 import { BulbOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons-vue'
+import CollapseTransition from '../../common/CollapseTransition.vue'
 
 defineProps({
   msg: { type: Object, required: true },
