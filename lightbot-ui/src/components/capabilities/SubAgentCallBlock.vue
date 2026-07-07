@@ -118,6 +118,7 @@
           </div>
         </div>
       </div>
+      </div>
     </CollapseTransition>
 
     <a-modal
