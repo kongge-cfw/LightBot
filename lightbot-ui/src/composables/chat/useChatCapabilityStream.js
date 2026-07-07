@@ -8,6 +8,7 @@ import {
   formatSubagentCallStatus,
   formatSubagentToolCallStatus,
 } from '../../components/capabilities/subagentRegistry.js'
+import { resolveToolBlockSplitAt } from './useChatEventPartition.js'
 
 export { SKILL_ACTIVE_EVENT_TYPE }
 export { isSubagentEvent }
@@ -82,13 +83,14 @@ export function createChatCapabilityStreamHandlers(deps) {
 
     if (event.type === 'subagent_call') {
       const content = assistantMsg.content || ''
-      const splitEnd = Math.min(Math.max(0, offset), content.length)
-      if (!event.contentPrefixAnchor && splitEnd > 0) {
-        event.contentPrefixAnchor = content.substring(0, splitEnd)
+      const splitAt = resolveToolBlockSplitAt(content, event, offset)
+      event.contentOffset = splitAt
+      if (!event.contentPrefixAnchor && splitAt > 0) {
+        event.contentPrefixAnchor = content.substring(0, splitAt)
       }
       assistantMsg._toolExpanded = true
-      assistantMsg._currentToolOffset = offset
-      registerToolBlockOffset(assistantMsg, offset)
+      assistantMsg._currentToolOffset = splitAt
+      registerToolBlockOffset(assistantMsg, splitAt)
       currentStatus.value = formatSubagentCallStatus(event)
       scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
     } else if (event.type === 'subagent_tool_call') {
@@ -100,8 +102,9 @@ export function createChatCapabilityStreamHandlers(deps) {
     } else if (event.type === 'subagent_error_retry') {
       assistantMsg._toolExpanded = true
       registerToolBlockOffset(assistantMsg, offset)
+      assistantMsg._subagentRetryPulse = (assistantMsg._subagentRetryPulse || 0) + 1
       currentStatus.value = event.message || `SubAgent 重试 ${event.attempt}/${event.maxRetries}`
-      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block.is-retrying, .subagent-call-block.retry-pulse, .subagent-call-block')
     } else if (event.type === 'subagent_error') {
       assistantMsg._toolExpanded = true
       registerToolBlockOffset(assistantMsg, offset)

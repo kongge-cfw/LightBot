@@ -1,9 +1,11 @@
 package com.lightbot.service.chat;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -39,6 +41,35 @@ public class ToolEventGenerator {
             return sb.append("}").toString();
         } catch (Exception e) {
             return "{\"type\":\"error\",\"message\":\"事件生成失败\"}";
+        }
+    }
+
+    /**
+     * 为 SubAgent SSE/持久化 JSON 附加 delegationIndex（同 offset 多次委派区分序号）。
+     */
+    public String enrichSubagentJson(String json, Integer delegationIndex) {
+        if (delegationIndex == null || json == null || json.isBlank()) {
+            return json;
+        }
+        try {
+            Map<String, Object> map = objectMapper.readValue(json, new TypeReference<>() {});
+            map.put("delegationIndex", delegationIndex);
+            return objectMapper.writeValueAsString(map);
+        } catch (Exception e) {
+            return json;
+        }
+    }
+
+    /** 构建带 delegationIndex 的 SubAgent 事件 JSON */
+    public String subagentEventJson(Map<String, Object> fields, Integer delegationIndex) {
+        Map<String, Object> evt = new LinkedHashMap<>(fields);
+        if (delegationIndex != null) {
+            evt.put("delegationIndex", delegationIndex);
+        }
+        try {
+            return objectMapper.writeValueAsString(evt);
+        } catch (Exception e) {
+            return safeFallbackJson(evt);
         }
     }
 

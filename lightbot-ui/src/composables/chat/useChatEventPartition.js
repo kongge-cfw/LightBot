@@ -3,6 +3,7 @@
  */
 import { SKILL_ACTIVE_EVENT_TYPE } from '../../components/skills/skillRegistry.js'
 import { SUBAGENT_EVENT_TYPES } from '../../components/capabilities/subagentRegistry.js'
+import { isSubagentBlockDone } from '../../components/capabilities/subagentEventUtils.js'
 
 export const CAPABILITY_EVENT_TYPES = new Set([
   SKILL_ACTIVE_EVENT_TYPE,
@@ -98,6 +99,12 @@ export function isToolBlockDone(msg, offset) {
       e.type === 'tool_result' || e.type === 'subagent_result' || e.type === 'subagent_error')
   }
   if (msg._toolBlocksDone?.some(o => o == offset)) return true
+
+  const subCalls = getSubagentCallEvents(msg).filter(c => c.contentOffset == offset)
+  if (subCalls.length > 0) {
+    return isSubagentBlockDone(msg._toolEvents, subCalls, !!msg._streaming)
+  }
+
   if (!msg._streaming) return true
   const atOffset = getToolEventsForOffset(msg, offset)
   return atOffset.some(e =>
@@ -113,20 +120,58 @@ export function markToolBlockDone(msg, offset) {
 }
 
 /**
+ * 将 raw 切分点回退到最后一个句末标点之后，避免组件插在半句话中间。
+ */
+export function alignToSemanticSplitBoundary(content, rawOffset) {
+  if (!content || rawOffset <= 0) return 0
+  const end = Math.min(Math.max(0, rawOffset), content.length)
+  if (end <= 0) return 0
+
+  for (let i = end; i > 0; i--) {
+    const prev = content.charAt(i - 1)
+    if (isStrongSentenceEnd(prev)) return i
+  }
+  for (let i = end; i > 0; i--) {
+    if (content.charAt(i - 1) !== '\n') continue
+    for (let j = i - 1; j > 0; j--) {
+      if (isStrongSentenceEnd(content.charAt(j - 1))) return j
+    }
+    if (isTrivialFragment(content, i, end)) return i
+  }
+  return end
+}
+
+function isStrongSentenceEnd(ch) {
+  return ch === '！' || ch === '!' || ch === '。' || ch === '.' || ch === '?'
+    || ch === '？' || ch === '；' || ch === ';'
+}
+
+function isTrivialFragment(content, from, to) {
+  if (from >= to) return true
+  return content.substring(from, to).replace(/\n/g, '').trim().length <= 2
+}
+
+/**
  * 根据 contentPrefixAnchor 解析 SubAgent 在正文中的真实切分点。
  * segment.offset 仍用 metadata 中的 contentOffset（用于事件关联），
  * 切分位置用 splitAt（避免 offset 漂移导致「好<组件>的」截断首字）。
  */
 export function resolveToolBlockSplitAt(content, callEvent, fallbackOffset) {
   const anchor = callEvent?.contentPrefixAnchor || callEvent?.contentPrefixSnapshot
+  let candidate = null
   if (typeof anchor === 'string' && anchor.length > 0) {
-    if (content.startsWith(anchor)) return anchor.length
-    const idx = content.indexOf(anchor)
-    if (idx >= 0) return idx + anchor.length
+    if (content.startsWith(anchor)) {
+      candidate = anchor.length
+    } else {
+      const idx = content.indexOf(anchor)
+      if (idx >= 0) candidate = idx + anchor.length
+    }
   }
-  const fb = Number(fallbackOffset)
-  if (!Number.isFinite(fb) || fb < 0) return 0
-  return Math.min(fb, content.length)
+  if (candidate == null) {
+    const fb = Number(fallbackOffset)
+    candidate = Number.isFinite(fb) && fb >= 0 ? Math.min(fb, content.length) : 0
+  }
+  return alignToSemanticSplitBoundary(content, candidate)
 }
 
 function buildSubagentCallByOffset(msg) {

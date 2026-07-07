@@ -22,23 +22,66 @@ const ROUND_SIZE = 64
 const LAYER_GAP_X = 160
 const NODE_GAP_Y = 72
 const TOP_ORIGIN = { x: 80, y: 120 }
-const CROSSING_REDUCTION_ITERATIONS = 8
+const CROSSING_REDUCTION_ITERATIONS = 12
+const BRANCH_SLOT_EPSILON = 0.01
+const BRANCH_NODE_TYPES = new Set(['condition', 'classifier'])
 
 // ==================== 工具函数 ====================
 
-function nodeSize(type) {
+function nodeSize(type, node) {
   if (type === 'start' || type === 'end') return { w: ROUND_SIZE, h: ROUND_SIZE }
   if (isGroupBuiltinType(type)) return { w: 128, h: 48 }
   if (type === 'loop' || type === 'batch') return { w: 560, h: 380 }
+  if (type === 'classifier') {
+    const conditions = (node?.data?.conditions || []).filter(c => c.id !== 'default')
+    const rowCount = conditions.length + 1
+    return { w: DEFAULT_W, h: Math.max(DEFAULT_H, 52 + rowCount * 36) }
+  }
   return { w: DEFAULT_W, h: DEFAULT_H }
 }
 
 function getLayoutNodeSize(node) {
   if (isGroupNodeType(node?.type)) {
-    const base = nodeSize(node.type)
+    const base = nodeSize(node.type, node)
     return { w: parseSize(node.style?.width, base.w), h: parseSize(node.style?.height, base.h) }
   }
-  return nodeSize(node?.type)
+  return nodeSize(node?.type, node)
+}
+
+/** 分支出口 handle 排序：数值越小越靠上，与节点 UI 出口顺序一致 */
+function getBranchHandleRank(node, sourceHandle) {
+  if (!node || !sourceHandle) return 0
+
+  if (node.type === 'condition') {
+    if (sourceHandle === 'out_a') return 0
+    if (sourceHandle === 'out_c') return 1
+    if (sourceHandle === 'out_b') return 2
+    return 3
+  }
+
+  if (node.type === 'classifier') {
+    const nodeId = String(node.id)
+    const conditions = (node.data?.conditions || []).filter(c => c.id !== 'default')
+    const defaultHandle = `${nodeId}_default`
+    if (sourceHandle === defaultHandle || sourceHandle.endsWith('_default')) {
+      return conditions.length
+    }
+    const prefix = `${nodeId}_`
+    const intentId = sourceHandle.startsWith(prefix)
+      ? sourceHandle.slice(prefix.length)
+      : sourceHandle
+    const idx = conditions.findIndex(c => c.id === intentId)
+    return idx >= 0 ? idx : conditions.length
+  }
+
+  return 0
+}
+
+function branchAwareSlot(baseSlot, node, handleId) {
+  if (baseSlot == null || !node || !BRANCH_NODE_TYPES.has(node.type) || !handleId) {
+    return baseSlot
+  }
+  return baseSlot + getBranchHandleRank(node, handleId) * BRANCH_SLOT_EPSILON
 }
 
 function normalizePoint(p) {
@@ -151,16 +194,16 @@ function countCrossings(layerAbove, layerBelow, edges, orderAbove, orderBelow) {
 }
 
 /**
- * 中位数启发式：按前驱位置的中位数排序
+ * 中位数启发式：按前驱位置的中位数排序（分支出口带 handle 次序偏移）
  */
-function medianOrder(layerNodes, prevLayer, edges, prevOrder) {
+function medianOrder(layerNodes, prevLayer, edges, prevOrder, nodeMap) {
   const prevPos = new Map(prevOrder.map((id, i) => [id, i]))
   const medianMap = new Map()
 
   for (const nodeId of layerNodes) {
     const preds = edges
       .filter(e => e.target === nodeId && prevPos.has(e.source))
-      .map(e => prevPos.get(e.source))
+      .map(e => branchAwareSlot(prevPos.get(e.source), nodeMap.get(e.source), e.sourceHandle))
       .sort((a, b) => a - b)
 
     if (preds.length === 0) {
@@ -181,16 +224,16 @@ function medianOrder(layerNodes, prevLayer, edges, prevOrder) {
 }
 
 /**
- * 重心启发式：按前驱位置的平均值排序
+ * 重心启发式：按前驱位置的平均值排序（分支出口带 handle 次序偏移）
  */
-function barycenterOrder(layerNodes, prevLayer, edges, prevOrder) {
+function barycenterOrder(layerNodes, prevLayer, edges, prevOrder, nodeMap) {
   const prevPos = new Map(prevOrder.map((id, i) => [id, i]))
   const baryMap = new Map()
 
   for (const nodeId of layerNodes) {
     const preds = edges
       .filter(e => e.target === nodeId && prevPos.has(e.source))
-      .map(e => prevPos.get(e.source))
+      .map(e => branchAwareSlot(prevPos.get(e.source), nodeMap.get(e.source), e.sourceHandle))
 
     if (preds.length === 0) {
       baryMap.set(nodeId, Number.MAX_SAFE_INTEGER)
@@ -208,9 +251,75 @@ function barycenterOrder(layerNodes, prevLayer, edges, prevOrder) {
 }
 
 /**
+ * 反向扫描排序：按后继位置排序（分支目标带 handle 次序偏移）
+ */
+function reverseMedianOrder(layerNodes, nextLayer, edges, nextOrder, nodeMap) {
+  const nextPos = new Map(nextOrder.map((id, i) => [id, i]))
+  const medianMap = new Map()
+
+  for (const nodeId of layerNodes) {
+    const succs = edges
+      .filter(e => e.source === nodeId && nextPos.has(e.target))
+      .map(e => branchAwareSlot(nextPos.get(e.target), nodeMap.get(nodeId), e.sourceHandle))
+      .sort((a, b) => a - b)
+
+    if (succs.length === 0) {
+      medianMap.set(nodeId, Number.MAX_SAFE_INTEGER)
+    } else if (succs.length % 2 === 1) {
+      medianMap.set(nodeId, succs[Math.floor(succs.length / 2)])
+    } else {
+      medianMap.set(nodeId, (succs[succs.length / 2 - 1] + succs[succs.length / 2]) / 2)
+    }
+  }
+
+  return [...layerNodes].sort((a, b) => {
+    const ma = medianMap.get(a)
+    const mb = medianMap.get(b)
+    if (ma !== mb) return ma - mb
+    return String(a).localeCompare(String(b))
+  })
+}
+
+/**
+ * 同一分支节点的直接目标按 sourceHandle 次序成组排列，减少连线交叉
+ */
+function applyBranchOrderWithinLayers(layerOrders, edges, nodeMap) {
+  const result = new Map()
+
+  for (const [lv, order] of layerOrders) {
+    const branchMeta = new Map()
+
+    for (const nodeId of order) {
+      for (const e of edges) {
+        if (e.target !== nodeId) continue
+        const src = nodeMap.get(e.source)
+        if (!src || !BRANCH_NODE_TYPES.has(src.type)) continue
+        const rank = getBranchHandleRank(src, e.sourceHandle)
+        const existing = branchMeta.get(nodeId)
+        if (!existing || rank < existing.rank) {
+          branchMeta.set(nodeId, { parentId: e.source, rank })
+        }
+      }
+    }
+
+    const newOrder = [...order].sort((a, b) => {
+      const ma = branchMeta.get(a)
+      const mb = branchMeta.get(b)
+      if (ma && mb && ma.parentId === mb.parentId) {
+        if (ma.rank !== mb.rank) return ma.rank - mb.rank
+      }
+      return order.indexOf(a) - order.indexOf(b)
+    })
+    result.set(lv, newOrder)
+  }
+
+  return result
+}
+
+/**
  * 交叉减少主函数：多轮上下扫描，选择最优排列
  */
-function minimizeCrossings(layerMap, edges) {
+function minimizeCrossings(layerMap, edges, nodeMap) {
   const sortedLayerKeys = [...layerMap.keys()].sort((a, b) => a - b)
   if (sortedLayerKeys.length <= 1) return layerMap
 
@@ -248,21 +357,22 @@ function minimizeCrossings(layerMap, edges) {
           layerMap.get(prevLv).map(n => n.id),
           edges,
           newOrders.get(prevLv),
+          nodeMap,
         ))
       }
     } else {
-      // 反向扫描：从最后一层到第 0 层
+      // 反向扫描：从最后一层到第 0 层（按后继 handle 次序排序）
       const last = sortedLayerKeys.length - 1
       newOrders.set(sortedLayerKeys[last], currentOrders.get(sortedLayerKeys[last]))
       for (let i = last - 1; i >= 0; i--) {
         const lv = sortedLayerKeys[i]
         const nextLv = sortedLayerKeys[i + 1]
-        const fn = iter < CROSSING_REDUCTION_ITERATIONS / 2 ? medianOrder : barycenterOrder
-        newOrders.set(lv, fn(
+        newOrders.set(lv, reverseMedianOrder(
           layerMap.get(lv).map(n => n.id),
           layerMap.get(nextLv).map(n => n.id),
           edges,
           newOrders.get(nextLv),
+          nodeMap,
         ))
       }
     }
@@ -288,12 +398,14 @@ function minimizeCrossings(layerMap, edges) {
     if (bestCrossings === 0) break
   }
 
+  bestOrders = applyBranchOrderWithinLayers(bestOrders, edges, nodeMap)
+
   // 按最优顺序重排 layerMap
   const result = new Map()
   for (const lv of sortedLayerKeys) {
     const order = bestOrders.get(lv)
-    const nodeMap = new Map(layerMap.get(lv).map(n => [n.id, n]))
-    result.set(lv, order.map(id => nodeMap.get(id)).filter(Boolean))
+    const nodeById = new Map(layerMap.get(lv).map(n => [n.id, n]))
+    result.set(lv, order.map(id => nodeById.get(id)).filter(Boolean))
   }
   return result
 }
@@ -394,6 +506,9 @@ function assignCoordinates(layerMap, edges, nodeMap, origin) {
     }
   }
 
+  // 分支节点：按 sourceHandle 次序对称排列各分支目标，减少连线交叉
+  alignBranchTargets(positions, layerMap, edges, nodeMap)
+
   // 重叠消除：从上到下扫描每层
   resolveLayerOverlaps(sortedLayerKeys, layerMap, positions, nodeMap)
 
@@ -447,7 +562,94 @@ function assignCoordinates(layerMap, edges, nodeMap, origin) {
   // 最终重叠消除
   resolveLayerOverlaps(sortedLayerKeys, layerMap, positions, nodeMap)
 
+  // 分支节点居中于各出口目标
+  centerBranchNodesAmongTargets(positions, layerMap, edges, nodeMap)
+  resolveLayerOverlaps(sortedLayerKeys, layerMap, positions, nodeMap)
+
   return positions
+}
+
+/** 沿分支子树整体平移 Y，避免影响兄弟分支根节点 */
+function shiftBranchSubtreeY(rootId, dy, positions, edges, siblingRoots) {
+  if (!dy || !positions[rootId]) return
+  const visited = new Set()
+  const queue = [rootId]
+  while (queue.length) {
+    const id = queue.shift()
+    if (visited.has(id)) continue
+    visited.add(id)
+    positions[id] = { ...positions[id], y: positions[id].y + dy }
+    for (const e of edges) {
+      if (e.source !== id) continue
+      if (siblingRoots.has(e.target) && e.target !== rootId) continue
+      queue.push(e.target)
+    }
+  }
+}
+
+/**
+ * 条件/意图分类等多出口节点：各分支目标按 handle 次序对称排布
+ */
+function alignBranchTargets(positions, layerMap, edges, nodeMap) {
+  const branchNodes = []
+  for (const nodes of layerMap.values()) {
+    for (const node of nodes) {
+      if (BRANCH_NODE_TYPES.has(node.type)) branchNodes.push(node)
+    }
+  }
+  branchNodes.sort((a, b) => String(a.id).localeCompare(String(b.id)))
+
+  for (const node of branchNodes) {
+    const outEdges = edges.filter(e => e.source === node.id && positions[e.target])
+    if (outEdges.length <= 1) continue
+
+    const ranked = outEdges
+      .map(e => ({ target: e.target, rank: getBranchHandleRank(node, e.sourceHandle) }))
+      .sort((a, b) => a.rank - b.rank || String(a.target).localeCompare(String(b.target)))
+
+    const targets = ranked.map(r => r.target)
+    const sizes = targets.map(tid => getLayoutNodeSize(nodeMap.get(tid)).h)
+    const branchCy = positions[node.id].y + getLayoutNodeSize(node).h / 2
+    const totalSpan = sizes.reduce((sum, h) => sum + h, 0) + NODE_GAP_Y * (targets.length - 1)
+    const siblingRoots = new Set(targets)
+
+    let cursor = branchCy - totalSpan / 2
+    for (let i = 0; i < targets.length; i++) {
+      const tid = targets[i]
+      const h = sizes[i]
+      const desiredCy = cursor + h / 2
+      cursor += h + NODE_GAP_Y
+      const currentCy = positions[tid].y + h / 2
+      const dy = Math.round(desiredCy - currentCy)
+      shiftBranchSubtreeY(tid, dy, positions, edges, siblingRoots)
+    }
+  }
+}
+
+/** 分支节点 Y 对齐到各出口目标的几何中心 */
+function centerBranchNodesAmongTargets(positions, layerMap, edges, nodeMap) {
+  const branchNodes = []
+  for (const nodes of layerMap.values()) {
+    for (const node of nodes) {
+      if (BRANCH_NODE_TYPES.has(node.type)) branchNodes.push(node)
+    }
+  }
+  branchNodes.sort((a, b) => String(a.id).localeCompare(String(b.id)))
+
+  for (const node of branchNodes) {
+    const targets = edges
+      .filter(e => e.source === node.id && positions[e.target])
+      .map(e => e.target)
+    if (targets.length <= 1) continue
+
+    const centers = targets.map(tid => {
+      const tn = nodeMap.get(tid)
+      return positions[tid].y + getLayoutNodeSize(tn).h / 2
+    })
+    const avgCy = centers.reduce((s, v) => s + v, 0) / centers.length
+    const { h } = getLayoutNodeSize(node)
+    positions[node.id] = { ...positions[node.id], y: Math.round(avgCy - h / 2) }
+  }
 }
 
 /** 同层节点 Y 重叠时向下推开（确定性：按当前 Y 排序） */
@@ -502,7 +704,7 @@ function layoutNodesInScope(scopeNodes, edges, origin) {
   }
 
   // 阶段 2：交叉减少
-  const optimizedLayers = minimizeCrossings(layerMap, scopedEdges)
+  const optimizedLayers = minimizeCrossings(layerMap, scopedEdges, nodeMap)
 
   // 阶段 3：坐标分配
   return assignCoordinates(optimizedLayers, scopedEdges, nodeMap, origin)

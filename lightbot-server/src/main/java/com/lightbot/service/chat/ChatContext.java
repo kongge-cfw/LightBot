@@ -146,6 +146,23 @@ public class ChatContext {
     /** 当前 SubAgent 委派对应的 contentOffset（主 Agent 回复中的插入位置） */
     private Integer subAgentContentOffset;
 
+    /** 当前 assistant 消息内 SubAgent 委派序号（同 offset 多次委派时递增） */
+    private Integer subAgentDelegationIndex;
+
+    /**
+     * 分配 SubAgent 委派序号：首次 0，同条消息内再次委派递增。
+     *
+     * @return 委派序号
+     */
+    public int assignSubAgentDelegationIndex() {
+        if (subAgentDelegationIndex == null) {
+            subAgentDelegationIndex = 0;
+        } else {
+            subAgentDelegationIndex++;
+        }
+        return subAgentDelegationIndex;
+    }
+
     /** 流式模式下实时推送 [STATUS] JSON 到 SSE（由 ChatServiceImpl 注入） */
     private java.util.function.Consumer<String> realtimeStatusEmitter;
 

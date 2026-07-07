@@ -2,27 +2,104 @@
  * SubAgent 事件关联工具（从 events 数组中提取 call 对应的步骤/结果）
  */
 
-function matchSubagentScope(event, call) {
+/** 同 offset 多次委派合并为一块时的分组 key */
+export function getSubagentBlockKey(call) {
+  if (!call) return 'subagent-block'
+  const name = call.subagentName || ''
+  const offset = call.contentOffset
+  return `${name}@${offset ?? 'top'}`
+}
+
+/**
+ * 解析委派序号：优先 metadata 中的 delegationIndex，旧数据按同 block 内出现顺序回退。
+ */
+export function resolveDelegationIndex(call, fallbackIndex = null) {
+  if (call?.delegationIndex != null) return Number(call.delegationIndex)
+  if (fallbackIndex != null) return fallbackIndex
+  return null
+}
+
+function matchSubagentScope(event, call, delegationIndex = null) {
   if (!event || !call) return false
   if (event.subagentName !== call.subagentName) return false
   const eventOffset = event.contentOffset
   const callOffset = call.contentOffset
-  if (eventOffset == null || callOffset == null) return eventOffset == callOffset
-  return Number(eventOffset) === Number(callOffset)
+  if (eventOffset != null && callOffset != null && Number(eventOffset) !== Number(callOffset)) {
+    return false
+  }
+  const di = delegationIndex ?? resolveDelegationIndex(call)
+  if (di != null && event.delegationIndex != null) {
+    return Number(event.delegationIndex) === Number(di)
+  }
+  return eventOffset == callOffset
 }
 
-export function collectSubagentSteps(events, call) {
+/** 旧 metadata：按 subagent_call 出现顺序切分同 block 事件 */
+function buildLegacyBlockSegments(events, blockCalls) {
+  if (!blockCalls?.length) return []
+  const blockKey = getSubagentBlockKey(blockCalls[0])
+  const segments = blockCalls.map(() => [])
+  let attemptIdx = -1
+
+  for (const e of events || []) {
+    if (e.type === 'subagent_call' && getSubagentBlockKey(e) === blockKey) {
+      attemptIdx++
+      continue
+    }
+    if (attemptIdx < 0) continue
+    if (!matchSubagentScope(e, blockCalls[0], null)) continue
+    const bucket = Math.min(attemptIdx, segments.length - 1)
+    segments[bucket].push(e)
+  }
+  return segments
+}
+
+function resolveLegacyAttemptIndex(call, blockCalls) {
+  if (!blockCalls?.length) return 0
+  const idx = blockCalls.findIndex(c => c === call)
+  return idx >= 0 ? idx : 0
+}
+
+function filterScopedEvents(events, call, delegationIndex = null, blockCalls = null) {
+  const di = delegationIndex ?? resolveDelegationIndex(call)
+  const hasExplicitIndex = di != null && (
+    call?.delegationIndex != null
+    || (events || []).some(e => matchSubagentScope(e, call, null) && e.delegationIndex != null)
+  )
+  if (hasExplicitIndex) {
+    return (events || []).filter(e => matchSubagentScope(e, call, di))
+  }
+  if (blockCalls && blockCalls.length > 1) {
+    const segments = buildLegacyBlockSegments(events, blockCalls)
+    const idx = resolveLegacyAttemptIndex(call, blockCalls)
+    return segments[idx] || []
+  }
+  return (events || []).filter(e => matchSubagentScope(e, call, di))
+}
+
+/** 同 block 内按出现顺序归一化 delegationIndex（兼容旧 metadata） */
+export function normalizeSubagentCalls(calls) {
+  const counters = new Map()
+  return (calls || []).map((call) => {
+    const key = getSubagentBlockKey(call)
+    const idx = counters.get(key) ?? 0
+    counters.set(key, idx + 1)
+    return {
+      call,
+      delegationIndex: resolveDelegationIndex(call, idx),
+    }
+  })
+}
+
+export function collectSubagentSteps(events, call, delegationIndex = null, blockCalls = null) {
   if (!call || call.type !== 'subagent_call') return []
-  return (events || []).filter(
-    e => (e.type === 'subagent_tool_call' || e.type === 'subagent_tool_result' || e.type === 'subagent_token')
-      && matchSubagentScope(e, call)
+  return filterScopedEvents(events, call, delegationIndex, blockCalls).filter(
+    e => e.type === 'subagent_tool_call' || e.type === 'subagent_tool_result' || e.type === 'subagent_token'
   )
 }
 
 /**
  * 将连续的 subagent_token 合并为一段流式文本，避免每个 token 独占一行
- * @param {Array} steps collectSubagentSteps 的原始结果
- * @returns {Array} 合并后的步骤列表
  */
 export function groupSubagentSteps(steps) {
   const grouped = []
@@ -46,20 +123,14 @@ export function groupSubagentSteps(steps) {
   return grouped
 }
 
-export function findSubagentResult(events, call) {
+export function findSubagentResultEvent(events, call, delegationIndex = null, blockCalls = null) {
   if (!call || call.type !== 'subagent_call') return null
-  const resultEvt = (events || []).find(
-    e => e.type === 'subagent_result' && matchSubagentScope(e, call)
-  )
-  return resultEvt?.result || null
+  return filterScopedEvents(events, call, delegationIndex, blockCalls).find(e => e.type === 'subagent_result') || null
 }
 
-/** 获取 subagent_result 事件对象 */
-export function findSubagentResultEvent(events, call) {
-  if (!call || call.type !== 'subagent_call') return null
-  return (events || []).find(
-    e => e.type === 'subagent_result' && matchSubagentScope(e, call)
-  ) || null
+export function findSubagentResult(events, call, delegationIndex = null) {
+  const resultEvt = findSubagentResultEvent(events, call, delegationIndex)
+  return resultEvt?.result || null
 }
 
 /** 从委派结果 JSON 中解析 reply 展示文本 */
@@ -78,17 +149,15 @@ export function parseSubagentReplyText(result) {
   return raw
 }
 
-/** SubAgent 执行结果的用户可读文本 */
-export function findSubagentResultReply(events, call) {
-  const evt = findSubagentResultEvent(events, call)
+export function findSubagentResultReply(events, call, delegationIndex = null, blockCalls = null) {
+  const evt = findSubagentResultEvent(events, call, delegationIndex, blockCalls)
   if (!evt) return ''
   if (evt.replyText) return evt.replyText
   return parseSubagentReplyText(evt.result)
 }
 
-/** SubAgent 返回的完整 JSON（弹窗展示；兼容历史 slim 数据，自动补回 reply） */
-export function findSubagentResultRawJson(events, call) {
-  const evt = findSubagentResultEvent(events, call)
+export function findSubagentResultRawJson(events, call, delegationIndex = null, blockCalls = null) {
+  const evt = findSubagentResultEvent(events, call, delegationIndex, blockCalls)
   if (!evt?.result) return ''
   try {
     const obj = JSON.parse(String(evt.result))
@@ -105,9 +174,8 @@ export function findSubagentResultRawJson(events, call) {
   return String(evt.result)
 }
 
-/** 是否已有 SubAgent 委派结果（含可查看 JSON） */
-export function hasSubagentResultJson(events, call) {
-  const evt = findSubagentResultEvent(events, call)
+export function hasSubagentResultJson(events, call, delegationIndex = null, blockCalls = null) {
+  const evt = findSubagentResultEvent(events, call, delegationIndex, blockCalls)
   if (!evt?.result) return false
   try {
     const obj = JSON.parse(String(evt.result))
@@ -117,51 +185,113 @@ export function hasSubagentResultJson(events, call) {
   }
 }
 
-/** 合并 SubAgent 流式 token 为完整模型输出文本 */
-export function mergeSubagentModelOutput(events, call) {
-  const steps = groupSubagentSteps(collectSubagentSteps(events, call))
+export function mergeSubagentModelOutput(events, call, delegationIndex = null, blockCalls = null) {
+  const steps = groupSubagentSteps(collectSubagentSteps(events, call, delegationIndex, blockCalls))
   return steps
     .filter(s => s.type === 'subagent_token_stream')
     .map(s => s.content || '')
     .join('')
 }
 
-/**
- * 统一的 SubAgent 模型输出：流式 token 与落库 replyText 同源展示
- * @param {Array} events 全部工具事件
- * @param {Object} call subagent_call 事件
- * @returns {string}
- */
-export function resolveSubagentModelOutput(events, call) {
-  const streamed = mergeSubagentModelOutput(events, call)
+export function resolveSubagentModelOutput(events, call, delegationIndex = null, blockCalls = null) {
+  const streamed = mergeSubagentModelOutput(events, call, delegationIndex, blockCalls)
   if (streamed?.trim()) return streamed
-  return findSubagentResultReply(events, call)
+  return findSubagentResultReply(events, call, delegationIndex, blockCalls)
 }
 
-export function findSubagentError(events, call) {
+export function findSubagentError(events, call, delegationIndex = null, blockCalls = null) {
   if (!call || call.type !== 'subagent_call') return null
-  return (events || []).find(
-    e => e.type === 'subagent_error' && matchSubagentScope(e, call)
-  ) || null
+  return filterScopedEvents(events, call, delegationIndex, blockCalls).find(e => e.type === 'subagent_error') || null
 }
 
-export function findSubagentErrorRetry(events, call) {
-  if (!call || call.type !== 'subagent_call') return null
-  const retries = (events || []).filter(
-    e => e.type === 'subagent_error_retry' && matchSubagentScope(e, call)
-  )
+export function findSubagentErrorRetries(events, call, delegationIndex = null, blockCalls = null) {
+  if (!call || call.type !== 'subagent_call') return []
+  return filterScopedEvents(events, call, delegationIndex, blockCalls).filter(e => e.type === 'subagent_error_retry')
+}
+
+export function findSubagentErrorRetry(events, call, delegationIndex = null, blockCalls = null) {
+  const retries = findSubagentErrorRetries(events, call, delegationIndex, blockCalls)
   return retries.length ? retries[retries.length - 1] : null
 }
 
+/** 单次委派是否失败（含超时：subagent_error 与 subagent_result 可能同时存在） */
+export function isSubagentAttemptFailed(events, call, delegationIndex = null, blockCalls = null) {
+  return !!findSubagentError(events, call, delegationIndex, blockCalls)
+}
+
+/** 单次委派是否成功完成 */
+export function isSubagentAttemptSuccessful(events, call, delegationIndex = null, blockCalls = null) {
+  if (isSubagentAttemptFailed(events, call, delegationIndex, blockCalls)) return false
+  const scoped = filterScopedEvents(events, call, delegationIndex, blockCalls)
+  if (scoped.some(e => e.type === 'subagent_result')) return true
+  return !!resolveSubagentModelOutput(events, call, delegationIndex, blockCalls)?.trim()
+}
+
+/** 单次委派是否已结束（成功/失败/无流式进行中） */
+export function isSubagentAttemptDone(events, call, delegationIndex = null, streaming = false, blockCalls = null) {
+  const scoped = filterScopedEvents(events, call, delegationIndex, blockCalls)
+  if (scoped.some(e => e.type === 'subagent_result')) return true
+  if (scoped.some(e => e.type === 'subagent_error')) return true
+  const terminal = [...scoped].reverse().find(e =>
+    e.type === 'subagent_result' || e.type === 'subagent_error' || e.type === 'subagent_error_retry'
+  )
+  if (!terminal) return !streaming
+  if (terminal.type === 'subagent_result') return true
+  if (terminal.type === 'subagent_error') return true
+  if (terminal.type === 'subagent_error_retry') return false
+  return !streaming
+}
+
+/** 同 offset 多块委派是否全部结束 */
+export function isSubagentBlockDone(events, calls, streaming = false) {
+  if (!calls?.length) return !streaming
+  const normalized = normalizeSubagentCalls(calls)
+  return normalized.every(({ call, delegationIndex }) =>
+    isSubagentAttemptDone(events, call, delegationIndex, streaming, calls)
+  )
+}
+
 /**
- * 将 SubAgent 内部工具事件转换为标准 tool_call / tool_result，供 ToolCallsGroupComponent 渲染
- * @param {Array} events 全部工具事件
- * @param {Object} call subagent_call 事件
- * @returns {Array} 标准工具事件列表
+ * 构建单次委派的重试/状态时间线（历史与流式共用）
  */
-export function mapSubagentToolsToStandardEvents(events, call) {
+export function buildSubagentAttemptTimeline(events, call, delegationIndex = null, streaming = false, blockCalls = null) {
+  const scoped = filterScopedEvents(events, call, delegationIndex, blockCalls)
+  const timeline = []
+  for (const evt of scoped) {
+    if (evt.type === 'subagent_error_retry') {
+      timeline.push({
+        kind: 'retry',
+        attempt: evt.attempt,
+        maxRetries: evt.maxRetries,
+        message: evt.message,
+        code: evt.code,
+        key: `retry-${evt.attempt}-${evt.maxRetries}`,
+      })
+    }
+  }
+  const error = scoped.find(e => e.type === 'subagent_error')
+  const result = scoped.find(e => e.type === 'subagent_result')
+  const hasOutput = !!resolveSubagentModelOutput(events, call, delegationIndex, blockCalls)?.trim()
+
+  // 超时/失败时 subagent_error 与 subagent_result 会同时存在，必须以 error 为准
+  if (error) {
+    timeline.push({
+      kind: 'error',
+      message: error.message,
+      code: error.code,
+      key: `error-${error.code || 'unknown'}`,
+    })
+  } else if (result || hasOutput) {
+    timeline.push({ kind: 'success', message: '执行完成', key: 'success' })
+  } else if (!timeline.length && streaming) {
+    timeline.push({ kind: 'running', message: '执行中...', key: 'running' })
+  }
+  return timeline
+}
+
+export function mapSubagentToolsToStandardEvents(events, call, delegationIndex = null, blockCalls = null) {
   if (!call || call.type !== 'subagent_call') return []
-  const steps = collectSubagentSteps(events, call)
+  const steps = collectSubagentSteps(events, call, delegationIndex, blockCalls)
   const mapped = []
   for (const step of steps) {
     if (step.type === 'subagent_tool_call') {

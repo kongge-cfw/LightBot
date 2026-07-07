@@ -570,8 +570,11 @@ public class SubAgentRuntime {
     private void emitSubAgentError(ChatContext chatContext, SubAgent subAgent, String message, String code) {
         if (chatContext == null) return;
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
         String displayName = subAgent.getDisplayName() != null ? subAgent.getDisplayName() : subAgent.getName();
-        String json = toolEventGenerator.subagentErrorEvent(subAgent.getName(), displayName, message, code, offset);
+        String json = toolEventGenerator.enrichSubagentJson(
+                toolEventGenerator.subagentErrorEvent(subAgent.getName(), displayName, message, code, offset),
+                delegationIndex);
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_error");
         evt.put("subagentName", subAgent.getName());
@@ -579,6 +582,7 @@ public class SubAgentRuntime {
         evt.put("message", message);
         evt.put("code", code);
         evt.put("contentOffset", offset);
+        if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
         if (chatContext.getToolEventsList() != null) {
             chatContext.getToolEventsList().add(evt);
         }
@@ -589,9 +593,12 @@ public class SubAgentRuntime {
                                         String code, int attempt, int maxRetries) {
         if (chatContext == null) return;
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
         String displayName = subAgent.getDisplayName() != null ? subAgent.getDisplayName() : subAgent.getName();
-        String json = toolEventGenerator.subagentErrorRetryEvent(
-                subAgent.getName(), displayName, message, code, attempt, maxRetries, offset);
+        String json = toolEventGenerator.enrichSubagentJson(
+                toolEventGenerator.subagentErrorRetryEvent(
+                        subAgent.getName(), displayName, message, code, attempt, maxRetries, offset),
+                delegationIndex);
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_error_retry");
         evt.put("subagentName", subAgent.getName());
@@ -601,6 +608,7 @@ public class SubAgentRuntime {
         evt.put("attempt", attempt);
         evt.put("maxRetries", maxRetries);
         evt.put("contentOffset", offset);
+        if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
         if (chatContext.getToolEventsList() != null) {
             chatContext.getToolEventsList().add(evt);
         }
@@ -649,12 +657,15 @@ public class SubAgentRuntime {
             return;
         }
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
-        String json = toolEventGenerator.subagentTokenEvent(subAgent.getName(), delta, offset);
+        Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
+        String json = toolEventGenerator.enrichSubagentJson(
+                toolEventGenerator.subagentTokenEvent(subAgent.getName(), delta, offset), delegationIndex);
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_token");
         evt.put("subagentName", subAgent.getName());
         evt.put("content", delta);
         evt.put("contentOffset", offset);
+        if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
         emitSubAgentStreamEvent(chatContext, evt, json);
     }
 
@@ -664,12 +675,15 @@ public class SubAgentRuntime {
             return;
         }
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
         String toolName = tc.name() != null ? tc.name() : "";
         String toolDisplayName = toolDisplayNameMap.getOrDefault(toolName, toolName);
         String args = tc.arguments() != null ? tc.arguments() : "{}";
         String subDisplayName = resolveSubAgentDisplayName(subAgent);
-        String json = toolEventGenerator.subagentToolCallEvent(
-                subAgent.getName(), subDisplayName, toolName, toolDisplayName, args, offset);
+        String json = toolEventGenerator.enrichSubagentJson(
+                toolEventGenerator.subagentToolCallEvent(
+                        subAgent.getName(), subDisplayName, toolName, toolDisplayName, args, offset),
+                delegationIndex);
         Map<String, Object> evt = new java.util.LinkedHashMap<>();
         evt.put("type", "subagent_tool_call");
         evt.put("subagentName", subAgent.getName());
@@ -678,6 +692,7 @@ public class SubAgentRuntime {
         evt.put("toolDisplayName", toolDisplayName);
         evt.put("args", args);
         evt.put("contentOffset", offset);
+        if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
         emitSubAgentStreamEvent(chatContext, evt, json);
     }
 
@@ -687,11 +702,14 @@ public class SubAgentRuntime {
             return;
         }
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
+        Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
         String toolName = tc.name() != null ? tc.name() : "";
         String toolDisplayName = toolDisplayNameMap.getOrDefault(toolName, toolName);
         String subDisplayName = resolveSubAgentDisplayName(subAgent);
-        String json = toolEventGenerator.subagentToolResultEvent(
-                subAgent.getName(), subDisplayName, toolName, toolDisplayName, result, offset);
+        String json = toolEventGenerator.enrichSubagentJson(
+                toolEventGenerator.subagentToolResultEvent(
+                        subAgent.getName(), subDisplayName, toolName, toolDisplayName, result, offset),
+                delegationIndex);
         Map<String, Object> evt = new java.util.LinkedHashMap<>();
         evt.put("type", "subagent_tool_result");
         evt.put("subagentName", subAgent.getName());
@@ -700,6 +718,7 @@ public class SubAgentRuntime {
         evt.put("toolDisplayName", toolDisplayName);
         evt.put("result", toolEventGenerator.truncateForSse(result));
         evt.put("contentOffset", offset);
+        if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
         emitSubAgentStreamEvent(chatContext, evt, json);
     }
 

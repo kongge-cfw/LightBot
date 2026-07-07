@@ -239,7 +239,7 @@ public class ChatServiceImpl implements ChatService {
 
             List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
             appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg != null ? assistantMsg.getText() : null);
-            int toolContentOffset = fullReply.length();
+            int toolContentOffset = resolveToolBlockOffset(ctx);
 
             // 目前非流式只处理第一个工具调用（简化处理）
             AssistantMessage.ToolCall firstTool = toolCalls.get(0);
@@ -703,9 +703,11 @@ public class ChatServiceImpl implements ChatService {
                     //     否则前端会按滞后的 offset 把正文从中间截断（如「好<组件>的」）。
                     Flux<String> leadingContentFlux = Flux.empty();
                     String assistantLeadingText = assistantMsg.getText();
+                    boolean leadingContentAppended = false;
                     if (assistantLeadingText != null && !assistantLeadingText.isEmpty()) {
                         InlineThinkingStreamParser.ParseResult leadingParsed = feedStreamTextChunk(ctx, assistantLeadingText);
-                        leadingContentFlux = fluxFromInlineThinking(ctx, agent, leadingParsed, null);
+                        leadingContentAppended = appendInlineThinkingContentDelta(ctx, agent, leadingParsed);
+                        leadingContentFlux = fluxFromInlineThinking(ctx, agent, leadingParsed, null, false);
                     }
 
                     List<AssistantMessage.ToolCall> toolCalls = assistantMsg.getToolCalls();
@@ -723,8 +725,10 @@ public class ChatServiceImpl implements ChatService {
                     List<Flux<String>> statusFluxes = new ArrayList<>();
                     List<Map<String, Object>> kbResultsHolder = new ArrayList<>();
             List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
-            appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg.getText());
-            int toolContentOffset = fullReply.length();
+            if (!leadingContentAppended) {
+                appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg.getText());
+            }
+            int toolContentOffset = resolveToolBlockOffset(ctx);
 
                     if (asyncEnabled && toolCalls.size() > 1) {
                         // 并行执行所有工具
@@ -1075,7 +1079,7 @@ public class ChatServiceImpl implements ChatService {
         List<Map<String, Object>> kbResultsHolder = new ArrayList<>();
         List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses = new ArrayList<>();
         appendAssistantLeadingTextBeforeToolCall(ctx, agent, assistantMsg != null ? assistantMsg.getText() : null);
-        int toolContentOffset = fullReply.length();
+        int toolContentOffset = resolveToolBlockOffset(ctx);
 
         if (asyncEnabled && toolCalls.size() > 1) {
             log.info("[Chat][Trace] 工具调用(depth={}): {}个工具, 并行执行", depth, toolCalls.size());
@@ -1401,6 +1405,13 @@ public class ChatServiceImpl implements ChatService {
     private Flux<String> fluxFromInlineThinking(ChatContext ctx, Agent agent,
                                                 InlineThinkingStreamParser.ParseResult parsed,
                                                 Runnable onContentAppended) {
+        return fluxFromInlineThinking(ctx, agent, parsed, onContentAppended, true);
+    }
+
+    private Flux<String> fluxFromInlineThinking(ChatContext ctx, Agent agent,
+                                                InlineThinkingStreamParser.ParseResult parsed,
+                                                Runnable onContentAppended,
+                                                boolean appendToFullReply) {
         if (parsed.isEmpty()) {
             return Flux.empty();
         }
@@ -1423,7 +1434,9 @@ public class ChatServiceImpl implements ChatService {
                 return Flux.just(STATUS_PREFIX + toolEventGenerator.sensitiveBlockEvent("ai_output", SensitiveWordFilter.AI_BLOCK_MESSAGE));
             }
             if (!delta.isEmpty()) {
-                ctx.getFullReply().append(delta);
+                if (appendToFullReply) {
+                    ctx.getFullReply().append(delta);
+                }
                 if (onContentAppended != null) {
                     onContentAppended.run();
                 }
@@ -1431,6 +1444,22 @@ public class ChatServiceImpl implements ChatService {
             }
         }
         return items.isEmpty() ? Flux.empty() : Flux.fromIterable(items);
+    }
+
+    /** 同步写入 leading 正文（用于工具 offset 计算，避免与后续 Flux 重复 append） */
+    private boolean appendInlineThinkingContentDelta(ChatContext ctx, Agent agent,
+                                                     InlineThinkingStreamParser.ParseResult parsed) {
+        if (parsed == null || parsed.isEmpty() || parsed.contentDelta().isEmpty()) {
+            return false;
+        }
+        String delta = ctx.getSensitiveStreamState() != null
+                ? ctx.getSensitiveStreamState().processChunk(parsed.contentDelta())
+                : SensitiveWordFilter.filterAiOutput(parsed.contentDelta(), ctx.getConfigMap(), agent.getId(), ctx.getSessionId()).text();
+        if (delta.isEmpty()) {
+            return false;
+        }
+        ctx.getFullReply().append(delta);
+        return true;
     }
 
     private float[] embedText(String text) {
@@ -1536,10 +1565,17 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         String reply = ctx.getFullReply().toString();
-        int end = Math.min(contentOffset, reply.length());
-        if (end > 0) {
-            evt.put("contentPrefixAnchor", reply.substring(0, end));
+        int splitAt = ToolEventCompactUtil.resolveToolBlockSplitOffset(reply, null, contentOffset);
+        evt.put("contentOffset", splitAt);
+        if (splitAt > 0) {
+            evt.put("contentPrefixAnchor", reply.substring(0, splitAt));
         }
+    }
+
+    /** 按句末标点对齐工具块切分点 */
+    private int resolveToolBlockOffset(ChatContext ctx) {
+        String reply = ctx.getFullReply().toString();
+        return ToolEventCompactUtil.resolveToolBlockSplitOffset(reply, null, reply.length());
     }
 
     /**
@@ -1586,19 +1622,27 @@ public class ChatServiceImpl implements ChatService {
             String subName = parsed.get("subagentName");
             String displayName = resolveSubAgentDisplayName(subName);
             String task = parsed.get("task");
+            int delegationIndex = ctx != null ? ctx.assignSubAgentDelegationIndex() : 0;
             Map<String, Object> evt = new HashMap<>();
             evt.put("type", "subagent_call");
             evt.put("subagentName", subName);
             evt.put("displayName", displayName);
             evt.put("task", task);
             evt.put("contentOffset", contentOffset);
+            evt.put("delegationIndex", delegationIndex);
             putContentPrefixAnchor(ctx, evt, contentOffset);
+            int normalizedOffset = evt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
             toolEventsList.add(evt);
             if (ctx != null) {
-                ctx.setSubAgentContentOffset(contentOffset);
-                ctx.emitRealtimeStatus(toolEventGenerator.subagentCallEvent(subName, displayName, task, contentOffset));
+                ctx.setSubAgentContentOffset(normalizedOffset);
+                String callJson = toolEventGenerator.enrichSubagentJson(
+                        toolEventGenerator.subagentCallEvent(subName, displayName, task, normalizedOffset),
+                        delegationIndex);
+                ctx.emitRealtimeStatus(callJson);
             } else if (statusFluxes != null) {
-                statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.subagentCallEvent(subName, displayName, task, contentOffset)));
+                statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.enrichSubagentJson(
+                        toolEventGenerator.subagentCallEvent(subName, displayName, task, normalizedOffset),
+                        delegationIndex)));
             }
             return;
         }
@@ -1610,8 +1654,9 @@ public class ChatServiceImpl implements ChatService {
         callEvt.put("args", args);
         callEvt.put("contentOffset", contentOffset);
         putContentPrefixAnchor(ctx, callEvt, contentOffset);
+        int normalizedOffset = callEvt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
         toolEventsList.add(callEvt);
-        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, args, contentOffset);
+        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, args, normalizedOffset);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(callJson);
         } else if (statusFluxes != null) {
@@ -1634,18 +1679,24 @@ public class ChatServiceImpl implements ChatService {
             Map<String, String> parsed = parseSubagentArgs(args);
             String subName = parsed.get("subagentName");
             String displayName = resolveSubAgentDisplayName(subName);
+            Integer delegationIndex = ctx != null ? ctx.getSubAgentDelegationIndex() : null;
             Map<String, Object> evt = new HashMap<>();
             evt.put("type", "subagent_result");
             evt.put("subagentName", subName);
             evt.put("displayName", displayName);
             evt.put("result", truncated);
+            if (delegationIndex != null) {
+                evt.put("delegationIndex", delegationIndex);
+            }
             String replyText = ToolEventCompactUtil.extractSubagentReplyText(truncated);
             if (replyText != null && !replyText.isBlank()) {
                 evt.put("replyText", replyText);
             }
             evt.put("contentOffset", contentOffset);
             toolEventsList.add(evt);
-            String resultJson = toolEventGenerator.subagentResultEvent(subName, displayName, truncated, contentOffset);
+            String resultJson = toolEventGenerator.enrichSubagentJson(
+                    toolEventGenerator.subagentResultEvent(subName, displayName, truncated, contentOffset),
+                    delegationIndex);
             if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
                 ctx.emitRealtimeStatus(resultJson);
             } else if (statusFluxes != null) {
@@ -1704,6 +1755,7 @@ public class ChatServiceImpl implements ChatService {
     private void appendSubAgentStreamEvent(ChatContext ctx, List<Map<String, Object>> toolEventsList,
                                            List<Flux<String>> statusFluxes,
                                            ChatContext.SubAgentEvent se, int contentOffset) {
+        Integer delegationIndex = ctx != null ? ctx.getSubAgentDelegationIndex() : null;
         String json;
         Map<String, Object> evt = new HashMap<>();
         switch (se.type()) {
@@ -1712,7 +1764,10 @@ public class ChatServiceImpl implements ChatService {
                 evt.put("subagentName", se.subagentName());
                 evt.put("content", se.content());
                 evt.put("contentOffset", contentOffset);
-                json = toolEventGenerator.subagentTokenEvent(se.subagentName(), se.content(), contentOffset);
+                if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
+                json = toolEventGenerator.enrichSubagentJson(
+                        toolEventGenerator.subagentTokenEvent(se.subagentName(), se.content(), contentOffset),
+                        delegationIndex);
             }
             case "tool_call" -> {
                 String toolName = se.content();
@@ -1722,9 +1777,12 @@ public class ChatServiceImpl implements ChatService {
                 evt.put("toolName", toolName);
                 evt.put("args", "{}");
                 evt.put("contentOffset", contentOffset);
-                json = toolEventGenerator.subagentToolCallEvent(
-                        se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
-                        toolName, toolName, "{}", contentOffset);
+                if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
+                json = toolEventGenerator.enrichSubagentJson(
+                        toolEventGenerator.subagentToolCallEvent(
+                                se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
+                                toolName, toolName, "{}", contentOffset),
+                        delegationIndex);
             }
             case "tool_result" -> {
                 evt.put("type", "subagent_tool_result");
@@ -1733,9 +1791,12 @@ public class ChatServiceImpl implements ChatService {
                 evt.put("toolName", "");
                 evt.put("result", se.content());
                 evt.put("contentOffset", contentOffset);
-                json = toolEventGenerator.subagentToolResultEvent(
-                        se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
-                        "", "", se.content(), contentOffset);
+                if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
+                json = toolEventGenerator.enrichSubagentJson(
+                        toolEventGenerator.subagentToolResultEvent(
+                                se.subagentName(), resolveSubAgentDisplayName(se.subagentName()),
+                                "", "", se.content(), contentOffset),
+                        delegationIndex);
             }
             default -> {
                 return;

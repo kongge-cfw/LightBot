@@ -134,6 +134,66 @@ public final class ToolEventCompactUtil {
         return null;
     }
 
+    /**
+     * 解析工具块在 assistant 正文中的切分位置（句末对齐，避免「好&lt;组件&gt;的」半词截断）。
+     *
+     * @param content         正文全文
+     * @param anchor          流式时记录的前缀锚点，可为 null
+     * @param fallbackOffset  原始 contentOffset
+     * @return 切分点（substring(0, n) 为组件前正文）
+     */
+    public static int resolveToolBlockSplitOffset(String content, String anchor, int fallbackOffset) {
+        String text = content != null ? content : "";
+        int candidate = resolveOffset(anchor, fallbackOffset, text);
+        return alignToSemanticSplitBoundary(text, candidate);
+    }
+
+    /**
+     * 将 raw 切分点回退到最后一个句末标点之后，避免组件插在半句话中间。
+     */
+    public static int alignToSemanticSplitBoundary(String content, int rawOffset) {
+        if (content == null || content.isEmpty() || rawOffset <= 0) {
+            return 0;
+        }
+        int end = Math.min(Math.max(0, rawOffset), content.length());
+        if (end <= 0) {
+            return 0;
+        }
+        for (int i = end; i > 0; i--) {
+            char prev = content.charAt(i - 1);
+            if (isStrongSentenceEnd(prev)) {
+                return i;
+            }
+        }
+        for (int i = end; i > 0; i--) {
+            if (content.charAt(i - 1) != '\n') {
+                continue;
+            }
+            for (int j = i - 1; j > 0; j--) {
+                if (isStrongSentenceEnd(content.charAt(j - 1))) {
+                    return j;
+                }
+            }
+            if (isTrivialFragment(content, i, end)) {
+                return i;
+            }
+        }
+        return end;
+    }
+
+    private static boolean isStrongSentenceEnd(char c) {
+        return c == '！' || c == '!' || c == '。' || c == '.' || c == '?' || c == '？'
+                || c == '；' || c == ';';
+    }
+
+    private static boolean isTrivialFragment(String content, int from, int to) {
+        if (from >= to) {
+            return true;
+        }
+        String tail = content.substring(from, to).replace("\n", "").trim();
+        return tail.length() <= 2;
+    }
+
     private static void realignContentOffsets(List<Map<String, Object>> events, String finalContent) {
         if (events.isEmpty()) {
             return;
@@ -148,7 +208,7 @@ public final class ToolEventCompactUtil {
             }
             int oldOffset = toInt(evt.get("contentOffset"), 0);
             String anchor = stringVal(evt.get("contentPrefixAnchor"));
-            int newOffset = resolveOffset(anchor, oldOffset, content);
+            int newOffset = resolveToolBlockSplitOffset(content, anchor.isEmpty() ? null : anchor, oldOffset);
             offsetRemap.put(oldOffset, newOffset);
             evt.put("contentOffset", newOffset);
             // 保留/刷新前缀锚点，供前端历史消息精确切分正文
@@ -178,25 +238,41 @@ public final class ToolEventCompactUtil {
 
     private static int resolveOffset(String anchor, int fallbackOffset, String finalContent) {
         if (anchor != null && !anchor.isEmpty()) {
+            if (finalContent.startsWith(anchor)) {
+                return anchor.length();
+            }
             int idx = finalContent.indexOf(anchor);
             if (idx >= 0) {
                 return idx + anchor.length();
             }
             String sanitizedAnchor = TextNormalizeUtil.sanitizeForDatabase(anchor);
             if (!sanitizedAnchor.equals(anchor)) {
+                if (finalContent.startsWith(sanitizedAnchor)) {
+                    return sanitizedAnchor.length();
+                }
                 idx = finalContent.indexOf(sanitizedAnchor);
                 if (idx >= 0) {
                     return idx + sanitizedAnchor.length();
                 }
             }
-            if (finalContent.startsWith(anchor)) {
-                return anchor.length();
-            }
-            if (finalContent.startsWith(sanitizedAnchor)) {
-                return sanitizedAnchor.length();
+            int longestPrefix = longestMatchingPrefix(finalContent, anchor);
+            if (longestPrefix > 0) {
+                return longestPrefix;
             }
         }
         return Math.min(Math.max(0, fallbackOffset), finalContent.length());
+    }
+
+    private static int longestMatchingPrefix(String content, String anchor) {
+        int limit = Math.min(content.length(), anchor.length());
+        int matched = 0;
+        for (int i = 0; i < limit; i++) {
+            if (content.charAt(i) != anchor.charAt(i)) {
+                break;
+            }
+            matched = i + 1;
+        }
+        return matched;
     }
 
     private static void stripContentPrefixAnchors(List<Map<String, Object>> events) {
