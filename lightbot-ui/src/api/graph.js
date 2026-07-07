@@ -19,8 +19,15 @@ export function getStandaloneSubgraph(params) {
   return request.get('/graph/subgraph', { params })
 }
 
-export function semanticSearchGraph(query, topK = 10, providerId) {
-  return request.get('/graph/search', { params: { query, topK, ...(providerId ? { providerId } : {}) } })
+export function semanticSearchGraph(query, topK = 10, minScore, providerId) {
+  return request.get('/graph/search', {
+    params: {
+      query,
+      topK,
+      ...(minScore != null ? { minScore } : {}),
+      ...(providerId ? { providerId } : {}),
+    },
+  })
 }
 
 export function getStandaloneStats() {

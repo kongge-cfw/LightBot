@@ -32,11 +32,6 @@
             <template #prefix><SearchOutlined /></template>
           </a-input>
           <a-button size="middle" @click="handleSearch" :disabled="!searchText">搜索</a-button>
-          <a-tooltip v-if="searchKeywords.length > 0" title="清除高亮">
-            <a-button size="middle" @click="handleClearSearch">
-              <template #icon><ClearOutlined /></template>
-            </a-button>
-          </a-tooltip>
 
           <a-input
             v-model:value="semanticQuery"
@@ -48,6 +43,31 @@
           >
             <template #prefix><ThunderboltOutlined /></template>
           </a-input>
+          <a-tooltip title="返回条数上限（TopN）">
+            <a-input-number
+              v-model:value="semanticTopN"
+              :min="1"
+              :max="100"
+              :precision="0"
+              size="middle"
+              class="sg-num"
+              placeholder="TopN"
+              addon-before="TopN"
+            />
+          </a-tooltip>
+          <a-tooltip title="相似度阈值，低于该值的节点不高亮（0~1）">
+            <a-input-number
+              v-model:value="semanticMinScore"
+              :min="0"
+              :max="1"
+              :step="0.05"
+              :precision="2"
+              size="middle"
+              class="sg-num sg-num-score"
+              placeholder="阈值"
+              addon-before="阈值"
+            />
+          </a-tooltip>
           <a-button size="middle" @click="handleSemanticSearch" :loading="semanticSearching" :disabled="!semanticQuery">
             语义搜索
           </a-button>
@@ -55,11 +75,16 @@
             <template #title>
               <div style="max-width: 260px">
                 <div style="font-weight: 600; margin-bottom: 4px">什么是语义搜索？</div>
-                <div>基于向量相似度匹配节点含义，而非精确匹配文字。</div>
+                <div>基于向量相似度匹配节点含义，而非精确匹配文字。命中节点按相似度高亮，低于阈值的结果不展示。</div>
                 <div style="margin-top: 6px; color: #bbb">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
               </div>
             </template>
             <QuestionCircleOutlined style="color: #888; cursor: help; font-size: 14px" />
+          </a-tooltip>
+          <a-tooltip v-if="searchKeywords.length > 0" title="清除高亮">
+            <a-button size="middle" @click="handleClearSearch">
+              <template #icon><ClearOutlined /></template>
+            </a-button>
           </a-tooltip>
         </div>
       </div>
@@ -288,6 +313,8 @@ const graphReady = ref(false)
 const searchText = ref('')
 const searchKeywords = ref([])
 const semanticQuery = ref('')
+const semanticTopN = ref(10)
+const semanticMinScore = ref(0.5)
 
 const neo4jAvailable = ref(false)
 const allNodeNames = ref([])
@@ -428,7 +455,10 @@ function initGraph() {
     node: {
       type: 'circle',
       style: {
-        labelText: (d) => d.data.label,
+        labelText: (d) => {
+          const s = d.data.score
+          return s != null ? `${d.data.label}  ${(s * 100).toFixed(1)}%` : d.data.label
+        },
         labelFill: '#374151',
         labelWordWrap: true,
         labelMaxWidth: '300%',
@@ -617,27 +647,36 @@ function downloadSample() {
 // ---- 语义搜索 ----
 async function handleSemanticSearch() {
   if (!semanticQuery.value?.trim()) return
+  const topN = semanticTopN.value > 0 ? semanticTopN.value : 10
+  const minScore = semanticMinScore.value ?? undefined
   semanticSearching.value = true
   try {
-    const res = await semanticSearchGraph(semanticQuery.value.trim(), 10)
+    const res = await semanticSearchGraph(semanticQuery.value.trim(), topN, minScore)
     const nodes = res.data || []
     if (nodes.length === 0) {
-      message.info('未找到匹配的节点')
+      message.info('未找到高于阈值的匹配节点')
       return
     }
 
     // 高亮语义搜索结果
     if (graphInstance) {
-      const matchedNames = new Set(nodes.map(n => n.name))
+      const scoreMap = new Map(nodes.map(n => [n.name, n.score]))
       const { nodes: graphNodes, edges } = graphInstance.getData()
       const updates = {}
+      const nodeDataUpdates = []
 
       graphNodes.forEach(node => {
         const label = node.data.label || ''
-        if (matchedNames.has(label)) {
+        if (scoreMap.has(label)) {
           updates[node.id] = ['highlighted']
+          // 命中节点：将相似度写入 data，标签渲染时展示
+          nodeDataUpdates.push({ id: node.id, data: { score: scoreMap.get(label) } })
         } else {
           updates[node.id] = ['inactive']
+          // 非命中节点：清除历史相似度
+          if (node.data.score != null) {
+            nodeDataUpdates.push({ id: node.id, data: { score: undefined } })
+          }
         }
       })
 
@@ -649,6 +688,9 @@ async function handleSemanticSearch() {
         }
       })
 
+      if (nodeDataUpdates.length > 0) {
+        graphInstance.updateNodeData(nodeDataUpdates)
+      }
       graphInstance.setElementState(updates)
       graphInstance.draw()
       searchKeywords.value = [semanticQuery.value.trim()]
@@ -702,8 +744,18 @@ function handleClearSearch() {
 
   const { nodes, edges } = graphInstance.getData()
   const updates = {}
-  nodes.forEach(n => (updates[n.id] = []))
+  const nodeDataUpdates = []
+  nodes.forEach(n => {
+    updates[n.id] = []
+    // 清除语义搜索遗留的相似度标签
+    if (n.data.score != null) {
+      nodeDataUpdates.push({ id: n.id, data: { score: undefined } })
+    }
+  })
   edges.forEach(e => (updates[e.id] = []))
+  if (nodeDataUpdates.length > 0) {
+    graphInstance.updateNodeData(nodeDataUpdates)
+  }
   graphInstance.setElementState(updates)
   graphInstance.draw()
 }
@@ -1064,6 +1116,14 @@ onUnmounted(() => {
 
 .sg-search {
   width: 200px;
+}
+
+.sg-num {
+  width: 130px;
+}
+
+.sg-num-score {
+  width: 130px;
 }
 
 .sg-canvas-wrapper {

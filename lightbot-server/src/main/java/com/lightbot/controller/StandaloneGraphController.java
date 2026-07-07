@@ -55,8 +55,9 @@ public class StandaloneGraphController {
     public Result<List<GraphNodeVO>> semanticSearch(
             @RequestParam String query,
             @RequestParam(defaultValue = "10") int topK,
+            @RequestParam(required = false) Double minScore,
             @RequestParam(required = false) Long providerId) {
-        return Result.ok(standaloneGraphService.semanticSearch(query, topK, providerId));
+        return Result.ok(standaloneGraphService.semanticSearch(query, topK, minScore, providerId));
     }
 
     @Operation(summary = "获取图谱统计")

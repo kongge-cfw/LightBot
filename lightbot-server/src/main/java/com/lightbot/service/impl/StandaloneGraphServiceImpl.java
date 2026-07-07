@@ -42,7 +42,7 @@ public class StandaloneGraphServiceImpl implements StandaloneGraphService {
 
     private static final long MAX_JSONL_SIZE = 5 * 1024 * 1024L; // 5MB
     private static final String VECTOR_INDEX_NAME = "standalone_entity_embedding";
-    private static final double MIN_SIMILARITY_SCORE = 0.5;
+    private static final double DEFAULT_MIN_SIMILARITY_SCORE = 0.5;
     private volatile boolean vectorIndexEnsured = false;
 
     // ==================== 导入 ====================
@@ -152,8 +152,11 @@ public class StandaloneGraphServiceImpl implements StandaloneGraphService {
     }
 
     @Override
-    public List<GraphNodeVO> semanticSearch(String query, int topK, Long providerId) {
+    public List<GraphNodeVO> semanticSearch(String query, int topK, Double minScore, Long providerId) {
         checkNeo4jAvailable();
+
+        // 相似度阈值：入参优先，未传或非法时回退默认值
+        double threshold = (minScore != null && minScore >= 0) ? minScore : DEFAULT_MIN_SIMILARITY_SCORE;
 
         // 1. 生成查询向量
         float[] queryEmbedding = embedText(query);
@@ -182,7 +185,7 @@ public class StandaloneGraphServiceImpl implements StandaloneGraphService {
             List<GraphNodeVO> results = new ArrayList<>();
             for (org.neo4j.driver.Record r : records) {
                 double score = r.get("score").asDouble();
-                if (score < MIN_SIMILARITY_SCORE) break;
+                if (score < threshold) break;
                 Node node = r.get("node").asNode();
                 GraphNodeVO vo = toNodeVO(node);
                 vo.setScore(score);

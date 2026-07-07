@@ -46,10 +46,11 @@ public interface StandaloneGraphService {
      *
      * @param query      搜索文本
      * @param topK       返回数量
+     * @param minScore   相似度阈值（低于该值的结果被过滤；null 时使用默认阈值）
      * @param providerId 模型提供商ID
      * @return 匹配的节点列表
      */
-    List<GraphNodeVO> semanticSearch(String query, int topK, Long providerId);
+    List<GraphNodeVO> semanticSearch(String query, int topK, Double minScore, Long providerId);
 
     /**
      * 获取图谱统计
