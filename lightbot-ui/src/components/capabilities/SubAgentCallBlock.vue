@@ -282,21 +282,21 @@ function visibleAttemptTimeline(attempt) {
 
 watch(() => props.defaultExpanded, (val) => {
   if (!userToggled) expanded.value = val
-  if (val && !userToggled) scrollBodyToBottom()
+  if (val && !userToggled && !props.streamFinished) scrollInnerBodyToBottom()
 }, { immediate: true })
 
 watch(activeRetry, (val, oldVal) => {
   if (val && (!oldVal || val.attempt !== oldVal.attempt)) {
     triggerRetryPulse()
     expanded.value = true
-    nextTick(() => emit('heightChange'))
+    emitLayoutChange()
   }
 })
 
 watch([activeRetry, activeError, attemptViews, blockDone], () => {
   if (activeRetry.value || activeError.value || attemptViews.value.length || blockDone.value) {
     if (!userToggled) expanded.value = true
-    nextTick(() => emit('heightChange'))
+    if (!props.streamFinished) emitLayoutChange()
   }
 }, { deep: true })
 
@@ -311,32 +311,34 @@ function triggerRetryPulse() {
   })
 }
 
-function scrollBodyToBottom() {
+function emitLayoutChange(nativeEvent) {
+  nextTick(() => {
+    const rowEl = nativeEvent?.target?.closest?.('[data-index]')
+      || bodyRef.value?.closest?.('[data-index]')
+    emit('heightChange', rowEl ? { target: rowEl } : nativeEvent)
+  })
+}
+
+function scrollInnerBodyToBottom() {
   nextTick(() => {
     const el = bodyRef.value
-    if (el) el.scrollTop = el.scrollHeight
-    emit('heightChange')
+    if (el && expanded.value) el.scrollTop = el.scrollHeight
   })
 }
 
 function onToolHeightChange(event) {
-  scrollBodyToBottom()
-  emit('heightChange', event)
+  scrollInnerBodyToBottom()
+  emitLayoutChange(event)
 }
 
-watch(expanded, (val) => {
-  if (val) scrollBodyToBottom()
+watch(expanded, (val, oldVal) => {
+  if (val && !oldVal && !props.streamFinished) scrollInnerBodyToBottom()
 })
-
-watch(attemptViews, () => {
-  if (expanded.value) scrollBodyToBottom()
-}, { deep: true })
 
 function toggle(event) {
   userToggled = true
   expanded.value = !expanded.value
-  if (expanded.value) scrollBodyToBottom()
-  else nextTick(() => emit('heightChange', event))
+  emitLayoutChange(event)
 }
 
 function openJsonModal(attempt) {
@@ -485,8 +487,8 @@ async function copyText(text) {
   border-radius: 999px;
 }
 .subagent-attempt-status.success {
-  color: var(--green-400);
-  background: color-mix(in srgb, var(--color-success) 16%, transparent);
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.18);
 }
 .subagent-attempt-status.error {
   color: var(--color-error-deep);
@@ -524,8 +526,8 @@ async function copyText(text) {
   background: color-mix(in srgb, var(--color-error) 10%, transparent);
 }
 .subagent-timeline-item.kind-success {
-  color: var(--green-400);
-  background: color-mix(in srgb, var(--color-success) 14%, transparent);
+  color: #15803d;
+  background: rgba(34, 197, 94, 0.15);
 }
 .subagent-timeline-text {
   flex: 1;
@@ -609,7 +611,7 @@ async function copyText(text) {
 }
 .subagent-step-icon { font-size: 12px; }
 .subagent-step-icon.error { color: var(--color-error); }
-.subagent-step-icon.success { color: var(--color-success); }
+.subagent-step-icon.success { color: #16a34a; }
 .subagent-error-code {
   font-size: 11px;
   padding: 1px 6px;
@@ -680,5 +682,13 @@ async function copyText(text) {
   background: var(--color-canvas-soft-3);
   border-color: var(--color-hairline-strong);
   color: var(--color-ink);
+}
+[data-theme="dark"] .subagent-attempt-status.success,
+[data-theme="dark"] .subagent-timeline-item.kind-success {
+  color: var(--green-400);
+  background: rgba(34, 197, 94, 0.16);
+}
+[data-theme="dark"] .subagent-step-icon.success {
+  color: var(--green-400);
 }
 </style>

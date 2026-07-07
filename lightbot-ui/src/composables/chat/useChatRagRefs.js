@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { ref, nextTick } from 'vue'
 
 /**
  * RAG 参考文献展开态管理
@@ -34,7 +34,7 @@ export function useChatRagRefs({ messages, scrollAfterExpand }) {
       newMap.set(key, true)
     }
     expandedRefsMap.value = newMap
-    scrollAfterExpand(msgIndex)
+    nextTick(() => scrollAfterExpand(msgIndex))
   }
 
   /**
@@ -57,13 +57,14 @@ export function useChatRagRefs({ messages, scrollAfterExpand }) {
       newMap.set(msgIndex, true)
     }
     refsSectionExpandedMap.value = newMap
-    scrollAfterExpand(msgIndex)
+    nextTick(() => scrollAfterExpand(msgIndex))
   }
 
   function toggleReasoningExpand(index) {
     const msg = messages.value[index]
     if (!msg) return
     msg._reasoningExpanded = !msg._reasoningExpanded
+    nextTick(() => scrollAfterExpand(index))
   }
 
   return {

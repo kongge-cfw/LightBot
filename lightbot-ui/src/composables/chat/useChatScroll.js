@@ -58,15 +58,48 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
     }
   }
 
+  function resolveMeasureRow(evt) {
+    const t = evt?.target
+    if (!t) return null
+    if (t.dataset?.index != null) return t
+    return t.closest?.('[data-index]') ?? null
+  }
+
+  /**
+   * 内联块（SubAgent / 工具 / Skill / 参考文献等）高度变化：
+   * 按高度差补偿 scrollTop，收起时下方内容上移但不带走用户视角。
+   */
   function onCapabilityHeightChange(evt) {
-    const rowEl = evt?.target?.closest?.('[data-index]')
-    if (!rowEl) return
+    const rowEl = resolveMeasureRow(evt)
     const container = messagesRef.value
-    if (container) container.style.overflowAnchor = 'none'
+    if (!rowEl || !container) return
+
+    const scrollTopBefore = container.scrollTop
+    const heightBefore = rowEl.getBoundingClientRect().height
+    const containerRect = container.getBoundingClientRect()
+
+    container.style.overflowAnchor = 'none'
     virtualizer.value.measureElement(rowEl)
+
     nextTick(() => {
-      if (container) container.style.overflowAnchor = ''
-      scrollToBottom()
+      requestAnimationFrame(() => {
+        const heightAfter = rowEl.getBoundingClientRect().height
+        const delta = heightAfter - heightBefore
+
+        if (Math.abs(delta) > 0.5) {
+          const rowRect = rowEl.getBoundingClientRect()
+          // 该行在视口上方或与视口相交：补偿高度差，保持用户正在看的内容不动
+          if (rowRect.top < containerRect.bottom) {
+            container.scrollTop = scrollTopBefore + delta
+          }
+        }
+
+        container.style.overflowAnchor = ''
+
+        if (streaming.value && isNearBottom.value && !userScrolledUp.value) {
+          scrollToBottom()
+        }
+      })
     })
   }
 
@@ -108,26 +141,14 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
   }
 
   /**
-   * 展开/折叠内容后，将展开的区域滚动到可视区域内
-   * @param {number} msgIndex - 消息在列表中的索引
-   * @param {HTMLElement} [expandEl] - 展开的元素（可选，用于定位）
+   * 消息内联块展开/收起后触发布局重测（不再把目标滚进视口，避免视角跳动）
    */
   function scrollAfterExpand(msgIndex, expandEl) {
-    nextTick(() => {
-      requestAnimationFrame(() => {
-        const container = messagesRef.value
-        if (!container) return
-        // 优先用展开元素定位，否则用消息元素
-        const target = expandEl || container.querySelector(`[data-index="${msgIndex}"]`)
-        if (!target) return
-        const containerRect = container.getBoundingClientRect()
-        const targetRect = target.getBoundingClientRect()
-        // 目标元素底部超出可视区域，滚动使其可见
-        if (targetRect.bottom > containerRect.bottom) {
-          container.scrollTop += targetRect.bottom - containerRect.bottom + 16
-        }
-      })
-    })
+    const container = messagesRef.value
+    if (!container) return
+    const rowEl = expandEl?.closest?.('[data-index]')
+      ?? container.querySelector(`[data-index="${msgIndex}"]`)
+    if (rowEl) onCapabilityHeightChange({ target: rowEl })
   }
 
   /**
