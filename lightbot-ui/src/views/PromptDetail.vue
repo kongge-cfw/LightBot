@@ -143,7 +143,7 @@
                     <div>1. 在上方<b>参数配置</b>中填写变量默认值</div>
                     <div>2. 下方输入框可输入内容覆盖单变量值（可选）</div>
                     <div>3. 点击<b>运行</b>或 <b>Ctrl+Enter</b> 发送</div>
-                    <div>4. AI 回复后可点击 <b>Markdown</b> 图标切换渲染</div>
+                    <div>4. AI 回复默认 Markdown 渲染，可点击 <b>显示原文</b> 查看原始内容</div>
                   </div>
                 </template>
                 <QuestionCircleOutlined class="debug-help-icon" />
@@ -155,19 +155,40 @@
             <div v-if="inst.messages.length === 0" class="debug-empty">
               填写参数配置后点击运行，调试 Prompt 效果
             </div>
-            <div v-for="(msg, i) in inst.messages" :key="i" :class="['debug-msg', msg.role]">
-              <MarkdownPreview v-if="msg.role === 'assistant' && msg._md" :content="msg.content" :finalized="true" />
-              <div v-else class="msg-content">{{ msg.content }}</div>
-              <div class="msg-actions" v-if="msg.role === 'assistant' && !inst.streaming">
-                <a-tooltip title="Markdown 渲染">
-                  <button class="btn-text-xs" :class="{ active: msg._md }" @click="msg._md = !msg._md">
-                    <FileMarkdownOutlined />
-                  </button>
-                </a-tooltip>
+            <div v-for="(msg, i) in inst.messages" :key="i" :class="['debug-msg-row', msg.role, { 'is-error': msg._error }]">
+              <!-- AI 调用失败：专用报错样式 -->
+              <div v-if="msg._error" class="prompt-error-block">
+                <div class="prompt-error-header">
+                  <CloseCircleOutlined class="prompt-error-icon" />
+                  <span class="prompt-error-title">调用失败</span>
+                </div>
+                <div class="prompt-error-message">{{ msg.content }}</div>
               </div>
+              <!-- 正常回复：默认 Markdown 渲染，可切换显示原文 -->
+              <template v-else>
+                <div class="msg-bubble">
+                  <MarkdownPreview v-if="msg.role === 'assistant' && !msg._raw" :content="msg.content" :finalized="true" />
+                  <div v-else class="msg-content">{{ msg.content }}</div>
+                </div>
+                <div class="msg-actions" v-if="msg.role === 'assistant' && !inst.streaming">
+                  <a-tooltip :title="msg._copied ? '已复制' : '复制'">
+                    <button class="btn-text-xs" :class="{ active: msg._copied }" @click="copyMessage(msg)">
+                      <CheckOutlined v-if="msg._copied" />
+                      <CopyOutlined v-else />
+                    </button>
+                  </a-tooltip>
+                  <a-tooltip :title="msg._raw ? '显示渲染' : '显示原文'">
+                    <button class="btn-text-xs" :class="{ active: msg._raw }" @click="msg._raw = !msg._raw">
+                      <EyeOutlined />
+                    </button>
+                  </a-tooltip>
+                </div>
+              </template>
             </div>
-            <div v-if="inst.streaming" class="debug-msg assistant">
-              <div class="msg-content">{{ inst.streamContent }}<span class="cursor">|</span></div>
+            <div v-if="inst.streaming" class="debug-msg-row assistant">
+              <div class="msg-bubble">
+                <div class="msg-content">{{ inst.streamContent }}<span class="cursor">|</span></div>
+              </div>
             </div>
           </div>
           <div class="debug-input">
@@ -248,7 +269,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined, HistoryOutlined, ThunderboltOutlined,
   ImportOutlined, CloudUploadOutlined, CopyOutlined, DeleteOutlined,
-  FileMarkdownOutlined, QuestionCircleOutlined,
+  QuestionCircleOutlined, EyeOutlined, CheckOutlined, CloseCircleOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
@@ -511,6 +532,16 @@ async function copyInput(inst) {
   message.success('已复制到剪贴板')
 }
 
+/**
+ * 复制 AI 回复内容，短暂展示已复制状态
+ * @param {object} msg 消息对象
+ */
+async function copyMessage(msg) {
+  await copyToClipboard(msg.content)
+  msg._copied = true
+  setTimeout(() => { msg._copied = false }, 1500)
+}
+
 // 调试运行
 async function handleRun(inst) {
   if (inst.streaming || !inst.content.trim()) return
@@ -556,7 +587,7 @@ async function handleRun(inst) {
           inst.streamContent = ''
         },
         onError(err) {
-          inst.messages.push({ role: 'assistant', content: '[错误] ' + err })
+          inst.messages.push({ role: 'assistant', content: String(err || '模型调用失败'), _error: true })
           inst.streaming = false
           inst.streamContent = ''
         },
@@ -565,7 +596,7 @@ async function handleRun(inst) {
     )
   } catch (e) {
     if (e.name !== 'AbortError') {
-      inst.messages.push({ role: 'assistant', content: '[错误] 请求失败' })
+      inst.messages.push({ role: 'assistant', content: e.message || '请求失败', _error: true })
     }
     inst.streaming = false
     inst.streamContent = ''
@@ -855,24 +886,69 @@ function scrollToBottom(inst) {
   color: var(--color-mute);
   font-size: 13px;
 }
-.debug-msg {
+.debug-msg-row {
+  display: flex;
+  flex-direction: column;
   max-width: 85%;
+}
+.debug-msg-row.user {
+  align-self: flex-end;
+  align-items: flex-end;
+}
+.debug-msg-row.assistant {
+  align-self: flex-start;
+  align-items: flex-start;
+}
+.debug-msg-row.is-error {
+  max-width: 100%;
+}
+.msg-bubble {
   padding: 10px 14px;
   border-radius: 8px;
   font-size: 14px;
   line-height: 1.6;
-  white-space: pre-wrap;
   word-break: break-word;
 }
-.debug-msg.user {
-  align-self: flex-end;
+.msg-content {
+  white-space: pre-wrap;
+}
+.debug-msg-row.user .msg-bubble {
   background: var(--color-canvas-soft-2);
   color: var(--color-ink);
 }
-.debug-msg.assistant {
-  align-self: flex-start;
+.debug-msg-row.assistant .msg-bubble {
   background: #eff6ff;
   color: var(--color-ink);
+}
+
+/* AI 调用失败报错块（参考对话报错样式） */
+.prompt-error-block {
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-soft);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+}
+.prompt-error-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.prompt-error-icon {
+  color: #ef4444;
+  font-size: 16px;
+  flex-shrink: 0;
+}
+.prompt-error-title {
+  font-weight: 600;
+  color: #991b1b;
+}
+.prompt-error-message {
+  color: #991b1b;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .debug-footer {
   display: flex;
@@ -883,11 +959,11 @@ function scrollToBottom(inst) {
   display: flex;
   gap: 4px;
   margin-top: 4px;
-  justify-content: flex-end;
+  justify-content: flex-start;
   opacity: 0;
   transition: opacity 0.2s;
 }
-.debug-msg:hover .msg-actions {
+.debug-msg-row:hover .msg-actions {
   opacity: 1;
 }
 .msg-actions .btn-text-xs.active {

@@ -61,6 +61,7 @@ export function deletePromptTemplate(id) {
 export async function runPromptStream(data, { onChunk, onDone, onError }, signal, options = {}) {
   const { maxRetries = 3, retryDelay = 2000 } = options
   const token = localStorage.getItem('token')
+  const ERROR_PREFIX = '[PROMPT_ERROR]'
   let retries = 0
 
   async function attempt() {
@@ -93,7 +94,14 @@ export async function runPromptStream(data, { onChunk, onDone, onError }, signal
         for (const line of lines) {
           if (line.startsWith('data:')) {
             const content = line.substring(5).trimStart()
-            if (content) onChunk?.(content)
+            if (!content) continue
+            // 后端下发的业务错误事件：转为不可重试错误，携带友好提示
+            if (content.startsWith(ERROR_PREFIX)) {
+              const bizErr = new Error(content.substring(ERROR_PREFIX.length))
+              bizErr.name = 'PromptBizError'
+              throw bizErr
+            }
+            onChunk?.(content)
           }
         }
       }
@@ -110,6 +118,11 @@ export async function runPromptStream(data, { onChunk, onDone, onError }, signal
       return
     } catch (err) {
       if (err.name === 'AbortError') return
+      // 业务错误（如 API Key 无效）无需重试，直接回调
+      if (err.name === 'PromptBizError') {
+        onError?.(err.message || '模型调用失败')
+        return
+      }
       retries++
       if (retries > maxRetries || signal?.aborted) {
         onError?.(err.message || '流式请求失败')

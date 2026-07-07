@@ -43,6 +43,9 @@ public class PromptController {
 
     private static final long SSE_TIMEOUT = 5 * 60 * 1000L;
 
+    /** Prompt 调试流式错误事件前缀：前端据此识别并展示友好报错（需与前端约定一致） */
+    private static final String PROMPT_ERROR_PREFIX = "[PROMPT_ERROR]";
+
     private final PromptService promptService;
     private final PromptVersionService promptVersionService;
     private final PromptBuildTemplateService promptBuildTemplateService;
@@ -181,7 +184,17 @@ public class PromptController {
                                 // client disconnected
                             }
                         },
-                        emitter::completeWithError,
+                        error -> {
+                            // 模型调用失败：翻译为用户友好提示后作为普通事件下发（避免全局异常处理器归一为「系统内部错误」）
+                            String friendlyMsg = com.lightbot.util.ModelErrorClassifier.classifyMessage(error);
+                            log.warn("[Prompt调试] 模型调用失败: {}", error.getMessage());
+                            try {
+                                emitter.send(SseEmitter.event().data(PROMPT_ERROR_PREFIX + friendlyMsg));
+                            } catch (Exception ignored) {
+                                // client disconnected
+                            }
+                            emitter.complete();
+                        },
                         emitter::complete
                 );
 
