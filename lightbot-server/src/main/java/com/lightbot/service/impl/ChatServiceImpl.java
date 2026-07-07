@@ -688,6 +688,16 @@ public class ChatServiceImpl implements ChatService {
 
                     accumulateStreamUsage(response, inputTokenHolder, outputTokenHolder);
 
+                    // 3.0 先消费本 chunk 携带的正文（部分模型将正文与工具调用放在同一 chunk）。
+                    //     必须在计算 toolContentOffset 之前完成，使 offset 精确反映"组件前已产出的正文长度"，
+                    //     否则前端会按滞后的 offset 把正文从中间截断（如「好<组件>的」）。
+                    Flux<String> leadingContentFlux = Flux.empty();
+                    String assistantLeadingText = assistantMsg.getText();
+                    if (assistantLeadingText != null && !assistantLeadingText.isEmpty()) {
+                        InlineThinkingStreamParser.ParseResult leadingParsed = feedStreamTextChunk(ctx, assistantLeadingText);
+                        leadingContentFlux = fluxFromInlineThinking(ctx, agent, leadingParsed, null);
+                    }
+
                     List<AssistantMessage.ToolCall> toolCalls = assistantMsg.getToolCalls();
                     boolean asyncEnabled = Boolean.TRUE.equals(configMap.get("asyncToolCalls"));
 
@@ -856,6 +866,8 @@ public class ChatServiceImpl implements ChatService {
                             .concatWith(Flux.concat(toolResultEvents))
                             .concatWith(Flux.just(STATUS_PREFIX + toolEventGenerator.toolCompleteEvent(resultContentOffset)))
                             .concatWith(afterTool);
+                    // 正文先于组件事件下发，确保组件插在完整正文之后，不腰斩已产出内容
+                    toolEventFlux = leadingContentFlux.concatWith(toolEventFlux);
 
                     // ask_user 工具执行后中断循环，等待用户回复
                     boolean hasAskUser = toolResponses.stream()
