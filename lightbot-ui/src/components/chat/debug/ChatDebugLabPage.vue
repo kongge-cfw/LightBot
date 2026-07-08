@@ -49,6 +49,24 @@
                 ref="workflowRef"
                 @parse="parseWorkflow"
               />
+
+              <ChatDebugAttachmentPanel
+                v-else-if="activeModule === 'attachment'"
+                ref="attachmentRef"
+                @parse="parseAttachment"
+              />
+
+              <ChatDebugPromptPanel
+                v-else-if="activeModule === 'prompt'"
+                ref="promptRef"
+                @parse="parsePrompt"
+              />
+
+              <ChatDebugEvalPanel
+                v-else-if="activeModule === 'eval'"
+                ref="evalRef"
+                @parse="parseEval"
+              />
             </div>
           </template>
 
@@ -80,6 +98,12 @@
                 </div>
                 <div v-else class="debug-preview-empty">点击「解析预览」查看 Markdown</div>
               </ChatDebugPreviewShell>
+            </template>
+            <template v-else-if="activeModule === 'prompt'">
+              <ChatDebugPromptPreview :payload="previewPromptPayload" />
+            </template>
+            <template v-else-if="activeModule === 'eval'">
+              <ChatDebugEvalPreview :payload="previewEvalPayload" />
             </template>
             <ChatDebugMessagePreview
               v-else
@@ -121,6 +145,11 @@ import ChatDebugToolPanel from '@/components/chat/debug/ChatDebugToolPanel.vue'
 import ChatDebugMarkdownPanel from '@/components/chat/debug/ChatDebugMarkdownPanel.vue'
 import ChatDebugCapabilityPanel from '@/components/chat/debug/ChatDebugCapabilityPanel.vue'
 import ChatDebugWorkflowPanel from '@/components/chat/debug/ChatDebugWorkflowPanel.vue'
+import ChatDebugAttachmentPanel from '@/components/chat/debug/ChatDebugAttachmentPanel.vue'
+import ChatDebugPromptPanel from '@/components/chat/debug/ChatDebugPromptPanel.vue'
+import ChatDebugPromptPreview from '@/components/chat/debug/ChatDebugPromptPreview.vue'
+import ChatDebugEvalPanel from '@/components/chat/debug/ChatDebugEvalPanel.vue'
+import ChatDebugEvalPreview from '@/components/chat/debug/ChatDebugEvalPreview.vue'
 import ChatDebugRegistryModal from '@/components/chat/debug/ChatDebugRegistryModal.vue'
 import ToolCallRenderer from '@/components/ToolCallRenderer.vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
@@ -149,6 +178,9 @@ const toolRef = ref(null)
 const markdownRef = ref(null)
 const capabilityRef = ref(null)
 const workflowRef = ref(null)
+const attachmentRef = ref(null)
+const promptRef = ref(null)
+const evalRef = ref(null)
 const fixtureInputRef = ref(null)
 
 const composerJson = ref(apiMessageToEditorJson(createDefaultApiMessage()))
@@ -159,6 +191,8 @@ const markdownSource = ref('')
 const markdownParsed = ref(null)
 const comparePreviewLeft = ref(null)
 const comparePreviewRight = ref(null)
+const previewPromptPayload = ref(null)
+const previewEvalPayload = ref(null)
 
 const presetOptions = DEBUG_PRESETS.map((p) => ({ value: p.id, label: p.label }))
 const selectedPresetId = ref(undefined)
@@ -181,6 +215,8 @@ function clearPreview() {
   markdownParsed.value = null
   comparePreviewLeft.value = null
   comparePreviewRight.value = null
+  previewPromptPayload.value = null
+  previewEvalPayload.value = null
 }
 
 function buildMsgPreview(apiMsg, uiState = composerUiState.value) {
@@ -226,6 +262,35 @@ function parseWorkflow() {
   comparePreviewRight.value = null
   previewMsg.value = buildMsgPreview(apiMsg)
   message.success('工作流消息已解析')
+}
+
+function parseAttachment() {
+  const apiMsg = attachmentRef.value?.validateAndGetMessage?.()
+  if (!apiMsg) return
+  comparePreviewLeft.value = null
+  comparePreviewRight.value = null
+  previewMsg.value = buildMsgPreview(apiMsg)
+  message.success('附件消息已解析')
+}
+
+function parsePrompt() {
+  const payload = promptRef.value?.validateAndGetPayload?.()
+  if (!payload) return
+  previewMsg.value = null
+  comparePreviewLeft.value = null
+  comparePreviewRight.value = null
+  previewPromptPayload.value = payload
+  message.success('Prompt 预览已更新')
+}
+
+function parseEval() {
+  const payload = evalRef.value?.validateAndGetPayload?.()
+  if (!payload) return
+  previewMsg.value = null
+  comparePreviewLeft.value = null
+  comparePreviewRight.value = null
+  previewEvalPayload.value = payload
+  message.success('Eval 预览已更新')
 }
 
 function onStreamPreview(msg) {

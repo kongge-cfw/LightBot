@@ -5,6 +5,9 @@ export const DEBUG_LAB_NAV_ITEMS = [
   { key: 'markdown', label: 'Markdown' },
   { key: 'capability', label: '能力块' },
   { key: 'workflow', label: '工作流' },
+  { key: 'attachment', label: '附件' },
+  { key: 'prompt', label: 'Prompt' },
+  { key: 'eval', label: 'Eval' },
 ]
 
 export function getDebugLabNavMenuItems() {

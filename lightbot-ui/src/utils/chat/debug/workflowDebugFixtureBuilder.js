@@ -206,6 +206,207 @@ export function getWorkflowDebugScenarioOptions() {
   }))
 }
 
+export const WORKFLOW_ADVANCED_NODE_TYPE_OPTIONS = [
+  { value: 'retrieval', label: '知识检索' },
+  { value: 'llm', label: '大模型' },
+  { value: 'condition', label: '条件判断' },
+  { value: 'script', label: '脚本' },
+  { value: 'api', label: '外部 API' },
+  { value: 'confirm', label: '人工确认' },
+  { value: 'batch', label: '批处理容器' },
+  { value: 'loop', label: '循环容器' },
+]
+
+export function buildWorkflowDebugFixtureFromNodeTypes(nodeTypes = [], options = {}) {
+  const steps = normalizeAdvancedNodeTypes(nodeTypes)
+  const nodes = [node('start', 'start', 80, 240, { label: '开始' })]
+  const edges = []
+  const events = [
+    ...pairEvent({
+      nodeId: 'start',
+      nodeType: 'start',
+      nodeLabel: '开始',
+      outputs: { query: 'Debug advanced workflow assembly' },
+      message: '工作流已启动',
+    }, 0),
+  ]
+  let previousExitNodeId = 'start'
+  let x = 300
+  let stepIndex = 1
+
+  steps.forEach((type, index) => {
+    if (type === 'batch') {
+      const result = appendAdvancedBatch(nodes, edges, events, previousExitNodeId, x, stepIndex, index)
+      previousExitNodeId = result.exitNodeId
+      x += 660
+      stepIndex = result.nextStepIndex
+      return
+    }
+    if (type === 'loop') {
+      const result = appendAdvancedLoop(nodes, edges, events, previousExitNodeId, x, stepIndex, index)
+      previousExitNodeId = result.exitNodeId
+      x += 660
+      stepIndex = result.nextStepIndex
+      return
+    }
+
+    const id = `advanced-${type}-${index + 1}`
+    const label = ADVANCED_NODE_LABELS[type] || NODE_LABELS[type] || type
+    nodes.push(node(id, type, x, 226, advancedNodeData(type, label)))
+    edges.push(edge(previousExitNodeId, id))
+    events.push(...pairEvent(advancedNodeEvent(id, type, label), stepIndex))
+    previousExitNodeId = id
+    x += 250
+    stepIndex += 1
+  })
+
+  nodes.push(node('end', 'end', x, 240, { label: '结束' }))
+  edges.push(edge(previousExitNodeId, 'end'))
+  events.push(...pairEvent({
+    nodeId: 'end',
+    nodeType: 'end',
+    nodeLabel: '结束',
+    outputs: { answer: '高级拼装工作流本地回放完成。' },
+    durationMs: 8,
+  }, stepIndex))
+  events.push({ type: 'workflow_complete', success: true })
+
+  return finalizeFixture({
+    id: options.id || 'advanced-custom',
+    title: options.title || '高级拼装：合法工作流',
+    description: '由 Debug 本地生成器构造完整图数据、父子节点和 workflowEvents，可直接用于校验、画布预览与轨迹回放。',
+    tags: ['高级拼装', '合法', '本地生成'],
+    expected: { valid: true },
+    graph: { nodes, edges },
+    events,
+    content: '以下为高级拼装工作流的本地回放预览。',
+  })
+}
+
+const ADVANCED_NODE_LABELS = {
+  retrieval: '检索输入资料',
+  llm: '生成处理结果',
+  condition: '判断处理路径',
+  script: '结构化脚本处理',
+  api: '调用外部接口',
+  confirm: '等待人工确认',
+  batch: '批处理容器',
+  loop: '循环容器',
+}
+
+function normalizeAdvancedNodeTypes(nodeTypes) {
+  const normalized = (nodeTypes || [])
+    .filter((type) => type && !['start', 'end', 'batch_start', 'batch_end', 'loop_start', 'loop_end'].includes(type))
+    .slice(0, 8)
+  return normalized.length ? normalized : ['retrieval', 'llm']
+}
+
+function advancedNodeData(type, label) {
+  const common = { label }
+  if (type === 'retrieval') return { ...common, knowledgeName: 'Debug Knowledge Base', topK: 3 }
+  if (type === 'llm') return { ...common, modelName: 'Debug Mock Model', prompt: '{{workflow.input}}' }
+  if (type === 'condition') return { ...common, expression: 'score >= 0.7' }
+  if (type === 'script') return { ...common, language: 'javascript' }
+  if (type === 'api') return { ...common, url: 'https://api.example.com/debug' }
+  if (type === 'confirm') return { ...common, message: '是否继续执行后续节点？' }
+  return common
+}
+
+function advancedNodeEvent(nodeId, type, label, extra = {}) {
+  const base = {
+    nodeId,
+    nodeType: type,
+    nodeLabel: label,
+    durationMs: extra.durationMs ?? 180,
+    input: extra.input || { value: 'debug-input' },
+    outputs: extra.outputs || { value: `${label} output` },
+    message: `${label} 执行完成`,
+    ...extra,
+  }
+  if (type === 'retrieval') {
+    base.outputs = {
+      query: 'Debug advanced workflow assembly',
+      results: [
+        { documentName: 'workflow-debug.md', score: 0.91, content: '高级拼装需要生成合法图和完整轨迹。' },
+      ],
+    }
+    base.message = '检索到 1 条本地模拟资料'
+  }
+  if (type === 'llm') {
+    base.outputs = { text: '已根据上游结果生成调试响应。' }
+    base.durationMs = 860
+  }
+  if (type === 'condition') {
+    base.outputs = { matched: true, branch: 'default' }
+    base.nextNodeId = extra.nextNodeId
+  }
+  if (type === 'confirm') {
+    base.outputs = { approved: true }
+    base.durationMs = 40
+  }
+  return base
+}
+
+function appendAdvancedBatch(nodes, edges, events, previousExitNodeId, x, stepIndex, index) {
+  const groupId = `advanced-batch-${index + 1}`
+  const group = groupNode(groupId, 'batch', x, 80, '批处理容器')
+  const startId = `${groupId}_batch_start`
+  const scriptAId = `${groupId}-script-a`
+  const scriptBId = `${groupId}-script-b`
+  const endId = `${groupId}_batch_end`
+  nodes.push(
+    group,
+    childNode(startId, 'batch_start', groupId, 48, 150, { label: '并发开始' }),
+    childNode(scriptAId, 'script', groupId, 220, 88, { label: '处理分片 A', language: 'javascript' }),
+    childNode(scriptBId, 'script', groupId, 220, 220, { label: '处理分片 B', language: 'javascript' }),
+    childNode(endId, 'batch_end', groupId, 444, 150, { label: '并发结束' }),
+  )
+  edges.push(
+    edge(previousExitNodeId, startId),
+    edge(startId, scriptAId),
+    edge(startId, scriptBId),
+    edge(scriptAId, endId),
+    edge(scriptBId, endId),
+  )
+  events.push(
+    { type: 'workflow_node_start', nodeId: groupId, nodeType: 'batch', nodeLabel: '批处理容器', stepIndex, input: { count: 2 } },
+    ...pairEvent({ nodeId: startId, nodeType: 'batch_start', nodeLabel: '并发开始', parentNodeId: groupId, outputs: { started: true }, durationMs: 6 }, stepIndex + 1),
+    ...pairEvent({ nodeId: scriptAId, nodeType: 'script', nodeLabel: '处理分片 A', parentNodeId: groupId, input: { item: 'A' }, outputs: { summary: 'A 处理完成' }, durationMs: 210 }, stepIndex + 2),
+    ...pairEvent({ nodeId: scriptBId, nodeType: 'script', nodeLabel: '处理分片 B', parentNodeId: groupId, input: { item: 'B' }, outputs: { summary: 'B 处理完成' }, durationMs: 230 }, stepIndex + 3),
+    ...pairEvent({ nodeId: endId, nodeType: 'batch_end', nodeLabel: '并发结束', parentNodeId: groupId, outputs: { merged: ['A 处理完成', 'B 处理完成'] }, durationMs: 8 }, stepIndex + 4),
+    { type: 'workflow_node_complete', nodeId: groupId, nodeType: 'batch', nodeLabel: '批处理容器', stepIndex, success: true, durationMs: 520, outputs: { count: 2 }, message: '批处理容器执行完成' },
+  )
+  return { exitNodeId: endId, nextStepIndex: stepIndex + 5 }
+}
+
+function appendAdvancedLoop(nodes, edges, events, previousExitNodeId, x, stepIndex, index) {
+  const groupId = `advanced-loop-${index + 1}`
+  const group = groupNode(groupId, 'loop', x, 80, '循环容器')
+  const startId = `${groupId}_loop_start`
+  const scriptId = `${groupId}-script`
+  const endId = `${groupId}_loop_end`
+  nodes.push(
+    group,
+    childNode(startId, 'loop_start', groupId, 48, 150, { label: '迭代开始' }),
+    childNode(scriptId, 'script', groupId, 232, 150, { label: '处理当前项', language: 'javascript' }),
+    childNode(endId, 'loop_end', groupId, 444, 150, { label: '迭代结束' }),
+  )
+  edges.push(
+    edge(previousExitNodeId, startId),
+    edge(startId, scriptId),
+    edge(scriptId, endId),
+  )
+  events.push(
+    { type: 'workflow_node_start', nodeId: groupId, nodeType: 'loop', nodeLabel: '循环容器', stepIndex, input: { count: 2 } },
+    ...pairEvent({ nodeId: startId, nodeType: 'loop_start', nodeLabel: '迭代开始', parentNodeId: groupId, outputs: { iterationIndex: 0 }, durationMs: 6 }, stepIndex + 1),
+    ...pairEvent({ nodeId: scriptId, nodeType: 'script', nodeLabel: '处理当前项', parentNodeId: groupId, input: { item: 'first' }, outputs: { result: '第一轮处理完成' }, durationMs: 180 }, stepIndex + 2),
+    ...pairEvent({ nodeId: scriptId, nodeType: 'script', nodeLabel: '处理当前项', parentNodeId: groupId, input: { item: 'second' }, outputs: { result: '第二轮处理完成' }, durationMs: 190 }, stepIndex + 3),
+    ...pairEvent({ nodeId: endId, nodeType: 'loop_end', nodeLabel: '迭代结束', parentNodeId: groupId, outputs: { finished: true }, durationMs: 8 }, stepIndex + 4),
+    { type: 'workflow_node_complete', nodeId: groupId, nodeType: 'loop', nodeLabel: '循环容器', stepIndex, success: true, durationMs: 620, outputs: { iterations: 2 }, message: '循环容器执行完成' },
+  )
+  return { exitNodeId: endId, nextStepIndex: stepIndex + 5 }
+}
+
 function buildLinearBasicFixture() {
   const nodes = [
     node('start', 'start', 80, 160),

@@ -58,12 +58,31 @@
       </a-tab-pane>
 
       <a-tab-pane key="graph" tab="图预览">
+        <div class="debug-replay-toolbar">
+          <a-button size="small" type="primary" :disabled="replayPlaying" @click="playReplay">播放</a-button>
+          <a-button size="small" :disabled="!replayPlaying" @click="pauseReplay">暂停</a-button>
+          <a-button size="small" @click="stepReplay(-1)">上一步</a-button>
+          <a-button size="small" @click="stepReplay(1)">下一步</a-button>
+          <a-button size="small" @click="showFullReplay">显示全部</a-button>
+          <a-select
+            v-model:value="replaySpeed"
+            :options="replaySpeedOptions"
+            size="small"
+            style="width: 86px"
+          />
+          <span class="debug-replay-progress">{{ replayProgressText }}</span>
+        </div>
+        <div v-if="groupNodes.length" class="debug-group-toolbar">
+          <span class="debug-group-label">父子节点视图</span>
+          <a-segmented v-model:value="groupViewMode" :options="groupViewOptions" size="small" />
+          <span class="debug-group-hint">仅改变 Debug 画布投影，校验仍使用完整图。</span>
+        </div>
         <div class="debug-graph-preview">
           <WorkflowViewerCanvas
             v-if="currentFixture"
             flow-id="debug-workflow-preview"
-            :nodes="currentFixture.graph.nodes"
-            :edges="currentFixture.graph.edges"
+            :nodes="graphNodes"
+            :edges="graphEdges"
             :node-states="nodeStates"
             :highlighted-edge-ids="highlightedEdgeIds"
             :selected-node-id="selectedNodeId"
@@ -76,9 +95,17 @@
       </a-tab-pane>
 
       <a-tab-pane key="trace" tab="轨迹">
+        <div class="debug-replay-toolbar">
+          <a-button size="small" type="primary" :disabled="replayPlaying" @click="playReplay">播放</a-button>
+          <a-button size="small" :disabled="!replayPlaying" @click="pauseReplay">暂停</a-button>
+          <a-button size="small" @click="stepReplay(-1)">上一步</a-button>
+          <a-button size="small" @click="stepReplay(1)">下一步</a-button>
+          <a-button size="small" @click="showFullReplay">显示全部</a-button>
+          <span class="debug-replay-progress">{{ replayProgressText }}</span>
+        </div>
         <div class="debug-trace-preview">
           <WorkflowTestTimeline
-            :node-events="currentEvents"
+            :node-events="displayEvents"
             :active-node-id="selectedNodeId"
             @select-node="selectedNodeId = $event"
           />
@@ -103,9 +130,25 @@
         </div>
       </a-tab-pane>
 
+      <a-tab-pane key="sse" tab="SSE 回放">
+        <div class="debug-workflow-builder">
+          <div class="debug-editor-label">粘贴后端 SSE 文本，本地解析 workflow_* 事件并驱动当前图回放</div>
+          <a-textarea
+            v-model:value="sseText"
+            :rows="10"
+            class="debug-json-textarea"
+            placeholder="data:[STATUS]{&quot;type&quot;:&quot;workflow_node_start&quot;,...}"
+          />
+          <div class="debug-builder-actions">
+            <a-button type="primary" size="small" @click="parseSseReplay">解析为回放轨迹</a-button>
+            <a-button size="small" @click="sseText = ''">清空</a-button>
+          </div>
+        </div>
+      </a-tab-pane>
+
       <a-tab-pane key="advanced" tab="高级拼装">
         <div class="debug-workflow-builder">
-          <div class="debug-editor-label">组合节点（旧版，仅追加 workflowEvents，不生成图数据）</div>
+          <div class="debug-editor-label">新版高级拼装（生成合法图、父子节点与 workflowEvents）</div>
           <a-select
             v-model:value="selectedNodeTypes"
             mode="multiple"
@@ -115,8 +158,8 @@
             :max-tag-count="4"
           />
           <div class="debug-builder-actions">
-            <a-button size="small" @click="appendCombinedNodes">追加组合节点</a-button>
-            <a-button size="small" @click="replaceWithCombinedNodes">替换为组合节点</a-button>
+            <a-button type="primary" size="small" @click="buildAdvancedWorkflow">生成合法工作流</a-button>
+            <a-button size="small" @click="selectedNodeTypes = ['retrieval', 'batch', 'loop', 'llm']">恢复推荐组合</a-button>
           </div>
         </div>
       </a-tab-pane>
@@ -125,17 +168,15 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { processSseLines } from '@/api/chat'
 import { apiMessageToEditorJson, editorJsonToApiMessage } from '@/utils/chat/debug/debugMessageBuilder'
 import {
-  buildWorkflowMessageFromEvents,
-  combineWorkflowNodeSamples,
-  WORKFLOW_NODE_TYPE_OPTIONS,
-} from '@/utils/chat/debug/debugWorkflowSamples'
-import {
   WORKFLOW_DEBUG_SCENARIOS,
+  WORKFLOW_ADVANCED_NODE_TYPE_OPTIONS,
   buildWorkflowDebugFixture,
+  buildWorkflowDebugFixtureFromNodeTypes,
   getWorkflowDebugScenarioOptions,
 } from '@/utils/chat/debug/workflowDebugFixtureBuilder'
 import { validateWorkflowDebugGraph } from '@/utils/chat/debug/workflowDebugGraphValidator'
@@ -147,14 +188,33 @@ const emit = defineEmits(['parse', 'update:modelValue'])
 
 const scenarios = WORKFLOW_DEBUG_SCENARIOS
 const scenarioOptions = getWorkflowDebugScenarioOptions()
-const nodeTypeOptions = WORKFLOW_NODE_TYPE_OPTIONS
+const nodeTypeOptions = WORKFLOW_ADVANCED_NODE_TYPE_OPTIONS
 const selectedScenario = ref(scenarioOptions[0]?.value || 'linear-basic')
-const selectedNodeTypes = ref(['start', 'llm', 'retrieval', 'end'])
+const selectedNodeTypes = ref(['retrieval', 'batch', 'loop', 'llm'])
 const localJson = ref('')
 const parseError = ref('')
 const activeTab = ref('json')
 const currentFixture = ref(null)
 const selectedNodeId = ref(null)
+const replayIndex = ref(-1)
+const replayPlaying = ref(false)
+const replaySpeed = ref(1)
+const groupViewMode = ref('expanded')
+const sseText = ref('')
+let replayTimer = null
+
+const replaySpeedOptions = [
+  { value: 0.5, label: '0.5x' },
+  { value: 1, label: '1x' },
+  { value: 2, label: '2x' },
+  { value: 4, label: '4x' },
+]
+
+const groupViewOptions = [
+  { value: 'expanded', label: '全部展开' },
+  { value: 'collapsed', label: '全部收起' },
+  { value: 'first-collapsed', label: '仅首个收起' },
+]
 
 const currentEvents = computed(() => {
   try {
@@ -163,6 +223,61 @@ const currentEvents = computed(() => {
   } catch {
     return currentFixture.value?.events || []
   }
+})
+
+const displayEvents = computed(() => {
+  if (replayIndex.value < 0) return currentEvents.value
+  return currentEvents.value.slice(0, replayIndex.value + 1)
+})
+
+const groupNodes = computed(() => {
+  const nodes = currentFixture.value?.graph?.nodes || []
+  return nodes.filter((node) => node.type === 'batch' || node.type === 'loop')
+})
+
+const collapsedGroupIds = computed(() => {
+  if (!groupNodes.value.length || groupViewMode.value === 'expanded') return new Set()
+  if (groupViewMode.value === 'first-collapsed') return new Set([groupNodes.value[0].id])
+  return new Set(groupNodes.value.map((node) => node.id))
+})
+
+const graphNodes = computed(() => {
+  if (!currentFixture.value) return []
+  const collapsedIds = collapsedGroupIds.value
+  return currentFixture.value.graph.nodes
+    .filter((node) => !node.parentNode || !collapsedIds.has(node.parentNode))
+    .map((node) => {
+      if (!collapsedIds.has(node.id)) return node
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          label: `${node.data?.label || node.id}（收起）`,
+        },
+      }
+    })
+})
+
+const graphEdges = computed(() => {
+  if (!currentFixture.value) return []
+  const collapsedIds = collapsedGroupIds.value
+  if (!collapsedIds.size) return currentFixture.value.graph.edges
+  const parentByNodeId = new Map(
+    currentFixture.value.graph.nodes
+      .filter((node) => node.parentNode)
+      .map((node) => [node.id, node.parentNode]),
+  )
+  const seen = new Set()
+  return currentFixture.value.graph.edges.reduce((acc, item) => {
+    const source = collapsedIds.has(parentByNodeId.get(item.source)) ? parentByNodeId.get(item.source) : item.source
+    const target = collapsedIds.has(parentByNodeId.get(item.target)) ? parentByNodeId.get(item.target) : item.target
+    if (source === target) return acc
+    const key = `${source}->${target}`
+    if (seen.has(key)) return acc
+    seen.add(key)
+    acc.push({ ...item, id: `${item.id}__${source}__${target}`, source, target })
+    return acc
+  }, [])
 })
 
 const currentValidation = computed(() => {
@@ -188,14 +303,20 @@ const validationSummary = computed(() => {
   return { type: 'success', message: '当前场景通过本地工作流图校验，可用于渲染回归测试。' }
 })
 
-const nodeStates = computed(() => eventsToNodeStates(currentEvents.value))
+const nodeStates = computed(() => eventsToNodeStates(displayEvents.value))
 
 const highlightedEdgeIds = computed(() => {
   if (!currentFixture.value) return new Set()
-  const completedNodeIds = currentEvents.value
+  const completedNodeIds = displayEvents.value
     .filter((event) => event.type === 'workflow_node_complete' && event.nodeId && event.success !== false)
     .map((event) => event.nodeId)
-  return buildExecutedEdgeIds(currentFixture.value.graph.edges, completedNodeIds)
+  return buildExecutedEdgeIds(graphEdges.value, completedNodeIds)
+})
+
+const replayProgressText = computed(() => {
+  if (!currentEvents.value.length) return '0 / 0'
+  const index = replayIndex.value < 0 ? currentEvents.value.length : replayIndex.value + 1
+  return `${Math.min(index, currentEvents.value.length)} / ${currentEvents.value.length}`
 })
 
 function loadScenario(id = selectedScenario.value) {
@@ -203,6 +324,7 @@ function loadScenario(id = selectedScenario.value) {
   selectedNodeId.value = null
   currentFixture.value = buildWorkflowDebugFixture(id)
   localJson.value = apiMessageToEditorJson(currentFixture.value.payload.message)
+  resetReplay()
   emit('update:modelValue', localJson.value)
 }
 
@@ -221,46 +343,141 @@ function handleFormat() {
   }
 }
 
-function getCurrentWorkflowEvents() {
-  const msg = editorJsonToApiMessage(localJson.value)
-  return msg.metadata?.workflowEvents || []
-}
-
-function applyWorkflowEvents(events, content) {
-  currentFixture.value = null
+function applyFixture(fixture) {
+  if (scenarioOptions.some((option) => option.value === fixture.id)) {
+    selectedScenario.value = fixture.id
+  }
   selectedNodeId.value = null
-  localJson.value = buildWorkflowMessageFromEvents(events, content)
+  currentFixture.value = fixture
+  localJson.value = apiMessageToEditorJson(fixture.payload.message)
+  resetReplay()
   emit('update:modelValue', localJson.value)
 }
 
-function appendCombinedNodes() {
+function buildAdvancedWorkflow() {
   if (!selectedNodeTypes.value?.length) {
     message.warning('请至少选择一个节点类型')
     return
   }
   try {
-    const existing = getCurrentWorkflowEvents()
-    const combined = combineWorkflowNodeSamples(selectedNodeTypes.value)
-    applyWorkflowEvents([...existing, ...combined])
-    message.success('已追加组合节点')
+    applyFixture(buildWorkflowDebugFixtureFromNodeTypes(selectedNodeTypes.value))
+    activeTab.value = 'graph'
+    message.success('已生成合法工作流图')
   } catch (e) {
-    parseError.value = e.message || '组合失败'
+    parseError.value = e.message || '高级拼装失败'
   }
 }
 
-function replaceWithCombinedNodes() {
-  if (!selectedNodeTypes.value?.length) {
-    message.warning('请至少选择一个节点类型')
+function parseSseReplay() {
+  parseError.value = ''
+  if (!sseText.value.trim()) {
+    message.warning('请先粘贴 SSE 文本')
     return
   }
   try {
-    const combined = combineWorkflowNodeSamples(selectedNodeTypes.value)
-    applyWorkflowEvents(combined)
-    message.success('已替换为组合节点')
+    const events = []
+    let content = ''
+    processSseLines(sseText.value, {
+      onChunk: (chunk) => {
+        content += chunk || ''
+      },
+      onToolEvent: (event) => {
+        if (event?.type?.startsWith?.('workflow_')) {
+          events.push(event)
+        }
+      },
+    })
+    if (!events.length) {
+      message.warning('未解析到 workflow 事件')
+      return
+    }
+    if (!currentFixture.value) {
+      currentFixture.value = buildWorkflowDebugFixtureFromNodeTypes(selectedNodeTypes.value)
+    }
+    const baseMessage = currentFixture.value.payload.message
+    const messagePayload = {
+      ...baseMessage,
+      content: content || baseMessage.content || '以下为 SSE 粘贴解析后的工作流回放。',
+      metadata: {
+        ...baseMessage.metadata,
+        workflowEvents: events,
+      },
+    }
+    currentFixture.value = {
+      ...currentFixture.value,
+      events,
+      payload: {
+        ...currentFixture.value.payload,
+        nodeEvents: events,
+        message: messagePayload,
+      },
+    }
+    localJson.value = apiMessageToEditorJson(messagePayload)
+    resetReplay()
+    emit('update:modelValue', localJson.value)
+    activeTab.value = 'trace'
+    message.success(`已解析 ${events.length} 条 workflow 事件`)
   } catch (e) {
-    parseError.value = e.message || '组合失败'
+    parseError.value = e.message || 'SSE 解析失败'
   }
 }
+
+function clearReplayTimer() {
+  if (replayTimer) {
+    clearTimeout(replayTimer)
+    replayTimer = null
+  }
+}
+
+function resetReplay() {
+  clearReplayTimer()
+  replayPlaying.value = false
+  replayIndex.value = -1
+}
+
+function pauseReplay() {
+  replayPlaying.value = false
+  clearReplayTimer()
+}
+
+function stepReplay(delta = 1) {
+  if (!currentEvents.value.length) return
+  const nextIndex = Math.min(Math.max(replayIndex.value + delta, 0), currentEvents.value.length - 1)
+  replayIndex.value = nextIndex
+  const event = currentEvents.value[nextIndex]
+  if (event?.nodeId) selectedNodeId.value = event.nodeId
+  if (nextIndex >= currentEvents.value.length - 1) pauseReplay()
+}
+
+function scheduleReplay() {
+  clearReplayTimer()
+  if (!replayPlaying.value) return
+  replayTimer = setTimeout(() => {
+    stepReplay(1)
+    scheduleReplay()
+  }, Math.max(120, 700 / replaySpeed.value))
+}
+
+function playReplay() {
+  if (!currentEvents.value.length) {
+    message.warning('当前没有 workflowEvents 可回放')
+    return
+  }
+  if (replayIndex.value >= currentEvents.value.length - 1) replayIndex.value = -1
+  replayPlaying.value = true
+  scheduleReplay()
+}
+
+function showFullReplay() {
+  pauseReplay()
+  replayIndex.value = -1
+}
+
+watch(replaySpeed, () => {
+  if (replayPlaying.value) scheduleReplay()
+})
+
+onBeforeUnmount(clearReplayTimer)
 
 function validateAndGetMessage() {
   parseError.value = ''
@@ -366,8 +583,34 @@ defineExpose({ validateAndGetMessage, loadScenario, handleFormat })
 
 .debug-builder-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-top: 8px;
+}
+
+.debug-replay-toolbar,
+.debug-group-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.debug-replay-progress,
+.debug-group-label,
+.debug-group-hint {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.debug-group-label {
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.debug-group-hint {
+  margin-left: 2px;
 }
 
 .debug-editor-label {

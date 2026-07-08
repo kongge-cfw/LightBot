@@ -11,11 +11,16 @@
       :messages-length="1"
       :refs-section-expanded="localRefsSectionExpanded"
       :is-ref-expanded="isRefExpanded"
+      @preview-attachment="onPreviewAttachment"
       @reasoning-toggle="onReasoningToggle"
       @rag-toggle="onRagToggle"
       @go-knowledge="onGoKnowledge"
     />
     <div v-else class="debug-preview-empty">{{ emptyText }}</div>
+    <ChatAttachmentPreview
+      v-model:open="attachmentPreviewOpen"
+      :attachment="attachmentPreviewTarget"
+    />
   </ChatDebugPreviewShell>
 </template>
 
@@ -24,6 +29,7 @@ import { ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import ChatDebugPreviewShell from './ChatDebugPreviewShell.vue'
 import ChatMessageRow from '@/components/chat/message/ChatMessageRow.vue'
+import ChatAttachmentPreview from '@/components/ChatAttachmentPreview.vue'
 
 const props = defineProps({
   msg: { type: Object, default: null },
@@ -33,6 +39,8 @@ const props = defineProps({
 
 const localRefsSectionExpanded = ref(true)
 const expandedRefIndices = ref(new Set())
+const attachmentPreviewOpen = ref(false)
+const attachmentPreviewTarget = ref(null)
 
 watch(
   () => props.msg,
@@ -50,8 +58,9 @@ watch(
   },
 )
 
-function noopThumb() {
-  return ''
+function noopThumb(att) {
+  if (!att) return ''
+  return att.thumbnailUrl || att.previewUrl || ''
 }
 
 function isRefExpanded(refIndex) {
@@ -83,6 +92,11 @@ function onGoKnowledge({ knowledgeId, documentId }) {
   const path = `/app/knowledge/${knowledgeId}${query}`
   window.open(path, '_blank', 'noopener,noreferrer')
   message.info('已在新窗口打开知识库详情（Debug 预览）')
+}
+
+function onPreviewAttachment(att) {
+  attachmentPreviewTarget.value = att
+  attachmentPreviewOpen.value = true
 }
 </script>
 
