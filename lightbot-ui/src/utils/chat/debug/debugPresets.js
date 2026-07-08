@@ -197,6 +197,141 @@ export const DEBUG_PRESETS = [
       },
     },
   },
+  {
+    id: 'workflow-steps',
+    label: '工作流步骤',
+    message: {
+      role: 'assistant',
+      content: '工作流执行完成，以下是最终回复内容。',
+      metadata: {
+        toolEvents: [],
+        workflowEvents: [
+          { type: 'workflow_node_start', nodeId: 'start-1', nodeLabel: '开始', nodeType: 'start' },
+          { type: 'workflow_node_complete', nodeId: 'start-1', nodeLabel: '开始', nodeType: 'start', success: true, durationMs: 15 },
+          { type: 'workflow_node_start', nodeId: 'llm-1', nodeLabel: 'LLM 生成', nodeType: 'llm' },
+          { type: 'workflow_node_complete', nodeId: 'llm-1', nodeLabel: 'LLM 生成', nodeType: 'llm', success: true, durationMs: 920 },
+          { type: 'workflow_node_start', nodeId: 'end-1', nodeLabel: '结束', nodeType: 'end' },
+          { type: 'workflow_node_complete', nodeId: 'end-1', nodeLabel: '结束', nodeType: 'end', success: true, durationMs: 8 },
+          { type: 'workflow_complete', success: true },
+        ],
+        reasoningContent: '',
+        ragReferences: [],
+      },
+    },
+  },
+  {
+    id: 'workflow-confirm',
+    label: '工作流待确认',
+    message: {
+      role: 'assistant',
+      content: '工作流需要您确认后继续执行。',
+      metadata: {
+        toolEvents: [],
+        workflowEvents: [
+          { type: 'workflow_node_start', nodeId: 'ask-1', nodeLabel: '向用户提问', nodeType: 'ask_user' },
+          {
+            type: 'workflow_confirm_required',
+            runId: 'debug-run-001',
+            nodeId: 'ask-1',
+            confirmForm: {
+              hitlType: 'ask_user',
+              toolName: 'ask_user',
+              question: '请选择您需要的报告格式',
+              options: [
+                { label: '简要摘要', value: 'brief' },
+                { label: '详细报告', value: 'detailed' },
+              ],
+            },
+          },
+        ],
+        reasoningContent: '',
+        ragReferences: [],
+      },
+    },
+  },
+  {
+    id: 'subagent-delegation',
+    label: 'SubAgent 委派',
+    message: {
+      role: 'assistant',
+      content: '主 Agent 已完成分析，SubAgent 检索结果如下：\n\n根据检索，LightBot 支持 RAG 与工作流编排。',
+      metadata: {
+        toolEvents: [
+          {
+            type: 'subagent_call',
+            subagentName: 'research-agent',
+            displayName: '研究助手',
+            contentOffset: 0,
+            delegationIndex: 0,
+          },
+          {
+            type: 'subagent_tool_call',
+            subagentName: 'research-agent',
+            toolName: 'web_search',
+            toolDisplayName: '联网搜索',
+            delegationIndex: 0,
+            contentOffset: 0,
+          },
+          {
+            type: 'subagent_tool_result',
+            subagentName: 'research-agent',
+            toolName: 'web_search',
+            delegationIndex: 0,
+            contentOffset: 0,
+            result: JSON.stringify({ results: [{ title: 'LightBot', snippet: 'Java AI Agent 平台' }] }),
+          },
+          {
+            type: 'subagent_token',
+            subagentName: 'research-agent',
+            content: '根据检索，LightBot 支持 RAG 与工作流编排。',
+            delegationIndex: 0,
+            contentOffset: 0,
+          },
+          {
+            type: 'subagent_result',
+            subagentName: 'research-agent',
+            success: true,
+            delegationIndex: 0,
+            contentOffset: 0,
+            result: '根据检索，LightBot 支持 RAG 与工作流编排。',
+          },
+        ],
+        workflowEvents: [],
+        reasoningContent: '',
+        ragReferences: [],
+      },
+    },
+  },
+  {
+    id: 'subagent-error',
+    label: 'SubAgent 失败',
+    message: {
+      role: 'assistant',
+      content: 'SubAgent 执行失败，请稍后重试。',
+      metadata: {
+        toolEvents: [
+          {
+            type: 'subagent_call',
+            subagentName: 'research-agent',
+            displayName: '研究助手',
+            contentOffset: 0,
+            delegationIndex: 0,
+          },
+          {
+            type: 'subagent_error',
+            subagentName: 'research-agent',
+            message: 'SubAgent 连接超时',
+            code: 'TIMEOUT',
+            delegationIndex: 0,
+            contentOffset: 0,
+          },
+        ],
+        workflowEvents: [],
+        reasoningContent: '',
+        ragReferences: [],
+      },
+    },
+  },
 ]
 
 export function getPresetById(id) {

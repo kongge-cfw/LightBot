@@ -1,6 +1,7 @@
 <template>
   <div class="debug-composer-panel">
     <div v-if="showToolbar" class="debug-panel-toolbar">
+      <slot name="toolbar-extra" />
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
       <a-button @click="handleFormat">格式化 JSON</a-button>
       <a-button @click="handleReset">重置</a-button>
@@ -34,7 +35,7 @@ import { apiMessageToEditorJson, createDefaultApiMessage, editorJsonToApiMessage
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
-  /** 为 false 时工具栏由 Debug Lab Sider 承载 */
+  /** 为 false 时隐藏工具栏（由父级自定义） */
   showToolbar: { type: Boolean, default: true },
 })
 
@@ -96,6 +97,7 @@ defineExpose({ validateAndGetMessage, handleFormat, handleReset })
 .debug-panel-toolbar {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-bottom: 12px;
 }

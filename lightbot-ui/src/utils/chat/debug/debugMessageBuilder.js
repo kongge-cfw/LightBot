@@ -1,4 +1,5 @@
 import { parseMessage } from '@/composables/chat/useChatMessageModel'
+import { normalizeDebugUiState } from './debugUiState'
 
 const DEBUG_MSG_ID = 'debug-msg-preview'
 
@@ -40,6 +41,7 @@ export function editorJsonToApiMessage(jsonText) {
  * @param {{ streaming?: boolean, reasoningExpanded?: boolean }} uiState
  */
 export function buildPreviewMessage(apiMessage, uiState = {}) {
+  const ui = normalizeDebugUiState(uiState)
   const msg = parseMessage({
     id: DEBUG_MSG_ID,
     role: apiMessage.role || 'assistant',
@@ -47,14 +49,12 @@ export function buildPreviewMessage(apiMessage, uiState = {}) {
     metadata: apiMessage.metadata ?? {},
     createTime: new Date().toISOString(),
   })
-  if (uiState.streaming != null) {
-    msg._streaming = uiState.streaming
-    msg._toolsDone = !uiState.streaming
-    msg._reasoningDone = !uiState.streaming
-  }
-  if (uiState.reasoningExpanded != null) {
-    msg._reasoningExpanded = uiState.reasoningExpanded
-  }
+
+  msg._streaming = ui.streaming
+  msg._reasoningExpanded = ui.reasoningExpanded
+  msg._reasoningDone = ui.streaming ? ui.reasoningDone : (ui.reasoningDone ?? true)
+  msg._toolsDone = ui.streaming ? ui.toolsDone : (ui.toolsDone ?? true)
+  msg._toolExpanded = ui.toolExpanded
   return msg
 }
 

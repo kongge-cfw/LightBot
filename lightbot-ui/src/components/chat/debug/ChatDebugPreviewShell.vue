@@ -33,7 +33,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: 8px 0 16px;
+  padding: 12px 0 20px;
   background: var(--color-canvas);
 }
 </style>

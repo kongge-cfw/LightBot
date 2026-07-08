@@ -1,12 +1,15 @@
-/** Debug Lab 顶部导航模块（可扩展，纯前端调试项） */
+/** Debug Lab 顶部导航模块 */
 export const DEBUG_LAB_NAV_ITEMS = [
   { key: 'composer', label: '消息组合' },
   { key: 'tool', label: '工具渲染' },
   { key: 'markdown', label: 'Markdown' },
-  { key: 'registry', label: '注册表', disabled: true, title: 'Phase 3' },
-  { key: 'capability', label: '能力块', disabled: true, title: 'Phase 3' },
-  { key: 'workflow', label: '工作流', disabled: true, title: 'Phase 3' },
-  { key: 'theme', label: '主题样式', disabled: true, title: '规划中' },
+  { key: 'capability', label: '能力块' },
+  { key: 'workflow', label: '工作流' },
+  { key: 'registry', label: '注册表' },
+  { key: 'stream', label: '流式模拟' },
+  { key: 'compare', label: '对比' },
+  { key: 'sse', label: 'SSE 回放' },
+  { key: 'theme', label: '主题样式' },
 ]
 
 export function getDebugLabNavMenuItems() {

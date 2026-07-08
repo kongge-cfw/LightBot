@@ -53,7 +53,7 @@ import { getToolDisplayName } from '@/components/toolRegistry'
 const emit = defineEmits(['parse', 'error'])
 
 defineProps({
-  /** 为 false 时工具栏由 Debug Lab Sider 承载 */
+  /** 为 false 时隐藏工具栏 */
   showToolbar: { type: Boolean, default: true },
 })
 
