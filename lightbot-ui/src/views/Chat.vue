@@ -257,7 +257,6 @@ const sessionId = computed(() => route.params.sessionId || null)
 const {
   debugMode,
   debugPanelOpen,
-  handleDebugShortcut,
 } = useChatDebugMode()
 
 const input = ref('')
@@ -496,7 +495,6 @@ function sendMessageToDebugLabFromChat(msg) {
 }
 
 function handleChatKeydown(e) {
-  if (handleDebugShortcut(e)) return
   if (e.ctrlKey && e.code === 'Slash') {
     e.preventDefault()
     chatInputAreaRef.value?.focusInput?.()

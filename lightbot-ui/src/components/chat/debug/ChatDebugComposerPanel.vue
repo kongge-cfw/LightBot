@@ -1,6 +1,6 @@
 <template>
   <div class="debug-composer-panel">
-    <div class="debug-panel-toolbar">
+    <div v-if="showToolbar" class="debug-panel-toolbar">
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
       <a-button @click="handleFormat">格式化 JSON</a-button>
       <a-button @click="handleReset">重置</a-button>
@@ -34,6 +34,8 @@ import { apiMessageToEditorJson, createDefaultApiMessage, editorJsonToApiMessage
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
+  /** 为 false 时工具栏由 Debug Lab Sider 承载 */
+  showToolbar: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['update:modelValue', 'parse', 'error'])
@@ -80,7 +82,7 @@ function validateAndGetMessage() {
   }
 }
 
-defineExpose({ validateAndGetMessage })
+defineExpose({ validateAndGetMessage, handleFormat, handleReset })
 </script>
 
 <style scoped>

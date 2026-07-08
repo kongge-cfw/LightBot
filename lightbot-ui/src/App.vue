@@ -5,10 +5,27 @@
 </template>
 
 <script setup>
+import { onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { useTheme } from './composables/useTheme'
+import { handleDebugShortcut } from './composables/chat/useChatDebugMode'
 
 const { isDark, themeConfig } = useTheme()
+const route = useRoute()
+const router = useRouter()
+
+function onGlobalKeydown(e) {
+  handleDebugShortcut(e, { routeName: route.name, router })
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', onGlobalKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onGlobalKeydown)
+})
 </script>
 
 <style>

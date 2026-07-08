@@ -1,6 +1,6 @@
 <template>
   <div class="debug-markdown-panel">
-    <div class="debug-panel-toolbar">
+    <div v-if="showToolbar" class="debug-panel-toolbar">
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
       <a-button @click="handleClear">清空</a-button>
     </div>
@@ -20,6 +20,7 @@ import { ref, watch } from 'vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
+  showToolbar: { type: Boolean, default: true },
 })
 
 const emit = defineEmits(['update:modelValue', 'parse'])
@@ -52,6 +53,7 @@ function handleClear() {
 
 defineExpose({
   getSource: () => localSource.value,
+  handleClear,
 })
 </script>
 

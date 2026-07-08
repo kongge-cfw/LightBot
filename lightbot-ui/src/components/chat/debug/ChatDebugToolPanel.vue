@@ -1,6 +1,6 @@
 <template>
   <div class="debug-tool-panel">
-    <div class="debug-panel-toolbar">
+    <div v-if="showToolbar" class="debug-panel-toolbar">
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
       <a-button @click="loadSample">加载样例</a-button>
       <a-button @click="loadErrorSample">错误样例</a-button>
@@ -51,6 +51,11 @@ import {
 import { getToolDisplayName } from '@/components/toolRegistry'
 
 const emit = defineEmits(['parse', 'error'])
+
+defineProps({
+  /** 为 false 时工具栏由 Debug Lab Sider 承载 */
+  showToolbar: { type: Boolean, default: true },
+})
 
 const toolOptions = getToolSelectOptions()
 const selectedTool = ref(toolOptions[0]?.value || 'query_knowledge')
@@ -103,7 +108,11 @@ function validateAndGetEvent() {
   }
 }
 
-defineExpose({ validateAndGetEvent })
+defineExpose({
+  validateAndGetEvent,
+  loadSample,
+  loadErrorSample,
+})
 </script>
 
 <style scoped>

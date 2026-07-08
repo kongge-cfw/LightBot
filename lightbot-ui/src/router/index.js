@@ -27,6 +27,16 @@ const routes = [
     meta: { public: true },
   },
   {
+    path: '/debug',
+    name: 'ChatDebugLab',
+    component: () => import('../views/ChatDebugLab.vue'),
+    meta: { public: true, title: 'Chat Debug Lab' },
+  },
+  {
+    path: '/app/chat/debug',
+    redirect: '/debug',
+  },
+  {
     path: '/app',
     component: () => import('../layouts/MainLayout.vue'),
     redirect: '/app/chat',
@@ -35,12 +45,6 @@ const routes = [
         path: 'chat',
         name: 'Chat',
         component: () => import('../views/Chat.vue'),
-      },
-      {
-        path: 'chat/debug',
-        name: 'ChatDebugLab',
-        component: () => import('../views/ChatDebugLab.vue'),
-        meta: { hideSidebar: true, title: 'Chat Debug Lab' },
       },
       {
         path: 'chat/:sessionId',
