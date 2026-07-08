@@ -4,20 +4,10 @@
     :class="{ 'no-image-preview': !imagePreview }"
     ref="containerRef"
     @click="onContainerClick"
-    @mouseover="onContainerMouseOver"
-    @mouseleave="onContainerMouseLeave"
   >
     <div v-html="renderedHtml"></div>
     <span v-if="!finalized" class="typing-cursor">|</span>
   </div>
-  <a-tooltip
-    v-model:open="copyTooltipOpen"
-    :title="copyTooltipTitle"
-    placement="top"
-    :get-popup-container="tooltipPopupContainer"
-  >
-    <span class="code-copy-tooltip-anchor" :style="copyTooltipStyle" />
-  </a-tooltip>
   <ChatMediaPreview v-if="imagePreview" v-model:open="previewOpen" :src="previewSrc" media-type="image" />
   <MermaidPreviewModal v-model:open="mermaidPreviewOpen" :source="mermaidPreviewSource" />
 </template>
@@ -25,9 +15,14 @@
 <script setup>
 import { watch, shallowRef, ref, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
-import { renderMarkdown, CODE_COPY_BTN_ICON, CODE_COPIED_BTN_ICON } from '@/utils/markdown_preview'
+import { renderMarkdown } from '@/utils/markdown_preview'
 import { renderMermaidDiagrams, resetMermaidTheme } from '@/utils/mermaidRender'
+import {
+  enhanceMarkdownInteractiveElements,
+  destroyMarkdownInteractiveEnhancements,
+} from '@/utils/markdownInteractiveEnhance'
 import { useTheme } from '@/composables/useTheme'
+import { copyToClipboard } from '@/utils/clipboard'
 import ChatMediaPreview from '@/components/ChatMediaPreview.vue'
 import MermaidPreviewModal from '@/components/MermaidPreviewModal.vue'
 import 'katex/dist/katex.min.css'
@@ -52,78 +47,14 @@ const previewSrc = ref('')
 const mermaidPreviewOpen = ref(false)
 const mermaidPreviewSource = ref('')
 
-const copyTooltipOpen = ref(false)
-const copyTooltipTitle = ref('复制')
-const copyTooltipStyle = ref({
-  position: 'fixed',
-  left: '-9999px',
-  top: '-9999px',
-  width: '1px',
-  height: '1px',
-  pointerEvents: 'none',
-})
-
-function tooltipPopupContainer() {
-  return document.body
-}
-
-function showCopyTooltip(btn) {
-  const rect = btn.getBoundingClientRect()
-  copyTooltipTitle.value = btn.classList.contains('is-copied') ? '已复制' : '复制'
-  copyTooltipStyle.value = {
-    position: 'fixed',
-    left: `${rect.left + rect.width / 2}px`,
-    top: `${rect.top}px`,
-    width: '1px',
-    height: '1px',
-    pointerEvents: 'none',
-  }
-  copyTooltipOpen.value = true
-}
-
-function onContainerMouseOver(e) {
-  const btn = e.target.closest?.('.code-copy-btn')
-  if (btn && containerRef.value?.contains(btn)) {
-    showCopyTooltip(btn)
-  }
-}
-
-function onContainerMouseLeave(e) {
-  if (!containerRef.value?.contains(e.relatedTarget)) {
-    copyTooltipOpen.value = false
-  }
-}
-
-async function copyCodeText(text, btn) {
-  if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
-    btn.innerHTML = CODE_COPIED_BTN_ICON
-    btn.classList.add('is-copied')
-    showCopyTooltip(btn)
-    setTimeout(() => {
-      btn.innerHTML = CODE_COPY_BTN_ICON
-      btn.classList.remove('is-copied')
-      if (copyTooltipOpen.value) {
-        copyTooltipTitle.value = '复制'
-      }
-    }, 1500)
-  } catch {
-    message.error('复制失败')
-  }
+async function copyCodeText(text) {
+  if (!text) return false
+  const ok = await copyToClipboard(text)
+  if (!ok) message.error('复制失败')
+  return ok
 }
 
 function onContainerClick(e) {
-  const copyBtn = e.target.closest('.code-copy-btn')
-  if (copyBtn && containerRef.value?.contains(copyBtn)) {
-    e.preventDefault()
-    e.stopPropagation()
-    const wrap = copyBtn.closest('.code-block-wrap')
-    const codeEl = wrap?.querySelector('pre code') || wrap?.querySelector('pre')
-    copyCodeText(codeEl?.textContent || '', copyBtn)
-    return
-  }
-
   const mermaidEl = e.target.closest('.mermaid-diagram-clickable')
   if (mermaidEl && containerRef.value?.contains(mermaidEl)) {
     e.preventDefault()
@@ -162,10 +93,14 @@ watch(
   () => [props.content, props.finalized, isDark.value],
   async ([val, finalized], _, onCleanup) => {
     let expired = false
-    onCleanup(() => { expired = true })
+    onCleanup(() => {
+      expired = true
+      destroyMarkdownInteractiveEnhancements(containerRef.value)
+    })
 
     if (!val) {
       renderedHtml.value = ''
+      destroyMarkdownInteractiveEnhancements(containerRef.value)
       return
     }
 
@@ -181,6 +116,12 @@ watch(
       resetMermaidTheme()
       await renderMermaidDiagrams(containerRef.value, isDark.value)
     }
+
+    await nextTick()
+    if (expired) return
+    enhanceMarkdownInteractiveElements(containerRef.value, {
+      onCodeCopy: copyCodeText,
+    })
   },
   { immediate: true }
 )
@@ -325,6 +266,10 @@ watch(
   }
   .code-copy-btn:hover { background: var(--gray-25); color: var(--main-700); }
   .code-copy-btn.is-copied { color: #16a34a; }
+  .code-copy-btn-mount {
+    display: inline-flex;
+    align-items: center;
+  }
   .code-block-wrap > pre {
     margin: 0;
     border: none;
@@ -505,11 +450,5 @@ watch(
 @keyframes typing-cursor-blink {
   0%, 100% { opacity: 1; }
   50% { opacity: 0; }
-}
-
-.code-copy-tooltip-anchor {
-  position: fixed;
-  z-index: -1;
-  pointer-events: none;
 }
 </style>

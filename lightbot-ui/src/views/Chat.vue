@@ -178,6 +178,7 @@
       v-model:reason="dislikeReason"
       @submit="submitDislikeReason"
       @skip="skipDislikeReason"
+      @close="closeDislikeModal"
     />
 
     <ChatSessionFilesDrawer
@@ -317,7 +318,7 @@ const {
 
 const {
   getMessageFeedbackType, handleMessageFeedback, showDislikeModal,
-  submitDislikeReason, skipDislikeReason, loadBatchFeedbacks,
+  submitDislikeReason, skipDislikeReason, closeDislikeModal, loadBatchFeedbacks,
   dislikeModalVisible, dislikeReason,
 } = useChatFeedback()
 

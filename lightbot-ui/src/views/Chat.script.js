@@ -148,7 +148,7 @@ const {
 
 const {
   getMessageFeedbackType, handleMessageFeedback,
-  showDislikeModal, submitDislikeReason, skipDislikeReason,
+  showDislikeModal,   submitDislikeReason, skipDislikeReason, closeDislikeModal,
   loadBatchFeedbacks, dislikeModalVisible, dislikeReason,
 } = useChatFeedback()
 

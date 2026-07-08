@@ -1674,6 +1674,7 @@ import { ref, reactive, computed, onMounted, watch, h } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeftOutlined, SaveOutlined, CloseOutlined, SearchOutlined, CheckOutlined, MessageOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined, LoadingOutlined, UndoOutlined, ToolOutlined, QuestionCircleOutlined, ApiOutlined, DeleteOutlined, BookOutlined, RobotOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined, HistoryOutlined, InfoCircleOutlined, IdcardOutlined, RightOutlined, DownOutlined, DatabaseOutlined, CloudServerOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
+import { copyToClipboard } from '../utils/clipboard'
 import { getAgentDetail, updateAgent, updateAgentKnowledge, updateAgentTools, getAgentToolIds, getAgentToolDetails, generateAgentPrompt, generateAgentQuestions, uploadAgentAvatar, updateAgentMcpServers, updateAgentSubAgents, updateAgentSkills, publishAgent, listAgentVersions, getAgentVersionDetail, restoreAgentVersion, deleteAgentVersion } from '../api/agent'
 import { getWorkflowConfig } from '../api/workflow'
 import { getTools } from '../api/tool'
@@ -2745,28 +2746,8 @@ async function copyAgentId() {
     message.info('新建保存后生成 ID')
     return
   }
-  const text = String(agent.id)
-  try {
-    if (navigator.clipboard) {
-      await navigator.clipboard.writeText(text)
-    } else {
-      fallbackCopy(text)
-    }
-    message.success('已复制智能体 ID')
-  } catch {
-    fallbackCopy(text)
-    message.success('已复制智能体 ID')
-  }
-}
-
-function fallbackCopy(text) {
-  const ta = document.createElement('textarea')
-  ta.value = text
-  ta.style.cssText = 'position:fixed;left:-9999px'
-  document.body.appendChild(ta)
-  ta.select()
-  document.execCommand('copy')
-  document.body.removeChild(ta)
+  const ok = await copyToClipboard(String(agent.id))
+  message[ok ? 'success' : 'error'](ok ? '已复制智能体 ID' : '复制失败')
 }
 
 onBeforeRouteLeave((_to, _from, next) => {

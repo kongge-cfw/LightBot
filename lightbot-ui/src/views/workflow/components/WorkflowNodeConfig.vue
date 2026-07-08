@@ -767,6 +767,7 @@
 import { computed, watch, ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { copyToClipboard } from '../../../utils/clipboard'
 import { DeleteOutlined, PlusOutlined, CopyOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { getAgents } from '../../../api/agent'
 import { getToolIoSchema } from '../../../api/tool'
@@ -1196,13 +1197,11 @@ function hint(nodeType, fieldKey) {
   return getFieldHint(nodeType, fieldKey)
 }
 
-function copyBuiltinVar(example) {
+async function copyBuiltinVar(example) {
   if (props.readonly) return
-  navigator.clipboard?.writeText(example).then(() => {
-    message.success(`已复制 ${example}`)
-  }).catch(() => {
-    message.info(example)
-  })
+  const ok = await copyToClipboard(example)
+  if (ok) message.success(`已复制 ${example}`)
+  else message.info(example)
 }
 
 watch(

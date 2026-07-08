@@ -65,6 +65,12 @@ export function useChatFeedback() {
     await submitDislikeFeedback(null)
   }
 
+  function closeDislikeModal() {
+    dislikeModalVisible.value = false
+    dislikeReason.value = ''
+    dislikeTargetMsg.value = null
+  }
+
   async function submitDislikeFeedback(reason) {
     const msg = dislikeTargetMsg.value
     if (!msg) return
@@ -113,6 +119,7 @@ export function useChatFeedback() {
     showDislikeModal,
     submitDislikeReason,
     skipDislikeReason,
+    closeDislikeModal,
     submitDislikeFeedback,
     loadBatchFeedbacks,
     dislikeModalVisible,

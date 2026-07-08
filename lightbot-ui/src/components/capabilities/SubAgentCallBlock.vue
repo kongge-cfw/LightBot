@@ -145,6 +145,7 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
+import { copyToClipboard } from '../../utils/clipboard'
 import {
   RobotOutlined, LoadingOutlined, RightOutlined, CloseCircleOutlined,
   CodeOutlined, CopyOutlined, CheckOutlined, CheckCircleOutlined,
@@ -351,12 +352,12 @@ function openJsonModal(attempt) {
 
 async function copyText(text) {
   if (!text) return
-  try {
-    await navigator.clipboard.writeText(text)
+  const ok = await copyToClipboard(text)
+  if (ok) {
     jsonCopied.value = true
     setTimeout(() => { jsonCopied.value = false }, 2000)
     message.success('已复制')
-  } catch {
+  } else {
     message.error('复制失败')
   }
 }

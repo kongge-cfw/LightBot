@@ -3,14 +3,11 @@
   <a-modal
     :open="open"
     title="反馈原因（可选）"
-    @ok="$emit('submit')"
-    @cancel="$emit('skip')"
-    okText="提交"
-    cancelText="跳过"
     :maskClosable="false"
-    :closable="false"
+    :closable="true"
     :keyboard="false"
     width="420px"
+    @cancel="$emit('close')"
     @update:open="$emit('update:open', $event)"
   >
     <div style="padding: 4px 0;">
@@ -21,6 +18,11 @@
         @update:value="$emit('update:reason', $event)"
       />
     </div>
+    <template #footer>
+      <a-button @click="$emit('close')">关闭</a-button>
+      <a-button @click="$emit('skip')">跳过</a-button>
+      <a-button type="primary" @click="$emit('submit')">提交</a-button>
+    </template>
   </a-modal>
 </template>
 
@@ -30,5 +32,5 @@ defineProps({
   reason: { type: String, default: '' },
 })
 
-defineEmits(['update:open', 'update:reason', 'submit', 'skip'])
+defineEmits(['update:open', 'update:reason', 'submit', 'skip', 'close'])
 </script>

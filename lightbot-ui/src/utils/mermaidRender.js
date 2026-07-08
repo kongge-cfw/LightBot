@@ -52,7 +52,6 @@ export async function renderMermaidDiagrams(container, isDark = false) {
       const wrapper = document.createElement('div')
       wrapper.className = 'mermaid-diagram mermaid-diagram-clickable'
       wrapper.dataset.mermaidSource = code
-      wrapper.title = '点击查看大图'
       wrapper.innerHTML = svg
       bindFunctions?.(wrapper)
       block.replaceWith(wrapper)

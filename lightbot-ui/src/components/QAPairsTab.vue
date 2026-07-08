@@ -192,6 +192,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { SearchOutlined, PlusOutlined, RobotOutlined, EditOutlined, DeleteOutlined, EyeOutlined, CheckCircleOutlined, SyncOutlined, ClockCircleOutlined, CloseCircleOutlined, CopyOutlined, ReloadOutlined, ApiOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
+import { copyToClipboard } from '../utils/clipboard'
 import { getQAPairs, createQAPair, updateQAPair, deleteQAPair, generateQAPairs, vectorizeQAPair, batchVectorizeQAPairs } from '../api/knowledge'
 import ModelSelect from './ModelSelect.vue'
 import { formatTime } from '../utils/format'
@@ -379,12 +380,8 @@ function handleTableChange(pag) {
 }
 
 async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text || '')
-    message.success('已复制')
-  } catch {
-    message.error('复制失败')
-  }
+  const ok = await copyToClipboard(text || '')
+  message[ok ? 'success' : 'error'](ok ? '已复制' : '复制失败')
 }
 
 function truncate(str, len) {
