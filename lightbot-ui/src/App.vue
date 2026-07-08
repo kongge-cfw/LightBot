@@ -264,12 +264,21 @@ const { isDark, themeConfig } = useTheme()
   text-decoration: none;
 }
 
+/* 锁死文档外壳：滚动只允许发生在页面内部指定的滚动容器里，body 永不滚动，
+   避免可滚动页残留的 body 级滚动条让固定页也能小幅滚动 */
+html,
+body,
+#app {
+  height: 100%;
+}
+
 body {
   font-family: var(--font-sans);
   color: var(--color-ink);
   background: var(--color-canvas-soft);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
 }
 
 /* Ant Design 主题覆盖 - Vercel 风格 */

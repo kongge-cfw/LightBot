@@ -138,7 +138,8 @@ watch(
   line-height: 1.75;
   word-break: break-word;
 
-  h1, h2 { font-size: 1.25rem; margin: 1rem 0 0.5rem; }
+  h1 { font-size: 1.5rem; margin: 1rem 0 0.5rem; font-weight: 700; }
+  h2 { font-size: 1.25rem; margin: 1rem 0 0.5rem; font-weight: 600; }
   h3, h4 { font-size: 1.1rem; margin: 0.8rem 0 0.4rem; }
   h5, h6 { font-size: 1rem; margin: 0.6rem 0 0.3rem; }
 

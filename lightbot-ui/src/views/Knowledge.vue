@@ -52,21 +52,24 @@
           </a-tooltip>
         </template>
         <div class="card-stats">
-          <span class="card-stat-item">
-            <FileTextOutlined class="card-stat-icon" />
-            <span class="card-stat-value">{{ k.documentCount || 0 }}</span>
-            <span class="card-stat-label">文档</span>
-          </span>
-          <span class="card-stat-item">
-            <BlockOutlined class="card-stat-icon" />
-            <span class="card-stat-value">{{ k.chunkCount || 0 }}</span>
-            <span class="card-stat-label">分片</span>
-          </span>
-          <span class="card-stat-item">
-            <NumberOutlined class="card-stat-icon" />
-            <span class="card-stat-value">{{ formatTokenCount(k.totalTokens) }}</span>
-            <span class="card-stat-label">Token</span>
-          </span>
+          <a-tooltip title="文档数">
+            <span class="card-stat-item">
+              <FileTextOutlined class="card-stat-icon" />
+              <span class="card-stat-value">{{ k.documentCount || 0 }}</span>
+            </span>
+          </a-tooltip>
+          <a-tooltip title="分片数">
+            <span class="card-stat-item">
+              <BlockOutlined class="card-stat-icon" />
+              <span class="card-stat-value">{{ k.chunkCount || 0 }}</span>
+            </span>
+          </a-tooltip>
+          <a-tooltip title="Token 数">
+            <span class="card-stat-item">
+              <FontColorsOutlined class="card-stat-icon" />
+              <span class="card-stat-value">{{ formatTokenCount(k.totalTokens) }}</span>
+            </span>
+          </a-tooltip>
           <span v-if="k.type" class="card-type-icon-wrap">
             <a-tooltip :title="k.type === 'milvus' ? 'Milvus' : 'PostgreSQL'">
               <CloudServerOutlined v-if="k.type === 'milvus'" class="card-type-icon milvus" />
@@ -130,7 +133,7 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlusOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApartmentOutlined, DatabaseOutlined, CloudServerOutlined, FileTextOutlined, BlockOutlined, NumberOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApartmentOutlined, DatabaseOutlined, CloudServerOutlined, FileTextOutlined, BlockOutlined, FontColorsOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { getKnowledgeList, createKnowledge, deleteKnowledge } from '../api/knowledge'
 import ModelSelect from '../components/ModelSelect.vue'
@@ -250,6 +253,7 @@ onMounted(loadData)
 }
 .card-stats {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   font-size: 12px;
   color: var(--color-mute);
@@ -272,9 +276,6 @@ onMounted(loadData)
   font-weight: 600;
   color: var(--color-ink);
   font-variant-numeric: tabular-nums;
-}
-.card-stat-label {
-  color: var(--color-mute);
 }
 .card-type-icon-wrap {
   margin-left: auto;

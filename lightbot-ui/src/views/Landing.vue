@@ -361,13 +361,14 @@ onUnmounted(() => {
 
 <style scoped>
 .landing-container {
-  min-height: 100vh;
+  height: 100vh;
   display: flex;
   flex-direction: column;
   color: var(--color-ink);
   background: linear-gradient(180deg, #f0f6ff 0%, var(--color-canvas) 40%, #f8faff 100%);
   position: relative;
   overflow-x: hidden;
+  overflow-y: auto;
   font-family: var(--font-sans);
 }
 

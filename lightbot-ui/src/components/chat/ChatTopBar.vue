@@ -1,12 +1,15 @@
 <template>
   <div class="chat-topbar">
     <div class="chat-topbar-left">
-      <a-tooltip v-if="!titleEditing" title="修改标题">
+      <a-tooltip v-if="!titleEditing && titleEditable" title="修改标题">
         <div class="chat-topbar-title" @click="$emit('start-title-edit')">
           {{ sessionTitle || '新对话' }}
           <EditOutlined class="chat-topbar-title-icon" />
         </div>
       </a-tooltip>
+      <div v-else-if="!titleEditing" class="chat-topbar-title chat-topbar-title-static">
+        {{ sessionTitle || '新对话' }}
+      </div>
       <div v-else class="chat-topbar-title-edit">
         <a-input
           ref="titleInputRef"
@@ -30,7 +33,12 @@
       </div>
     </div>
     <div class="chat-topbar-right">
-      <a-tooltip title="会话文件">
+      <a-tooltip v-if="debugMode" :title="`Debug 控制台 (${debugShortcut})`">
+        <button class="btn-topbar-debug" @click="$emit('open-debug-panel')">
+          <BugOutlined />
+        </button>
+      </a-tooltip>
+      <a-tooltip v-if="showFileDrawer" title="会话文件">
         <button class="btn-topbar-file" @click="$emit('open-file-drawer')">
           <FolderOpenOutlined />
         </button>
@@ -41,12 +49,16 @@
 
 <script setup>
 import { ref } from 'vue'
-import { EditOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
+import { EditOutlined, CloseOutlined, FolderOpenOutlined, BugOutlined } from '@ant-design/icons-vue'
+import { CHAT_DEBUG_SHORTCUT } from '@/composables/chat'
 
 defineProps({
   sessionTitle: { type: String, default: '' },
   titleEditing: { type: Boolean, default: false },
   titleEditValue: { type: String, default: '' },
+  debugMode: { type: Boolean, default: false },
+  showFileDrawer: { type: Boolean, default: true },
+  titleEditable: { type: Boolean, default: true },
 })
 
 defineEmits([
@@ -55,9 +67,11 @@ defineEmits([
   'cancel-title-edit',
   'update:titleEditValue',
   'open-file-drawer',
+  'open-debug-panel',
 ])
 
 const titleInputRef = ref(null)
+const debugShortcut = CHAT_DEBUG_SHORTCUT
 
 defineExpose({
   titleInputRef,
@@ -117,6 +131,11 @@ defineExpose({
 
 .chat-topbar-title:hover .chat-topbar-title-icon {
   opacity: 1;
+}
+
+.chat-topbar-title-static {
+  cursor: default;
+  padding: 4px 8px;
 }
 
 .chat-topbar-title-edit {
@@ -179,5 +198,25 @@ defineExpose({
 .btn-topbar-file:hover {
   background: var(--color-hairline);
   color: var(--color-ink);
+}
+
+.btn-topbar-debug {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  border: none;
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.btn-topbar-debug:hover {
+  background: rgba(245, 158, 11, 0.2);
+  color: #b45309;
 }
 </style>

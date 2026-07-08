@@ -191,24 +191,57 @@ function renderWithDetailsBlocks(text, md) {
   return parts.map((part) => (part.type === 'md' ? md.render(part.content) : part.content)).join('')
 }
 
-/** 判断 --- 是否为 setext 二级标题下划线（需保留给 markdown-it 解析） */
-function isSetextDashUnderline(lines, index) {
-  let prevIdx = index - 1
-  while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--
-  if (prevIdx < 0) return false
-  const prevTrim = lines[prevIdx].trim()
-  if (!prevTrim) return false
-  return !/^#{1,6}\s/.test(prevTrim)
-    && !/^<[a-z!/]/i.test(prevTrim)
-    && !/^(-{3,}|\*{3,}|_{3,})$/.test(prevTrim)
-    && !/^<hr[\s>]/i.test(prevTrim)
-    && !/^[-*+]\s/.test(prevTrim)
-    && !/^\d+\.\s/.test(prevTrim)
-    && !/^\|/.test(prevTrim)
+/** 判断上一行是否为列表项 */
+const LIST_ITEM_RE = /^([ \t]*)([-*+]|\d+\.)\s+/
+
+/** 列表项内的缩进续行（无列表标记，2+ 空格开头） */
+function isListContinuationLine(line) {
+  return /^[ \t]{2,}\S/.test(line)
 }
 
 /**
- * 将独立成行的 --- / *** / ___ 转为 <hr> HTML（跳过代码围栏与 setext 下划线）
+ * 列表结束后若紧跟普通段落，补空行，避免 markdown-it 将段落解析为列表 lazy continuation
+ */
+function ensureBlankLineAfterLists(text) {
+  if (!text) return text
+  const lines = text.split('\n')
+  const out = []
+  let inFence = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trim = line.trim()
+
+    if (trim.startsWith('```')) {
+      inFence = !inFence
+      out.push(line)
+      continue
+    }
+    if (inFence) {
+      out.push(line)
+      continue
+    }
+
+    const isListItem = LIST_ITEM_RE.test(line)
+    const prevLine = out.length > 0 ? out[out.length - 1] : ''
+    const prevIsListItem = LIST_ITEM_RE.test(prevLine)
+
+    if (
+      !isListItem
+      && trim !== ''
+      && !isListContinuationLine(line)
+      && prevIsListItem
+    ) {
+      out.push('')
+    }
+
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+/**
+ * 将独立成行的 --- / *** / ___ 转为 <hr> HTML（跳过代码围栏）
  * 避免 markdown-it 在 HTML 块模式下吞掉后续 Markdown。
  */
 function convertStandaloneThematicBreaks(text) {
@@ -232,11 +265,8 @@ function convertStandaloneThematicBreaks(text) {
     }
 
     if (/^(-{3,})$/.test(trim)) {
-      if (isSetextDashUnderline(lines, i)) {
-        out.push(line)
-      } else {
-        out.push('<hr class="md-hr-dash" />')
-      }
+      // AI 输出中 --- 几乎总是章节分割线，而非 setext 标题下划线；统一转 <hr> 避免误解析为 h2
+      out.push('<hr class="md-hr-dash" />')
       continue
     }
     if (/^(\*{3,})$/.test(trim)) {
@@ -283,6 +313,7 @@ function preprocessMarkdown(text) {
   let s = normalizeMarkdown(text)
   s = normalizeCodeFences(s)
   s = normalizeBlankLineAfterHtmlBlocks(s)
+  s = ensureBlankLineAfterLists(s)
   s = convertStandaloneThematicBreaks(s)
   s = ensureBlankLineAfterHtmlHr(s)
   return s

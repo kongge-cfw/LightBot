@@ -37,6 +37,12 @@ const routes = [
         component: () => import('../views/Chat.vue'),
       },
       {
+        path: 'chat/debug',
+        name: 'ChatDebugLab',
+        component: () => import('../views/ChatDebugLab.vue'),
+        meta: { hideSidebar: true, title: 'Chat Debug Lab' },
+      },
+      {
         path: 'chat/:sessionId',
         name: 'ChatSession',
         component: () => import('../views/Chat.vue'),
