@@ -12,9 +12,9 @@
       <div class="sfp-header">
         <FileTextOutlined class="sfp-header-icon" />
         <span class="sfp-header-name" :title="displayName">{{ displayName }}</span>
-        <a :href="downloadUrl" target="_blank" class="sfp-download" v-if="downloadUrl">
+        <button v-if="downloadUrl" type="button" class="sfp-download" @click="handleDownload">
           <DownloadOutlined /> 下载
-        </a>
+        </button>
       </div>
       <div class="sfp-body">
         <img v-if="previewType === 'image' && contentUrl" :src="contentUrl" :alt="displayName" class="sfp-img" />
@@ -23,11 +23,11 @@
         <pre v-else-if="previewType === 'text' && content" class="sfp-text">{{ content }}</pre>
         <div v-else-if="previewType === 'download'" class="sfp-fallback">
           <p>该文件类型不支持在线预览</p>
-          <a :href="contentUrl" target="_blank" class="sfp-download"><DownloadOutlined /> 下载查看</a>
+          <button type="button" class="sfp-download" @click="handleFallbackDownload"><DownloadOutlined /> 下载查看</button>
         </div>
         <div v-else class="sfp-fallback">
           <p>{{ message || '暂不支持预览' }}</p>
-          <a v-if="contentUrl" :href="contentUrl" target="_blank" class="sfp-download"><DownloadOutlined /> 下载</a>
+          <button v-if="contentUrl" type="button" class="sfp-download" @click="handleFallbackDownload"><DownloadOutlined /> 下载</button>
         </div>
       </div>
     </div>
@@ -39,6 +39,7 @@ import { ref, watch, computed } from 'vue'
 import { LoadingOutlined, EyeOutlined, FileTextOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { getSessionFileContent, getSessionFileDownloadUrl } from '../api/chatSession'
 import MarkdownPreview from './MarkdownPreview.vue'
+import { triggerBrowserDownload } from '../utils/fileDownload'
 
 const props = defineProps({
   sessionId: { type: [String, Number], default: '' },
@@ -89,6 +90,19 @@ function reset() {
   previewType.value = ''
   message.value = ''
 }
+
+function handleDownload() {
+  if (downloadUrl.value) {
+    triggerBrowserDownload(downloadUrl.value, displayName.value || 'download')
+  }
+}
+
+function handleFallbackDownload() {
+  const url = downloadUrl.value || contentUrl.value
+  if (url) {
+    triggerBrowserDownload(url, displayName.value || 'download')
+  }
+}
 </script>
 
 <style scoped>
@@ -110,7 +124,8 @@ function reset() {
 .sfp-header-name { flex: 1; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sfp-download {
   display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--color-link);
-  padding: 4px 10px; border: 1px solid var(--color-hairline); border-radius: 6px; text-decoration: none;
+  padding: 4px 10px; border: 1px solid var(--color-hairline); border-radius: 6px;
+  background: transparent; cursor: pointer;
 }
 .sfp-download:hover { background: var(--color-canvas-soft-2); }
 

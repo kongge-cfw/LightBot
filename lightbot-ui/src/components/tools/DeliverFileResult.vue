@@ -42,10 +42,10 @@
               <div class="dfr-file-meta">{{ formatSize(file.size) }}</div>
             </div>
             <!-- 下载按钮 -->
-            <a :href="file.url" target="_blank" rel="noopener" class="dfr-download"
-               @click.stop title="下载">
+            <button type="button" class="dfr-download"
+               @click.stop="downloadArtifact(file)" title="下载">
               <DownloadOutlined />
-            </a>
+            </button>
           </div>
         </div>
 
@@ -62,7 +62,7 @@
       v-model:open="previewVisible"
       :file-name="previewFile?.name || ''"
       :file-url="previewFile?.url || ''"
-      :download-url="previewFile?.url || ''"
+      :download-url="previewDownloadUrl"
       :file-type="previewFileExt"
       :is-video="previewIsVideo"
     />
@@ -84,6 +84,7 @@ import {
   getFileExtension,
   resolveSourcePreviewKind,
 } from '../../utils/filePreview'
+import { triggerBrowserDownload } from '../../utils/fileDownload'
 
 const props = defineProps({
   event: { type: Object, required: true }
@@ -112,6 +113,17 @@ const previewIsVideo = computed(() => {
   if (!file) return false
   return resolveSourcePreviewKind(file.name, file.contentType) === 'video'
 })
+
+const previewDownloadUrl = computed(() => {
+  const file = previewFile.value
+  if (!file) return ''
+  return file.downloadUrl || file.url || ''
+})
+
+function downloadArtifact(file) {
+  if (!file) return
+  triggerBrowserDownload(file.downloadUrl || file.url, file.name || 'download')
+}
 
 function isImage(contentType, name) {
   return resolveSourcePreviewKind(name, contentType) === 'image'
@@ -273,6 +285,9 @@ function formatSize(bytes) {
     width: 32px; height: 32px; flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
     color: #7c3aed; font-size: 14px;
     transition: all 0.15s;
     &:hover {

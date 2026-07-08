@@ -21,15 +21,13 @@
           placement="bottom"
           :get-popup-container="tooltipPopupContainer"
         >
-          <a
-            :href="effectiveDownloadUrl"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
             class="fpm-download"
-            @click.stop
+            @click.stop="handleDownload"
           >
             <DownloadOutlined /> 下载
-          </a>
+          </button>
         </a-tooltip>
       </div>
     </template>
@@ -63,6 +61,7 @@ import { DownloadOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 import FileTypeIcon from './FileTypeIcon.vue'
 import FilePreview from './FilePreview.vue'
 import { getFileExtension } from '../utils/filePreview'
+import { triggerBrowserDownload } from '../utils/fileDownload'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -107,6 +106,12 @@ function tooltipPopupContainer() {
 function handleClose() {
   visible.value = false
 }
+
+function handleDownload() {
+  if (effectiveDownloadUrl.value) {
+    triggerBrowserDownload(effectiveDownloadUrl.value, displayName.value || 'download')
+  }
+}
 </script>
 
 <style scoped>
@@ -143,6 +148,9 @@ function handleClose() {
   text-decoration: none;
   padding: 4px 10px;
   border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   transition: background 0.15s;
 }
 .fpm-download:hover {

@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Map;
@@ -219,9 +220,37 @@ public class MinioUtil {
      * @return 预签名URL
      */
     public String getPresignedUrl(String filePath, String contentType) {
+        return buildPresignedUrl(filePath, contentType, "inline");
+    }
+
+    /**
+     * 获取用于浏览器下载的预签名 URL（Content-Disposition: attachment）
+     *
+     * @param filePath         MinIO 对象路径
+     * @param downloadFileName 下载时展示的文件名
+     * @param contentType      MIME 类型，可为 null
+     * @return 预签名下载 URL
+     */
+    public String getPresignedDownloadUrl(String filePath, String downloadFileName, String contentType) {
+        String name = downloadFileName;
+        if (name == null || name.isBlank()) {
+            int slash = filePath.lastIndexOf('/');
+            name = slash >= 0 ? filePath.substring(slash + 1) : filePath;
+        }
+        String asciiName = name.replaceAll("[^\\x20-\\x7E]", "_");
+        if (asciiName.isBlank()) {
+            asciiName = "download";
+        }
+        asciiName = asciiName.replace("\"", "");
+        String encodedUtf8 = URLEncoder.encode(name, StandardCharsets.UTF_8).replace("+", "%20");
+        String disposition = "attachment; filename=\"" + asciiName + "\"; filename*=UTF-8''" + encodedUtf8;
+        return buildPresignedUrl(filePath, contentType, disposition);
+    }
+
+    private String buildPresignedUrl(String filePath, String contentType, String contentDisposition) {
         try {
             Map<String, String> extraParams = new java.util.HashMap<>();
-            extraParams.put("response-content-disposition", "inline");
+            extraParams.put("response-content-disposition", contentDisposition);
             if (contentType != null && !contentType.isBlank()) {
                 extraParams.put("response-content-type", contentType);
             }

@@ -81,6 +81,7 @@ import {
 } from '@ant-design/icons-vue'
 import { getSessionFileTree, getSessionFileDownloadUrl, deleteSessionFile } from '../api/chatSession'
 import FileTypeIcon from './FileTypeIcon.vue'
+import { triggerBrowserDownload } from '../utils/fileDownload'
 
 const props = defineProps({
   sessionId: { type: [String, Number], default: '' },
@@ -230,7 +231,9 @@ async function downloadFile(raw) {
   if (!entry?.path) return
   try {
     const res = await getSessionFileDownloadUrl(props.sessionId, entry.path)
-    if (res.data) window.open(res.data, '_blank')
+    if (res.data) {
+      triggerBrowserDownload(res.data, entryDisplayName(entry))
+    }
   } catch {
     message.error('获取下载链接失败')
   }

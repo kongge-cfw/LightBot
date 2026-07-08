@@ -70,6 +70,7 @@ import { ref, computed, watch } from 'vue'
 import { renderMarkdownSync } from '@/utils/markdown_preview'
 import { FileOutlined, DownloadOutlined } from '@ant-design/icons-vue'
 import { fetchTextContent, isTextSourcePreviewable, hasSourceFilePreview, IMAGE_SOURCE_PREVIEW_EXTENSIONS } from '@/utils/filePreview'
+import { triggerBrowserDownload } from '@/utils/fileDownload'
 
 const props = defineProps({
   /** 文件URL */
@@ -160,7 +161,7 @@ watch(
 
 function handleDownload() {
   if (effectiveDownloadUrl.value) {
-    window.open(effectiveDownloadUrl.value, '_blank')
+    triggerBrowserDownload(effectiveDownloadUrl.value, props.fileName || 'download')
   }
 }
 </script>

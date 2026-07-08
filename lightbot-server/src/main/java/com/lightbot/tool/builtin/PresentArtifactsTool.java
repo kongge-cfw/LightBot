@@ -92,29 +92,29 @@ public class PresentArtifactsTool {
                     continue;
                 }
 
-                // 4. 生成预签名 URL
-                String minioPath = sandboxPath.toMinioPath();
-                String presignedUrl = minioUtil.getPresignedUrl(minioPath);
+                // 4. 推断 content type 与文件名
+                String contentType = inferContentType(normalized);
+                String name = normalized.contains("/")
+                        ? normalized.substring(normalized.lastIndexOf('/') + 1)
+                        : normalized;
 
-                // 4. 获取文件元数据
+                // 5. 生成预签名 URL（预览 inline / 下载 attachment）
+                String minioPath = sandboxPath.toMinioPath();
+                String presignedUrl = minioUtil.getPresignedUrl(minioPath, contentType);
+                String downloadUrl = minioUtil.getPresignedDownloadUrl(minioPath, name, contentType);
+
+                // 6. 获取文件元数据
                 long size = 0;
                 try {
                     size = minioUtil.statObject(minioPath).size();
                 } catch (Exception ignored) {
                 }
 
-                // 5. 推断 content type
-                String contentType = inferContentType(normalized);
-
-                // 6. 提取文件名
-                String name = normalized.contains("/")
-                        ? normalized.substring(normalized.lastIndexOf('/') + 1)
-                        : normalized;
-
                 Map<String, Object> artifact = new LinkedHashMap<>();
                 artifact.put("name", name);
                 artifact.put("path", normalized);
                 artifact.put("url", presignedUrl);
+                artifact.put("downloadUrl", downloadUrl);
                 artifact.put("size", size);
                 artifact.put("contentType", contentType);
                 artifacts.add(artifact);

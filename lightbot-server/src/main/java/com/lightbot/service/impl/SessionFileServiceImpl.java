@@ -157,8 +157,10 @@ public class SessionFileServiceImpl implements SessionFileService {
         ensureAllowedPartition(normalized);
         String objectKey = SessionStoragePath.sessionRoot(sessionId) + normalized;
         String mime = guessMimeFromName(normalized);
-        // 下载用 attachment disposition
-        return minioUtil.getPresignedUrl(objectKey, mime);
+        String fileName = normalized.contains("/")
+                ? normalized.substring(normalized.lastIndexOf('/') + 1)
+                : normalized;
+        return minioUtil.getPresignedDownloadUrl(objectKey, fileName, mime);
     }
 
     @Override
