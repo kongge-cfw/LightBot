@@ -48,6 +48,33 @@ const CODE_FENCE_LANGUAGE_RE = /(^|\n) {0,3}(```+|~~~+)[ \t]*([^\s:,`]*)/g
 
 const hasCodeFence = (content) => CODE_FENCE_RE.test(content)
 
+function extractDetailsBodies(text) {
+  if (!text || !/<details/i.test(text)) return []
+  const bodies = []
+  DETAILS_BLOCK_RE.lastIndex = 0
+  let match
+  while ((match = DETAILS_BLOCK_RE.exec(text)) !== null) {
+    const inner = match[2]
+    const summaryMatch = inner.match(/^\s*<summary[\s\S]*?<\/summary>/i)
+    const body = summaryMatch ? inner.slice(summaryMatch[0].length).trim() : inner.trim()
+    if (body) bodies.push(body)
+  }
+  return bodies
+}
+
+function hasAnyCodeFence(text) {
+  if (hasCodeFence(text)) return true
+  return extractDetailsBodies(text).some((body) => hasCodeFence(body))
+}
+
+function collectAllCodeFenceLanguages(text) {
+  const languages = new Set(collectCodeFenceLanguages(text))
+  extractDetailsBodies(text).forEach((body) => {
+    collectCodeFenceLanguages(body).forEach((lang) => languages.add(lang))
+  })
+  return [...languages]
+}
+
 const collectCodeFenceLanguages = (content) => {
   const languages = new Set()
   for (const match of String(content || '').matchAll(CODE_FENCE_LANGUAGE_RE)) {
@@ -72,27 +99,207 @@ const ensureLanguages = async (highlighter, languages) => {
   )
 }
 
-/** mermaid 代码块走独立渲染，不走 Shiki */
-function installMermaidFence(md) {
+/** 复制按钮图标（与 MarkdownPreview 复制成功态共用） */
+export const CODE_COPY_BTN_ICON = '<svg viewBox="64 64 896 896" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M832 64H296c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h496v688c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8V96c0-17.7-14.3-32-32-32z"/><path d="M704 192H192c-17.7 0-32 14.3-32 32v530c0 17.7 14.3 32 32 32h512c17.7 0 32-14.3 32-32V224c0-17.7-14.3-32-32-32zm-40 488H232V256h432v424z"/></svg>'
+
+export const CODE_COPIED_BTN_ICON = '<svg viewBox="64 64 896 896" width="1em" height="1em" fill="currentColor" aria-hidden="true"><path d="M912 190h-69.9c-9.8 0-19.1 4.5-25.1 12.2L404.7 724.5 207 474a32 32 0 00-25.1-12.2H112c-6.7 0-10.4 7.7-6.3 12.9l273.9 347c12.8 16.2 37.4 16.2 50.3 0l488.4-618.9c4.1-5.1.4-12.8-6.3-12.8z"/></svg>'
+
+/** mermaid 代码块走独立渲染；其余代码块加复制工具栏 */
+function installEnhancedFence(md) {
   const defaultFence = md.renderer.rules.fence
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const token = tokens[idx]
     const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase()
+    const rawLang = (token.info || '').trim().split(/\s+/)[0] || 'text'
+
     if (lang === 'mermaid') {
       return `<pre class="mermaid">${md.utils.escapeHtml(token.content.trimEnd())}</pre>\n`
     }
+
+    let codeHtml
     if (typeof defaultFence === 'function') {
-      return defaultFence(tokens, idx, options, env, self)
+      codeHtml = defaultFence(tokens, idx, options, env, self)
+    } else {
+      codeHtml = self.renderToken(tokens, idx, options)
     }
-    return self.renderToken(tokens, idx, options)
+
+    const langLabel = md.utils.escapeHtml(rawLang)
+    return `<div class="code-block-wrap">
+<div class="code-block-toolbar">
+<span class="code-block-lang">${langLabel}</span>
+<button type="button" class="code-copy-btn" aria-label="复制代码">${CODE_COPY_BTN_ICON}</button>
+</div>
+${codeHtml}
+</div>\n`
   }
 }
 
 function applyCommonMarkdownPlugins(md) {
   md.use(markdownKatexPlugin, { throwOnError: false, errorColor: '#cc0000', trust: false })
     .use(taskLists, { enabled: false, label: false, labelAfter: false })
-  installMermaidFence(md)
+  installEnhancedFence(md)
   return md
+}
+
+const DETAILS_BLOCK_RE = /<details(\s[^>]*)?>([\s\S]*?)<\/details>/gi
+
+/**
+ * 将 HTML details 块内的 Markdown 正文二次渲染（解决块级 HTML 内 Markdown 不解析问题）
+ * @param {string} text
+ * @param {import('markdown-it')} md
+ * @returns {string}
+ */
+function renderWithDetailsBlocks(text, md) {
+  if (!text || !/<details/i.test(text)) {
+    return md.render(text)
+  }
+
+  const parts = []
+  let lastIndex = 0
+  let match
+
+  DETAILS_BLOCK_RE.lastIndex = 0
+  while ((match = DETAILS_BLOCK_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push({ type: 'md', content: text.slice(lastIndex, match.index) })
+    }
+
+    const attrs = match[1] || ''
+    const inner = match[2]
+    const summaryMatch = inner.match(/^\s*<summary(\s[^>]*)?>([\s\S]*?)<\/summary>/i)
+
+    if (summaryMatch) {
+      const summaryAttrs = summaryMatch[1] || ''
+      const summaryHtml = summaryMatch[2]
+      const bodyMarkdown = inner.slice(summaryMatch[0].length).trim()
+      const bodyHtml = bodyMarkdown ? md.render(preprocessDetailsBody(bodyMarkdown)) : ''
+      parts.push({
+        type: 'html',
+        content: `<details class="md-details"${attrs}><summary${summaryAttrs}>${summaryHtml}</summary>${bodyHtml ? `<div class="md-details-body">${bodyHtml}</div>` : ''}</details>`,
+      })
+    } else {
+      parts.push({ type: 'md', content: match[0] })
+    }
+
+    lastIndex = DETAILS_BLOCK_RE.lastIndex
+  }
+
+  if (lastIndex < text.length) {
+    parts.push({ type: 'md', content: text.slice(lastIndex) })
+  }
+
+  return parts.map((part) => (part.type === 'md' ? md.render(part.content) : part.content)).join('')
+}
+
+/** 判断 --- 是否为 setext 二级标题下划线（需保留给 markdown-it 解析） */
+function isSetextDashUnderline(lines, index) {
+  let prevIdx = index - 1
+  while (prevIdx >= 0 && lines[prevIdx].trim() === '') prevIdx--
+  if (prevIdx < 0) return false
+  const prevTrim = lines[prevIdx].trim()
+  if (!prevTrim) return false
+  return !/^#{1,6}\s/.test(prevTrim)
+    && !/^<[a-z!/]/i.test(prevTrim)
+    && !/^(-{3,}|\*{3,}|_{3,})$/.test(prevTrim)
+    && !/^<hr[\s>]/i.test(prevTrim)
+    && !/^[-*+]\s/.test(prevTrim)
+    && !/^\d+\.\s/.test(prevTrim)
+    && !/^\|/.test(prevTrim)
+}
+
+/**
+ * 将独立成行的 --- / *** / ___ 转为 <hr> HTML（跳过代码围栏与 setext 下划线）
+ * 避免 markdown-it 在 HTML 块模式下吞掉后续 Markdown。
+ */
+function convertStandaloneThematicBreaks(text) {
+  if (!text) return text
+  const lines = text.split('\n')
+  const out = []
+  let inFence = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trim = line.trim()
+
+    if (trim.startsWith('```')) {
+      inFence = !inFence
+      out.push(line)
+      continue
+    }
+    if (inFence) {
+      out.push(line)
+      continue
+    }
+
+    if (/^(-{3,})$/.test(trim)) {
+      if (isSetextDashUnderline(lines, i)) {
+        out.push(line)
+      } else {
+        out.push('<hr class="md-hr-dash" />')
+      }
+      continue
+    }
+    if (/^(\*{3,})$/.test(trim)) {
+      out.push('<hr class="md-hr-asterisk" />')
+      continue
+    }
+    if (/^(_{3,})$/.test(trim)) {
+      out.push('<hr class="md-hr-underscore" />')
+      continue
+    }
+
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+/**
+ * HTML 块闭合标签后若紧贴 Markdown / 分割线，markdown-it 会把后续内容当 HTML 文本。
+ * 在闭合标签与后续内容之间补空行。
+ */
+function normalizeBlankLineAfterHtmlBlocks(text) {
+  if (!text || !/<\/\w+/i.test(text)) return text
+  let s = text
+  s = s.replace(
+    /(<\/[a-z][\w:-]*\s*>)[ \t]*\n(?![ \t]*\n)([ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*(?=\n|$))/gim,
+    '$1\n\n$2',
+  )
+  s = s.replace(
+    /(<\/[a-z][\w:-]*\s*>)[ \t]*\n(?![ \t]*\n)([ \t]*(?:#{1,6}\s|[-*+]\s|\d+\.\s|>|```))/gim,
+    '$1\n\n$2',
+  )
+  return s
+}
+
+/** 每个 <hr /> 行后补空行，避免连续 HTML 块吞掉后续 Markdown */
+function ensureBlankLineAfterHtmlHr(text) {
+  if (!text || !/<hr[\s>]/i.test(text)) return text
+  return text.replace(/^(<hr[^>]*\/?>)[ \t]*\n(?![ \t]*\r?\n)/gim, '$1\n\n')
+}
+
+/** Markdown 预处理 */
+function preprocessMarkdown(text) {
+  if (!text) return ''
+  let s = normalizeMarkdown(text)
+  s = normalizeCodeFences(s)
+  s = normalizeBlankLineAfterHtmlBlocks(s)
+  s = convertStandaloneThematicBreaks(s)
+  s = ensureBlankLineAfterHtmlHr(s)
+  return s
+}
+
+/** details 内嵌正文预处理 */
+function preprocessDetailsBody(text) {
+  return preprocessMarkdown(text)
+}
+
+const PURIFY_CONFIG = {
+  ADD_TAGS: ['input', 'details', 'summary', 'button', 'hr'],
+  ADD_ATTR: ['class', 'style', 'target', 'rel', 'type', 'checked', 'disabled', 'open', 'aria-label', 'title', 'data-mermaid-source'],
+}
+
+function sanitizeHtml(html) {
+  return DOMPurify.sanitize(html, PURIFY_CONFIG)
 }
 
 // ── markdown-it 渲染器工厂（带缓存）─────────────────────────────────
@@ -188,8 +395,6 @@ export function normalizeMarkdown(text) {
 
   return s
 }
-
-// ── 表格流式补丁 ──────────────────────────────────────────────────
 
 function splitTableCellsForTable(line) {
   let s = String(line).trim()
@@ -400,32 +605,30 @@ function patchStreamingMarkdown(text) {
 export async function renderMarkdown(text, { streaming = false, theme = 'github-dark' } = {}) {
   if (!text) return ''
 
-  let processed = normalizeMarkdown(text)
-  processed = normalizeCodeFences(processed)
+  let processed = preprocessMarkdown(text)
   processed = patchStreamingTables(processed)
   if (streaming) {
     processed = patchStreamingMarkdown(processed)
   }
 
   const themeName = theme === 'github-dark' ? 'github-dark' : 'github-light'
-  const needsHighlight = hasCodeFence(processed)
-  const cacheKey = `${needsHighlight ? themeName : 'plain'} ${hashStr(processed)}_${processed.length}`
+  const needsHighlight = hasAnyCodeFence(processed)
+  const cacheKey = `${needsHighlight ? themeName : 'plain'}:${hashStr(processed)}_${processed.length}`
 
   const cachedHtml = getCachedHtml(cacheKey)
   if (cachedHtml !== undefined) return cachedHtml
 
   if (needsHighlight) {
     const highlighter = await getHighlighter()
-    await ensureLanguages(highlighter, collectCodeFenceLanguages(processed))
+    await ensureLanguages(highlighter, collectAllCodeFenceLanguages(processed))
   }
 
   const md = await getRenderer(themeName, needsHighlight)
-  const rawHtml = md.render(processed)
+  const rawHtml = /<details/i.test(processed)
+    ? renderWithDetailsBlocks(processed, md)
+    : md.render(processed)
 
-  const html = DOMPurify.sanitize(rawHtml, {
-    ADD_TAGS: ['input'],
-    ADD_ATTR: ['class', 'style', 'target', 'rel', 'type', 'checked', 'disabled']
-  })
+  const html = sanitizeHtml(rawHtml)
 
   setCachedHtml(cacheKey, html)
   return html
@@ -448,9 +651,9 @@ const syncRenderer = applyCommonMarkdownPlugins(new MarkdownIt({
  */
 export function renderMarkdownSync(text) {
   if (!text) return ''
-  const rawHtml = syncRenderer.render(text)
-  return DOMPurify.sanitize(rawHtml, {
-    ADD_TAGS: ['input'],
-    ADD_ATTR: ['class', 'style', 'target', 'rel', 'type', 'checked', 'disabled']
-  })
+  const processed = preprocessMarkdown(text)
+  const rawHtml = /<details/i.test(processed)
+    ? renderWithDetailsBlocks(processed, syncRenderer)
+    : syncRenderer.render(processed)
+  return sanitizeHtml(rawHtml)
 }
