@@ -92,7 +92,7 @@ function loadSample() {
 }
 
 function loadErrorSample() {
-  resultJson.value = getToolErrorSampleResult()
+  resultJson.value = getToolErrorSampleResult(selectedTool.value)
   parseError.value = ''
 }
 

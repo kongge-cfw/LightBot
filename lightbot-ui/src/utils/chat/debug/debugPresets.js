@@ -1,4 +1,15 @@
 import { getToolDisplayName } from '@/components/toolRegistry'
+import { getToolSampleResultString } from '@/utils/chat/debug/toolDebugSamples'
+
+/** 计算 content 中 marker 之后的字符偏移（用于 toolEvents.contentOffset） */
+function offsetAfter(content, marker) {
+  const idx = content.indexOf(marker)
+  if (idx < 0) return content.length
+  return idx + marker.length
+}
+
+const MULTI_TOOLS_CONTENT = '计算完成。123 × 456 = 56088。同时为您检索了相关知识。'
+const MULTI_TOOLS_KB_OFFSET = offsetAfter(MULTI_TOOLS_CONTENT, '56088。')
 
 /** @typedef {{ id: string, label: string, message: object }} DebugPreset */
 
@@ -54,15 +65,7 @@ export const DEBUG_PRESETS = [
             toolName: 'query_knowledge',
             displayName: getToolDisplayName('query_knowledge'),
             contentOffset: 0,
-            result: JSON.stringify({
-              total: 1,
-              results: [{
-                result_type: 'document',
-                document_name: '产品介绍.md',
-                content: 'LightBot 是轻量级 Java AI Agent 平台。',
-                score: 0.95,
-              }],
-            }),
+            result: getToolSampleResultString('query_knowledge'),
           },
         ],
         workflowEvents: [],
@@ -156,7 +159,7 @@ export const DEBUG_PRESETS = [
     label: '多工具组合',
     message: {
       role: 'assistant',
-      content: '计算完成。123 × 456 = 56088。同时为您检索了相关知识。',
+      content: MULTI_TOOLS_CONTENT,
       metadata: {
         toolEvents: [
           {
@@ -171,24 +174,21 @@ export const DEBUG_PRESETS = [
             toolName: 'calculator',
             displayName: getToolDisplayName('calculator'),
             contentOffset: 0,
-            result: JSON.stringify({ expression: '123*456', result: 56088 }),
+            result: getToolSampleResultString('calculator'),
           },
           {
             type: 'tool_call',
             toolName: 'query_knowledge',
             displayName: getToolDisplayName('query_knowledge'),
             args: JSON.stringify({ query: '计算' }),
-            contentOffset: 18,
+            contentOffset: MULTI_TOOLS_KB_OFFSET,
           },
           {
             type: 'tool_result',
             toolName: 'query_knowledge',
             displayName: getToolDisplayName('query_knowledge'),
-            contentOffset: 18,
-            result: JSON.stringify({
-              total: 1,
-              results: [{ result_type: 'document', document_name: '数学手册', content: '乘法运算...', score: 0.8 }],
-            }),
+            contentOffset: MULTI_TOOLS_KB_OFFSET,
+            result: getToolSampleResultString('query_knowledge'),
           },
         ],
         workflowEvents: [],

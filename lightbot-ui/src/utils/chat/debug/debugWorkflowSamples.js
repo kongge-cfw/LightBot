@@ -8,12 +8,24 @@ import {
 } from './debugWorkflowNodeSamples'
 import { getPresetById } from './debugPresets'
 import { apiMessageToEditorJson, createDefaultApiMessage } from './debugMessageBuilder'
+import {
+  WORKFLOW_DEBUG_SCENARIOS,
+  buildWorkflowDebugFixture,
+  getWorkflowDebugScenarioOptions,
+} from './workflowDebugFixtureBuilder'
 
 export { WORKFLOW_NODE_TYPE_OPTIONS, buildWorkflowNodeSample, combineWorkflowNodeSamples }
+export { WORKFLOW_DEBUG_SCENARIOS, buildWorkflowDebugFixture, getWorkflowDebugScenarioOptions }
 
 /** 工作流专项样例 */
 export const WORKFLOW_DEBUG_SAMPLES = [
-  { id: 'full-pipeline', label: '完整链路（多节点组合）', builder: buildFullWorkflowPipelineEvents },
+  ...WORKFLOW_DEBUG_SCENARIOS.map((scenario) => ({
+    id: scenario.id,
+    label: scenario.invalid ? `${scenario.title}（非法）` : scenario.title,
+    scenarioId: scenario.id,
+    invalid: !!scenario.invalid,
+  })),
+  { id: 'legacy-full-pipeline', label: '旧版：完整链路（仅 workflowEvents）', builder: buildFullWorkflowPipelineEvents },
   { id: 'workflow-steps', label: '基础步骤', presetId: 'workflow-steps' },
   { id: 'workflow-confirm', label: '待确认', presetId: 'workflow-confirm' },
   { id: 'workflow-failure', label: '节点失败', builder: buildWorkflowFailureEvents },
@@ -34,6 +46,10 @@ export function getWorkflowSampleMessage(sampleId) {
 
   if (sample.presetId) {
     return getPresetById(sample.presetId)
+  }
+
+  if (sample.scenarioId) {
+    return buildWorkflowDebugFixture(sample.scenarioId).payload.message
   }
 
   const events = sample.builder()

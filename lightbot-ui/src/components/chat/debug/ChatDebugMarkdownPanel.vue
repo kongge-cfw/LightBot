@@ -2,6 +2,7 @@
   <div class="debug-markdown-panel">
     <div v-if="showToolbar" class="debug-panel-toolbar">
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
+      <a-button @click="loadSample">加载示例</a-button>
       <a-button @click="handleClear">清空</a-button>
     </div>
     <div class="debug-editor-label">Markdown 源码</div>
@@ -9,7 +10,7 @@
       v-model:value="localSource"
       :rows="22"
       class="debug-md-textarea"
-      placeholder="在此输入 Markdown..."
+      placeholder="在此输入 Markdown，或点击「加载示例」..."
       @change="onEdit"
     />
   </div>
@@ -17,6 +18,8 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
+import { MARKDOWN_DEBUG_SAMPLE } from '@/utils/chat/debug/markdownDebugSample'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -25,16 +28,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'parse'])
 
-const DEFAULT_MD = `# Markdown 测试
-
-普通文本 **加粗** *斜体*
-
-- 列表 A
-- 列表 B
-
-列表后的普通段落不应缩进。`
-
-const localSource = ref(props.modelValue || DEFAULT_MD)
+const localSource = ref(props.modelValue ?? '')
 
 watch(() => props.modelValue, (val) => {
   if (val != null && val !== localSource.value) {
@@ -46,6 +40,12 @@ function onEdit() {
   emit('update:modelValue', localSource.value)
 }
 
+function loadSample() {
+  localSource.value = MARKDOWN_DEBUG_SAMPLE
+  emit('update:modelValue', localSource.value)
+  message.success('示例已加载，点击「解析预览」查看效果')
+}
+
 function handleClear() {
   localSource.value = ''
   emit('update:modelValue', '')
@@ -53,6 +53,7 @@ function handleClear() {
 
 defineExpose({
   getSource: () => localSource.value,
+  loadSample,
   handleClear,
 })
 </script>
