@@ -61,7 +61,7 @@ const ensureLanguages = async (highlighter, languages) => {
   const loaded = new Set(highlighter.getLoadedLanguages())
   await Promise.all(
     languages
-      .filter((language) => !loaded.has(language))
+      .filter((language) => !loaded.has(language) && language !== 'mermaid')
       .map((language) => {
         try {
           return highlighter.loadLanguage(language).catch(() => null)
@@ -72,12 +72,35 @@ const ensureLanguages = async (highlighter, languages) => {
   )
 }
 
+/** mermaid 代码块走独立渲染，不走 Shiki */
+function installMermaidFence(md) {
+  const defaultFence = md.renderer.rules.fence
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx]
+    const lang = (token.info || '').trim().split(/\s+/)[0].toLowerCase()
+    if (lang === 'mermaid') {
+      return `<pre class="mermaid">${md.utils.escapeHtml(token.content.trimEnd())}</pre>\n`
+    }
+    if (typeof defaultFence === 'function') {
+      return defaultFence(tokens, idx, options, env, self)
+    }
+    return self.renderToken(tokens, idx, options)
+  }
+}
+
+function applyCommonMarkdownPlugins(md) {
+  md.use(markdownKatexPlugin, { throwOnError: false, errorColor: '#cc0000', trust: false })
+    .use(taskLists, { enabled: false, label: false, labelAfter: false })
+  installMermaidFence(md)
+  return md
+}
+
 // ── markdown-it 渲染器工厂（带缓存）─────────────────────────────────
 
 const rendererCache = new Map()
 
-const createRenderer = ({ themeName, highlighter }) =>
-  new MarkdownIt({
+const createRenderer = ({ themeName, highlighter }) => {
+  const md = new MarkdownIt({
     html: true,
     breaks: true,
     linkify: true,
@@ -85,14 +108,15 @@ const createRenderer = ({ themeName, highlighter }) =>
     highlight: highlighter
       ? (code, lang) => {
           const language = normalizeCodeLanguage(lang)
+          if (language === 'mermaid') return ''
           const loadedLanguages = highlighter.getLoadedLanguages()
           const targetLanguage = loadedLanguages.includes(language) ? language : 'plaintext'
           return highlighter.codeToHtml(code, { lang: targetLanguage, theme: themeName })
         }
       : undefined
   })
-    .use(markdownKatexPlugin, { throwOnError: false, errorColor: '#cc0000', trust: false })
-    .use(taskLists, { enabled: false, label: false, labelAfter: false })
+  return applyCommonMarkdownPlugins(md)
+}
 
 const getRenderer = async (theme, needsHighlight) => {
   const cacheKey = needsHighlight ? theme : 'plain'
@@ -409,14 +433,12 @@ export async function renderMarkdown(text, { streaming = false, theme = 'github-
 
 // ── 同步渲染（供 computed 等同步场景使用，无 Shiki 高亮）────────────
 
-const syncRenderer = new MarkdownIt({
+const syncRenderer = applyCommonMarkdownPlugins(new MarkdownIt({
   html: true,
   breaks: true,
   linkify: true,
   typographer: true
-})
-  .use(markdownKatexPlugin, { throwOnError: false, errorColor: '#cc0000', trust: false })
-  .use(taskLists, { enabled: false, label: false, labelAfter: false })
+}))
 
 /**
  * 同步渲染 Markdown 为 HTML（无 Shiki 高亮，使用内置高亮）

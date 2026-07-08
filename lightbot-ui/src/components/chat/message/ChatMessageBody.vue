@@ -44,6 +44,11 @@
             :mentions="getMsgMentions(msg)"
             :finalized="isSegmentFinalized(msg, segment, si)"
           />
+          <PlainTextContent
+            v-else-if="msg?.role === 'user'"
+            :content="segment.text"
+            :finalized="isSegmentFinalized(msg, segment, si)"
+          />
           <MarkdownPreview v-else :content="segment.text" :finalized="isSegmentFinalized(msg, segment, si)" />
         </div>
         <div v-else-if="segment.type === 'tool'" class="tool-block-inline">
@@ -76,6 +81,11 @@
           :mentions="getMsgMentions(msg)"
           :finalized="!msg._streaming"
         />
+        <PlainTextContent
+          v-else-if="msg?.role === 'user'"
+          :content="msg.content"
+          :finalized="!msg._streaming"
+        />
         <MarkdownPreview v-else :content="msg.content" :finalized="!msg._streaming" />
       </div>
     </template>
@@ -96,6 +106,7 @@
 <script setup>
 import { computed } from 'vue'
 import MarkdownPreview from '../../MarkdownPreview.vue'
+import PlainTextContent from '../../PlainTextContent.vue'
 import ToolCallsGroupComponent from '../../ToolCallsGroupComponent.vue'
 import WorkflowNodesGroupComponent from '../../WorkflowNodesGroupComponent.vue'
 import WorkflowConfirmForm from '../../WorkflowConfirmForm.vue'
@@ -271,6 +282,9 @@ defineEmits([
   border-radius: 12px 12px 2px 12px;
   text-align: left;
   max-width: 80%;
+}
+.message.user .message-content-wrapper.user-message-stack .message-body-inner .message-content .plain-text-content {
+  line-height: 1.5;
 }
 .message.user .message-content-wrapper.user-message-stack .message-body-inner .message-content .markdown-preview p {
   margin: 0;

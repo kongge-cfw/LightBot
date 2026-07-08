@@ -7,8 +7,10 @@
 </template>
 
 <script setup>
-import { watch, shallowRef, ref, onBeforeUnmount } from 'vue'
+import { watch, shallowRef, ref, nextTick } from 'vue'
 import { renderMarkdown } from '@/utils/markdown_preview'
+import { renderMermaidDiagrams, resetMermaidTheme } from '@/utils/mermaidRender'
+import { useTheme } from '@/composables/useTheme'
 import ChatMediaPreview from '@/components/ChatMediaPreview.vue'
 import 'katex/dist/katex.min.css'
 
@@ -22,6 +24,7 @@ const props = defineProps({
   stripFrontmatter: { type: Boolean, default: false },
 })
 
+const { isDark } = useTheme()
 const renderedHtml = shallowRef('')
 const containerRef = ref(null)
 
@@ -57,7 +60,7 @@ function stripFrontmatter(text) {
 }
 
 watch(
-  () => [props.content, props.finalized],
+  () => [props.content, props.finalized, isDark.value],
   async ([val, finalized], _, onCleanup) => {
     let expired = false
     onCleanup(() => { expired = true })
@@ -68,8 +71,17 @@ watch(
     }
 
     const textToRender = props.stripFrontmatter ? stripFrontmatter(val) : val
-    const html = await renderMarkdown(textToRender, { streaming: !finalized })
-    if (!expired) renderedHtml.value = html
+    const theme = isDark.value ? 'github-dark' : 'github-light'
+    const html = await renderMarkdown(textToRender, { streaming: !finalized, theme })
+    if (expired) return
+    renderedHtml.value = html
+
+    if (finalized && html.includes('class="mermaid"')) {
+      await nextTick()
+      if (expired) return
+      resetMermaidTheme()
+      await renderMermaidDiagrams(containerRef.value, isDark.value)
+    }
   },
   { immediate: true }
 )
@@ -185,6 +197,53 @@ watch(
   }
   img:hover {
     transform: scale(1.02);
+  }
+
+  .mermaid-diagram {
+    margin: 0.8rem 0;
+    padding: 12px;
+    border: 1px solid var(--gray-100);
+    border-radius: 8px;
+    background: var(--color-canvas);
+    overflow-x: auto;
+    text-align: center;
+  }
+  .mermaid-diagram svg {
+    max-width: 100%;
+    height: auto;
+  }
+  pre.mermaid {
+    margin: 0.8rem 0;
+    padding: 12px 14px;
+    border: 1px solid var(--gray-100);
+    border-radius: 8px;
+    background: var(--gray-25);
+    font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow: auto;
+    white-space: pre;
+  }
+  pre.mermaid.mermaid-render-error {
+    border-color: #fca5a5;
+    color: #b91c1c;
+  }
+
+  /* Shiki 代码高亮块 */
+  pre.shiki {
+    margin: 0.6rem 0;
+    padding: 12px 14px;
+    border: 1px solid var(--gray-100);
+    border-radius: 8px;
+    overflow: auto;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  pre.shiki code {
+    padding: 0;
+    background: none;
+    border-radius: 0;
+    font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
   }
 }
 .no-image-preview img {
