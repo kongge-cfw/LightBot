@@ -6,17 +6,14 @@
 
 <script setup>
 import { onMounted, onUnmounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { useTheme } from './composables/useTheme'
-import { handleDebugShortcut } from './composables/chat/useChatDebugMode'
+import { handleDebugLabShortcut } from './utils/chat/debug/debugLabShortcut'
 
 const { isDark, themeConfig } = useTheme()
-const route = useRoute()
-const router = useRouter()
 
 function onGlobalKeydown(e) {
-  handleDebugShortcut(e, { routeName: route.name, router })
+  handleDebugLabShortcut(e)
 }
 
 onMounted(() => {

@@ -1,27 +1,61 @@
+import {
+  buildFullWorkflowPipelineEvents,
+  buildWorkflowFailureEvents,
+  buildWorkflowRetryEvents,
+  buildWorkflowNodeSample,
+  combineWorkflowNodeSamples,
+  WORKFLOW_NODE_TYPE_OPTIONS,
+} from './debugWorkflowNodeSamples'
 import { getPresetById } from './debugPresets'
+import { apiMessageToEditorJson, createDefaultApiMessage } from './debugMessageBuilder'
+
+export { WORKFLOW_NODE_TYPE_OPTIONS, buildWorkflowNodeSample, combineWorkflowNodeSamples }
 
 /** 工作流专项样例 */
 export const WORKFLOW_DEBUG_SAMPLES = [
-  { id: 'workflow-steps', label: '工作流步骤', presetId: 'workflow-steps' },
-  { id: 'workflow-confirm', label: '工作流待确认', presetId: 'workflow-confirm' },
-  { id: 'tool-error', label: '工具错误（对照）', presetId: 'tool-error' },
+  { id: 'full-pipeline', label: '完整链路（多节点组合）', builder: buildFullWorkflowPipelineEvents },
+  { id: 'workflow-steps', label: '基础步骤', presetId: 'workflow-steps' },
+  { id: 'workflow-confirm', label: '待确认', presetId: 'workflow-confirm' },
+  { id: 'workflow-failure', label: '节点失败', builder: buildWorkflowFailureEvents },
+  { id: 'workflow-retry', label: '节点重试', builder: buildWorkflowRetryEvents },
+  { id: 'llm-only', label: '单节点：LLM', builder: () => buildWorkflowNodeSample('llm') },
+  { id: 'retrieval-only', label: '单节点：检索', builder: () => buildWorkflowNodeSample('retrieval') },
+  { id: 'tool-only', label: '单节点：工具', builder: () => buildWorkflowNodeSample('tool') },
+  { id: 'classifier-only', label: '单节点：分类', builder: () => buildWorkflowNodeSample('classifier') },
 ]
-
-export function getWorkflowSampleMessage(sampleId) {
-  const sample = WORKFLOW_DEBUG_SAMPLES.find((s) => s.id === sampleId)
-  if (!sample) return null
-  return getPresetById(sample.presetId)
-}
 
 export function getWorkflowSampleOptions() {
   return WORKFLOW_DEBUG_SAMPLES.map((s) => ({ value: s.id, label: s.label }))
 }
 
-/** 默认 workflowEvents 编辑模板 */
-export function createDefaultWorkflowEventsJson() {
-  return JSON.stringify([
-    { type: 'workflow_node_start', nodeId: 'n1', nodeLabel: '开始', nodeType: 'start' },
-    { type: 'workflow_node_complete', nodeId: 'n1', nodeLabel: '开始', success: true, durationMs: 10 },
-    { type: 'workflow_complete', success: true },
-  ], null, 2)
+export function getWorkflowSampleMessage(sampleId) {
+  const sample = WORKFLOW_DEBUG_SAMPLES.find((s) => s.id === sampleId)
+  if (!sample) return null
+
+  if (sample.presetId) {
+    return getPresetById(sample.presetId)
+  }
+
+  const events = sample.builder()
+  const base = createDefaultApiMessage()
+  return {
+    ...base,
+    content: '以下为工作流节点渲染预览，展开节点可查看 outputs / 返回信息。',
+    metadata: {
+      ...base.metadata,
+      workflowEvents: events,
+    },
+  }
+}
+
+export function buildWorkflowMessageFromEvents(events, content) {
+  const base = createDefaultApiMessage()
+  return apiMessageToEditorJson({
+    ...base,
+    content: content || '工作流节点样式预览。',
+    metadata: {
+      ...base.metadata,
+      workflowEvents: events,
+    },
+  })
 }

@@ -1,11 +1,10 @@
 <template>
   <div class="chat-container">
     <ChatTopBar
-      v-if="sessionId || debugMode"
-      :session-title="sessionId ? sessionTitle : (debugMode ? 'Debug 模式' : '')"
+      v-if="sessionId"
+      :session-title="sessionTitle"
       :title-editing="titleEditing"
       :title-edit-value="titleEditValue"
-      :debug-mode="debugMode"
       :show-file-drawer="!!sessionId"
       :title-editable="!!sessionId"
       @start-title-edit="startTitleEdit"
@@ -13,7 +12,6 @@
       @cancel-title-edit="cancelTitleEdit"
       @update:title-edit-value="titleEditValue = $event"
       @open-file-drawer="openFileDrawer"
-      @open-debug-panel="debugPanelOpen = true"
     />
 
     <div ref="messagesRef" class="chat-messages">
@@ -75,7 +73,6 @@
             :messages-length="messages.length"
             :refs-section-expanded="isRefsSectionExpanded(messages[virtualRow.index])"
             :is-ref-expanded="(refIndex) => isReferenceExpanded(messages[virtualRow.index], refIndex)"
-            :debug-mode="debugMode"
             @update:edit-content="editContent = $event"
             @cancel-edit="cancelEdit"
             @submit-edit="submitEdit"
@@ -99,7 +96,6 @@
             @rag-toggle="onRagToggle(virtualRow.index, $event)"
             @reasoning-toggle="toggleReasoningExpand(virtualRow.index)"
             @go-knowledge="({ knowledgeId, documentId }) => goToKnowledge(knowledgeId, documentId)"
-            @send-to-debug-lab="sendMessageToDebugLabFromChat(messages[virtualRow.index])"
           />
         </div>
       </div>
@@ -206,7 +202,7 @@
       :file="sessionFilePreviewTarget"
     />
 
-    <ChatDebugPanel v-model:open="debugPanelOpen" />
+
   </div>
 </template>
 
@@ -223,7 +219,6 @@ import ChatInputArea from '../components/chat/input/ChatInputArea.vue'
 import ChatRawContentModal from '../components/chat/modals/ChatRawContentModal.vue'
 import ChatAskUserModal from '../components/chat/modals/ChatAskUserModal.vue'
 import ChatFeedbackDislikeModal from '../components/chat/modals/ChatFeedbackDislikeModal.vue'
-import ChatDebugPanel from '../components/chat/modals/ChatDebugPanel.vue'
 import ChatSessionFilesDrawer from '../components/chat/session/ChatSessionFilesDrawer.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
 import { useChatAgents } from '../composables/useChatAgents'
@@ -244,8 +239,6 @@ import {
   useChatStream,
   useChatMessageActions,
   useChatSessionChrome,
-  useChatDebugMode,
-  sendMessageToDebugLab,
   getMsgRagRefs,
   clearErrorRetry,
 } from '../composables/chat'
@@ -254,10 +247,6 @@ const route = useRoute()
 const router = useRouter()
 
 const sessionId = computed(() => route.params.sessionId || null)
-const {
-  debugMode,
-  debugPanelOpen,
-} = useChatDebugMode()
 
 const input = ref('')
 const inputHistory = ref([])
@@ -488,10 +477,6 @@ function onRagToggle(index, payload) {
 function goToKnowledge(knowledgeId, documentId) {
   const query = documentId ? { docId: String(documentId) } : {}
   router.push({ path: `/app/knowledge/${knowledgeId}`, query })
-}
-
-function sendMessageToDebugLabFromChat(msg) {
-  sendMessageToDebugLab(router, msg, { tab: 'composer' })
 }
 
 function handleChatKeydown(e) {

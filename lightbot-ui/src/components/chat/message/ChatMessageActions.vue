@@ -57,11 +57,6 @@
         <TagOutlined v-else />
       </button>
     </a-tooltip>
-    <a-tooltip v-if="showSendToDebug" title="发送到 Debug Lab">
-      <button class="btn-copy btn-action-text" @click="$emit('send-to-debug-lab')">
-        <ExperimentOutlined />
-      </button>
-    </a-tooltip>
     <a-tooltip v-if="showViewRaw" title="查看原始内容">
       <button
         class="btn-copy"
@@ -129,7 +124,6 @@ import {
   CopyOutlined, CheckOutlined, ReloadOutlined, NumberOutlined, TagOutlined,
   EyeOutlined, EditOutlined, CommentOutlined, LikeOutlined, DislikeOutlined,
   LikeFilled, DislikeFilled, StarOutlined, StarFilled, DeleteOutlined, SoundOutlined,
-  ExperimentOutlined,
 } from '@ant-design/icons-vue'
 import { formatTime } from '../../../utils/format'
 import { hasMessageActionContext } from '../../../utils/chat/messageViewState.js'
@@ -145,7 +139,6 @@ const props = defineProps({
   speakingMsgKey: { type: [Number, String], default: null },
   showTtsBtn: { type: Boolean, default: false },
   feedbackType: { type: String, default: null },
-  debugMode: { type: Boolean, default: false },
 })
 
 defineEmits([
@@ -161,7 +154,6 @@ defineEmits([
   'view-raw',
   'copy-request-id',
   'copy-message-id',
-  'send-to-debug-lab',
 ])
 
 const hasActionContext = computed(() => hasMessageActionContext(props.msg))
@@ -191,9 +183,6 @@ const showFeedback = computed(() => props.msg.role === 'assistant'
   && actionProfile.value === 'normal'
   && !!(props.msg._id || props.msg._terminated))
 const showStar = computed(() => actionProfile.value === 'normal')
-const showSendToDebug = computed(() => props.debugMode
-  && props.msg.role === 'assistant'
-  && (actionProfile.value === 'normal' || isErrorProfile.value))
 </script>
 
 <style scoped>

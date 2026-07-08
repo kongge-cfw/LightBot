@@ -1,50 +1,35 @@
 <template>
   <div class="debug-ui-state-bar">
-    <span class="debug-ui-state-label">UI 态</span>
-    <a-checkbox
-      :checked="localState.streaming"
-      @change="(e) => patch({ streaming: e.target.checked })"
-    >
-      streaming
-    </a-checkbox>
-    <a-checkbox
-      :checked="localState.reasoningExpanded"
-      @change="(e) => patch({ reasoningExpanded: e.target.checked })"
-    >
-      reasoningExpanded
-    </a-checkbox>
-    <a-checkbox
-      :checked="localState.reasoningDone"
-      :disabled="localState.streaming"
-      @change="(e) => patch({ reasoningDone: e.target.checked })"
-    >
-      reasoningDone
-    </a-checkbox>
-    <a-checkbox
-      :checked="localState.toolsDone"
-      :disabled="localState.streaming"
-      @change="(e) => patch({ toolsDone: e.target.checked })"
-    >
-      toolsDone
-    </a-checkbox>
-    <a-checkbox
-      :checked="localState.toolExpanded"
-      @change="(e) => patch({ toolExpanded: e.target.checked })"
-    >
-      toolExpanded
-    </a-checkbox>
-    <a-checkbox
-      :checked="localState.refsSectionExpanded"
-      @change="(e) => patch({ refsSectionExpanded: e.target.checked })"
-    >
-      refsExpanded
-    </a-checkbox>
+    <span class="debug-ui-state-label-wrap">
+      <span class="debug-ui-state-label">UI 态</span>
+      <a-tooltip :title="DEBUG_UI_STATE_TOOLTIPS.overview" placement="topLeft">
+        <QuestionCircleOutlined class="debug-ui-state-help" />
+      </a-tooltip>
+    </span>
+
+    <span v-for="item in uiStateItems" :key="item.key" class="debug-ui-state-item">
+      <a-checkbox
+        :checked="localState[item.key]"
+        :disabled="item.disabled?.(localState)"
+        @change="(e) => patch({ [item.key]: e.target.checked })"
+      >
+        {{ item.label }}
+      </a-checkbox>
+      <a-tooltip :title="item.tip" placement="top">
+        <QuestionCircleOutlined class="debug-ui-state-help" />
+      </a-tooltip>
+    </span>
   </div>
 </template>
 
 <script setup>
 import { reactive, watch } from 'vue'
-import { DEFAULT_DEBUG_UI_STATE, normalizeDebugUiState } from '@/utils/chat/debug/debugUiState'
+import { QuestionCircleOutlined } from '@ant-design/icons-vue'
+import {
+  DEFAULT_DEBUG_UI_STATE,
+  DEBUG_UI_STATE_TOOLTIPS,
+  normalizeDebugUiState,
+} from '@/utils/chat/debug/debugUiState'
 
 const props = defineProps({
   modelValue: { type: Object, default: () => ({ ...DEFAULT_DEBUG_UI_STATE }) },
@@ -53,6 +38,33 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue'])
 
 const localState = reactive(normalizeDebugUiState(props.modelValue))
+
+const uiStateItems = [
+  { key: 'streaming', label: 'streaming', tip: DEBUG_UI_STATE_TOOLTIPS.streaming },
+  {
+    key: 'reasoningExpanded',
+    label: 'reasoningExpanded',
+    tip: DEBUG_UI_STATE_TOOLTIPS.reasoningExpanded,
+  },
+  {
+    key: 'reasoningDone',
+    label: 'reasoningDone',
+    tip: DEBUG_UI_STATE_TOOLTIPS.reasoningDone,
+    disabled: (state) => state.streaming,
+  },
+  {
+    key: 'toolsDone',
+    label: 'toolsDone',
+    tip: DEBUG_UI_STATE_TOOLTIPS.toolsDone,
+    disabled: (state) => state.streaming,
+  },
+  { key: 'toolExpanded', label: 'toolExpanded', tip: DEBUG_UI_STATE_TOOLTIPS.toolExpanded },
+  {
+    key: 'refsSectionExpanded',
+    label: 'refsExpanded',
+    tip: DEBUG_UI_STATE_TOOLTIPS.refsSectionExpanded,
+  },
+]
 
 watch(() => props.modelValue, (val) => {
   Object.assign(localState, normalizeDebugUiState(val))
@@ -81,10 +93,27 @@ function patch(partial) {
   background: var(--color-canvas);
 }
 
+.debug-ui-state-label-wrap,
+.debug-ui-state-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .debug-ui-state-label {
   font-size: 12px;
   font-weight: 600;
   color: var(--gray-600);
-  margin-right: 4px;
+}
+
+.debug-ui-state-help {
+  font-size: 12px;
+  color: var(--gray-400);
+  cursor: help;
+  flex-shrink: 0;
+}
+
+.debug-ui-state-help:hover {
+  color: var(--color-link);
 }
 </style>

@@ -46,7 +46,6 @@
           :speaking-msg-key="speakingMsgKey"
           :show-tts-btn="showTtsBtn"
           :feedback-type="feedbackType"
-          :debug-mode="debugMode"
           @copy="$emit('copy')"
           @regenerate="$emit('regenerate')"
           @edit="$emit('edit')"
@@ -59,7 +58,6 @@
           @view-raw="$emit('view-raw')"
           @copy-request-id="$emit('copy-request-id')"
           @copy-message-id="$emit('copy-message-id')"
-          @send-to-debug-lab="$emit('send-to-debug-lab')"
         />
       </div>
       <ChatRagReferences
@@ -115,7 +113,6 @@ const props = defineProps({
   messagesLength: { type: Number, default: 0 },
   refsSectionExpanded: { type: Boolean, default: true },
   isRefExpanded: { type: Function, default: () => () => false },
-  debugMode: { type: Boolean, default: false },
 })
 
 defineEmits([
@@ -143,7 +140,6 @@ defineEmits([
   'rag-toggle',
   'reasoning-toggle',
   'go-knowledge',
-  'send-to-debug-lab',
 ])
 
 const viewState = computed(() => buildMessageViewState(props.msg, {

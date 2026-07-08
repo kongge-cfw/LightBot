@@ -16,7 +16,7 @@
           :value="titleEditValue"
           size="small"
           :maxlength="50"
-          @update:value="$emit('update:titleEditValue', $event)"
+          @update:value="$emit('update:title-edit-value', $event)"
           @press-enter="$emit('confirm-title-edit')"
           @blur="$emit('confirm-title-edit')"
           @keydown.esc="$emit('cancel-title-edit')"
@@ -33,11 +33,6 @@
       </div>
     </div>
     <div class="chat-topbar-right">
-      <a-tooltip v-if="debugMode" :title="`Debug 控制台 (${debugShortcut})`">
-        <button class="btn-topbar-debug" @click="$emit('open-debug-panel')">
-          <BugOutlined />
-        </button>
-      </a-tooltip>
       <a-tooltip v-if="showFileDrawer" title="会话文件">
         <button class="btn-topbar-file" @click="$emit('open-file-drawer')">
           <FolderOpenOutlined />
@@ -49,14 +44,12 @@
 
 <script setup>
 import { ref } from 'vue'
-import { EditOutlined, CloseOutlined, FolderOpenOutlined, BugOutlined } from '@ant-design/icons-vue'
-import { CHAT_DEBUG_SHORTCUT } from '@/composables/chat'
+import { EditOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
 
 defineProps({
   sessionTitle: { type: String, default: '' },
   titleEditing: { type: Boolean, default: false },
   titleEditValue: { type: String, default: '' },
-  debugMode: { type: Boolean, default: false },
   showFileDrawer: { type: Boolean, default: true },
   titleEditable: { type: Boolean, default: true },
 })
@@ -65,13 +58,11 @@ defineEmits([
   'start-title-edit',
   'confirm-title-edit',
   'cancel-title-edit',
-  'update:titleEditValue',
+  'update:title-edit-value',
   'open-file-drawer',
-  'open-debug-panel',
 ])
 
 const titleInputRef = ref(null)
-const debugShortcut = CHAT_DEBUG_SHORTCUT
 
 defineExpose({
   titleInputRef,
