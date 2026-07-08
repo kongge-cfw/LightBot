@@ -48,7 +48,6 @@ import {
   LoadingOutlined,
 } from '@ant-design/icons-vue'
 import FileTypeIcon from './FileTypeIcon.vue'
-import { canOpenSourcePreview } from '../utils/filePreview'
 
 const props = defineProps({
   att: { type: Object, required: true },
@@ -81,8 +80,8 @@ const canPreview = computed(() => {
   if (att.type === 'image' || att.type === 'video') {
     return Boolean(props.thumbUrl || att.previewUrl)
   }
+  // 文档一律渲染 tile 按钮：可预览类型正常预览，不支持的类型点击后由预览弹窗提示「XX 格式不支持在线预览」
   if (att.type === 'document') {
-    if (!canOpenSourcePreview(att.fileName || '')) return false
     return Boolean(att.previewUrl || att.objectKey)
   }
   return false

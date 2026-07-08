@@ -40,6 +40,13 @@ public class SessionFileServiceImpl implements SessionFileService {
 
     private static final Set<String> TEXT_MIMES = Set.of(
             "text/plain", "text/markdown", "text/html", "text/csv", "application/json", "application/xml");
+    /** 底层为纯文本、可直接读取预览的扩展名（与前端 filePreview.js 的 TEXT_SOURCE_PREVIEW_EXTENSIONS 保持一致） */
+    private static final Set<String> TEXT_EXTENSIONS = Set.of(
+            "md", "markdown", "txt", "text", "csv", "tsv", "json", "jsonl", "ndjson", "xml", "log",
+            "yaml", "yml", "ini", "conf", "cfg", "toml", "properties", "env", "editorconfig",
+            "js", "mjs", "cjs", "ts", "tsx", "jsx", "vue", "py", "java", "go", "rs", "rb", "php",
+            "c", "h", "cpp", "hpp", "cc", "cs", "kt", "kts", "scala", "swift", "sql", "sh", "bash", "zsh",
+            "gradle", "dockerfile", "gitignore", "makefile");
     private static final long MAX_TEXT_PREVIEW_BYTES = 512 * 1024L;
 
     private final MinioUtil minioUtil;
@@ -419,6 +426,14 @@ public class SessionFileServiceImpl implements SessionFileService {
         }
         if (TEXT_MIMES.contains(mime)) {
             return "text";
+        }
+        // 按扩展名兜底判定：MinIO 常返回 application/octet-stream，纯靠 MIME 判不出
+        int dot = name.lastIndexOf('.');
+        if (dot > 0 && dot < name.length() - 1) {
+            String ext = name.substring(dot + 1).toLowerCase();
+            if (TEXT_EXTENSIONS.contains(ext)) {
+                return "text";
+            }
         }
         return "unsupported";
     }

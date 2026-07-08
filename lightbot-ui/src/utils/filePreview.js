@@ -1,6 +1,22 @@
-/** 需拉取文本内容后预览的扩展名（与知识库 FilePreview 一致） */
+/**
+ * 底层为纯文本、可直接读取预览的扩展名（数据/配置/脚本/源码等）。
+ * 大量文件本质是文本（如 jsonl、yaml），统一在此集中维护，前后端保持一致。
+ */
+export const TEXT_SOURCE_PREVIEW_EXTENSIONS = new Set([
+  // 文档 / 数据
+  'md', 'markdown', 'txt', 'text', 'csv', 'tsv', 'json', 'jsonl', 'ndjson', 'xml', 'log',
+  // 配置
+  'yaml', 'yml', 'ini', 'conf', 'cfg', 'toml', 'properties', 'env', 'editorconfig',
+  // 脚本 / 源码
+  'js', 'mjs', 'cjs', 'ts', 'tsx', 'jsx', 'vue', 'py', 'java', 'go', 'rs', 'rb', 'php',
+  'c', 'h', 'cpp', 'hpp', 'cc', 'cs', 'kt', 'kts', 'scala', 'swift', 'sql', 'sh', 'bash', 'zsh',
+  // 其他文本
+  'gradle', 'dockerfile', 'gitignore', 'makefile',
+])
+
+/** 需拉取文本内容后预览的扩展名（与 TEXT_SOURCE_PREVIEW_EXTENSIONS 保持一致，另含 html） */
 export const TEXT_LIKE_EXTENSIONS = new Set([
-  'txt', 'md', 'markdown', 'csv', 'json', 'xml', 'log', 'html', 'htm',
+  ...TEXT_SOURCE_PREVIEW_EXTENSIONS, 'html', 'htm',
 ])
 
 /** 知识库不提供「源文件预览」的 Office 类型（与 KnowledgeDetail.hasSourcePreview 一致） */
@@ -10,11 +26,6 @@ export const OFFICE_NO_SOURCE_PREVIEW_EXTENSIONS = new Set([
 
 /** iframe 源文件预览（pdf / html） */
 export const IFRAME_PREVIEW_EXTENSIONS = new Set(['pdf', 'html', 'htm'])
-
-/** 文本拉取后源文件预览 */
-export const TEXT_SOURCE_PREVIEW_EXTENSIONS = new Set([
-  'md', 'markdown', 'txt', 'csv', 'json', 'xml', 'log',
-])
 
 /**
  * @param {string} fileName
