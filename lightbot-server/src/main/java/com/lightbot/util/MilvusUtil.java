@@ -637,9 +637,11 @@ public class MilvusUtil {
      * @param knowledgeId 知识库ID
      * @param queryText   查询文本
      * @param topK        返回数量
+     * @param dropRatioSearch BM25 稀疏项丢弃比例
      * @return 检索结果列表
      */
-    public List<Map<String, Object>> searchKeyword(Long knowledgeId, String queryText, int topK) {
+    public List<Map<String, Object>> searchKeyword(Long knowledgeId, String queryText,
+                                                    int topK, float dropRatioSearch) {
         String collName = collectionName(knowledgeId);
 
         SearchReq req = SearchReq.builder()
@@ -648,6 +650,7 @@ public class MilvusUtil {
                 .annsField("content_sparse")
                 .topK(topK)
                 .metricType(IndexParam.MetricType.BM25)
+                .searchParams(Map.of("drop_ratio_search", dropRatioSearch))
                 .outputFields(List.of("id", "document_id", "content"))
                 .build();
 
@@ -665,13 +668,16 @@ public class MilvusUtil {
      * @param vectorWeight 向量权重
      * @param bm25Weight   BM25 权重
      * @param bm25TopK     BM25 候选数量
+     * @param dropRatioSearch BM25 稀疏项丢弃比例
      * @return 检索结果列表
      */
     public List<Map<String, Object>> searchHybrid(Long knowledgeId, String queryText,
                                                    float[] queryVector, int topK,
                                                    float vectorWeight, float bm25Weight,
-                                                   int bm25TopK) {
+                                                   int bm25TopK, float dropRatioSearch) {
         String collName = collectionName(knowledgeId);
+        String bm25Params = String.format(Locale.ROOT,
+                "{\"drop_ratio_search\":%.6f}", dropRatioSearch);
 
         // 向量检索请求
         AnnSearchReq vectorReq = AnnSearchReq.builder()
@@ -687,6 +693,7 @@ public class MilvusUtil {
                 .vectors(List.of(new SparseFloatVec(sparseFromString(queryText))))
                 .topK(bm25TopK)
                 .metricType(IndexParam.MetricType.BM25)
+                .params(bm25Params)
                 .build();
 
         // 加权融合排序器

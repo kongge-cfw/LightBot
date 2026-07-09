@@ -17,6 +17,7 @@ import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.DocumentStatus;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.KnowledgeRole;
+import com.lightbot.enums.KnowledgeType;
 import com.lightbot.mapper.KnowledgeMapper;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.service.DocumentService;
@@ -45,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -704,6 +706,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     }
 
     @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_KNOWLEDGE, key = "#knowledgeId")
     public void updateQueryParams(Long knowledgeId, Map<String, Object> params) {
         // 1. 权限校验：需要MANAGER及以上权限
         checkPermission(knowledgeId, KnowledgeRole.MANAGER);
@@ -713,15 +716,99 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }
 
-        // 2. 序列化并保存
+        // 2. 按知识库类型归一化检索参数，避免 PG/Milvus 专属配置互相污染
+        Map<String, Object> normalizedParams = normalizeQueryParams(knowledge, params);
+
+        // 3. 序列化并保存
         try {
-            knowledge.setQueryParams(objectMapper.writeValueAsString(params));
+            knowledge.setQueryParams(objectMapper.writeValueAsString(normalizedParams));
         } catch (Exception e) {
             log.warn("[Knowledge] 检索配置序列化失败: knowledgeId={}", knowledgeId, e);
             throw new BizException(ErrorCode.INTERNAL_ERROR);
         }
         updateById(knowledge);
         log.info("[Knowledge] 检索配置已更新: knowledgeId={}", knowledgeId);
+    }
+
+    /**
+     * 归一化检索配置：保存前按知识库类型过滤字段、补齐默认值并限制数值范围。
+     */
+    private Map<String, Object> normalizeQueryParams(Knowledge knowledge, Map<String, Object> params) {
+        Map<String, Object> source = params != null ? params : Map.of();
+        boolean milvus = knowledge.getType() == KnowledgeType.MILVUS;
+        Map<String, Object> normalized = new LinkedHashMap<>();
+
+        normalized.put("search_mode", normalizeSearchMode(source.get("search_mode")));
+        normalized.put("final_top_k", intParam(source, "final_top_k", milvus ? 10 : 5, 1, 100));
+        normalized.put("similarity_threshold", doubleParam(source, "similarity_threshold", milvus ? 0.0 : 0.5, 0.0, 1.0));
+        normalized.put("query_rewrite", boolParam(source, "query_rewrite", false));
+        normalized.put("vector_weight", doubleParam(source, "vector_weight", 0.7, 0.0, 1.0));
+
+        if (milvus) {
+            normalized.put("bm25_weight", doubleParam(source, "bm25_weight", 0.3, 0.0, 1.0));
+            normalized.put("bm25_top_k", intParam(source, "bm25_top_k", 30, 1, 200));
+            normalized.put("bm25_drop_ratio_search", doubleParam(source, "bm25_drop_ratio_search", 0.0, 0.0, 1.0));
+        } else {
+            normalized.put("keyword_weight", doubleParam(source, "keyword_weight", 0.3, 0.0, 1.0));
+        }
+
+        normalized.put("use_reranker", boolParam(source, "use_reranker", false));
+        normalized.put("reranker_model", stringParam(source, "reranker_model", ""));
+        normalized.put("recall_top_k", intParam(source, "recall_top_k", 50, 1, 200));
+        normalized.put("qa_enabled", boolParam(source, "qa_enabled", true));
+        normalized.put("qa_top_k", intParam(source, "qa_top_k", 3, 1, 20));
+        normalized.put("qa_threshold", doubleParam(source, "qa_threshold", 0.85, 0.0, 1.0));
+        normalized.put("qa_priority", boolParam(source, "qa_priority", true));
+
+        if (milvus) {
+            normalized.put("use_graph_retrieval", boolParam(source, "use_graph_retrieval", false));
+            normalized.put("graph_entity_top_k", intParam(source, "graph_entity_top_k", 10, 1, 100));
+            normalized.put("graph_triple_top_k", intParam(source, "graph_triple_top_k", 10, 1, 100));
+            normalized.put("graph_max_nodes", intParam(source, "graph_max_nodes", 100, 10, 500));
+            normalized.put("graph_top_k", intParam(source, "graph_top_k", 5, 1, 50));
+            normalized.put("graph_weight", doubleParam(source, "graph_weight", 0.3, 0.0, 1.0));
+            normalized.put("ppr_damping", doubleParam(source, "ppr_damping", 0.85, 0.0, 1.0));
+        }
+
+        return normalized;
+    }
+
+    private String normalizeSearchMode(Object value) {
+        if (value instanceof String s) {
+            String mode = s.trim().toLowerCase();
+            if ("vector".equals(mode) || "keyword".equals(mode) || "hybrid".equals(mode)) {
+                return mode;
+            }
+        }
+        return "vector";
+    }
+
+    private String stringParam(Map<String, Object> source, String key, String defaultValue) {
+        Object value = source.get(key);
+        return value instanceof String s ? s.trim() : defaultValue;
+    }
+
+    private boolean boolParam(Map<String, Object> source, String key, boolean defaultValue) {
+        Object value = source.get(key);
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        if (value instanceof String s) {
+            return Boolean.parseBoolean(s);
+        }
+        return defaultValue;
+    }
+
+    private int intParam(Map<String, Object> source, String key, int defaultValue, int min, int max) {
+        Object value = source.get(key);
+        int parsed = value instanceof Number n ? n.intValue() : defaultValue;
+        return Math.max(min, Math.min(max, parsed));
+    }
+
+    private double doubleParam(Map<String, Object> source, String key, double defaultValue, double min, double max) {
+        Object value = source.get(key);
+        double parsed = value instanceof Number n ? n.doubleValue() : defaultValue;
+        return Math.max(min, Math.min(max, parsed));
     }
 
     @Override

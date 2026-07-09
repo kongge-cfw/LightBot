@@ -185,7 +185,7 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
         // 3. Reranker（可选）
         results = applyReranker(results, queryParams, topK);
 
-        return results;
+        return limitResults(results, topK);
     }
 
     /**
@@ -405,7 +405,11 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
             case SEARCH_MODE_KEYWORD -> {
                 String queryText = queryParams != null && queryParams.get("query_text") instanceof String s
                         ? s : "";
-                results = milvusUtil.searchKeyword(knowledgeId, queryText, topK);
+                int bm25TopK = queryParams != null && queryParams.get("bm25_top_k") instanceof Number n
+                        ? n.intValue() : topK * 3;
+                bm25TopK = Math.max(topK, bm25TopK);
+                float dropRatioSearch = getFloatParam(queryParams, "bm25_drop_ratio_search", 0.0f);
+                results = milvusUtil.searchKeyword(knowledgeId, queryText, bm25TopK, dropRatioSearch);
             }
             case SEARCH_MODE_HYBRID -> {
                 String queryText = queryParams != null && queryParams.get("query_text") instanceof String s
@@ -416,8 +420,10 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
                         ? n.floatValue() : 0.3f;
                 int bm25TopK = queryParams != null && queryParams.get("bm25_top_k") instanceof Number n
                         ? n.intValue() : topK * 3;
+                bm25TopK = Math.max(topK, bm25TopK);
+                float dropRatioSearch = getFloatParam(queryParams, "bm25_drop_ratio_search", 0.0f);
                 results = milvusUtil.searchHybrid(knowledgeId, queryText, queryVector,
-                        topK, vectorWeight, bm25Weight, bm25TopK);
+                        topK, vectorWeight, bm25Weight, bm25TopK, dropRatioSearch);
             }
             default -> {
                 results = milvusUtil.searchVector(knowledgeId, queryVector, topK, threshold);
@@ -427,10 +433,17 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
         // 补充 document_name 字段（Milvus 只返回 document_id）
         enrichWithDocumentNames(results);
 
-        // Reranker（可选）
-        results = applyReranker(results, queryParams, topK);
-
         return results;
+    }
+
+    /**
+     * 统一限制最终返回数量，避免候选召回数被误当作最终 TopK。
+     */
+    private List<Map<String, Object>> limitResults(List<Map<String, Object>> results, int topK) {
+        if (results == null || results.size() <= topK) {
+            return results;
+        }
+        return results.subList(0, topK);
     }
 
     /**

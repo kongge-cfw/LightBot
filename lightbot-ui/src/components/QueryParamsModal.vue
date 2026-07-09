@@ -1,12 +1,20 @@
 <template>
   <a-modal
     v-model:open="visible"
-    title="检索配置"
     :width="480"
     :maskClosable="false"
     :bodyStyle="{ padding: 0 }"
     @cancel="handleCancel"
   >
+    <template #title>
+      <span class="query-modal-title">
+        检索配置
+        <a-tooltip :title="knowledgeTypeTooltip">
+          <QuestionCircleOutlined class="title-tip-icon" />
+        </a-tooltip>
+      </span>
+    </template>
+
     <div class="scroll-body">
     <a-form :model="form" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }" class="config-form">
       <!-- 预设模式 -->
@@ -93,15 +101,28 @@
           </template>
           <a-input-number v-model:value="form.bm25_weight" :min="0" :max="1" :step="0.1" style="width: 100%" />
         </a-form-item>
+      </template>
 
+      <!-- Milvus BM25 专属参数 -->
+      <template v-if="isMilvus && (form.search_mode === 'keyword' || form.search_mode === 'hybrid')">
         <a-form-item>
           <template #label>
             <span>BM25候选数</span>
-            <a-tooltip title="BM25检索阶段的候选文档数量，越大召回越全但耗时越长，建议为返回数量的2-3倍">
+            <a-tooltip title="BM25检索阶段的候选文档数量，不等于最终返回数量。越大召回越全但耗时越长，建议为返回数量的2-3倍">
               <QuestionCircleOutlined class="field-tip-icon" />
             </a-tooltip>
           </template>
           <a-input-number v-model:value="form.bm25_top_k" :min="1" :max="200" style="width: 100%" />
+        </a-form-item>
+
+        <a-form-item>
+          <template #label>
+            <span>稀疏项丢弃</span>
+            <a-tooltip title="Milvus BM25 检索时丢弃低分稀疏项的比例。数值越大检索越快，但可能降低召回，通常保持 0">
+              <QuestionCircleOutlined class="field-tip-icon" />
+            </a-tooltip>
+          </template>
+          <a-input-number v-model:value="form.bm25_drop_ratio_search" :min="0" :max="1" :step="0.1" style="width: 100%" />
         </a-form-item>
       </template>
 
@@ -340,6 +361,10 @@ const visible = ref(false)
 const saving = ref(false)
 
 const isMilvus = computed(() => props.knowledgeType === 'milvus')
+const knowledgeTypeTooltip = computed(() => isMilvus.value
+  ? 'Milvus 知识库使用 dense vector 向量检索与内置 BM25 sparse 全文检索；混合模式通过向量权重、BM25 权重和 BM25 候选数融合；图检索仅 Milvus 可用。'
+  : 'PG 知识库使用 pgvector 做语义向量检索，关键词模式使用 PostgreSQL 全文检索，混合模式使用向量结果和全文结果做 RRF 融合；PG 不展示 Milvus BM25 sparse 专属参数。'
+)
 
 const pgDefaults = {
   search_mode: 'vector',
@@ -372,6 +397,7 @@ const milvusDefaults = {
   vector_weight: 0.7,
   bm25_weight: 0.3,
   bm25_top_k: 30,
+  bm25_drop_ratio_search: 0.0,
   use_reranker: false,
   reranker_model: '',
   recall_top_k: 50,
@@ -501,6 +527,16 @@ defineExpose({ open, getQaEnabled: () => form.qa_enabled })
 }
 .config-form {
   padding-right: 8px;
+}
+.query-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.title-tip-icon {
+  font-size: 14px;
+  color: var(--color-mute);
+  cursor: help;
 }
 .preset-bar {
   display: flex;

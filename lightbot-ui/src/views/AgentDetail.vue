@@ -921,11 +921,11 @@
         <div class="binding-tab-pane" :class="{ 'preview-lock-zone': isVersionPreview }">
         <div class="tool-options-bar">
           <div class="tool-option-item">
-            <span class="tool-option-label">工具调用模式</span>
+            <span class="tool-option-label">异步并行调用工具</span>
             <a-switch v-model:checked="agentConfig.asyncToolCalls" size="default" :disabled="isVersionPreview" />
-            <span class="tool-option-value">{{ agentConfig.asyncToolCalls ? '异步（并行）' : '串行（逐个）' }}</span>
+            <span class="tool-option-value">{{ agentConfig.asyncToolCalls ? '已开启' : '未开启' }}</span>
             <a-tooltip
-              title="串行模式：每次只调用一个工具，等待结果后再决定是否继续调用；异步模式：AI可同时调用多个工具，提升效率但可能消耗更多Token"
+              title="默认关闭：每次只调用一个工具，等待结果后再决定是否继续调用，Token 消耗更可控；开启后：AI 可同时调用多个工具，提升多步骤任务的执行效率，但可能消耗更多 Token"
               overlay-class-name="no-flip-tooltip"
               :overlay-style="{ maxWidth: '320px' }"
               placement="topLeft"
@@ -2174,8 +2174,8 @@ const chatConfigPreviewRows = computed(() => {
     })
   }
   rows.push({
-    label: '工具调用模式',
-    text: asyncTools.value ? '异步（并行）' : '串行（逐个）',
+    label: '异步并行调用工具',
+    text: asyncTools.value ? '已开启' : '未开启',
     fromDefault: asyncTools.fromDefault,
   })
   return rows
