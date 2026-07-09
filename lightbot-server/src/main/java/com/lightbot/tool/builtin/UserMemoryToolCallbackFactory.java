@@ -3,9 +3,11 @@ package com.lightbot.tool.builtin;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.dto.UserMemoryVO;
+import com.lightbot.dto.UserPreferenceVO;
 import com.lightbot.entity.UserMemory;
 import com.lightbot.enums.UserMemoryStatus;
 import com.lightbot.service.UserMemoryService;
+import com.lightbot.service.UserPreferenceService;
 import com.lightbot.service.chat.ChatContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.ai.chat.model.ToolContext;
@@ -35,6 +37,7 @@ public class UserMemoryToolCallbackFactory {
     public static final String DELETE_TOOL_NAME = "memory_delete";
 
     private final UserMemoryService userMemoryService;
+    private final UserPreferenceService userPreferenceService;
     private final ObjectMapper objectMapper;
 
     /**
@@ -52,17 +55,17 @@ public class UserMemoryToolCallbackFactory {
             super(DefaultToolDefinition.builder()
                     .name(SAVE_TOOL_NAME)
                     .description("""
-                            Save a stable user long-term memory when the user explicitly asks you to remember a preference, profile fact, project fact, or long-term instruction.
-                            Do not save passwords, secrets, API keys, tokens, private contact data, or temporary facts.
+                            保存用户长期记忆。仅当用户明确要求记住稳定偏好、个人背景、项目事实或长期指令时调用。
+                            禁止保存密码、密钥、API Key、Token、隐私联系方式或临时性事实。
                             """)
                     .inputSchema("""
                             {
                               "type": "object",
                               "properties": {
-                                "content": {"type": "string", "description": "The concise memory content to save."},
-                                "memoryType": {"type": "string", "enum": ["preference", "profile", "project_fact", "instruction"], "description": "Memory category."},
-                                "keywords": {"type": "array", "items": {"type": "string"}, "description": "Optional search keywords."},
-                                "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "Confidence of the memory."}
+                                "content": {"type": "string", "description": "要保存的简洁记忆内容。"},
+                                "memoryType": {"type": "string", "enum": ["preference", "profile", "project_fact", "instruction"], "description": "记忆类型。"},
+                                "keywords": {"type": "array", "items": {"type": "string"}, "description": "可选检索关键词。"},
+                                "confidence": {"type": "number", "minimum": 0, "maximum": 1, "description": "记忆置信度。"}
                               },
                               "required": ["content"]
                             }
@@ -84,7 +87,7 @@ public class UserMemoryToolCallbackFactory {
                 }
                 UserMemoryVO saved = userMemoryService.saveFromTool(
                         userId,
-                        resolveAgentId(toolContext),
+                        resolveMemoryAgentId(userId, toolContext),
                         resolveSessionId(toolContext),
                         resolveUserMessageId(toolContext),
                         str(args.get("memoryType")),
@@ -103,13 +106,13 @@ public class UserMemoryToolCallbackFactory {
         SearchMemoryCallback() {
             super(DefaultToolDefinition.builder()
                     .name(SEARCH_TOOL_NAME)
-                    .description("Search the current user's enabled long-term memories for relevant preferences or background facts.")
+                    .description("查询当前用户已启用的长期记忆，用于获取相关偏好、背景或长期指令。")
                     .inputSchema("""
                             {
                               "type": "object",
                               "properties": {
-                                "query": {"type": "string", "description": "Search query."},
-                                "limit": {"type": "integer", "minimum": 1, "maximum": 10, "description": "Maximum memories to return."}
+                                "query": {"type": "string", "description": "检索问题或关键词。"},
+                                "limit": {"type": "integer", "minimum": 1, "maximum": 10, "description": "最多返回记忆条数。"}
                               },
                               "required": ["query"]
                             }
@@ -127,7 +130,7 @@ public class UserMemoryToolCallbackFactory {
                 }
                 String query = str(args.get("query"));
                 int limit = intVal(args.get("limit"), 5, 1, 10);
-                List<UserMemoryVO> memories = userMemoryService.searchForPrompt(userId, resolveAgentId(toolContext), query, limit)
+                List<UserMemoryVO> memories = userMemoryService.searchForPrompt(userId, resolveMemoryAgentId(userId, toolContext), query, limit)
                         .stream()
                         .map(UserMemoryVO::from)
                         .toList();
@@ -143,12 +146,12 @@ public class UserMemoryToolCallbackFactory {
         DeleteMemoryCallback() {
             super(DefaultToolDefinition.builder()
                     .name(DELETE_TOOL_NAME)
-                    .description("Disable or archive one of the current user's long-term memories when the user asks you to forget it.")
+                    .description("当用户要求忘记某条长期记忆时，停用该长期记忆。")
                     .inputSchema("""
                             {
                               "type": "object",
                               "properties": {
-                                "memoryId": {"type": "string", "description": "Memory id to disable."}
+                                "memoryId": {"type": "string", "description": "要停用的记忆ID。"}
                               },
                               "required": ["memoryId"]
                             }
@@ -229,6 +232,15 @@ public class UserMemoryToolCallbackFactory {
     private Long resolveAgentId(ToolContext toolContext) {
         Object value = contextValue(toolContext, "agentId");
         return longVal(value);
+    }
+
+    private Long resolveMemoryAgentId(Long userId, ToolContext toolContext) {
+        try {
+            UserPreferenceVO preferences = userPreferenceService.getPreferences(userId);
+            return "agent".equalsIgnoreCase(preferences.getLongMemoryScope()) ? resolveAgentId(toolContext) : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private Long resolveSessionId(ToolContext toolContext) {

@@ -968,7 +968,14 @@
             <div class="list-header">
               <span>可选工具（{{ selectedTools.length }}/{{ BIND_LIMITS.tool }}）</span>
               <div class="list-header-actions">
-                <SystemToolDrawer v-if="!isVersionPreview" placement="bottomRight" />
+                <DynamicToolDrawer
+                  v-if="!isVersionPreview"
+                  placement="bottomRight"
+                  :selected-knowledge="selectedKnowledge"
+                  :selected-mcp-servers="selectedMcpServers"
+                  :selected-sub-agents="selectedSubAgents"
+                  :agent-config="agentConfig"
+                />
                 <a-input
                   v-model:value="toolSearchText"
                   placeholder="搜索工具..."
@@ -1032,8 +1039,8 @@
               <span class="selected-label">已绑定 {{ selectedKnowledge.length }}/{{ BIND_LIMITS.knowledge }} 个知识库</span>
               <span v-if="selectedKnowledge.length > 0" class="kb-tool-hint">
                 <InfoCircleOutlined />
-                <span>绑定知识库后将自动导入知识库工具，</span>
-                <a @click.prevent="$refs.kbToolDrawerRef?.open()">点击查看知识库工具</a>
+                <span>绑定知识库后将自动启用相关工具，</span>
+                <a @click.prevent="$refs.dynamicToolDrawerRef?.open()">点击查看自动启用工具</a>
               </span>
               <button v-if="!isVersionPreview && selectedKnowledge.length > 0" class="btn-clear" @click="clearSelectedKnowledge">
                 <DeleteOutlined /> 清空
@@ -1105,10 +1112,17 @@
             </div>
           </div>
         </div>
-        <!-- 知识库工具抽屉（通过 hint 链接触发，不渲染默认按钮） -->
-        <SystemToolDrawer ref="kbToolDrawerRef" placement="bottomRight">
+        <!-- 自动启用工具抽屉（通过 hint 链接触发，不渲染默认按钮） -->
+        <DynamicToolDrawer
+          ref="dynamicToolDrawerRef"
+          placement="bottomRight"
+          :selected-knowledge="selectedKnowledge"
+          :selected-mcp-servers="selectedMcpServers"
+          :selected-sub-agents="selectedSubAgents"
+          :agent-config="agentConfig"
+        >
           <template #trigger></template>
-        </SystemToolDrawer>
+        </DynamicToolDrawer>
         </div>
       </a-tab-pane>
 
@@ -1699,7 +1713,7 @@ import {
   formatDeletedBindingDetailLines,
   removeDeletedIdsFromSet,
 } from '../utils/bindingId'
-import SystemToolDrawer from '../components/SystemToolDrawer.vue'
+import DynamicToolDrawer from '../components/DynamicToolDrawer.vue'
 import { useBinding } from '../composables/useBinding'
 const route = useRoute()
 const router = useRouter()

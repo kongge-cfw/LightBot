@@ -46,7 +46,6 @@
         :key="t.id"
         type="tool"
         :name="t.displayName || t.name"
-        :class="{ 'knowledge-card': (t.toolType?.code || t.toolType) === 'knowledge' }"
         @click="openDetail(t)"
       >
         <template #icon>
@@ -449,7 +448,7 @@
 <script setup>
 defineProps({ hideHeader: Boolean })
 import { ref, reactive, watch, onMounted, h } from 'vue'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined, LockOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { getTools, createTool, updateTool, deleteTool, testTool, setToolEnabled } from '../api/tool'
 import { getToolTypes } from '../api/enum'

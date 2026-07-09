@@ -14,8 +14,8 @@
         <a-tab-pane key="subagents" tab="SubAgents" />
       </a-tabs>
       <div class="toolbar-actions">
-        <!-- 工具Tab时显示系统工具按钮和类型筛选 -->
-        <SystemToolDrawer v-if="activeTab === 'tools'" placement="bottomRight" />
+        <!-- 工具Tab时显示自动注入工具按钮和类型筛选 -->
+        <DynamicToolDrawer v-if="activeTab === 'tools'" placement="bottomRight" :show-status="false" :show-count="false" />
         <a-select
           v-if="activeTab === 'tools'"
           v-model:value="toolTypeFilter"
@@ -67,7 +67,7 @@ import McpManage from './McpManage.vue'
 import SkillManage from './SkillManage.vue'
 import ToolManage from './ToolManage.vue'
 import SubAgentManage from './SubAgentManage.vue'
-import SystemToolDrawer from '../components/SystemToolDrawer.vue'
+import DynamicToolDrawer from '../components/DynamicToolDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()

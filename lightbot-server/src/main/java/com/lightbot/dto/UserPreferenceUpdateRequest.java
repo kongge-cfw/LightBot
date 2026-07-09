@@ -18,7 +18,7 @@ public class UserPreferenceUpdateRequest {
     private Boolean longMemoryAutoExtract;
 
     @Min(value = 1, message = "记忆注入数量最小为1")
-    @Max(value = 20, message = "记忆注入数量最大为20")
+    @Max(value = 15, message = "记忆注入数量最大为15")
     private Integer longMemoryInjectLimit;
 
     private String longMemoryScope;

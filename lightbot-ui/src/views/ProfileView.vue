@@ -108,7 +108,7 @@
                   <strong>每轮注入数量</strong>
                   <small>控制进入 Prompt 的记忆条数</small>
                 </span>
-                <a-input-number v-model:value="preferenceForm.longMemoryInjectLimit" :min="1" :max="20" :disabled="!preferenceForm.longMemoryEnabled" />
+                <a-input-number v-model:value="preferenceForm.longMemoryInjectLimit" :min="1" :max="15" :disabled="!preferenceForm.longMemoryEnabled" />
               </label>
               <label class="setting-row">
                 <span class="setting-text">
@@ -129,7 +129,12 @@
                 <h3>记忆内容</h3>
                 <p class="panel-subtitle">可以手动新增、修正或停用不准确的长期记忆</p>
               </div>
-              <button class="btn-primary" @click.prevent="openCreateMemory">新增记忆</button>
+              <div style="display:flex;gap:8px">
+                <button class="btn-outline" @click.prevent="loadMemories">
+                  <ReloadOutlined :class="{ 'spin-animation': memoryLoading }" />
+                </button>
+                <button class="btn-primary" @click.prevent="openCreateMemory">新增记忆</button>
+              </div>
             </div>
             <a-spin :spinning="memoryLoading">
               <a-empty v-if="!memories.length" description="暂无长期记忆" />
@@ -150,11 +155,22 @@
                   <div class="memory-card-foot">
                     <span class="memory-time">更新于 {{ formatTime(record.updateTime) }}</span>
                     <div class="memory-actions">
-                      <a-button size="small" @click="openEditMemory(record)">编辑</a-button>
-                      <a-button size="small" @click="toggleMemoryStatus(record)">
-                        {{ record.status === 'active' ? '停用' : '启用' }}
-                      </a-button>
-                      <a-button size="small" danger @click="handleDeleteMemory(record)">删除</a-button>
+                      <a-tooltip title="编辑">
+                        <a-button type="text" size="small" shape="circle" @click="openEditMemory(record)">
+                          <EditOutlined />
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip :title="record.status === 'active' ? '停用' : '启用'">
+                        <a-button type="text" size="small" shape="circle" @click="toggleMemoryStatus(record)">
+                          <StopOutlined v-if="record.status === 'active'" />
+                          <CheckCircleOutlined v-else />
+                        </a-button>
+                      </a-tooltip>
+                      <a-tooltip title="删除">
+                        <a-button type="text" size="small" shape="circle" danger @click="handleDeleteMemory(record)">
+                          <DeleteOutlined />
+                        </a-button>
+                      </a-tooltip>
                     </div>
                   </div>
                 </article>
@@ -201,9 +217,14 @@
           </div>
 
           <div class="panel level-panel">
-            <div class="panel-header">
-              <h3>等级</h3>
-              <p class="panel-subtitle">选择你的等级</p>
+            <div class="panel-header split-header">
+              <div>
+                <h3>等级</h3>
+                <p class="panel-subtitle">选择你的等级</p>
+              </div>
+              <button class="btn-primary" :disabled="savingLevel" @click.prevent="handleSaveLevel">
+                <SaveOutlined /> 保存等级
+              </button>
             </div>
             <div class="level-options">
               <div
@@ -217,9 +238,6 @@
                 <span v-else class="level-option-empty">无</span>
               </div>
             </div>
-            <button class="btn-primary" :disabled="savingLevel" @click.prevent="handleSaveLevel">
-              <SaveOutlined /> 保存等级
-            </button>
           </div>
         </div>
       </a-tab-pane>
@@ -251,8 +269,17 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { SaveOutlined, LockOutlined, UploadOutlined } from '@ant-design/icons-vue'
-import { message } from 'ant-design-vue'
+import {
+  SaveOutlined,
+  LockOutlined,
+  UploadOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  StopOutlined,
+  CheckCircleOutlined,
+  DeleteOutlined,
+} from '@ant-design/icons-vue'
+import { message, Modal } from 'ant-design-vue'
 import { getMe, updateProfile, changePassword, updateAvatarFrame, uploadAvatar } from '../api/auth'
 import { getUserPreferences, updateUserPreferences } from '../api/userPreference'
 import { listUserMemories, createUserMemory, updateUserMemory, updateUserMemoryStatus, deleteUserMemory } from '../api/userMemory'
@@ -482,15 +509,19 @@ async function toggleMemoryStatus(record) {
   } catch { /* interceptor已处理 */ }
 }
 
-async function handleDeleteMemory(record) {
-  if (!window.confirm('确定删除这条长期记忆吗？')) {
-    return
-  }
-  try {
-    await deleteUserMemory(record.id)
-    message.success('记忆已删除')
-    await loadMemories()
-  } catch { /* interceptor已处理 */ }
+function handleDeleteMemory(record) {
+  Modal.confirm({
+    title: '确认删除',
+    content: '确定删除这条长期记忆吗？',
+    okType: 'danger',
+    async onOk() {
+      try {
+        await deleteUserMemory(record.id)
+        message.success('记忆已删除')
+        await loadMemories()
+      } catch { /* interceptor已处理 */ }
+    },
+  })
 }
 
 async function handleSaveFrame() {
@@ -940,5 +971,12 @@ onMounted(() => {
   .frame-options {
     flex-wrap: wrap;
   }
+}
+.spin-animation {
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

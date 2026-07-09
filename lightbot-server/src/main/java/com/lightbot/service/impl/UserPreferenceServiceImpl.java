@@ -58,7 +58,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
             config.put(ConfigKeys.User.LONG_MEMORY_AUTO_EXTRACT, request.getLongMemoryAutoExtract());
         }
         if (request.getLongMemoryInjectLimit() != null) {
-            int limit = Math.max(1, Math.min(20, request.getLongMemoryInjectLimit()));
+            int limit = Math.max(1, Math.min(15, request.getLongMemoryInjectLimit()));
             config.put(ConfigKeys.User.LONG_MEMORY_INJECT_LIMIT, limit);
         }
         if (request.getLongMemoryScope() != null) {
@@ -93,7 +93,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
         UserPreferenceVO vo = new UserPreferenceVO();
         vo.setLongMemoryEnabled(boolVal(config.get(ConfigKeys.User.LONG_MEMORY_ENABLED), DEFAULT_LONG_MEMORY_ENABLED));
         vo.setLongMemoryAutoExtract(boolVal(config.get(ConfigKeys.User.LONG_MEMORY_AUTO_EXTRACT), DEFAULT_LONG_MEMORY_AUTO_EXTRACT));
-        vo.setLongMemoryInjectLimit(intVal(config.get(ConfigKeys.User.LONG_MEMORY_INJECT_LIMIT), DEFAULT_LONG_MEMORY_INJECT_LIMIT, 1, 20));
+        vo.setLongMemoryInjectLimit(intVal(config.get(ConfigKeys.User.LONG_MEMORY_INJECT_LIMIT), DEFAULT_LONG_MEMORY_INJECT_LIMIT, 1, 15));
         vo.setLongMemoryScope(normalizeScope(String.valueOf(config.getOrDefault(ConfigKeys.User.LONG_MEMORY_SCOPE, DEFAULT_LONG_MEMORY_SCOPE))));
         return vo;
     }

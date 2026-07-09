@@ -43,6 +43,7 @@ const SandboxFileResult = defineAsyncComponent(() => import('./tools/SandboxFile
 const OcrParseFileResult = defineAsyncComponent(() => import('./tools/OcrParseFileResult.vue'))
 const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFileResult.vue'))
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
+const UserMemoryResult = defineAsyncComponent(() => import('./tools/UserMemoryResult.vue'))
 
 // 工具渲染组件映射
 export const TOOL_RENDERERS = {
@@ -77,6 +78,9 @@ export const TOOL_RENDERERS = {
   // 交付 / 安装
   present_artifacts: DeliverFileResult,
   install_skill: InstallSkillResult,
+  memory_save: UserMemoryResult,
+  memory_search: UserMemoryResult,
+  memory_delete: UserMemoryResult,
 }
 
 // 工具图标
@@ -103,6 +107,9 @@ export const TOOL_ICON_MAP = {
   ocr_parse_file: ScanOutlined,
   present_artifacts: FolderOpenOutlined,
   install_skill: ThunderboltOutlined,
+  memory_save: DatabaseOutlined,
+  memory_search: DatabaseOutlined,
+  memory_delete: DatabaseOutlined,
   skill_active: ThunderboltOutlined,
   subagent_call: RobotOutlined,
   subagent_result: RobotOutlined,
@@ -135,6 +142,9 @@ export const TOOL_DISPLAY_NAMES = {
   ocr_parse_file: 'OCR 解析文件',
   present_artifacts: '文件交付',
   install_skill: '技能安装',
+  memory_save: '保存长期记忆',
+  memory_search: '查询长期记忆',
+  memory_delete: '停用长期记忆',
   skill_active: 'Skill 启用',
   subagent_call: 'SubAgent 委派',
   subagent_result: 'SubAgent 结果',

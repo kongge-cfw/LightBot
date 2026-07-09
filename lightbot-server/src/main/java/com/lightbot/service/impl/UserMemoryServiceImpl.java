@@ -16,6 +16,7 @@ import com.lightbot.mapper.UserMemoryMapper;
 import com.lightbot.service.UserMemoryService;
 import com.lightbot.service.UserPreferenceService;
 import com.lightbot.service.chat.ChatContext;
+import com.lightbot.tool.builtin.UserMemoryToolCallbackFactory;
 import com.lightbot.util.TextNormalizeUtil;
 import com.lightbot.util.VectorUtil;
 import lombok.RequiredArgsConstructor;
@@ -51,6 +52,7 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
     private static final BigDecimal DEFAULT_CONFIDENCE = BigDecimal.valueOf(1.0);
     private static final BigDecimal AUTO_MIN_CONFIDENCE = BigDecimal.valueOf(0.75);
     private static final int MAX_PROMPT_MEMORY_CHARS = 1500;
+    private static final int MAX_USER_MEMORY_COUNT = 15;
 
     private final UserMemoryMapper userMemoryMapper;
     private final UserPreferenceService userPreferenceService;
@@ -80,6 +82,7 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
         long userId = StpUtil.getLoginIdAsLong();
         UserMemory memory = buildMemory(userId, request.getAgentId(), null, null,
                 request.getMemoryType(), request.getContent(), request.getKeywords(), request.getConfidence());
+        pruneForNewMemory(userId);
         save(memory);
         refreshEmbedding(memory);
         return UserMemoryVO.from(memory);
@@ -140,6 +143,7 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
             refreshEmbedding(existing);
             return UserMemoryVO.from(existing);
         }
+        pruneForNewMemory(userId);
         save(memory);
         refreshEmbedding(memory);
         return UserMemoryVO.from(memory);
@@ -150,7 +154,8 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
         if (userId == null || limit <= 0) {
             return List.of();
         }
-        List<UserMemory> semantic = searchSemanticSafely(userId, agentId, query, limit);
+        int safeLimit = Math.max(1, Math.min(limit, MAX_USER_MEMORY_COUNT));
+        List<UserMemory> semantic = searchSemanticSafely(userId, agentId, query, safeLimit);
         if (!semantic.isEmpty()) {
             markUsed(semantic);
             return semantic;
@@ -162,14 +167,14 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
                 .orderByDesc(UserMemory::getConfidence)
                 .orderByDesc(UserMemory::getLastUsedAt)
                 .orderByDesc(UserMemory::getUpdateTime)
-                .last("LIMIT " + Math.max(limit * 2, limit));
+                .last("LIMIT " + Math.max(safeLimit * 2, safeLimit));
         if (agentId != null) {
             wrapper.and(w -> w.isNull(UserMemory::getAgentId).or().eq(UserMemory::getAgentId, agentId));
         } else {
             wrapper.isNull(UserMemory::getAgentId);
         }
         List<UserMemory> memories = list(wrapper);
-        List<UserMemory> ranked = rankByKeyword(memories, query, limit);
+        List<UserMemory> ranked = rankByKeyword(memories, query, safeLimit);
         markUsed(ranked);
         return ranked;
     }
@@ -205,18 +210,23 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
                 || !Boolean.TRUE.equals(preferences.getLongMemoryAutoExtract())) {
             return;
         }
+        if (hasMemorySaveToolCall(ctx)) {
+            log.debug("[UserMemory] 本轮已调用 memory_save，跳过自动记忆兜底: userId={}", ctx.getUserId());
+            return;
+        }
         String userMessage = ctx.getRequest().getMessage();
         String assistantReply = ctx.getFullReply() != null ? ctx.getFullReply().toString() : "";
-        lightBotExecutor.execute(() -> autoExtract(ctx, userMessage, assistantReply));
+        Long memoryAgentId = "agent".equalsIgnoreCase(preferences.getLongMemoryScope()) ? resolveAgentId(ctx) : null;
+        lightBotExecutor.execute(() -> autoExtract(ctx, memoryAgentId, userMessage, assistantReply));
     }
 
-    private void autoExtract(ChatContext ctx, String userMessage, String assistantReply) {
+    private void autoExtract(ChatContext ctx, Long memoryAgentId, String userMessage, String assistantReply) {
         try {
             ExtractedMemory extracted = heuristicExtract(userMessage, assistantReply);
             if (extracted == null || extracted.confidence().compareTo(AUTO_MIN_CONFIDENCE) < 0) {
                 return;
             }
-            saveFromTool(ctx.getUserId(), resolveAgentId(ctx), ctx.getSessionId(), ctx.getUserMessageId(),
+            saveFromTool(ctx.getUserId(), memoryAgentId, ctx.getSessionId(), ctx.getUserMessageId(),
                     extracted.memoryType().getCode(), extracted.content(), extracted.keywords(), extracted.confidence());
             log.info("[UserMemory] 自动记忆已保存: userId={}, type={}", ctx.getUserId(), extracted.memoryType());
         } catch (Exception e) {
@@ -246,6 +256,14 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
             return null;
         }
         return new ExtractedMemory(type, content, extractKeywords(content), BigDecimal.valueOf(explicitRemember ? 0.95 : 0.8));
+    }
+
+    private boolean hasMemorySaveToolCall(ChatContext ctx) {
+        if (ctx.getToolEventsList() == null || ctx.getToolEventsList().isEmpty()) {
+            return false;
+        }
+        return ctx.getToolEventsList().stream()
+                .anyMatch(event -> UserMemoryToolCallbackFactory.SAVE_TOOL_NAME.equals(String.valueOf(event.get("toolName"))));
     }
 
     private UserMemory buildMemory(Long userId, Long agentId, Long sessionId, Long sourceMessageId,
@@ -288,6 +306,51 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
         }
         List<UserMemory> list = list(wrapper);
         return list.isEmpty() ? null : list.get(0);
+    }
+
+    private void pruneForNewMemory(Long userId) {
+        List<UserMemory> existing = list(new LambdaQueryWrapper<UserMemory>()
+                .eq(UserMemory::getUserId, userId));
+        int overflow = existing.size() - MAX_USER_MEMORY_COUNT + 1;
+        if (overflow <= 0) {
+            return;
+        }
+        existing.stream()
+                .sorted((a, b) -> {
+                    int statusCompare = Integer.compare(statusWeight(a.getStatus()), statusWeight(b.getStatus()));
+                    if (statusCompare != 0) {
+                        return statusCompare;
+                    }
+                    int confidenceCompare = nullSafeConfidence(a).compareTo(nullSafeConfidence(b));
+                    if (confidenceCompare != 0) {
+                        return confidenceCompare;
+                    }
+                    int lastUsedCompare = nullSafeTime(a.getLastUsedAt()).compareTo(nullSafeTime(b.getLastUsedAt()));
+                    if (lastUsedCompare != 0) {
+                        return lastUsedCompare;
+                    }
+                    return nullSafeTime(a.getUpdateTime()).compareTo(nullSafeTime(b.getUpdateTime()));
+                })
+                .limit(overflow)
+                .forEach(memory -> removeById(memory.getId()));
+    }
+
+    private int statusWeight(UserMemoryStatus status) {
+        if (status == UserMemoryStatus.ARCHIVED) {
+            return 0;
+        }
+        if (status == UserMemoryStatus.DISABLED) {
+            return 1;
+        }
+        return 2;
+    }
+
+    private BigDecimal nullSafeConfidence(UserMemory memory) {
+        return memory.getConfidence() != null ? memory.getConfidence() : BigDecimal.ZERO;
+    }
+
+    private LocalDateTime nullSafeTime(LocalDateTime time) {
+        return time != null ? time : LocalDateTime.MIN;
     }
 
     private List<UserMemory> searchSemanticSafely(Long userId, Long agentId, String query, int limit) {

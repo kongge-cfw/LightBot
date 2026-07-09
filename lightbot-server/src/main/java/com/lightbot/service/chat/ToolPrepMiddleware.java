@@ -353,12 +353,21 @@ public class ToolPrepMiddleware implements ChatMiddleware {
         // 只返回当前请求需要的工具名
         Map<String, String> result = new HashMap<>();
         for (String name : toolCallbackMap.keySet()) {
-            String displayName = allDisplayNames.get(name);
+            String displayName = allDisplayNames.getOrDefault(name, getBuiltInToolDisplayName(name));
             if (displayName != null) {
                 result.put(name, displayName);
             }
         }
         return result;
+    }
+
+    private String getBuiltInToolDisplayName(String name) {
+        return switch (name) {
+            case UserMemoryToolCallbackFactory.SAVE_TOOL_NAME -> "保存长期记忆";
+            case UserMemoryToolCallbackFactory.SEARCH_TOOL_NAME -> "查询长期记忆";
+            case UserMemoryToolCallbackFactory.DELETE_TOOL_NAME -> "停用长期记忆";
+            default -> null;
+        };
     }
 
     /**
