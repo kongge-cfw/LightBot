@@ -1,5 +1,25 @@
 <template>
   <div class="debug-attachment-panel">
+    <a-alert type="info" class="debug-preview-info" show-icon>
+      <template #message>
+        <div class="debug-preview-header">
+          <strong>支持预览的文件类型</strong>
+          <a-button size="small" type="link" @click="showPreviewList = !showPreviewList">
+            {{ showPreviewList ? '收起' : '展开列表' }}
+          </a-button>
+        </div>
+        <ul v-if="showPreviewList" class="debug-preview-list">
+          <li><strong>图片</strong>：{{ IMAGE_PREVIEW.join(', ') }}</li>
+          <li><strong>视频</strong>：{{ VIDEO_PREVIEW.join(', ') }}</li>
+          <li><strong>PDF</strong>：pdf</li>
+          <li><strong>HTML</strong>：html, htm</li>
+          <li><strong>Markdown</strong>：md, markdown</li>
+          <li><strong>纯文本 / 代码 / 数据 / 配置</strong>：共 {{ TEXT_PREVIEW.length }} 种：{{ TEXT_PREVIEW.join(', ') }}</li>
+          <li><strong>Office 文档</strong>（不支持预览，仅显示提示）：doc, docx, xls, xlsx, ppt, pptx</li>
+        </ul>
+      </template>
+    </a-alert>
+
     <div class="debug-panel-toolbar">
       <a-button type="primary" @click="$emit('parse')">解析预览</a-button>
       <a-select
@@ -63,9 +83,20 @@
 <script setup>
 import { onBeforeUnmount, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import {
+  TEXT_SOURCE_PREVIEW_EXTENSIONS,
+  IMAGE_SOURCE_PREVIEW_EXTENSIONS,
+  VIDEO_SOURCE_PREVIEW_EXTENSIONS,
+  OFFICE_NO_SOURCE_PREVIEW_EXTENSIONS,
+} from '@/utils/filePreview'
 
 const MAX_LOCAL_FILE_SIZE = 10 * 1024 * 1024
 const maxSizeMb = MAX_LOCAL_FILE_SIZE / 1024 / 1024
+
+const TEXT_PREVIEW = [...TEXT_SOURCE_PREVIEW_EXTENSIONS].sort()
+const IMAGE_PREVIEW = [...IMAGE_SOURCE_PREVIEW_EXTENSIONS].sort()
+const VIDEO_PREVIEW = [...VIDEO_SOURCE_PREVIEW_EXTENSIONS].sort()
+const showPreviewList = ref(false)
 
 const sampleOptions = [
   { value: 'mixed', label: '混合附件' },
@@ -227,6 +258,31 @@ defineExpose({ validateAndGetMessage, loadSample })
   flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+.debug-preview-info {
+  margin-bottom: 12px;
+}
+.debug-preview-info :deep(.ant-alert-message) {
+  font-size: 12px;
+  color: var(--gray-600);
+}
+.debug-preview-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-800);
+}
+.debug-preview-list {
+  margin: 0;
+  padding-left: 16px;
+  line-height: 1.8;
+}
+.debug-preview-list li {
+  margin-bottom: 4px;
 }
 
 .debug-panel-toolbar {

@@ -436,10 +436,26 @@
     <!-- 上传文档弹窗 -->
     <a-modal
       v-model:open="uploadVisible"
-      title="上传文档"
       :width="uploadMode === 'url' ? 640 : 520"
       :footer="null"
     >
+      <template #title>
+        <span>上传文档</span>
+        <a-tooltip placement="right" :overlay-style="{ maxWidth: '400px', fontSize: '12px' }">
+          <QuestionCircleOutlined class="modal-title-hint" />
+          <template #title>
+            <div class="supported-file-list">
+              <div style="font-weight:500;margin-bottom:4px">上传后可在线预览的类型：</div>
+              <div><strong>文档类：</strong>md, markdown, txt, text, pdf, html, htm</div>
+              <div><strong>表格类：</strong>csv, tsv</div>
+              <div><strong>数据类：</strong>json, jsonl, ndjson, xml, yaml, yml</div>
+              <div><strong>配置类：</strong>ini, conf, cfg, toml, properties, env, editorconfig, gradle</div>
+              <div><strong>代码类：</strong>js, mjs, cjs, ts, tsx, jsx, vue, py, java, go, rs, rb, php, c, h, cpp, hpp, cc, cs, kt, kts, scala, swift, sql, sh, bash, zsh</div>
+              <div style="margin-top:4px;color:var(--color-mute)">Office 文档（doc/docx/xls/xlsx/ppt/pptx）仅支持内容解析，不支持源文件预览</div>
+            </div>
+          </template>
+        </a-tooltip>
+      </template>
       <div class="upload-section">
         <!-- 上传模式切换 -->
         <div class="upload-mode-switch">
@@ -452,9 +468,16 @@
 
         <!-- 文件上传区域 -->
         <div v-if="uploadMode === 'file'" class="upload-dropzone" @click="triggerFileInput" @drop.prevent="onDrop" @dragover.prevent>
-          <input ref="fileInputRef" type="file" multiple accept=".md,.txt,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.html,.htm" style="display: none" @change="onFileSelect" />
+          <input
+            ref="fileInputRef"
+            type="file"
+            multiple
+            accept=".md,.markdown,.txt,.text,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.csv,.tsv,.json,.jsonl,.ndjson,.xml,.yaml,.yml,.ini,.conf,.cfg,.toml,.properties,.env,.editorconfig,.js,.mjs,.cjs,.ts,.tsx,.jsx,.vue,.py,.java,.go,.rs,.rb,.php,.c,.h,.cpp,.hpp,.cc,.cs,.kt,.kts,.scala,.swift,.sql,.sh,.bash,.zsh,.gradle,.html,.htm"
+            style="display: none"
+            @change="onFileSelect"
+          />
           <p class="dropzone-text">拖拽文件到此处，或点击选择</p>
-          <p class="dropzone-hint">支持 md/txt/pdf/doc/docx/ppt/pptx/xls/xlsx/csv/html，单文件最大 100MB</p>
+          <p class="dropzone-hint">支持 md/txt/pdf/doc/docx/ppt/pptx/xls/xlsx/csv/html/json/yaml 等，单文件最大 100MB</p>
         </div>
 
         <!-- OCR 开关 -->
@@ -3321,6 +3344,19 @@ onUnmounted(() => {
 .dropzone-hint {
   font-size: 12px;
   color: var(--color-mute);
+}
+.modal-title-hint {
+  margin-left: 6px;
+  font-size: 14px;
+  color: var(--color-mute);
+  cursor: help;
+  transition: color 0.15s;
+}
+.modal-title-hint:hover {
+  color: var(--color-link);
+}
+.supported-file-list {
+  line-height: 1.7;
 }
 .upload-file-list {
   display: flex;
