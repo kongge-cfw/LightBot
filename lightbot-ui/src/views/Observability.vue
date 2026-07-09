@@ -159,7 +159,7 @@
       :footer="null"
       :maskClosable="false"
     >
-      <template v-if="toolDetailRecord">
+      <div v-if="toolDetailRecord" class="modal-scroll-body">
         <a-descriptions :column="2" size="small" bordered style="margin-bottom: 16px">
           <a-descriptions-item label="工具名称">
             <ToolOutlined /> {{ toolDetailRecord.toolName }}
@@ -193,7 +193,7 @@
           </div>
           <pre class="detail-pre detail-pre-json">{{ formatJson(toolDetailRecord.toolOutput) }}</pre>
         </div>
-      </template>
+      </div>
     </a-modal>
 
     <!-- Trace 详情抽屉 -->
@@ -341,9 +341,9 @@
               </div>
               <div v-if="m.content" class="mi-pre">
                 <MentionTextRenderer
-                  v-if="m.role === 'user' && shouldShowTraceMentions(m.content, traceModelInput.userMentions)"
+                  v-if="m.role === 'user' && shouldShowTraceMentions(m.content, resolveTraceMessageMentions(m, traceModelInput.userMentions))"
                   :content="m.content"
-                  :mentions="traceModelInput.userMentions"
+                  :mentions="resolveTraceMessageMentions(m, traceModelInput.userMentions)"
                 />
                 <template v-else>{{ m.content }}</template>
               </div>
@@ -601,6 +601,13 @@ function normalizeTraceMentions(raw) {
     name: m?.name || m?.token || '',
     token: m?.token || (m?.type && m?.resourceId ? `@${m.type}:${m.resourceId}` : ''),
   }))
+}
+
+function resolveTraceMessageMentions(m, fallbackMentions) {
+  const perMsg = normalizeTraceMentions(m?.mentions)
+  if (perMsg.length > 0) return perMsg
+  if (m?.source === 'current') return normalizeTraceMentions(fallbackMentions)
+  return []
 }
 
 function shouldShowTraceMentions(content, mentions) {
@@ -1504,8 +1511,13 @@ onUnmounted(() => clearTimeout(copyTimer))
 .modal-scroll-body {
   max-height: 60vh;
   overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 8px);
+  padding-right: var(--scroll-content-gap, 12px);
   scrollbar-gutter: stable;
+}
+
+.modal-scroll-body .detail-pre {
+  max-height: none;
+  overflow: visible;
 }
 
 /* 请求配置 */

@@ -468,10 +468,12 @@ public class MessageMiddleware implements ChatMiddleware {
         // 必须在摘要之后执行，避免占位消息被带入摘要
         fixOrphanUserMessages(history);
 
+        List<List<Map<String, Object>>> traceUserMentions = new ArrayList<>();
         for (Message msg : history) {
             if (msg.getRole() == MessageRole.USER) {
                 List<ChatAttachmentDTO> histAttachments = parseAttachmentsFromMetadata(msg.getMetadata());
                 messages.add(buildUserMessageForAttachments(msg.getContent(), histAttachments, sessionId, agentConfigMap));
+                traceUserMentions.add(parseMentionsFromMetadata(msg.getMetadata()));
             } else if (msg.getRole() == MessageRole.ASSISTANT) {
                 messages.add(new AssistantMessage(msg.getContent()));
             }
@@ -490,6 +492,13 @@ public class MessageMiddleware implements ChatMiddleware {
         List<ChatAttachmentDTO> attachments = request != null ? request.getAttachments() : null;
         messages.add(buildUserMessageForAttachments(
                 appendMentionHintIfNeeded(effectiveUserMessage, ctx), attachments, sessionId, agentConfigMap));
+        List<ChatMentionDTO> currentMentions = request != null ? request.getMentions() : null;
+        Long agentVersionId = request != null ? request.getAgentVersionId() : null;
+        traceUserMentions.add(buildMentionSnapshots(
+                currentMentions != null ? currentMentions : List.of(), agentVersionId));
+        if (ctx != null) {
+            ctx.setTraceUserMentionsPerMessage(traceUserMentions);
+        }
         return messages;
     }
 
@@ -882,6 +891,39 @@ public class MessageMiddleware implements ChatMiddleware {
             placeholder.setSessionId(last.getSessionId());
             placeholder.setCreateTime(last.getCreateTime().plusSeconds(1));
             history.add(placeholder);
+        }
+    }
+
+    /**
+     * 从消息 metadata 解析 mention 快照（供 Trace 历史消息回显）
+     */
+    private List<Map<String, Object>> parseMentionsFromMetadata(String metadata) {
+        if (metadata == null || metadata.isBlank()) {
+            return List.of();
+        }
+        try {
+            Map<String, Object> meta = objectMapper.readValue(metadata, new TypeReference<>() {});
+            Object mentions = meta.get("mentions");
+            if (!(mentions instanceof List<?> list)) {
+                return List.of();
+            }
+            List<Map<String, Object>> snapshots = new ArrayList<>(list.size());
+            for (Object item : list) {
+                if (!(item instanceof Map<?, ?> raw)) {
+                    continue;
+                }
+                Map<String, Object> snap = new LinkedHashMap<>();
+                for (Map.Entry<?, ?> entry : raw.entrySet()) {
+                    if (entry.getKey() != null) {
+                        snap.put(entry.getKey().toString(), entry.getValue());
+                    }
+                }
+                snapshots.add(snap);
+            }
+            return snapshots;
+        } catch (Exception e) {
+            log.debug("[Chat] 解析消息 mention metadata 失败: {}", e.getMessage());
+            return List.of();
         }
     }
 

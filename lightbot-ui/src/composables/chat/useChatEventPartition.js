@@ -65,6 +65,13 @@ export function hasSubagentCalls(msg) {
 }
 
 export function getToolBlockOffsets(msg) {
+  const blocks = getOrderedToolBlocks(msg)
+  if (blocks.length > 0) {
+    return blocks
+      .map(b => b.offset)
+      .filter(o => o != null && o >= 0)
+      .map(o => Number(o))
+  }
   const fromEvents = [...new Set(
     (msg._toolEvents || [])
       .filter(e => e.type === 'tool_call' || e.type === 'subagent_call')
@@ -72,10 +79,77 @@ export function getToolBlockOffsets(msg) {
       .filter(o => o != null && o >= 0)
       .map(o => Number(o))
   )].sort((a, b) => a - b)
-  // 以 toolEvents 为准；metadata.toolBlockOffsets 可能滞后于 realign 后的 contentOffset
   if (fromEvents.length > 0) return fromEvents
   if (msg._toolBlockOffsets?.length > 0) return msg._toolBlockOffsets.map(o => Number(o))
   return []
+}
+
+/**
+ * 按事件顺序划分渲染块：连续普通工具合并为一块；遇 SubAgent 等新组件时才拆分。
+ */
+export function getOrderedToolBlocks(msg) {
+  const events = msg._toolEvents || []
+  const blocks = []
+  let current = null
+
+  for (const e of events) {
+    if (e.type === 'tool_call') {
+      if (current?.kind === 'tools') {
+        current.events.push(e)
+        continue
+      }
+      if (current) blocks.push(current)
+      current = {
+        kind: 'tools',
+        offset: e.contentOffset,
+        callEvent: e,
+        events: [e],
+      }
+      continue
+    }
+    if (e.type === 'subagent_call') {
+      if (current?.kind === 'subagent') {
+        current.events.push(e)
+        continue
+      }
+      if (current) blocks.push(current)
+      current = {
+        kind: 'subagent',
+        offset: e.contentOffset,
+        callEvent: e,
+        events: [e],
+      }
+      continue
+    }
+    if (!current || isSkillActiveEvent(e)) continue
+    if (current.kind === 'subagent') {
+      if (typeof e.type === 'string' && e.type.startsWith('subagent_')) {
+        current.events.push(e)
+      }
+    } else if (!e.type?.startsWith('subagent_')) {
+      current.events.push(e)
+    }
+  }
+  if (current) blocks.push(current)
+  return blocks.map((block, blockIndex) => ({ ...block, blockIndex }))
+}
+
+export function isToolBlockSegmentDone(msg, block) {
+  if (!block) return !msg?._streaming
+  if (block.kind === 'subagent') {
+    const calls = block.events.filter(e => e.type === 'subagent_call')
+    return isSubagentBlockDone(msg._toolEvents || [], calls, !!msg._streaming)
+  }
+  if (!msg._streaming) return true
+  const calls = block.events.filter(e => e.type === 'tool_call')
+  if (calls.length === 0) {
+    return block.events.some(e => e.type === 'tool_result' || e.type === 'tool_status')
+  }
+  const resultNames = new Set(
+    block.events.filter(e => e.type === 'tool_result').map(e => e.toolName).filter(Boolean)
+  )
+  return calls.every(c => resultNames.has(c.toolName))
+    || block.events.some(e => e.type === 'tool_complete')
 }
 
 export function getToolEventsForOffset(msg, offset) {
@@ -195,14 +269,13 @@ function findSubagentCallForBlock(msg, blockOffset, subagentByOffset) {
 
 export function splitContentByOffsets(msg) {
   const content = msg.content || ''
-  const rawOffsets = getToolBlockOffsets(msg)
-  const subagentByOffset = buildSubagentCallByOffset(msg)
+  const blocks = getOrderedToolBlocks(msg)
   const pureToolEvents = getPureToolEvents(msg._toolEvents)
 
-  if (rawOffsets.length === 0) {
+  if (blocks.length === 0) {
     if ((msg._toolEvents || []).length > 0 && pureToolEvents.length > 0) {
       return [
-        { type: 'tool', offset: -1 },
+        { type: 'tool', block: { kind: 'tools', offset: -1, events: pureToolEvents, blockIndex: 0 } },
         ...(content ? [{ type: 'text', text: content }] : []),
       ]
     }
@@ -212,19 +285,17 @@ export function splitContentByOffsets(msg) {
   const segments = []
   let lastIdx = 0
 
-  for (const rawOffset of rawOffsets) {
-    const call = findSubagentCallForBlock(msg, rawOffset, subagentByOffset)
-    const splitAt = call
-      ? resolveToolBlockSplitAt(content, call, call.contentOffset ?? rawOffset)
-      : Math.min(Math.max(0, Number(rawOffset)), content.length)
+  for (const block of blocks) {
+    const rawOffset = block.offset != null ? Number(block.offset) : 0
+    const splitAt = block.kind === 'subagent'
+      ? resolveToolBlockSplitAt(content, block.callEvent, rawOffset)
+      : alignToSemanticSplitBoundary(content, rawOffset)
 
     if (splitAt > lastIdx) {
       segments.push({ type: 'text', text: content.substring(lastIdx, splitAt) })
     }
-    // 事件关联用 call 上的 contentOffset（与 _toolEvents 一致），避免 stale toolBlockOffsets 对不上
-    const eventOffset = call?.contentOffset != null ? Number(call.contentOffset) : Number(rawOffset)
-    segments.push({ type: 'tool', offset: eventOffset })
-    lastIdx = splitAt
+    segments.push({ type: 'tool', block })
+    lastIdx = Math.max(lastIdx, splitAt)
   }
 
   if (lastIdx < content.length) {

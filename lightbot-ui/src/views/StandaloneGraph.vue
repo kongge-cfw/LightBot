@@ -201,12 +201,17 @@
     >
       <a-form :model="edgeForm" :label-col="{ span: 4 }">
         <a-form-item label="起始节点">
+          <a-input
+            v-if="editingEdge"
+            :value="edgeForm.headName"
+            disabled
+          />
           <a-select
+            v-else
             v-model:value="edgeForm.headName"
             placeholder="选择起始节点（必填）"
             show-search
             :filter-option="(input, option) => option.value.toLowerCase().includes(input.toLowerCase())"
-            :disabled="!!editingEdge"
           >
             <a-select-option v-for="name in allNodeNames" :key="name" :value="name">{{ name }}</a-select-option>
           </a-select>
@@ -215,12 +220,17 @@
           <a-input v-model:value="edgeForm.relationType" placeholder="如：担任、隶属于、使用（必填）" />
         </a-form-item>
         <a-form-item label="目标节点">
+          <a-input
+            v-if="editingEdge"
+            :value="edgeForm.tailName"
+            disabled
+          />
           <a-select
+            v-else
             v-model:value="edgeForm.tailName"
             placeholder="选择目标节点（必填）"
             show-search
             :filter-option="(input, option) => option.value.toLowerCase().includes(input.toLowerCase())"
-            :disabled="!!editingEdge"
           >
             <a-select-option v-for="name in allNodeNames" :key="name" :value="name">{{ name }}</a-select-option>
           </a-select>
@@ -908,13 +918,19 @@ function resetNodeForm() {
 }
 
 // ---- 边 CRUD ----
+function resolveNodeNameByElementId(elementId) {
+  if (!elementId || !graphInstance) return undefined
+  const nodeData = graphInstance.getNodeData(String(elementId))
+  return nodeData?.data?.original?.name || nodeData?.data?.label || undefined
+}
+
 function openEditEdge() {
   if (!selectedEdge.value) return
   editingEdge.value = selectedEdge.value
   edgeForm.relationType = selectedEdge.value.relationType || ''
   edgeForm.description = selectedEdge.value.description || ''
-  edgeForm.headName = undefined
-  edgeForm.tailName = undefined
+  edgeForm.headName = resolveNodeNameByElementId(selectedEdge.value.startNodeElementId)
+  edgeForm.tailName = resolveNodeNameByElementId(selectedEdge.value.endNodeElementId)
   showEdgeCreateModal.value = true
   detailVisible.value = false
 }

@@ -50,6 +50,8 @@ public class ChatContext {
 
     // ===== MessageMiddleware 构建 =====
     private List<org.springframework.ai.chat.messages.Message> messages;
+    /** 与 messages 中 UserMessage 顺序对齐的 mention 快照，供 Trace 历史消息回显 */
+    private List<List<Map<String, Object>>> traceUserMentionsPerMessage;
 
     // ===== SkillPrepMiddleware 准备 =====
     /** 由 Skill 拼接出来的额外系统提示词（追加到 Agent.systemPrompt 之后） */

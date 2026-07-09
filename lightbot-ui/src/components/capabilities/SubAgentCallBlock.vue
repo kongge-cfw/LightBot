@@ -300,8 +300,22 @@ watch(activeRetry, (val, oldVal) => {
 watch([activeRetry, activeError, attemptViews, blockDone], () => {
   if (activeRetry.value || activeError.value || attemptViews.value.length || blockDone.value) {
     if (!userToggled) expanded.value = true
-    if (!props.streamFinished) emitLayoutChange()
+    if (!props.streamFinished) {
+      scrollInnerBodyToBottom()
+      emitLayoutChange()
+    }
   }
+}, { deep: true })
+
+watch(
+  () => attemptViews.value.map(a => a.modelOutput).join('\u0000'),
+  () => {
+    if (!props.streamFinished && expanded.value) scrollInnerBodyToBottom()
+  }
+)
+
+watch(scopedEvents, () => {
+  if (!props.streamFinished && expanded.value) scrollInnerBodyToBottom()
 }, { deep: true })
 
 function triggerRetryPulse() {
@@ -454,10 +468,12 @@ async function copyText(text) {
 }
 .subagent-body {
   padding: 4px 16px 16px 16px;
+  padding-right: calc(16px + var(--scroll-content-gap, 8px));
   font-size: 14px;
   color: var(--color-body);
   max-height: 520px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .subagent-attempt {
   margin-top: 12px;

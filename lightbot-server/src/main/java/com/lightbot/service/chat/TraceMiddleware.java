@@ -73,7 +73,8 @@ public class TraceMiddleware implements ChatMiddleware {
                         boolean lastUserHasAttachments = chatRequest != null && chatRequest.getAttachments() != null
                                 && !chatRequest.getAttachments().isEmpty();
                         List<Map<String, Object>> messageList = LlmTraceMessageSerializer.toTraceMessages(
-                                ctx.getMessages(), chatRequest, lastUserHasAttachments);
+                                ctx.getMessages(), chatRequest, lastUserHasAttachments,
+                                ctx.getTraceUserMentionsPerMessage());
                         Map<String, Object> llmInputAttrs = new java.util.LinkedHashMap<>();
                         llmInputAttrs.put("messageCount", messageList.size());
                         llmInputAttrs.put("messages", messageList);

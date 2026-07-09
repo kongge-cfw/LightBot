@@ -63,7 +63,7 @@
       :footer="null"
       :maskClosable="false"
     >
-      <template v-if="detailRecord">
+      <div v-if="detailRecord" class="modal-scroll-body">
         <a-descriptions :column="2" size="small" bordered style="margin-bottom: 16px">
           <a-descriptions-item label="工具名称">
             <ToolOutlined /> {{ detailRecord.toolName }}
@@ -97,7 +97,7 @@
           </div>
           <pre class="detail-pre detail-pre-json">{{ formatJson(detailRecord.toolOutput) }}</pre>
         </div>
-      </template>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -232,6 +232,16 @@ onMounted(() => {
 }
 .detail-section {
   margin-bottom: 16px;
+}
+.modal-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 12px);
+  scrollbar-gutter: stable;
+}
+.modal-scroll-body .detail-pre {
+  max-height: none;
+  overflow: visible;
 }
 .detail-label {
   font-size: 13px;

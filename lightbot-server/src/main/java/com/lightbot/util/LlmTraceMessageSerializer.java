@@ -33,6 +33,17 @@ public final class LlmTraceMessageSerializer {
             List<Message> messages,
             ChatRequest request,
             boolean lastUserHasAttachments) {
+        return toTraceMessages(messages, request, lastUserHasAttachments, null);
+    }
+
+    /**
+     * @param userMentionsPerUserIndex 与 messages 中 UserMessage 出现顺序对齐的 mention 快照
+     */
+    public static List<Map<String, Object>> toTraceMessages(
+            List<Message> messages,
+            ChatRequest request,
+            boolean lastUserHasAttachments,
+            List<List<Map<String, Object>>> userMentionsPerUserIndex) {
         if (messages == null || messages.isEmpty()) {
             return List.of();
         }
@@ -47,6 +58,7 @@ public final class LlmTraceMessageSerializer {
                 break;
             }
         }
+        int userMsgIdx = 0;
         for (int i = 0; i < messages.size(); i++) {
             Message msg = messages.get(i);
             boolean isCurrentUser = lastUserHasAttachments && i == lastUserIdx;
@@ -56,6 +68,16 @@ public final class LlmTraceMessageSerializer {
             // 标记孤立 USER 占位 ASSISTANT（内容检测，兼容 DB Message 和 Spring AI AssistantMessage）
             if (ORPHAN_PLACEHOLDER.equals(extractText(msg))) {
                 item.put("orphanPlaceholder", true);
+            }
+            if (msg instanceof UserMessage && userMentionsPerUserIndex != null
+                    && userMsgIdx < userMentionsPerUserIndex.size()) {
+                List<Map<String, Object>> mentions = userMentionsPerUserIndex.get(userMsgIdx);
+                if (mentions != null && !mentions.isEmpty()) {
+                    item.put("mentions", mentions);
+                }
+                userMsgIdx++;
+            } else if (msg instanceof UserMessage) {
+                userMsgIdx++;
             }
             result.add(item);
         }

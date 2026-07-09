@@ -191,12 +191,13 @@ public class SubAgentRuntime {
             // 8. 流式工具循环：直至模型返回不含 tool_call 的纯文本，或达到深度上限
             String reply = "";
             int toolCallCount = 0;
+            java.util.concurrent.atomic.AtomicLong streamingPausedMs = new java.util.concurrent.atomic.AtomicLong(0);
             for (int depth = 0; depth < MAX_LOOP_DEPTH; depth++) {
                 if (chatContext != null && chatContext.isAborted()) {
                     markFailed(run, "SubAgent execution cancelled by client", start);
                     return new SubAgentResult("", threadId, continued);
                 }
-                long remainingMs = deadlineMs - System.currentTimeMillis();
+                long remainingMs = remainingNonStreamingMs(deadlineMs, start, streamingPausedMs);
                 if (remainingMs <= 0) {
                     String timeoutMsg = readTimeoutMessage(readTimeoutSeconds);
                     emitSubAgentError(chatContext, subAgent, timeoutMsg, "READ_TIMEOUT");
@@ -209,8 +210,8 @@ public class SubAgentRuntime {
                     prepareMessagesForLlm(messages);
                     assistant = streamLlmWithRetry(
                             chatModel, new Prompt(new ArrayList<>(messages), options),
-                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth, deadlineMs,
-                            connectTimeoutSeconds, readTimeoutSeconds);
+                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth, deadlineMs, start,
+                            streamingPausedMs, connectTimeoutSeconds, readTimeoutSeconds);
                 } catch (Exception e) {
                     String errorMsg = classifyErrorMessage(e);
                     log.error("[SubAgent] 模型调用失败: name={}, depth={}, error={}",
@@ -378,22 +379,24 @@ public class SubAgentRuntime {
      */
     private AssistantMessage streamLlmWithRetry(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
                                                  ChatContext chatContext, int retryTimes,
-                                                 StringBuilder replyBuilder, int depth, long deadlineMs,
+                                                 StringBuilder replyBuilder, int depth, long deadlineMs, long startMs,
+                                                 java.util.concurrent.atomic.AtomicLong streamingPausedMs,
                                                  int connectTimeoutSeconds, int readTimeoutSeconds) throws Exception {
         Exception lastError = null;
         for (int attempt = 0; attempt <= retryTimes; attempt++) {
-            long remainingMs = deadlineMs - System.currentTimeMillis();
+            long remainingMs = remainingNonStreamingMs(deadlineMs, startMs, streamingPausedMs);
             if (remainingMs <= 0) {
                 throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
             }
             try {
                 return streamLlmOnce(chatModel, prompt, subAgent, chatContext, replyBuilder, remainingMs,
-                        connectTimeoutSeconds, readTimeoutSeconds);
+                        streamingPausedMs, connectTimeoutSeconds, readTimeoutSeconds);
             } catch (Exception e) {
                 lastError = e;
                 if (attempt < retryTimes) {
                     int retryNo = attempt + 1;
-                    long delayMs = Math.min((long) Math.pow(2, attempt) * 1000, Math.max(0, deadlineMs - System.currentTimeMillis()));
+                    long delayMs = Math.min((long) Math.pow(2, attempt) * 1000,
+                            Math.max(0, remainingNonStreamingMs(deadlineMs, startMs, streamingPausedMs)));
                     if (delayMs <= 0) {
                         throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
                     }
@@ -410,16 +413,17 @@ public class SubAgentRuntime {
         throw lastError != null ? lastError : new RuntimeException("SubAgent 模型调用失败");
     }
 
-    /** 单次流式 LLM 调用（连接超时 + 响应超时） */
+    /** 单次流式 LLM 调用：连接阶段限时等待首 token，流式输出阶段不再截断 */
     private AssistantMessage streamLlmOnce(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
                                           ChatContext chatContext, StringBuilder replyBuilder, long remainingMs,
+                                          java.util.concurrent.atomic.AtomicLong streamingPausedMs,
                                           int connectTimeoutSeconds, int readTimeoutSeconds) {
         List<AssistantMessage> lastAssistant = new ArrayList<>();
         java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
         java.util.concurrent.atomic.AtomicBoolean firstReceived = new java.util.concurrent.atomic.AtomicBoolean(false);
         StringBuilder streamSnapshot = new StringBuilder();
-        Flux<ChatResponse> flux = chatModel.stream(prompt);
-        Flux<ChatResponse> guardedFlux = flux.doOnNext(response -> {
+
+        java.util.function.Consumer<ChatResponse> processChunk = response -> {
             firstReceived.set(true);
             Generation gen = response.getResult();
             if (gen != null && gen.getOutput() != null) {
@@ -438,26 +442,56 @@ public class SubAgentRuntime {
                     }
                 }
             }
-        }).doOnComplete(() -> completed.set(true));
+        };
+
+        Flux<ChatResponse> flux = chatModel.stream(prompt);
         if (chatContext != null) {
-            guardedFlux = guardedFlux.takeUntilOther(Mono.delay(Duration.ofMillis(200))
+            flux = flux.takeUntilOther(Mono.delay(Duration.ofMillis(200))
                     .repeat()
                     .filter(tick -> chatContext.isAborted())
                     .next());
         }
-        guardedFlux
-          .take(Duration.ofMillis(Math.max(1, remainingMs)))
-          .blockLast();
-        if (chatContext != null && chatContext.isAborted()) {
-            throw new RuntimeException("SubAgent execution cancelled by client");
+        Flux<ChatResponse> cached = flux.cache();
+
+        long connectWaitMs = Math.min(remainingMs, connectTimeoutSeconds * 1000L);
+        try {
+            cached.take(1)
+                    .doOnNext(processChunk)
+                    .blockFirst(Duration.ofMillis(Math.max(1, connectWaitMs)));
+        } catch (Exception e) {
+            if (!firstReceived.get()) {
+                throw new RuntimeException(connectTimeoutMessage(connectTimeoutSeconds));
+            }
+            throw e instanceof RuntimeException re ? re : new RuntimeException(e);
         }
         if (!firstReceived.get()) {
             throw new RuntimeException(connectTimeoutMessage(connectTimeoutSeconds));
         }
-        if (!completed.get()) {
+
+        long streamStart = System.currentTimeMillis();
+        try {
+            cached.skip(1)
+                    .doOnNext(processChunk)
+                    .doOnComplete(() -> completed.set(true))
+                    .blockLast();
+        } finally {
+            streamingPausedMs.addAndGet(System.currentTimeMillis() - streamStart);
+        }
+
+        if (chatContext != null && chatContext.isAborted()) {
+            throw new RuntimeException("SubAgent execution cancelled by client");
+        }
+        if (!completed.get() && lastAssistant.isEmpty()) {
             throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
         }
         return lastAssistant.isEmpty() ? null : lastAssistant.get(0);
+    }
+
+    /** 非流式等待时间：总 deadline 扣除 LLM 流式输出阶段（首 token 之后） */
+    private long remainingNonStreamingMs(long deadlineMs, long startMs,
+                                         java.util.concurrent.atomic.AtomicLong streamingPausedMs) {
+        long elapsed = System.currentTimeMillis() - startMs - streamingPausedMs.get();
+        return deadlineMs - startMs - elapsed;
     }
 
     private int resolveConnectTimeoutSeconds(SubAgent subAgent) {

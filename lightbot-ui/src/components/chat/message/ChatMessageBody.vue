@@ -52,21 +52,21 @@
           <MarkdownPreview v-else :content="segment.text" :finalized="isSegmentFinalized(msg, segment, si)" />
         </div>
         <div v-else-if="segment.type === 'tool'" class="tool-block-inline">
-          <AgentCapabilityPanel
-            v-if="getCapabilityEventsForOffset(msg, segment.offset).length > 0"
-            :events="getCapabilityEventsForOffset(msg, segment.offset)"
-            :all-events="msg._toolEvents || []"
-            :is-done="isToolBlockDone(msg, segment.offset)"
-            :stream-finished="!msg._streaming"
-            :default-expanded="true"
-            @heightChange="$emit('height-change', $event)"
-          />
           <ToolCallsGroupComponent
-            v-if="getPureToolEvents(getToolEventsForOffset(msg, segment.offset)).length > 0"
-            :tool-events="getPureToolEvents(getToolEventsForOffset(msg, segment.offset))"
-            :is-done="isToolBlockDone(msg, segment.offset)"
+            v-if="segment.block?.kind === 'tools' && getPureToolEvents(segment.block.events).length > 0"
+            :tool-events="getPureToolEvents(segment.block.events)"
+            :is-done="isToolBlockSegmentDone(msg, segment.block)"
             :default-expanded="true"
             :message-index="index"
+            @heightChange="$emit('height-change', $event)"
+          />
+          <AgentCapabilityPanel
+            v-if="segment.block?.kind === 'subagent'"
+            :events="segment.block.events"
+            :all-events="msg._toolEvents || []"
+            :is-done="isToolBlockSegmentDone(msg, segment.block)"
+            :stream-finished="!msg._streaming"
+            :default-expanded="true"
             @heightChange="$emit('height-change', $event)"
           />
         </div>
@@ -117,10 +117,8 @@ import MentionTextRenderer from '../../MentionTextRenderer.vue'
 import ChatReasoningPanel from './ChatReasoningPanel.vue'
 import {
   getTopSkillEvents,
-  getCapabilityEventsForOffset,
   getPureToolEvents,
-  getToolEventsForOffset,
-  isToolBlockDone,
+  isToolBlockSegmentDone,
   splitContentByOffsets,
   isSegmentFinalized,
 } from '../../../composables/chat/useChatEventPartition.js'

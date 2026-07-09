@@ -7,20 +7,34 @@
       <RightOutlined :class="{ expanded: msg._reasoningExpanded }" class="tool-expand-icon" />
     </div>
     <CollapseTransition :open="!!msg._reasoningExpanded">
-      <div class="reasoning-content">{{ msg._reasoningContent }}</div>
+      <div ref="contentRef" class="reasoning-content">{{ msg._reasoningContent }}</div>
     </CollapseTransition>
   </div>
 </template>
 
 <script setup>
+import { ref, watch, nextTick } from 'vue'
 import { BulbOutlined, LoadingOutlined, RightOutlined } from '@ant-design/icons-vue'
 import CollapseTransition from '../../common/CollapseTransition.vue'
 
-defineProps({
+const props = defineProps({
   msg: { type: Object, required: true },
 })
 
 defineEmits(['reasoning-toggle'])
+
+const contentRef = ref(null)
+
+function scrollContentToBottom() {
+  if (!props.msg?._streaming || !props.msg?._reasoningExpanded) return
+  nextTick(() => {
+    const el = contentRef.value
+    if (el) el.scrollTop = el.scrollHeight
+  })
+}
+
+watch(() => props.msg?._reasoningContent, scrollContentToBottom)
+watch(() => props.msg?._reasoningExpanded, scrollContentToBottom)
 </script>
 
 <style scoped>
@@ -69,6 +83,7 @@ defineEmits(['reasoning-toggle'])
 }
 .reasoning-content {
   padding: 10px 12px;
+  padding-right: calc(12px + var(--scroll-content-gap, 8px));
   background: var(--color-warn-bg);
   font-size: 13px;
   color: var(--color-mute);
@@ -77,6 +92,7 @@ defineEmits(['reasoning-toggle'])
   word-break: break-word;
   max-height: 300px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
