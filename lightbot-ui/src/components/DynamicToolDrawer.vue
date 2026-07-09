@@ -27,7 +27,13 @@
                 <span v-if="showCount && group.triggerCount !== undefined" class="trigger-count">（当前 {{ group.triggerCount }} 个）</span>
               </p>
             </div>
-            <a-tag v-if="showStatus" :color="group.enabled ? 'green' : 'default'">{{ group.enabled ? '已启用' : '未启用' }}</a-tag>
+            <span
+              v-if="showStatus"
+              class="status-pill"
+              :class="{ enabled: group.enabled }"
+            >
+              {{ group.enabled ? '已启用' : '未启用' }}
+            </span>
           </div>
           <div v-if="group.reason" class="group-reason">{{ group.reason }}</div>
           <div v-if="group.tools.length" class="tool-list">
@@ -195,6 +201,25 @@ const groups = computed(() => {
   justify-content: space-between;
   align-items: flex-start;
   gap: 12px;
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-hairline);
+  background: var(--color-canvas-soft);
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.status-pill.enabled {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+  color: #15803d;
 }
 .group-head h4 {
   margin: 0;

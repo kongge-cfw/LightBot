@@ -492,7 +492,12 @@ public class MessageMiddleware implements ChatMiddleware {
         List<ChatAttachmentDTO> attachments = request != null ? request.getAttachments() : null;
         messages.add(buildUserMessageForAttachments(
                 appendMentionHintIfNeeded(effectiveUserMessage, ctx), attachments, sessionId, agentConfigMap));
-        List<ChatMentionDTO> currentMentions = request != null ? request.getMentions() : null;
+        List<ChatMentionDTO> currentMentions = null;
+        if (ctx != null && ctx.getMentionScope() != null && ctx.getMentionScope().getRawMentions() != null) {
+            currentMentions = ctx.getMentionScope().getRawMentions();
+        } else if (request != null) {
+            currentMentions = request.getMentions();
+        }
         Long agentVersionId = request != null ? request.getAgentVersionId() : null;
         traceUserMentions.add(buildMentionSnapshots(
                 currentMentions != null ? currentMentions : List.of(), agentVersionId));

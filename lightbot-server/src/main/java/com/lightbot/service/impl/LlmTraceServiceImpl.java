@@ -10,10 +10,14 @@ import com.lightbot.dto.LlmTraceDetailVO;
 import com.lightbot.dto.LlmTraceRequest;
 import com.lightbot.dto.LlmTraceSpan;
 import com.lightbot.entity.LlmTrace;
+import com.lightbot.entity.Message;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.LlmTraceMapper;
+import com.lightbot.mapper.MessageMapper;
 import com.lightbot.service.LlmTraceService;
+import com.lightbot.service.MentionTraceSnapshotService;
 import com.lightbot.util.LlmTraceContext;
+import com.lightbot.util.LlmTraceMentionEnricher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
@@ -41,6 +45,8 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private final ObjectMapper objectMapper;
+    private final MessageMapper messageMapper;
+    private final MentionTraceSnapshotService mentionTraceSnapshotService;
 
     /**
      * 分页查询调用链列表
@@ -106,6 +112,7 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
         if (trace.getSpans() != null && !trace.getSpans().isBlank()) {
             try {
                 List<LlmTraceSpan> spans = objectMapper.readValue(trace.getSpans(), new TypeReference<>() {});
+                enrichTraceMentions(trace.getSessionId(), spans);
                 vo.setSpans(spans);
             } catch (Exception e) {
                 log.warn("[LLMTrace] spans解析失败, id={}, error={}", id, e.getMessage());
@@ -115,6 +122,23 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
             vo.setSpans(List.of());
         }
         return vo;
+    }
+
+    /**
+     * 从会话消息 metadata 回填 Trace 中历史 user 消息的 mentions（兼容旧 Trace 数据）
+     */
+    private void enrichTraceMentions(Long sessionId, List<LlmTraceSpan> spans) {
+        if (sessionId == null || spans == null || spans.isEmpty()) {
+            return;
+        }
+        List<Message> sessionMessages = messageMapper.selectList(
+                new LambdaQueryWrapper<Message>()
+                        .eq(Message::getSessionId, sessionId)
+                        .orderByAsc(Message::getCreateTime));
+        if (sessionMessages.isEmpty()) {
+            return;
+        }
+        LlmTraceMentionEnricher.enrich(spans, sessionMessages, mentionTraceSnapshotService);
     }
 
     /**

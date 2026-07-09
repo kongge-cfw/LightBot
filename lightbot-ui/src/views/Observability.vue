@@ -606,7 +606,10 @@ function normalizeTraceMentions(raw) {
 function resolveTraceMessageMentions(m, fallbackMentions) {
   const perMsg = normalizeTraceMentions(m?.mentions)
   if (perMsg.length > 0) return perMsg
-  if (m?.source === 'current') return normalizeTraceMentions(fallbackMentions)
+  // 本轮 user_message span 的 mentions 仅对最后一条 user 消息有效
+  if (m?.source === 'current' || m?._askUserRole === 'response') {
+    return normalizeTraceMentions(fallbackMentions)
+  }
   return []
 }
 
