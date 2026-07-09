@@ -10,6 +10,7 @@ import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.dto.ChatMentionDTO;
 import com.lightbot.dto.ChatMentionDTO;
 import com.lightbot.dto.ChatRequest;
+import com.lightbot.dto.UserPreferenceVO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
@@ -30,6 +31,8 @@ import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.ChatSessionService;
 import com.lightbot.service.ToolService;
+import com.lightbot.service.UserMemoryService;
+import com.lightbot.service.UserPreferenceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -70,6 +73,8 @@ public class MessageMiddleware implements ChatMiddleware {
     private final MinioUtil minioUtil;
     private final ObjectMapper objectMapper;
     private final ChatAttachmentParsedService chatAttachmentParsedService;
+    private final UserPreferenceService userPreferenceService;
+    private final UserMemoryService userMemoryService;
 
     /** 平台统一回复约束（不含工具相关，工具能力由 Provider 决定后按需追加） */
     private static final String PLATFORM_REPLY_CONSTRAINTS = """
@@ -428,6 +433,7 @@ public class MessageMiddleware implements ChatMiddleware {
                 ? request.getBizParams() : Map.of();
         Map<String, Object> varValues = PromptTemplateUtil.mergeVariableValues(promptVarDefs, bizParams);
         systemPrompt = PromptTemplateUtil.render(systemPrompt, varValues);
+        systemPrompt = appendUserMemoryPrompt(systemPrompt, ctx, agent, userMessage);
         if (apiToolsEnabled) {
             systemPrompt = systemPrompt + PLATFORM_TOOL_KNOWLEDGE_HINT;
         }
@@ -485,6 +491,28 @@ public class MessageMiddleware implements ChatMiddleware {
         messages.add(buildUserMessageForAttachments(
                 appendMentionHintIfNeeded(effectiveUserMessage, ctx), attachments, sessionId, agentConfigMap));
         return messages;
+    }
+
+    private String appendUserMemoryPrompt(String systemPrompt, ChatContext ctx, Agent agent, String userMessage) {
+        if (ctx == null || ctx.getUserId() == null) {
+            return systemPrompt;
+        }
+        try {
+            UserPreferenceVO preferences = userPreferenceService.getPreferences(ctx.getUserId());
+            if (!Boolean.TRUE.equals(preferences.getLongMemoryEnabled())) {
+                return systemPrompt;
+            }
+            Long memoryAgentId = "agent".equalsIgnoreCase(preferences.getLongMemoryScope()) && agent != null
+                    ? agent.getId() : null;
+            String memoryPrompt = userMemoryService.buildMemoryPrompt(
+                    ctx.getUserId(), memoryAgentId, userMessage,
+                    preferences.getLongMemoryInjectLimit() != null ? preferences.getLongMemoryInjectLimit() : 6);
+            return memoryPrompt.isBlank() ? systemPrompt : systemPrompt + memoryPrompt;
+        } catch (Exception e) {
+            log.warn("[MessageMiddleware] 加载用户长期记忆失败: userId={}, error={}",
+                    ctx.getUserId(), e.getMessage());
+            return systemPrompt;
+        }
     }
 
     /**

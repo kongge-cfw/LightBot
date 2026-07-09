@@ -667,7 +667,7 @@ async function handleCreateFile() {
     await createSkillFile(skill.value.id, {
       path: newFileForm.path,
       content: newFileForm.isDir ? undefined : (newFileForm.content || ''),
-      isDir: newFileForm.isDir,
+      dir: newFileForm.isDir,
     })
     message.success('创建成功')
     showCreateFile.value = false

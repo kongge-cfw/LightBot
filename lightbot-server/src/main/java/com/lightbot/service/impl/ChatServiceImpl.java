@@ -103,6 +103,7 @@ public class ChatServiceImpl implements ChatService {
     private final RagParamResolver ragParamResolver;
     private final SessionAttachmentRegistrar sessionAttachmentRegistrar;
     private final SubAgentService subAgentService;
+    private final UserMemoryService userMemoryService;
 
     /** SSE 心跳注释行（SSE 协议：以冒号开头的行是注释，客户端应忽略） */
     private static final String HEARTBEAT_PREFIX = ":heartbeat";
@@ -454,6 +455,13 @@ public class ChatServiceImpl implements ChatService {
 
             // 1.2 助手消息已落库，异步生成会话标题（须晚于 TraceMiddleware.doOnComplete）
             scheduleTitleGeneration(ctx);
+
+            // 1.3 助手消息已落库后再异步抽取长期记忆，避免影响主回复完成事件
+            try {
+                userMemoryService.extractAsync(ctx);
+            } catch (Exception e) {
+                log.warn("[Chat] 调度长期记忆抽取失败: {}", e.getMessage());
+            }
 
             // 2. 返回带消息ID、Token数和完整metadata的 [DONE] 事件
             return toolEventGenerator.doneWithMetadata(ctx.getUserMessageId(), assistantMessageId, totalTokens, metadataStr);

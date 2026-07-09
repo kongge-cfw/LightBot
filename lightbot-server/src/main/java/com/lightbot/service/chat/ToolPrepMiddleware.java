@@ -16,7 +16,9 @@ import com.lightbot.service.AgentService;
 import com.lightbot.service.McpClientService;
 import com.lightbot.service.SkillService;
 import com.lightbot.service.ToolService;
+import com.lightbot.service.UserPreferenceService;
 import com.lightbot.subagent.DelegateSubAgentTool;
+import com.lightbot.tool.builtin.UserMemoryToolCallbackFactory;
 import com.lightbot.util.JsonIdParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -59,6 +61,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     private final ModelProviderService modelProviderService;
     private final DelegateSubAgentTool delegateSubAgentTool;
     private final SkillService skillService;
+    private final UserPreferenceService userPreferenceService;
+    private final UserMemoryToolCallbackFactory userMemoryToolCallbackFactory;
 
     @Autowired
     @Qualifier("lightBotExecutor")
@@ -184,6 +188,14 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 }
             }
 
+            // 1.2 用户长期记忆工具自动注入：仅在用户显式开启长期记忆后提供
+            boolean memoryToolsInjected = shouldInjectUserMemoryTools(ctx);
+            if (memoryToolsInjected) {
+                allCallbacks.addAll(userMemoryToolCallbackFactory.buildCallbacks());
+                log.info("[Chat] 自动注入用户长期记忆工具: userId={}, agentId={}",
+                        ctx.getUserId(), agent.getId());
+            }
+
             // 2. 加载 MCP Server 工具（运行时获取，不落库；同样合并 Agent + Skill 来源）
             List<Long> baseMcpIds = ctx != null && ctx.getVersionMcpServerIds() != null
                     ? ctx.getVersionMcpServerIds() : agentService.getMcpServerIds(agent.getId());
@@ -253,12 +265,13 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     toolCtxMap.put("requestId", requestId);
                 }
                 if (ctx != null) {
+                    toolCtxMap.put("userId", ctx.getUserId());
                     toolCtxMap.put("chatContext", ctx);
                 }
                 toolBuilder.toolContext(toolCtxMap);
-                log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}",
+                log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}, MemoryTools={}",
                         agent.getId(), mergedToolIds.size(), mergedMcpIds.size(),
-                        subAgentIds != null ? subAgentIds.size() : 0);
+                        subAgentIds != null ? subAgentIds.size() : 0, memoryToolsInjected);
             }
         }
 
@@ -275,6 +288,18 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             options = modelFactory.adaptToolCallingOptions(provider, configMap, options);
         }
         return options;
+    }
+
+    private boolean shouldInjectUserMemoryTools(ChatContext ctx) {
+        if (ctx == null || ctx.getUserId() == null) {
+            return false;
+        }
+        try {
+            return userPreferenceService.isLongMemoryEnabled(ctx.getUserId());
+        } catch (Exception e) {
+            log.warn("[Chat] 读取用户长期记忆配置失败: userId={}, error={}", ctx.getUserId(), e.getMessage());
+            return false;
+        }
     }
 
     /**

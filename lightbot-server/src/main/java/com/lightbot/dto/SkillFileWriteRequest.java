@@ -22,5 +22,5 @@ public class SkillFileWriteRequest {
     private String content;
 
     @Schema(description = "是否为目录（新建时使用）")
-    private boolean isDir;
+    private Boolean dir;
 }

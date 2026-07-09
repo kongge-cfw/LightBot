@@ -118,7 +118,7 @@ public class SkillController {
     @Operation(summary = "创建 Skill 文件/目录")
     @PostMapping("/{id}/file")
     public Result<Void> createFile(@PathVariable Long id, @Valid @RequestBody SkillFileWriteRequest request) {
-        skillService.createFile(id, request.getPath(), request.getContent(), request.isDir());
+        skillService.createFile(id, request.getPath(), request.getContent(), Boolean.TRUE.equals(request.getDir()));
         return Result.ok();
     }
 
