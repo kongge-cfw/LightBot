@@ -24,11 +24,15 @@ import com.lightbot.service.KnowledgeMemberService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.TaskService;
+import com.lightbot.util.MilvusUtil;
 import com.lightbot.util.Neo4jUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.neo4j.driver.types.Node;
 import org.neo4j.driver.types.Relationship;
+import org.springframework.ai.embedding.EmbeddingModel;
+import org.springframework.ai.embedding.EmbeddingRequest;
+import org.springframework.ai.embedding.EmbeddingResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -47,7 +51,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GraphServiceImpl implements GraphService {
 
+    private static final double DEFAULT_MIN_SIMILARITY_SCORE = 0.5;
+
     private final Neo4jUtil neo4jUtil;
+    private final MilvusUtil milvusUtil;
+    private final EmbeddingModel embeddingModel;
     private final KnowledgeMemberService permissionHelper;
     private final GraphExtractor graphExtractor;
     private final TaskService taskService;
@@ -921,5 +929,112 @@ public class GraphServiceImpl implements GraphService {
 
     private long snowflakeId() {
         return com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
+    }
+
+    // ==================== 语义搜索 ====================
+
+    @Override
+    public List<GraphNodeVO> semanticSearch(Long knowledgeId, Long documentId, String query, int topK, Double minScore, Long providerId) {
+        checkNeo4jAvailable();
+        permissionHelper.checkMember(knowledgeId);
+
+        double threshold = (minScore != null && minScore >= 0) ? minScore : DEFAULT_MIN_SIMILARITY_SCORE;
+        float[] queryEmbedding = embedText(query);
+        if (queryEmbedding == null) {
+            return Collections.emptyList();
+        }
+
+        if (!milvusUtil.isAvailable() || !milvusUtil.hasEntityCollection(knowledgeId)) {
+            return Collections.emptyList();
+        }
+
+        List<Map<String, Object>> hits = milvusUtil.searchEntities(knowledgeId, queryEmbedding, topK);
+        if (hits.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String label = Neo4jUtil.kbLabel(knowledgeId);
+        List<GraphNodeVO> results = new ArrayList<>();
+        Set<String> seenNames = new HashSet<>();
+
+        for (Map<String, Object> hit : hits) {
+            double score = ((Number) hit.get("score")).doubleValue();
+            if (score < threshold) {
+                break;
+            }
+            long entityId = (Long) hit.get("id");
+            String content = hit.get("content") != null ? hit.get("content").toString() : "";
+            String entityName = extractEntityName(content);
+            if (entityName.isBlank()) {
+                continue;
+            }
+
+            GraphNodeVO node = lookupEntityForSemanticSearch(label, entityId, entityName, documentId);
+            if (node != null && seenNames.add(node.getName())) {
+                node.setScore(score);
+                results.add(node);
+            }
+        }
+        return results;
+    }
+
+    /**
+     * 将 Milvus 检索命中映射到 Neo4j 节点（全库按 id，单文档按名称）
+     */
+    private GraphNodeVO lookupEntityForSemanticSearch(String label, long entityId, String entityName, Long documentId) {
+        String cypher;
+        Map<String, Object> params = new HashMap<>();
+        if (documentId != null) {
+            cypher = """
+                MATCH (n:Entity:`%s`)
+                WHERE n.name = $name AND n.document_id = $docId AND n.graph_source = 'single_doc'
+                RETURN n
+                LIMIT 1
+                """.formatted(label);
+            params.put("name", entityName);
+            params.put("docId", String.valueOf(documentId));
+        } else {
+            cypher = """
+                MATCH (n:Entity:`%s`)
+                WHERE n.id = $entityId AND (n.graph_source = 'merged' OR n.graph_source IS NULL)
+                RETURN n
+                LIMIT 1
+                """.formatted(label);
+            params.put("entityId", String.valueOf(entityId));
+        }
+
+        List<org.neo4j.driver.Record> records = neo4jUtil.query(cypher, params);
+        if (records.isEmpty() && documentId == null) {
+            // 全库模式下 id 未命中时，回退按名称匹配 merged 节点
+            String fallbackCypher = """
+                MATCH (n:Entity:`%s`)
+                WHERE n.name = $name AND (n.graph_source = 'merged' OR n.graph_source IS NULL)
+                RETURN n
+                LIMIT 1
+                """.formatted(label);
+            records = neo4jUtil.query(fallbackCypher, Map.of("name", entityName));
+        }
+        if (records.isEmpty()) {
+            return null;
+        }
+        return toNodeVO(records.get(0).get("n").asNode());
+    }
+
+    private String extractEntityName(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        int idx = content.indexOf(": ");
+        return idx > 0 ? content.substring(0, idx) : content;
+    }
+
+    private float[] embedText(String text) {
+        try {
+            EmbeddingResponse response = embeddingModel.call(new EmbeddingRequest(List.of(text), null));
+            return response.getResult().getOutput();
+        } catch (Exception e) {
+            log.warn("[知识图谱] embedding 生成失败: {}", e.getMessage());
+            return null;
+        }
     }
 }

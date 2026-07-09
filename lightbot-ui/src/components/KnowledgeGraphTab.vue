@@ -2,28 +2,26 @@
   <div class="knowledge-graph-tab">
     <!-- 顶部工具栏 -->
     <div class="kg-toolbar">
-      <div class="kg-toolbar-left">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索节点..."
-          allow-clear
-          size="small"
-          class="kg-search"
-          @press-enter="handleSearch"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <a-button size="small" @click="handleSearch" :disabled="!searchText">搜索</a-button>
-        <a-tooltip v-if="searchKeywords.length > 0" title="清除高亮">
-          <a-button size="small" @click="handleClearSearch">
-            <template #icon><ClearOutlined /></template>
-          </a-button>
-        </a-tooltip>
-      </div>
-      <div class="kg-toolbar-right">
-        <a-button size="small" @click="handleFitView">
-          <template #icon><CompressOutlined /></template> 适应画布
-        </a-button>
+      <div class="kg-toolbar-row">
+        <div class="kg-toolbar-left">
+          <a-input
+            v-model:value="searchText"
+            placeholder="搜索节点..."
+            allow-clear
+            size="small"
+            class="kg-search"
+            @press-enter="handleSearch"
+          >
+            <template #prefix><SearchOutlined /></template>
+          </a-input>
+          <a-button size="small" @click="handleSearch" :disabled="!searchText">搜索</a-button>
+          <a-tooltip v-if="searchKeywords.length > 0" title="清除高亮">
+            <a-button size="small" @click="handleClearSearch">
+              <template #icon><ClearOutlined /></template>
+            </a-button>
+          </a-tooltip>
+        </div>
+        <div class="kg-toolbar-right">
         <!-- 单文档模式：重新抽取按钮 -->
         <a-popconfirm
           v-if="documentId && stats.nodeCount > 0"
@@ -73,6 +71,68 @@
             </a-button>
           </a-popconfirm>
         </template>
+        </div>
+      </div>
+
+      <div class="kg-toolbar-row kg-toolbar-semantic">
+        <a-input
+          v-model:value="semanticQuery"
+          placeholder="语义搜索，按含义匹配节点..."
+          allow-clear
+          size="small"
+          class="kg-search-semantic"
+          @press-enter="handleSemanticSearch"
+        >
+          <template #prefix><ThunderboltOutlined /></template>
+        </a-input>
+        <a-button size="small" @click="handleSemanticSearch" :loading="semanticSearching" :disabled="!semanticQuery">
+          语义搜索
+        </a-button>
+        <a-popover trigger="click" placement="bottomLeft">
+          <template #content>
+            <div class="kg-semantic-config">
+              <div class="kg-semantic-config-item">
+                <span class="kg-semantic-config-label">TopN</span>
+                <a-input-number
+                  v-model:value="semanticTopN"
+                  :min="1"
+                  :max="100"
+                  :precision="0"
+                  size="small"
+                  style="width: 100%"
+                />
+                <span class="kg-semantic-config-hint">返回条数上限</span>
+              </div>
+              <div class="kg-semantic-config-item">
+                <span class="kg-semantic-config-label">相似度阈值</span>
+                <a-input-number
+                  v-model:value="semanticMinScore"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  :precision="2"
+                  size="small"
+                  style="width: 100%"
+                />
+                <span class="kg-semantic-config-hint">低于该值的结果不高亮（0~1）</span>
+              </div>
+            </div>
+          </template>
+          <a-button size="small">
+            <template #icon><SettingOutlined /></template>
+            参数
+          </a-button>
+        </a-popover>
+        <a-tooltip>
+          <template #title>
+            <div style="max-width: 260px">
+              <div style="font-weight: 600; margin-bottom: 4px">什么是语义搜索？</div>
+              <div>基于向量相似度匹配节点含义，而非精确匹配文字。命中节点按相似度高亮，低于阈值的结果不展示。</div>
+              <div style="margin-top: 6px; color: #bbb">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
+            </div>
+          </template>
+          <QuestionCircleOutlined class="kg-semantic-help" />
+        </a-tooltip>
       </div>
     </div>
 
@@ -93,6 +153,13 @@
     <!-- 图谱画布 -->
     <div class="kg-canvas-wrapper" ref="canvasWrapperRef">
       <div v-if="graphReady && !hasRunningTask" class="kg-canvas" ref="canvasRef"></div>
+      <div v-if="graphReady && !hasRunningTask" class="kg-fit-btn">
+        <a-tooltip title="适应画布" placement="left">
+          <a-button shape="circle" size="small" @click="handleFitView">
+            <template #icon><CompressOutlined /></template>
+          </a-button>
+        </a-tooltip>
+      </div>
       <div v-else class="kg-empty">
         <a-spin v-if="loading" tip="加载图谱中..." />
         <template v-else>
@@ -129,6 +196,9 @@
       <template v-if="detailType === 'node' && selectedNode">
         <a-descriptions :column="1" size="small" bordered>
           <a-descriptions-item label="名称">{{ selectedNode.name }}</a-descriptions-item>
+          <a-descriptions-item v-if="selectedNode.score != null" label="相似度">
+            {{ (selectedNode.score * 100).toFixed(1) }}%
+          </a-descriptions-item>
           <a-descriptions-item label="类型">{{ selectedNode.entityType || '-' }}</a-descriptions-item>
           <a-descriptions-item label="描述">{{ selectedNode.description || '-' }}</a-descriptions-item>
           <a-descriptions-item label="来源">{{ selectedNode.source || '-' }}</a-descriptions-item>
@@ -272,12 +342,12 @@ import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } f
 import { Graph } from '@antv/g6'
 import { useTheme } from '../composables/useTheme'
 import {
-  SearchOutlined, RobotOutlined, DeleteOutlined, CompressOutlined, LoadingOutlined, RedoOutlined, ClearOutlined, QuestionCircleOutlined
+  SearchOutlined, RobotOutlined, DeleteOutlined, CompressOutlined, LoadingOutlined, RedoOutlined, ClearOutlined, QuestionCircleOutlined, ThunderboltOutlined, SettingOutlined
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   getGraphSubgraph, getGraphStats, extractGraph, deleteGraph, deleteDocGraph,
-  deleteGraphNode, deleteGraphEdge, getDocuments, getExistingDocIds
+  deleteGraphNode, deleteGraphEdge, getDocuments, getExistingDocIds, semanticSearchKnowledgeGraph
 } from '../api/knowledge'
 import ModelSelect from './ModelSelect.vue'
 import JsonInput from './JsonInput.vue'
@@ -302,6 +372,10 @@ const deleting = ref(false)
 const graphReady = ref(false)
 const searchText = ref('')
 const searchKeywords = ref([])
+const semanticQuery = ref('')
+const semanticTopN = ref(10)
+const semanticMinScore = ref(0.5)
+const semanticSearching = ref(false)
 
 const stats = reactive({ nodeCount: 0, edgeCount: 0 })
 const hasRunningTask = ref(false)
@@ -523,6 +597,19 @@ function renderGraph(subgraph, seq) {
         labelFill: graphColors.value.labelFill,
         labelWordWrap: true,
         labelMaxWidth: '300%',
+        badge: (d) => d.data.score != null,
+        badges: (d) => {
+          if (d.data.score == null) return []
+          return [{
+            text: `${(d.data.score * 100).toFixed(1)}%`,
+            placement: 'right-top',
+            backgroundFill: '#2563eb',
+            fill: '#ffffff',
+            fontSize: 10,
+            padding: [2, 5],
+            backgroundRadius: 8
+          }]
+        },
         size: (d) => {
           const deg = d.data.degree || 0
           return Math.min(15 + deg * 5, 50)
@@ -587,7 +674,10 @@ function renderGraph(subgraph, seq) {
     const nodeData = graphInstance.getNodeData(nodeId)
     const original = nodeData?.data?.original
     if (original) {
-      selectedNode.value = { ...original }
+      selectedNode.value = {
+        ...original,
+        score: nodeData?.data?.score ?? original.score
+      }
       detailType.value = 'node'
       detailVisible.value = true
     }
@@ -869,15 +959,85 @@ function handleSearch() {
   displayNodeCount.value = Object.values(updates).filter(v => v[0] === 'highlighted').length
 }
 
+async function handleSemanticSearch() {
+  if (!semanticQuery.value?.trim()) return
+  const topN = semanticTopN.value > 0 ? semanticTopN.value : 10
+  const minScore = semanticMinScore.value ?? undefined
+  semanticSearching.value = true
+  try {
+    const res = await semanticSearchKnowledgeGraph(
+      props.knowledgeId,
+      semanticQuery.value.trim(),
+      topN,
+      minScore,
+      props.documentId || undefined
+    )
+    const nodes = res.data || []
+    if (nodes.length === 0) {
+      message.info('未找到高于阈值的匹配节点')
+      return
+    }
+
+    if (graphInstance) {
+      const scoreMap = new Map(nodes.map(n => [n.name, n.score]))
+      const { nodes: graphNodes, edges } = graphInstance.getData()
+      const updates = {}
+      const nodeDataUpdates = []
+
+      graphNodes.forEach(node => {
+        const label = node.data.label || ''
+        if (scoreMap.has(label)) {
+          updates[node.id] = ['highlighted']
+          nodeDataUpdates.push({ id: node.id, data: { score: scoreMap.get(label) } })
+        } else {
+          updates[node.id] = ['inactive']
+          if (node.data.score != null) {
+            nodeDataUpdates.push({ id: node.id, data: { score: undefined } })
+          }
+        }
+      })
+
+      edges.forEach(e => {
+        if (updates[e.source]?.[0] === 'highlighted' || updates[e.target]?.[0] === 'highlighted') {
+          updates[e.source] = ['highlighted']
+          updates[e.target] = ['highlighted']
+        }
+      })
+
+      if (nodeDataUpdates.length > 0) {
+        graphInstance.updateNodeData(nodeDataUpdates)
+      }
+      graphInstance.setElementState(updates)
+      graphInstance.draw()
+      searchKeywords.value = [semanticQuery.value.trim()]
+      displayNodeCount.value = Object.values(updates).filter(v => v[0] === 'highlighted').length
+    }
+  } catch (e) {
+    console.error('[知识图谱] 语义搜索失败', e)
+  } finally {
+    semanticSearching.value = false
+  }
+}
+
 function handleClearSearch() {
   searchKeywords.value = []
   searchText.value = ''
+  semanticQuery.value = ''
   if (!graphInstance) return
 
   const { nodes, edges } = graphInstance.getData()
   const updates = {}
-  nodes.forEach(n => (updates[n.id] = []))
+  const nodeDataUpdates = []
+  nodes.forEach(n => {
+    updates[n.id] = []
+    if (n.data.score != null) {
+      nodeDataUpdates.push({ id: n.id, data: { score: undefined } })
+    }
+  })
   edges.forEach(e => (updates[e.id] = []))
+  if (nodeDataUpdates.length > 0) {
+    graphInstance.updateNodeData(nodeDataUpdates)
+  }
   graphInstance.setElementState(updates)
   graphInstance.draw()
 
@@ -978,14 +1138,31 @@ watch(isDark, () => {
 .kg-toolbar {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   padding-top: 12px;
   margin-bottom: 8px;
+}
+
+.kg-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kg-toolbar-semantic {
+  padding: 8px 10px;
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
+  border-radius: 6px;
+  justify-content: flex-start;
 }
 
 .kg-toolbar-left {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
@@ -993,11 +1170,48 @@ watch(isDark, () => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 .kg-search {
+  width: 180px;
+}
+
+.kg-search-semantic {
+  flex: 1;
+  min-width: 160px;
+  max-width: 360px;
+}
+
+.kg-semantic-help {
+  color: var(--color-mute);
+  cursor: help;
+  font-size: 13px;
+}
+
+.kg-semantic-config {
   width: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.kg-semantic-config-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kg-semantic-config-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+}
+
+.kg-semantic-config-hint {
+  font-size: 11px;
+  color: var(--color-mute);
 }
 
 .kg-stats {
@@ -1046,6 +1260,13 @@ watch(isDark, () => {
   width: 100%;
   height: 100%;
   background: var(--kg-canvas-bg);
+}
+
+.kg-fit-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
 }
 
 .kg-empty {

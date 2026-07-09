@@ -170,7 +170,7 @@ public class UserMemoryToolCallbackFactory {
                 }
                 UserMemory memory = userMemoryService.getById(memoryId);
                 if (memory == null || !userId.equals(memory.getUserId())) {
-                    return failure("未找到可删除的长期记忆");
+                    return failure("未找到可停用的长期记忆");
                 }
                 memory.setStatus(UserMemoryStatus.DISABLED);
                 userMemoryService.updateById(memory);

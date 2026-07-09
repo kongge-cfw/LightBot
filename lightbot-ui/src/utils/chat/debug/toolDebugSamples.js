@@ -284,6 +284,60 @@ export const TOOL_DEBUG_SAMPLES = {
     errors: [],
   }),
 
+  memory_save: sample('memory_save', {
+    success: true,
+    memory: {
+      id: '2056961707612393473',
+      agentId: null,
+      sessionId: '2056961707612393480',
+      memoryType: 'preference',
+      content: '用户偏好使用 React + TypeScript 技术栈，习惯下午 2 点后写代码',
+      keywords: ['技术栈', '偏好', 'React', 'TypeScript'],
+      confidence: 0.9,
+      status: 'enabled',
+      lastUsedAt: null,
+      createTime: '2026-07-09 14:20:00',
+      updateTime: '2026-07-09 14:20:00',
+    },
+  }),
+
+  memory_search: sample('memory_search', {
+    success: true,
+    memories: [
+      {
+        id: '2056961707612393473',
+        agentId: null,
+        sessionId: '2056961707612393480',
+        memoryType: 'preference',
+        content: '用户偏好使用 React + TypeScript 技术栈，习惯下午 2 点后写代码',
+        keywords: ['技术栈', '偏好', 'React', 'TypeScript'],
+        confidence: 0.9,
+        status: 'enabled',
+        lastUsedAt: '2026-07-09 15:00:00',
+        createTime: '2026-07-09 14:20:00',
+        updateTime: '2026-07-09 14:20:00',
+      },
+      {
+        id: '2056961707612393474',
+        agentId: null,
+        sessionId: '2056961707612393481',
+        memoryType: 'profile',
+        content: '用户是拥有 10 年经验的 Java 架构师，擅长分布式系统',
+        keywords: ['Java', '架构师', '分布式'],
+        confidence: 0.95,
+        status: 'enabled',
+        lastUsedAt: null,
+        createTime: '2026-07-08 10:12:00',
+        updateTime: '2026-07-08 10:12:00',
+      },
+    ],
+  }),
+
+  memory_delete: sample('memory_delete', {
+    success: true,
+    memoryId: '2056961707612393473',
+  }),
+
   [UNREGISTERED_TOOL_NAME]: sample('custom_unknown_tool', {
     message: '未注册工具示例输出',
     data: { foo: 'bar' },
@@ -326,6 +380,9 @@ export const TOOL_DEBUG_ERROR_SAMPLES = {
     errors: ['outputs/missing.pdf（文件不存在）', 'outputs/bad.txt（路径不在 outputs/ 下）'],
   },
   install_skill: { _error: true, message: '未找到可安装的技能' },
+  memory_save: { success: false, error: '缺少 content 参数' },
+  memory_search: { success: false, error: '缺少用户上下文，无法查询长期记忆' },
+  memory_delete: { success: false, error: '未找到可停用的长期记忆' },
   [UNREGISTERED_TOOL_NAME]: { _error: true, message: '工具 custom_unknown_tool 不存在' },
 }
 

@@ -176,6 +176,17 @@ export function getGraphSubgraph(knowledgeId, params) {
   return request.get(`/knowledge/${knowledgeId}/graph/subgraph`, { params })
 }
 
+export function semanticSearchKnowledgeGraph(knowledgeId, query, topK = 10, minScore, documentId) {
+  return request.get(`/knowledge/${knowledgeId}/graph/search`, {
+    params: {
+      query,
+      topK,
+      ...(minScore != null ? { minScore } : {}),
+      ...(documentId ? { documentId } : {}),
+    },
+  })
+}
+
 export function getGraphStats(knowledgeId, documentId) {
   return request.get(`/knowledge/${knowledgeId}/graph/stats`, {
     params: documentId ? { documentId } : {}

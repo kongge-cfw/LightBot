@@ -762,7 +762,28 @@ function openTestDialog(tool) {
 
   // 从 inputSchema 动态解析参数说明和生成示例
   testToolParams.value = parseToolParams(tool.inputSchema)
-  testArgs.value = JSON.stringify(generateToolExample(tool.inputSchema), null, 2)
+
+  // 记忆工具定制样例
+  const toolName = tool.name
+  if (toolName === 'memory_save') {
+    testArgs.value = JSON.stringify({
+      memoryType: 'preference',
+      content: '用户偏好使用 React + TypeScript 技术栈，习惯下午 2 点后写代码',
+      keywords: ['技术栈', '偏好', 'React', 'TypeScript'],
+      confidence: 0.9,
+    }, null, 2)
+  } else if (toolName === 'memory_search') {
+    testArgs.value = JSON.stringify({
+      query: '用户的技术栈偏好是什么',
+      limit: 5,
+    }, null, 2)
+  } else if (toolName === 'memory_delete') {
+    testArgs.value = JSON.stringify({
+      memoryId: '2056961707612393473',
+    }, null, 2)
+  } else {
+    testArgs.value = JSON.stringify(generateToolExample(tool.inputSchema), null, 2)
+  }
 
   testDialogVisible.value = true
 }

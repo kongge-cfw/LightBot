@@ -55,6 +55,17 @@ public class KnowledgeGraphController {
         return Result.ok(graphService.getSubgraph(id, documentId, keyword, maxDepth, maxNodes));
     }
 
+    @Operation(summary = "语义搜索图谱节点")
+    @GetMapping("/{id}/graph/search")
+    public Result<List<GraphNodeVO>> semanticSearch(@PathVariable Long id,
+                                                    @RequestParam String query,
+                                                    @RequestParam(defaultValue = "10") int topK,
+                                                    @RequestParam(required = false) Double minScore,
+                                                    @RequestParam(required = false) Long documentId,
+                                                    @RequestParam(required = false) Long providerId) {
+        return Result.ok(graphService.semanticSearch(id, documentId, query, topK, minScore, providerId));
+    }
+
     @Operation(summary = "获取图谱统计信息")
     @GetMapping("/{id}/graph/stats")
     public Result<GraphStatsVO> getGraphStats(@PathVariable Long id,

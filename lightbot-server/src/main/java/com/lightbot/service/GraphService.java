@@ -54,6 +54,19 @@ public interface GraphService {
     GraphSubgraphVO getSubgraph(Long knowledgeId, Long documentId, String keyword, int maxDepth, int maxNodes);
 
     /**
+     * 语义搜索图谱节点（基于 Milvus 向量相似度）
+     *
+     * @param knowledgeId 知识库ID
+     * @param documentId  文档ID（为null表示全库图谱）
+     * @param query       搜索查询
+     * @param topK        返回数量上限
+     * @param minScore    相似度阈值（0~1，null 时使用默认值）
+     * @param providerId  模型提供商ID（预留，当前使用系统默认 Embedding）
+     * @return 匹配的节点列表（含相似度 score）
+     */
+    List<GraphNodeVO> semanticSearch(Long knowledgeId, Long documentId, String query, int topK, Double minScore, Long providerId);
+
+    /**
      * 图谱检索：从问题中提取实体，展开子图，返回文本格式的三元组
      *
      * @param knowledgeId 知识库ID
