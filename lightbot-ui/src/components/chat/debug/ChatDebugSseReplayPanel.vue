@@ -2,7 +2,10 @@
   <div class="debug-sse-panel">
     <div class="debug-panel-toolbar">
       <a-button type="primary" @click="replay">回放 SSE</a-button>
-      <a-button @click="loadSample">加载样例</a-button>
+      <a-select v-model:value="selectedSample" style="width: 190px" @change="loadSample">
+        <a-select-option v-for="sample in samples" :key="sample.id" :value="sample.id">{{ sample.label }}</a-select-option>
+      </a-select>
+      <a-button @click="loadSample">加载所选样例</a-button>
       <a-button @click="clearAll">清空</a-button>
     </div>
     <div class="debug-sse-grid">
@@ -36,14 +39,45 @@ const sseLog = ref('')
 const baseJson = ref(apiMessageToEditorJson(createDefaultApiMessage()))
 const parseError = ref('')
 
-const SAMPLE_SSE = `data:[STATUS]{"type":"reasoning_content","content":"正在分析..."}
+const SSE_SAMPLES = [
+  {
+    id: 'tool',
+    label: '工具调用 + 正文',
+    content: `data:[STATUS]{"type":"reasoning_content","content":"正在分析..."}
 data:[STATUS]{"type":"tool_call","toolName":"query_knowledge","displayName":"知识库检索","args":"{\\"query\\":\\"LightBot\\"}","contentOffset":0}
 data:[STATUS]{"type":"tool_result","toolName":"query_knowledge","displayName":"知识库检索","contentOffset":0,"result":"{\\"total\\":1,\\"results\\":[{\\"content\\":\\"LightBot 是 AI Agent 平台\\"}]}"}
 data:根据知识库，
-data:LightBot 支持 RAG 与工作流。`
+data:LightBot 支持 RAG 与工作流。`,
+  },
+  {
+    id: 'subagent',
+    label: 'SubAgent 批次流式',
+    content: `data:[STATUS]{"type":"subagent_batch_start","batch_id":"debug-batch-001","mode":"parallel","aggregation":"return_all","delegationIndex":0,"contentOffset":0,"tasks":[{"task_index":0,"task_id":"debug-task-001","subagent_name":"research-agent","task":"用 Markdown 总结 LightBot 模块"}]}
+data:[STATUS]{"type":"subagent_task_start","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","status":"running","contentOffset":0,"delegationIndex":0}
+data:[STATUS]{"type":"subagent_token","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","content":"## 核心模块\\n\\n- Agent\\n- RAG\\n- Workflow","contentOffset":0,"delegationIndex":0}
+data:[STATUS]{"type":"subagent_task_done","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","status":"completed","contentOffset":0,"delegationIndex":0,"result":{"status":"completed","reply":"## 核心模块\\n\\n- Agent\\n- RAG\\n- Workflow"}}
+data:[STATUS]{"type":"subagent_batch_done","batch_id":"debug-batch-001","status":"completed","contentOffset":0,"delegationIndex":0}`,
+  },
+  {
+    id: 'skill',
+    label: 'Skill 启用',
+    content: `data:[STATUS]{"type":"skill_active","contentOffset":0,"skills":[{"slug":"code-review","name":"code-review","displayName":"代码审查","description":"审查代码质量","builtin":true}]}
+data:已启用代码审查 Skill。`,
+  },
+  {
+    id: 'workflow',
+    label: '工作流节点',
+    content: `data:[STATUS]{"type":"workflow_node_start","nodeId":"debug-node-1","nodeType":"llm","nodeLabel":"需求分析","contentOffset":0}
+data:[STATUS]{"type":"workflow_node_complete","nodeId":"debug-node-1","nodeType":"llm","nodeLabel":"需求分析","message":"执行完成","success":true,"contentOffset":0}
+data:[STATUS]{"type":"workflow_complete","contentOffset":0}`,
+  },
+]
+
+const samples = SSE_SAMPLES
+const selectedSample = ref('tool')
 
 function loadSample() {
-  sseLog.value = SAMPLE_SSE
+  sseLog.value = SSE_SAMPLES.find(sample => sample.id === selectedSample.value)?.content || ''
   baseJson.value = apiMessageToEditorJson(createDefaultApiMessage())
 }
 

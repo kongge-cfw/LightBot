@@ -7,13 +7,12 @@ import { SUBAGENT_BATCH_START_EVENT_TYPE, SUBAGENT_CALL_EVENT_TYPE } from './sub
 
 const SkillActiveBlock = defineAsyncComponent(() => import('../skills/SkillActiveBlock.vue'))
 const SubAgentCallBlock = defineAsyncComponent(() => import('./SubAgentCallBlock.vue'))
-const SubAgentBatchBlock = defineAsyncComponent(() => import('./SubAgentBatchBlock.vue'))
 
 /** 能力事件类型 → 块级渲染组件（仅顶层块，非 tool_result） */
 export const CAPABILITY_BLOCK_RENDERERS = {
   [SKILL_ACTIVE_EVENT_TYPE]: SkillActiveBlock,
   [SUBAGENT_CALL_EVENT_TYPE]: SubAgentCallBlock,
-  [SUBAGENT_BATCH_START_EVENT_TYPE]: SubAgentBatchBlock,
+  [SUBAGENT_BATCH_START_EVENT_TYPE]: SubAgentCallBlock,
 }
 
 /**

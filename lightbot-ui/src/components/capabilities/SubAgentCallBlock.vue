@@ -50,7 +50,7 @@
           }"
         >
         <div v-if="attemptViews.length > 1" class="subagent-attempt-header">
-          <span class="subagent-attempt-label">第 {{ ai + 1 }} 次委派</span>
+          <span class="subagent-attempt-label">{{ isBatchEvent ? `任务 ${ai + 1}` : `第 ${ai + 1} 次委派` }}</span>
           <span v-if="attempt.isDone && attempt.error" class="subagent-attempt-status error">失败</span>
           <span v-else-if="attempt.isDone && attempt.success" class="subagent-attempt-status success">完成</span>
           <span v-else-if="attempt.isDone" class="subagent-attempt-status error">失败</span>
@@ -191,9 +191,37 @@ const jsonCopied = ref(false)
 const retryPulseActive = ref(false)
 let retryPulseTimer = null
 
-const scopedEvents = computed(() => props.allEvents || props.events || [])
+const isBatchEvent = computed(() => props.event?.type === 'subagent_batch_start')
+const scopedEvents = computed(() => (props.allEvents || props.events || []).map((event) => {
+  // 批次协议复用原有 subagent_result 语义，避免出现第二套渲染和状态机。
+  if (event.type === 'subagent_task_done') {
+    return {
+      ...event,
+      type: 'subagent_result',
+      result: typeof event.result === 'string' ? event.result : JSON.stringify(event.result || event),
+    }
+  }
+  return event
+}))
 const callList = computed(() => {
   if (props.calls?.length) return props.calls
+  if (isBatchEvent.value) {
+    return (props.event.tasks || []).map((task, taskIndex) => {
+      const streamEvent = scopedEvents.value.find(event =>
+        event.task_id === task.task_id && event.subagentName === task.subagent_name)
+      return {
+        type: 'subagent_call',
+        batch_id: props.event.batch_id,
+        task_id: task.task_id,
+        taskIndex: task.task_index ?? taskIndex,
+        subagentName: task.subagent_name,
+        displayName: streamEvent?.displayName || task.subagent_name,
+        task: task.task,
+        contentOffset: props.event.contentOffset,
+        delegationIndex: props.event.delegationIndex,
+      }
+    })
+  }
   return props.event ? [props.event] : []
 })
 
@@ -221,7 +249,7 @@ const attemptViews = computed(() => {
     const isDone = isSubagentAttemptDone(scopedEvents.value, call, delegationIndex, streaming, blockCalls)
     const success = isSubagentAttemptSuccessful(scopedEvents.value, call, delegationIndex, blockCalls)
     return {
-      key: `${call.subagentName}-${call.contentOffset}-${delegationIndex ?? index}`,
+      key: call.task_id || `${call.subagentName}-${call.contentOffset}-${delegationIndex ?? index}`,
       call,
       delegationIndex,
       task: call.task,
@@ -240,9 +268,9 @@ const attemptViews = computed(() => {
   })
 })
 
-const subagentTitle = computed(() =>
-  props.event.displayName || props.event.subagentName
-)
+const subagentTitle = computed(() => isBatchEvent.value
+  ? `${modeLabel(props.event.mode)} · ${callList.value.length} 个任务`
+  : (props.event.displayName || props.event.subagentName))
 
 const activeAttempt = computed(() =>
   attemptViews.value.find(a => a.isActive) || attemptViews.value[attemptViews.value.length - 1]
@@ -286,6 +314,10 @@ function visibleAttemptTimeline(attempt) {
     && (attemptViews.value.length === 1 || attempt.isActive)
   if (!shownInBanner) return visible
   return visible.filter(item => item.kind !== 'error')
+}
+
+function modeLabel(mode) {
+  return ({ sync: '同步委派', parallel: '并行委派', background: '后台委派' })[mode] || '批次委派'
 }
 
 watch(() => props.defaultExpanded, (val) => {

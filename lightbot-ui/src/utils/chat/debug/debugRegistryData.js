@@ -23,7 +23,7 @@ const CAPABILITY_EVENT_TYPES = new Set([...SUBAGENT_EVENT_TYPES, SKILL_ACTIVE_EV
 const CAPABILITY_BLOCK_COMPONENT_NAMES = {
   [SKILL_ACTIVE_EVENT_TYPE]: 'SkillActiveBlock',
   subagent_call: 'SubAgentCallBlock',
-  subagent_batch_start: 'SubAgentBatchBlock',
+  subagent_batch_start: 'SubAgentCallBlock（批次适配）',
 }
 
 /** 工具注册表只读数据（仅真正的工具，排除 SSE 流事件） */

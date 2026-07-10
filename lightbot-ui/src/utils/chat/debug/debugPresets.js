@@ -332,6 +332,39 @@ export const DEBUG_PRESETS = [
       },
     },
   },
+  {
+    id: 'subagent-batch-stream',
+    label: 'SubAgent 批次流式委派',
+    message: {
+      role: 'assistant',
+      content: '我已将两个子任务并行委派，结果如下。',
+      metadata: {
+        toolEvents: [
+          {
+            type: 'subagent_batch_start',
+            batch_id: 'subagent_batch_debug_001',
+            mode: 'parallel',
+            aggregation: 'return_all',
+            delegationIndex: 0,
+            contentOffset: 0,
+            tasks: [
+              { task_index: 0, task_id: 'subagent_task_debug_research', subagent_name: 'research-agent', task: '检索 LightBot 的核心能力并用 Markdown 总结。' },
+              { task_index: 1, task_id: 'subagent_task_debug_arch', subagent_name: 'architect-agent', task: '给出模块职责和依赖关系。' },
+            ],
+          },
+          { type: 'subagent_task_start', batch_id: 'subagent_batch_debug_001', task_id: 'subagent_task_debug_research', task_index: 0, subagentName: 'research-agent', contentOffset: 0, delegationIndex: 0 },
+          { type: 'subagent_tool_call', batch_id: 'subagent_batch_debug_001', task_id: 'subagent_task_debug_research', task_index: 0, subagentName: 'research-agent', displayName: '研究助手', toolName: 'web_search', toolDisplayName: '联网搜索', args: '{"query":"LightBot 核心能力"}', contentOffset: 0, delegationIndex: 0 },
+          { type: 'subagent_token', batch_id: 'subagent_batch_debug_001', task_id: 'subagent_task_debug_research', task_index: 0, subagentName: 'research-agent', content: '## 核心能力\n\n- Agent 对话\n- **RAG** 知识库\n- 工作流编排', contentOffset: 0, delegationIndex: 0 },
+          { type: 'subagent_task_done', batch_id: 'subagent_batch_debug_001', task_id: 'subagent_task_debug_research', task_index: 0, subagentName: 'research-agent', contentOffset: 0, delegationIndex: 0, result: { status: 'completed', reply: '## 核心能力\n\n- Agent 对话\n- **RAG** 知识库\n- 工作流编排' } },
+          { type: 'subagent_task_done', batch_id: 'subagent_batch_debug_001', task_id: 'subagent_task_debug_arch', task_index: 1, subagentName: 'architect-agent', contentOffset: 0, delegationIndex: 0, result: { status: 'completed', reply: '## 模块分层\n\n`server → agent → tool`' } },
+          { type: 'subagent_batch_done', batch_id: 'subagent_batch_debug_001', status: 'completed', contentOffset: 0, delegationIndex: 0 },
+        ],
+        workflowEvents: [],
+        reasoningContent: '',
+        ragReferences: [],
+      },
+    },
+  },
 ]
 
 export function getPresetById(id) {

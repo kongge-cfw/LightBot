@@ -211,6 +211,9 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
                 || parsed.type === 'skill_active' || parsed.type === 'subagent_call' || parsed.type === 'subagent_result'
                 || parsed.type === 'subagent_token' || parsed.type === 'subagent_tool_call' || parsed.type === 'subagent_tool_result'
                 || parsed.type === 'subagent_error' || parsed.type === 'subagent_error_retry'
+                || parsed.type === 'subagent_batch_start' || parsed.type === 'subagent_task_start'
+                || parsed.type === 'subagent_task_done' || parsed.type === 'subagent_batch_done'
+                || parsed.type === 'subagent_batch_update'
                 || parsed.type === 'error' || parsed.type === 'error_retry') {
               onToolEvent?.(parsed)
               if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }

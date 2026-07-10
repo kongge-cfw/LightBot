@@ -5,6 +5,8 @@
 /** 同 offset 多次委派合并为一块时的分组 key */
 export function getSubagentBlockKey(call) {
   if (!call) return 'subagent-block'
+  if (call.batch_id || call.batchId) return `batch:${call.batch_id || call.batchId}`
+  if (call.task_id || call.taskId) return `task:${call.task_id || call.taskId}`
   const name = call.subagentName || ''
   const offset = call.contentOffset
   return `${name}@${offset ?? 'top'}`
@@ -21,6 +23,12 @@ export function resolveDelegationIndex(call, fallbackIndex = null) {
 
 function matchSubagentScope(event, call, delegationIndex = null) {
   if (!event || !call) return false
+  const callBatchId = call.batch_id || call.batchId
+  const eventBatchId = event.batch_id || event.batchId
+  if (callBatchId && eventBatchId && callBatchId !== eventBatchId) return false
+  const callTaskId = call.task_id || call.taskId
+  const eventTaskId = event.task_id || event.taskId
+  if (callTaskId && eventTaskId && callTaskId !== eventTaskId) return false
   if (event.subagentName !== call.subagentName) return false
   const eventOffset = event.contentOffset
   const callOffset = call.contentOffset

@@ -10,6 +10,8 @@ const TOOL_EVENT_TYPES = new Set([
   'skill_active',
   'subagent_call', 'subagent_result', 'subagent_token',
   'subagent_tool_call', 'subagent_tool_result', 'subagent_error', 'subagent_error_retry',
+  'subagent_batch_start', 'subagent_task_start', 'subagent_task_done',
+  'subagent_batch_done', 'subagent_batch_update',
 ])
 
 const WORKFLOW_EVENT_TYPES = new Set([

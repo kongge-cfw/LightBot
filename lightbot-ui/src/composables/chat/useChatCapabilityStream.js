@@ -94,7 +94,7 @@ export function createChatCapabilityStreamHandlers(deps) {
       currentStatus.value = event.type === 'subagent_batch_start'
         ? `委派 ${event.tasks?.length || 1} 个 SubAgent 任务`
         : formatSubagentCallStatus(event)
-      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block, .subagent-batch-block')
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
     } else if (event.type === 'subagent_task_start') {
       currentStatus.value = `SubAgent 任务 ${Number(event.task_index || 0) + 1} 执行中...`
     } else if (event.type === 'subagent_task_done' || event.type === 'subagent_batch_done') {

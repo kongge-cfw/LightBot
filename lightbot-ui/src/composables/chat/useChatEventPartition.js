@@ -115,7 +115,7 @@ export function getOrderedToolBlocks(msg) {
       }
       if (current) blocks.push(current)
       current = {
-        kind: e.type === 'subagent_batch_start' ? 'subagent-batch' : 'subagent',
+        kind: 'subagent',
         offset: e.contentOffset,
         callEvent: e,
         events: [e],
@@ -123,7 +123,7 @@ export function getOrderedToolBlocks(msg) {
       continue
     }
     if (!current || isSkillActiveEvent(e)) continue
-    if (current.kind === 'subagent' || current.kind === 'subagent-batch') {
+    if (current.kind === 'subagent') {
       if (typeof e.type === 'string' && e.type.startsWith('subagent_')) {
         current.events.push(e)
       }
@@ -137,10 +137,6 @@ export function getOrderedToolBlocks(msg) {
 
 export function isToolBlockSegmentDone(msg, block) {
   if (!block) return !msg?._streaming
-  if (block.kind === 'subagent-batch') {
-    return !msg?._streaming || block.events.some(e =>
-      e.type === 'subagent_batch_done' || e.type === 'subagent_batch_update')
-  }
   if (block.kind === 'subagent') {
     const calls = block.events.filter(e => e.type === 'subagent_call')
     return isSubagentBlockDone(msg._toolEvents || [], calls, !!msg._streaming)
