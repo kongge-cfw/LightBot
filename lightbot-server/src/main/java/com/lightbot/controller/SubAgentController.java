@@ -5,6 +5,9 @@ import com.lightbot.common.Result;
 import com.lightbot.dto.SubAgentRequest;
 import com.lightbot.entity.SubAgent;
 import com.lightbot.service.SubAgentService;
+import com.lightbot.service.ChatSessionService;
+import com.lightbot.subagent.service.SubAgentTaskService;
+import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -26,6 +29,8 @@ import java.util.List;
 public class SubAgentController {
 
     private final SubAgentService subAgentService;
+    private final ChatSessionService chatSessionService;
+    private final SubAgentTaskService subAgentTaskService;
 
     @Operation(summary = "新增SubAgent")
     @PostMapping
@@ -73,5 +78,37 @@ public class SubAgentController {
     public Result<Void> setEnabled(@PathVariable Long id, @RequestParam boolean enabled) {
         subAgentService.setEnabled(id, enabled);
         return Result.ok();
+    }
+
+    @Operation(summary = "分页查询会话内的SubAgent任务")
+    @GetMapping("/runs")
+    public Result<Page<com.lightbot.entity.SubAgentRun>> listRuns(
+            @RequestParam Long sessionId,
+            @RequestParam(required = false) String batchId,
+            @RequestParam(defaultValue = "1") int pageNum,
+            @RequestParam(defaultValue = "20") int pageSize) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.pageRuns(sessionId, batchId, pageNum, pageSize));
+    }
+
+    @Operation(summary = "获取SubAgent批次详情")
+    @GetMapping("/batches/{batchId}")
+    public Result<java.util.Map<String, Object>> getBatch(@PathVariable String batchId, @RequestParam Long sessionId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.getBatchDetail(batchId, sessionId));
+    }
+
+    @Operation(summary = "取消SubAgent批次")
+    @PostMapping("/batches/{batchId}/cancel")
+    public Result<java.util.Map<String, Object>> cancelBatch(@PathVariable String batchId, @RequestParam Long sessionId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.cancelBatch(batchId, sessionId));
+    }
+
+    @Operation(summary = "获取SubAgent单任务详情")
+    @GetMapping("/runs/{taskId}")
+    public Result<java.util.Map<String, Object>> getRun(@PathVariable String taskId, @RequestParam Long sessionId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.getTaskDetail(taskId, sessionId));
     }
 }

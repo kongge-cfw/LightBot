@@ -768,7 +768,8 @@ public class ChatServiceImpl implements ChatService {
                                 log.info("[Chat][Trace] 工具执行结果: name={}, 耗时={}ms, resultLength={}", tcName, tEnd - tStart, result.length());
                                 spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                                         tStart, tEnd - tStart, "OK",
-                                        Map.of("toolName", tcName, "args", tcArgs, "resultLength", result.length())));
+                                        buildToolTraceAttributes(tcName, tcArgs, result)));
+                                appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], tcName, result, tStart);
                                 if ("query_knowledge".equals(tcName)) {
                                     List<Map<String, Object>> kbResults = QueryKnowledgeTool.getSearchResults(requestId);
                                     synchronized (kbResultsHolder) { kbResultsHolder.addAll(kbResults); }
@@ -822,7 +823,8 @@ public class ChatServiceImpl implements ChatService {
 
                         spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                                 tToolStart, tToolEnd - tToolStart, "OK",
-                                Map.of("toolName", toolName, "args", safeArgs, "resultLength", toolResult.length())));
+                                buildToolTraceAttributes(toolName, safeArgs, toolResult)));
+                        appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], toolName, toolResult, tToolStart);
 
                         if ("query_knowledge".equals(toolName)) {
                             List<Map<String, Object>> kbResults = QueryKnowledgeTool.getSearchResults(requestId);
@@ -1105,7 +1107,8 @@ public class ChatServiceImpl implements ChatService {
                     long tEnd = System.currentTimeMillis();
                     spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                             tStart, tEnd - tStart, "OK",
-                            Map.of("toolName", tcName, "args", tcArgs, "resultLength", result.length())));
+                            buildToolTraceAttributes(tcName, tcArgs, result)));
+                    appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], tcName, result, tStart);
                     if ("query_knowledge".equals(tcName)) {
                         List<Map<String, Object>> kbResults = QueryKnowledgeTool.getSearchResults(requestId);
                         synchronized (kbResultsHolder) {
@@ -1152,7 +1155,8 @@ public class ChatServiceImpl implements ChatService {
             long tToolEnd = System.currentTimeMillis();
             spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                     tToolStart, tToolEnd - tToolStart, "OK",
-                    Map.of("toolName", toolName, "args", safeArgs, "resultLength", toolResult.length())));
+                    buildToolTraceAttributes(toolName, safeArgs, toolResult)));
+            appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], toolName, toolResult, tToolStart);
 
             if ("query_knowledge".equals(toolName)) {
                 List<Map<String, Object>> kbResults = QueryKnowledgeTool.getSearchResults(requestId);
@@ -1830,6 +1834,96 @@ public class ChatServiceImpl implements ChatService {
         } catch (Exception ignored) {
             return new LinkedHashMap<>(Map.of("status", "failed", "error", result));
         }
+    }
+
+    /**
+     * 为 SubAgent 工具调用补充 batch/task 元数据，供可观测调用树消费。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildToolTraceAttributes(String toolName, String args, String result) {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        attributes.put("toolName", toolName);
+        attributes.put("args", args);
+        attributes.put("resultLength", result != null ? result.length() : 0);
+        if (!isSubAgentTool(toolName) || result == null || result.isBlank()) {
+            return attributes;
+        }
+        try {
+            Map<String, Object> output = objectMapper.readValue(result, Map.class);
+            Object batchId = output.get("batch_id");
+            if (batchId != null) attributes.put("batchId", batchId.toString());
+            Object taskId = output.get("task_id");
+            if (taskId != null) attributes.put("taskId", taskId.toString());
+            if (output.get("mode") != null) attributes.put("subagentMode", output.get("mode"));
+            if (output.get("status") != null) attributes.put("subagentStatus", output.get("status"));
+            if (output.get("results") instanceof List<?> results) {
+                attributes.put("subagentTaskCount", results.size());
+                attributes.put("subagentTaskIds", results.stream()
+                        .filter(Map.class::isInstance)
+                        .map(Map.class::cast)
+                        .map(item -> item.get("task_id"))
+                        .filter(Objects::nonNull)
+                        .map(Object::toString)
+                        .toList());
+            }
+        } catch (Exception ignored) {
+            // 工具结果非 JSON 时维持通用工具 span。
+        }
+        return attributes;
+    }
+
+    /**
+     * 在通用 tool_execute span 下补充 SubAgent 批次和任务子 span，形成可观测调用树。
+     */
+    @SuppressWarnings("unchecked")
+    private void appendSubAgentTraceSpans(List<LlmTraceSpan> spans, String toolSpanId,
+                                          String toolName, String result, long startTime) {
+        if (!isSubAgentTool(toolName) || result == null || result.isBlank()) {
+            return;
+        }
+        try {
+            Map<String, Object> output = objectMapper.readValue(result, Map.class);
+            String batchId = output.get("batch_id") != null ? output.get("batch_id").toString() : null;
+            if (batchId == null || batchId.isBlank()) {
+                return;
+            }
+            String batchSpanId = toolSpanId + ":subagent_batch";
+            Object status = output.get("status");
+            Map<String, Object> batchAttributes = new LinkedHashMap<>();
+            batchAttributes.put("batchId", batchId);
+            batchAttributes.put("mode", output.get("mode"));
+            batchAttributes.put("aggregation", output.get("aggregation"));
+            synchronized (spans) {
+                spans.add(LlmTraceSpan.of(batchSpanId, toolSpanId, "subagent_batch", startTime, 0L,
+                        "failed".equals(status) ? "ERROR" : "OK", batchAttributes));
+                if (output.get("results") instanceof List<?> results) {
+                    int index = 0;
+                    for (Object raw : results) {
+                        if (!(raw instanceof Map<?, ?> task)) continue;
+                        String taskId = task.get("task_id") != null ? task.get("task_id").toString() : String.valueOf(index);
+                        Map<String, Object> taskAttributes = new LinkedHashMap<>();
+                        taskAttributes.put("batchId", batchId);
+                        taskAttributes.put("taskId", taskId);
+                        taskAttributes.put("subagentName", task.get("subagent_name"));
+                        taskAttributes.put("status", task.get("status"));
+                        taskAttributes.put("replyPreview", task.get("reply"));
+                        taskAttributes.put("error", task.get("error"));
+                        spans.add(LlmTraceSpan.of(batchSpanId + ":task:" + index, batchSpanId,
+                                "subagent_task", startTime, 0L,
+                                "failed".equals(task.get("status")) ? "ERROR" : "OK", taskAttributes));
+                        index++;
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+            // Trace 增强失败不能影响对话工具链。
+        }
+    }
+
+    private boolean isSubAgentTool(String toolName) {
+        return DelegateSubAgentTool.TOOL_NAME.equals(toolName)
+                || DelegateSubAgentTool.RESULT_TOOL_NAME.equals(toolName)
+                || DelegateSubAgentTool.CANCEL_TOOL_NAME.equals(toolName);
     }
 
     @SuppressWarnings("unchecked")

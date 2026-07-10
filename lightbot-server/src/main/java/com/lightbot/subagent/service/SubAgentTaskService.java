@@ -1,6 +1,8 @@
 package com.lightbot.subagent.service;
 
 import org.springframework.ai.chat.model.ToolContext;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.lightbot.entity.SubAgentRun;
 
 import java.util.List;
 
@@ -15,4 +17,16 @@ public interface SubAgentTaskService {
 
     /** 请求取消已委派任务或批次。 */
     String cancel(String toolInput, ToolContext toolContext);
+
+    /** 查询会话内的 SubAgent 任务列表。 */
+    Page<SubAgentRun> pageRuns(Long sessionId, String batchId, int pageNum, int pageSize);
+
+    /** 查询会话内的批次详情及其全部任务。 */
+    java.util.Map<String, Object> getBatchDetail(String batchId, Long sessionId);
+
+    /** 查询会话内的单任务详情。 */
+    java.util.Map<String, Object> getTaskDetail(String taskId, Long sessionId);
+
+    /** 取消会话内的一个批次。 */
+    java.util.Map<String, Object> cancelBatch(String batchId, Long sessionId);
 }

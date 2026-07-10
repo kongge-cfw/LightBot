@@ -10,7 +10,7 @@
           row-key="toolName"
         />
       </a-tab-pane>
-      <a-tab-pane key="capability" tab="能力块 CAPABILITY_BLOCK">
+      <a-tab-pane key="capability" tab="能力块/流事件 CAPABILITY">
         <a-table
           :columns="capabilityColumns"
           :data-source="capabilityRows"
@@ -49,10 +49,7 @@ const toolRows = getToolRegistryRows().map((r) => ({
   hasRenderer: r.hasRenderer ? '是' : '否',
   hidden: r.hidden ? '是' : '否',
 }))
-const capabilityRows = getCapabilityRegistryRows().map((r) => ({
-  ...r,
-  registered: r.registered ? '是' : '否',
-}))
+const capabilityRows = getCapabilityRegistryRows()
 const skillRows = getSkillRegistryRows().map((r) => ({
   ...r,
   hasCustomRenderer: r.hasCustomRenderer ? '是' : '否',
@@ -69,8 +66,9 @@ const toolColumns = [
 
 const capabilityColumns = [
   { title: 'eventType', dataIndex: 'eventType', key: 'eventType' },
+  { title: '显示名', dataIndex: 'displayName', key: 'displayName' },
   { title: '组件', dataIndex: 'component', key: 'component' },
-  { title: '已注册', dataIndex: 'registered', key: 'registered' },
+  { title: '顶层块', dataIndex: 'topLevel', key: 'topLevel' },
 ]
 
 const skillColumns = [

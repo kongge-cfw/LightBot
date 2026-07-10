@@ -386,6 +386,7 @@
         </div>
 
         <!-- 瀑布图 -->
+        <ObservabilitySubAgentTree :spans="parsedSpans" />
         <div class="waterfall-section">
           <h4>调用链路</h4>
           <div class="waterfall-container" v-if="waterfallGroups.length > 0">
@@ -530,11 +531,25 @@
     </a-modal>
 
     <!-- 工具定义弹窗 -->
-    <a-modal v-model:open="toolsModalVisible" title="工具定义" :width="700" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="toolsModalVisible" title="工具定义" :width="700" :footer="null" :maskClosable="false" @after-close="onToolsModalClosed">
+      <a-input
+        v-model:value="toolSearchKeyword"
+        placeholder="搜索工具标识"
+        allow-clear
+        class="tool-def-search"
+      >
+        <template #prefix><SearchOutlined /></template>
+      </a-input>
       <div class="modal-scroll-body">
-        <div v-for="(tool, ti) in traceModelInput.requestTools" :key="ti" class="tool-def-item">
+        <div
+          v-for="(tool, ti) in traceModelInput.requestTools"
+          :key="ti"
+          :ref="el => setToolDefRef(el, ti)"
+          class="tool-def-item"
+          :class="{ 'tool-def-dimmed': toolSearchKeyword && !toolMatchesSearch(tool) }"
+        >
           <div class="tool-def-header">
-            <a-tag color="blue">{{ tool.name }}</a-tag>
+            <a-tag color="blue" v-html="highlightToolName(tool.name)"></a-tag>
             <span class="tool-def-desc">{{ tool.description }}</span>
           </div>
           <pre v-if="tool.inputSchema" class="mi-pre" style="margin-top: 6px; max-height: 150px;">{{ formatJson(tool.inputSchema) }}</pre>
@@ -562,6 +577,7 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import MediaAttachmentThumb from '../components/MediaAttachmentThumb.vue'
 import MentionTextRenderer from '../components/MentionTextRenderer.vue'
+import ObservabilitySubAgentTree from '../components/observability/ObservabilitySubAgentTree.vue'
 import { getTraces, getTraceDetail, getTraceOverview, deleteTraces } from '../api/observability'
 import { getToolCalls, deleteToolCalls } from '../api/toolCall'
 import { formatTime, formatJson } from '../utils/format'
@@ -584,7 +600,50 @@ const expandedSpans = reactive(new Set())
 const copiedKey = ref(null)
 const configModalVisible = ref(false)
 const toolsModalVisible = ref(false)
+const toolSearchKeyword = ref('')
+const toolDefRefs = new Map()
 let copyTimer = null
+
+function setToolDefRef(el, index) {
+  if (el) {
+    toolDefRefs.set(index, el)
+  } else {
+    toolDefRefs.delete(index)
+  }
+}
+
+function escapeToolHtml(str) {
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function toolMatchesSearch(tool) {
+  const kw = toolSearchKeyword.value.trim().toLowerCase()
+  if (!kw) return false
+  return String(tool?.name || '').toLowerCase().includes(kw)
+}
+
+function highlightToolName(name) {
+  const raw = escapeToolHtml(name || '')
+  const kw = toolSearchKeyword.value.trim()
+  if (!kw) return raw
+  const escapedKw = escapeToolHtml(kw).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return raw.replace(new RegExp(escapedKw, 'gi'), '<mark class="tool-def-hl">$&</mark>')
+}
+
+function onToolsModalClosed() {
+  toolSearchKeyword.value = ''
+  toolDefRefs.clear()
+}
+
+watch(toolSearchKeyword, (kw) => {
+  if (!kw.trim()) return
+  const tools = traceModelInput.value.requestTools || []
+  const firstIndex = tools.findIndex(toolMatchesSearch)
+  if (firstIndex < 0) return
+  nextTick(() => {
+    toolDefRefs.get(firstIndex)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  })
+})
 
 async function copyToClipboard(text, key) {
   await sharedCopy(text)
@@ -835,6 +894,8 @@ function spanNameLabel(name) {
     messages_to_llm: '模型输入',
     llm_call: 'LLM调用',
     tool_execute: '工具执行',
+    subagent_batch: 'SubAgent 批次',
+    subagent_task: 'SubAgent 任务',
     rag_search: 'RAG检索',
     ai_reasoning: 'AI思考',
     ai_reply: 'AI回复',
@@ -908,6 +969,7 @@ function annotateAskUserRoles(messages, userAttrs) {
 function spanTypeClass(name) {
   if (name === 'llm_call') return 'llm'
   if (name === 'tool_execute') return 'tool'
+  if (name === 'subagent_batch' || name === 'subagent_task') return 'tool'
   if (name === 'rag_search') return 'rag'
   if (name === 'ai_reasoning') return 'reasoning'
   if (name === 'ai_reply') return 'reply'
@@ -1564,12 +1626,19 @@ onUnmounted(() => clearTimeout(copyTimer))
 }
 
 /* 工具定义 */
+.tool-def-search {
+  margin-bottom: 12px;
+}
 .tool-def-item {
   margin-bottom: 10px;
   padding: 10px 12px;
   background: var(--color-canvas);
   border: 1px solid var(--color-hairline);
   border-radius: 6px;
+  transition: opacity 0.2s;
+}
+.tool-def-item.tool-def-dimmed {
+  opacity: 0.4;
 }
 .tool-def-item:last-child { margin-bottom: 0; }
 .tool-def-header {
@@ -1580,6 +1649,12 @@ onUnmounted(() => clearTimeout(copyTimer))
 .tool-def-desc {
   font-size: 12px;
   color: var(--color-mute);
+}
+:deep(.tool-def-hl) {
+  background: var(--color-warning-bg, #fff3cd);
+  color: var(--color-warning, #d48806);
+  padding: 0 1px;
+  border-radius: 2px;
 }
 
 /* AI回复内容 */

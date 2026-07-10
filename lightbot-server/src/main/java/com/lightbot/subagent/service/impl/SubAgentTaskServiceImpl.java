@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.SubAgentRun;
 import com.lightbot.entity.SubAgentTaskBatch;
+import com.lightbot.common.BizException;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.service.chat.ChatContext;
 import com.lightbot.subagent.SubAgentThreadManager;
 import com.lightbot.subagent.event.SubAgentEventPublisher;
@@ -138,6 +140,39 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         } catch (Exception e) {
             return json(Map.of("status", "failed", "error", "取消失败: " + e.getMessage()));
         }
+    }
+
+    @Override
+    public Page<SubAgentRun> pageRuns(Long sessionId, String batchId, int pageNum, int pageSize) {
+        return repository.pageTasks(sessionId, batchId, Math.max(pageNum, 1), Math.min(Math.max(pageSize, 1), 100));
+    }
+
+    @Override
+    public Map<String, Object> getBatchDetail(String batchId, Long sessionId) {
+        SubAgentTaskBatch batch = repository.findBatch(batchId);
+        if (!ownedBy(batch, sessionId)) {
+            throw new BizException("SubAgent 批次不存在或无权访问");
+        }
+        return batchResult(batch);
+    }
+
+    @Override
+    public Map<String, Object> getTaskDetail(String taskId, Long sessionId) {
+        SubAgentRun task = repository.findTask(taskId);
+        if (!ownedBy(task, sessionId)) {
+            throw new BizException("SubAgent 任务不存在或无权访问");
+        }
+        return taskResult(task);
+    }
+
+    @Override
+    public Map<String, Object> cancelBatch(String batchId, Long sessionId) {
+        SubAgentTaskBatch batch = repository.findBatch(batchId);
+        if (!ownedBy(batch, sessionId)) {
+            throw new BizException("SubAgent 批次不存在或无权访问");
+        }
+        int affected = repository.requestCancelBatch(batchId);
+        return Map.of("batch_id", batchId, "status", affected > 0 ? "cancel_requested" : "not_found", "affected", affected);
     }
 
     private List<Map<String, Object>> runSequential(String batchId, DelegationInput input, RuntimeContext context,
@@ -354,6 +389,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         output.put("reply", task.getReply());
         output.put("error", task.getErrorMessage());
         output.put("cancel_requested", Integer.valueOf(1).equals(task.getCancelRequested()));
+        output.put("start_time", task.getStartTime());
+        output.put("end_time", task.getEndTime());
         return output;
     }
 

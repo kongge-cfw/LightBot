@@ -11,7 +11,9 @@ import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
@@ -118,6 +120,20 @@ public class GlobalExceptionHandler {
         log.info("上传文件过大: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Result.fail(400, "上传文件大小超过限制"));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Result<Void>> handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+        // 路径变量转换失败视为资源不存在（如超长/非法 ID 无法匹配任何资源），复用前端"资源不存在"识别逻辑
+        boolean pathVariable = e.getParameter().hasParameterAnnotation(PathVariable.class);
+        if (pathVariable) {
+            log.info("路径参数无效: name={}, value={}", e.getName(), e.getValue());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(Result.fail(404, "资源不存在"));
+        }
+        log.info("请求参数格式错误: name={}, value={}", e.getName(), e.getValue());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Result.fail(400, "请求参数格式错误"));
     }
 
     @ExceptionHandler(Exception.class)

@@ -5,6 +5,8 @@ import com.lightbot.entity.SubAgentTaskBatch;
 import com.lightbot.mapper.SubAgentRunMapper;
 import com.lightbot.mapper.SubAgentTaskBatchMapper;
 import com.lightbot.subagent.spi.SubAgentTaskRepository;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -60,5 +62,13 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
     public int requestCancelBatch(String batchId) {
         subAgentTaskBatchMapper.requestCancelByBatchId(batchId);
         return subAgentRunMapper.requestCancelByBatchId(batchId);
+    }
+
+    @Override
+    public Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize) {
+        return subAgentRunMapper.selectPage(new Page<>(pageNum, pageSize), new LambdaQueryWrapper<SubAgentRun>()
+                .eq(SubAgentRun::getParentSessionId, parentSessionId)
+                .eq(batchId != null && !batchId.isBlank(), SubAgentRun::getBatchId, batchId)
+                .orderByDesc(SubAgentRun::getCreateTime));
     }
 }

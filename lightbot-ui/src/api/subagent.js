@@ -30,3 +30,19 @@ export function getEnabledSubAgents() {
 export function setSubAgentEnabled(id, enabled) {
   return request.put(`/subagents/${id}/enabled`, null, { params: { enabled } })
 }
+
+export function getSubAgentRuns(params) {
+  return request.get('/subagents/runs', { params })
+}
+
+export function getSubAgentBatch(batchId, sessionId) {
+  return request.get(`/subagents/batches/${batchId}`, { params: { sessionId } })
+}
+
+export function cancelSubAgentBatch(batchId, sessionId) {
+  return request.post(`/subagents/batches/${batchId}/cancel`, null, { params: { sessionId } })
+}
+
+export function getSubAgentRun(taskId, sessionId) {
+  return request.get(`/subagents/runs/${taskId}`, { params: { sessionId } })
+}
