@@ -465,6 +465,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             taskContext.setConfigMap(chatContext.getConfigMap());
             taskContext.setAborted(chatContext.isAborted());
             taskContext.setRealtimeStatusEmitter(chatContext.getRealtimeStatusEmitter());
+            // 子任务工具事件写回父会话，确保最终 assistant message 的 metadata 可完整回显。
+            taskContext.setToolEventsList(chatContext.getToolEventsList());
             taskContext.setSubAgentContentOffset(contentOffset);
             taskContext.setSubAgentDelegationIndex(delegationIndex);
             taskContext.setSubAgentBatchId(batchId);

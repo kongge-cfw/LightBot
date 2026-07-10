@@ -23,11 +23,12 @@ const WORKFLOW_EVENT_TYPES = new Set([
 /**
  * 从 SSE 原始文本解析事件列表
  * @param {string} raw
- * @returns {{ chunks: string[], statusEvents: object[], metadata: object|null }}
+ * @returns {{ chunks: string[], statusEvents: object[], metadata: object|null, entries: object[] }}
  */
 export function parseSseDebugLog(raw) {
   const chunks = []
   const statusEvents = []
+  const entries = []
   let metadata = null
 
   for (const line of (raw || '').split('\n')) {
@@ -40,7 +41,9 @@ export function parseSseDebugLog(raw) {
 
     if (payload.startsWith(STATUS_PREFIX)) {
       try {
-        statusEvents.push(JSON.parse(payload.slice(STATUS_PREFIX.length)))
+        const event = JSON.parse(payload.slice(STATUS_PREFIX.length))
+        statusEvents.push(event)
+        entries.push({ kind: 'status', event })
       } catch {
         // ignore
       }
@@ -50,16 +53,19 @@ export function parseSseDebugLog(raw) {
     if (payload.startsWith(METADATA_PREFIX)) {
       try {
         metadata = JSON.parse(payload.slice(METADATA_PREFIX.length))
+        entries.push({ kind: 'metadata', metadata })
       } catch {
         // ignore
       }
       continue
     }
 
-    chunks.push(payload.replace(/\\n/g, '\n'))
+    const content = payload.replace(/\\n/g, '\n')
+    chunks.push(content)
+    entries.push({ kind: 'chunk', content })
   }
 
-  return { chunks, statusEvents, metadata }
+  return { chunks, statusEvents, metadata, entries }
 }
 
 /**

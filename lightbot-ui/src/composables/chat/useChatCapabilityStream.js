@@ -35,13 +35,14 @@ export function createChatCapabilityStreamHandlers(deps) {
         const idx = messages?.value?.indexOf(assistantMsg) ?? -1
         const container = messagesRef?.value
         if (idx < 0 || !container) {
-          scrollToBottom()
           return
         }
+        // 用户已向上浏览历史内容时，不因 SubAgent 的工具/状态事件抢回滚动视角。
+        const distanceToBottom = container.scrollHeight - container.scrollTop - container.clientHeight
+        if (distanceToBottom > 48) return
         const row = container.querySelector(`[data-index="${idx}"]`)
         const block = row?.querySelector(selector)
         if (!block) {
-          scrollToBottom()
           return
         }
         const containerRect = container.getBoundingClientRect()

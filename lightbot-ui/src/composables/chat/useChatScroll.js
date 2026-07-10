@@ -94,7 +94,7 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
 
         container.style.overflowAnchor = ''
 
-        if (streaming.value && isNearBottom.value && !userScrolledUp.value) {
+        if (!evt?.preserveViewport && streaming.value && isNearBottom.value && !userScrolledUp.value) {
           scrollToBottom()
         }
       })

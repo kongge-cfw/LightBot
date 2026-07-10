@@ -1,30 +1,52 @@
 <template>
   <div class="debug-sse-panel">
     <div class="debug-panel-toolbar">
-      <a-button type="primary" @click="replay">回放 SSE</a-button>
-      <a-select v-model:value="selectedSample" style="width: 190px" @change="loadSample">
-        <a-select-option v-for="sample in samples" :key="sample.id" :value="sample.id">{{ sample.label }}</a-select-option>
-      </a-select>
-      <a-button @click="loadSample">加载所选样例</a-button>
+      <a-button type="primary" :loading="isReplaying" @click="startReplay">
+        {{ isReplaying ? '回放中' : '开始回放' }}
+      </a-button>
+      <a-button :disabled="!isReplaying" @click="stopReplay">停止</a-button>
+      <a-select v-model:value="replayInterval" style="width: 152px" :options="intervalOptions" />
+      <a-button @click="generateSseLog">生成组合 SSE</a-button>
       <a-button @click="clearAll">清空</a-button>
     </div>
+
+    <div class="debug-sse-builder">
+      <div class="debug-editor-label">事件积木（可多选组合）</div>
+      <a-checkbox-group v-model:value="selectedBlockIds" class="debug-sse-blocks">
+        <a-checkbox v-for="block in eventBlocks" :key="block.id" :value="block.id" class="debug-sse-block">
+          <span class="debug-sse-block-title">{{ block.label }}</span>
+          <span class="debug-sse-block-desc">{{ block.description }}</span>
+        </a-checkbox>
+      </a-checkbox-group>
+      <div class="debug-sse-body-row">
+        <div class="debug-sse-body-field">
+          <div class="debug-editor-label">助手正文（Markdown）</div>
+          <a-textarea v-model:value="bodyContent" :rows="4" class="debug-json-textarea" />
+        </div>
+        <div class="debug-sse-options">
+          <a-checkbox v-model:checked="includeMetadata">追加 metadata 快照</a-checkbox>
+          <span>用于一并检查实时 SSE 与历史消息回显。</span>
+        </div>
+      </div>
+    </div>
+
     <div class="debug-sse-grid">
       <div class="debug-sse-col">
-        <div class="debug-editor-label">SSE 原始日志</div>
+        <div class="debug-editor-label">SSE 原始日志（可编辑）</div>
         <a-textarea v-model:value="sseLog" :rows="14" class="debug-json-textarea" placeholder="粘贴 data: 行..." />
       </div>
       <div class="debug-sse-col">
-        <div class="debug-editor-label">基础消息 JSON（可选，回放会合并到其上）</div>
+        <div class="debug-editor-label">基础消息 JSON（可选）</div>
         <a-textarea v-model:value="baseJson" :rows="14" class="debug-json-textarea" />
       </div>
     </div>
     <a-alert v-if="parseError" type="error" :message="parseError" show-icon closable class="debug-parse-error" @close="parseError = ''" />
-    <div class="debug-sse-hint">支持 data:[STATUS]{...}、data:[METADATA]{...} 与普通 data: 正文 chunk。</div>
+    <div class="debug-sse-hint">回放按照 SSE 原始行顺序逐条推送；间隔设为“立即”可快速得到最终渲染结果。</div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   apiMessageToEditorJson,
@@ -35,128 +57,191 @@ import { parseSseDebugLog, buildApiMessageFromSse } from '@/utils/chat/debug/deb
 
 const emit = defineEmits(['preview'])
 
-const sseLog = ref('')
-const baseJson = ref(apiMessageToEditorJson(createDefaultApiMessage()))
-const parseError = ref('')
-
-const SSE_SAMPLES = [
+const eventBlocks = [
   {
-    id: 'tool',
-    label: '工具调用 + 正文',
-    content: `data:[STATUS]{"type":"reasoning_content","content":"正在分析..."}
-data:[STATUS]{"type":"tool_call","toolName":"query_knowledge","displayName":"知识库检索","args":"{\\"query\\":\\"LightBot\\"}","contentOffset":0}
-data:[STATUS]{"type":"tool_result","toolName":"query_knowledge","displayName":"知识库检索","contentOffset":0,"result":"{\\"total\\":1,\\"results\\":[{\\"content\\":\\"LightBot 是 AI Agent 平台\\"}]}"}
-data:根据知识库，
-data:LightBot 支持 RAG 与工作流。`,
+    id: 'knowledge-tool',
+    label: '知识库检索工具',
+    description: 'tool_call / tool_result',
+    events: [
+      { type: 'tool_call', toolName: 'query_knowledge', displayName: '知识库检索', args: '{"query":"LightBot"}', contentOffset: 0 },
+      { type: 'tool_result', toolName: 'query_knowledge', displayName: '知识库检索', result: '{"total":1,"results":[{"content":"LightBot 是 AI Agent 平台"}]}', contentOffset: 0 },
+    ],
   },
   {
-    id: 'subagent',
-    label: 'SubAgent 批次流式',
-    content: `data:[STATUS]{"type":"subagent_batch_start","batch_id":"debug-batch-001","mode":"parallel","aggregation":"return_all","delegationIndex":0,"contentOffset":0,"tasks":[{"task_index":0,"task_id":"debug-task-001","subagent_name":"research-agent","task":"用 Markdown 总结 LightBot 模块"}]}
-data:[STATUS]{"type":"subagent_task_start","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","status":"running","contentOffset":0,"delegationIndex":0}
-data:[STATUS]{"type":"subagent_token","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","content":"## 核心模块\\n\\n- Agent\\n- RAG\\n- Workflow","contentOffset":0,"delegationIndex":0}
-data:[STATUS]{"type":"subagent_task_done","batch_id":"debug-batch-001","task_id":"debug-task-001","task_index":0,"subagentName":"research-agent","status":"completed","contentOffset":0,"delegationIndex":0,"result":{"status":"completed","reply":"## 核心模块\\n\\n- Agent\\n- RAG\\n- Workflow"}}
-data:[STATUS]{"type":"subagent_batch_done","batch_id":"debug-batch-001","status":"completed","contentOffset":0,"delegationIndex":0}`,
+    id: 'http-tool',
+    label: 'HTTP 工具',
+    description: '第二种普通工具卡片',
+    events: [
+      { type: 'tool_call', toolName: 'http_request', displayName: 'HTTP 请求', args: '{"url":"https://example.com","method":"GET"}', contentOffset: 0 },
+      { type: 'tool_result', toolName: 'http_request', displayName: 'HTTP 请求', result: '{"status":200,"body":"ok"}', contentOffset: 0 },
+    ],
+  },
+  {
+    id: 'delegated-subagent',
+    label: '委派 SubAgent',
+    description: '旧协议 + 子工具完整链路',
+    events: [
+      { type: 'subagent_call', subagentName: 'research-agent', displayName: '研究助手', task: '总结 LightBot 核心模块', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_tool_call', subagentName: 'research-agent', toolName: 'query_knowledge', toolDisplayName: '知识库检索', args: '{"query":"LightBot 模块"}', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_tool_result', subagentName: 'research-agent', toolName: 'query_knowledge', toolDisplayName: '知识库检索', result: '{"total":3}', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_result', subagentName: 'research-agent', contentOffset: 0, delegationIndex: 0, result: '{"reply":"## 调研结论\\n\\n- Agent\\n- RAG\\n- Workflow"}' },
+    ],
+  },
+  {
+    id: 'batch-subagent',
+    label: '批次 SubAgents',
+    description: '新协议 + 并行任务 + 子工具',
+    events: [
+      { type: 'subagent_batch_start', batch_id: 'debug-batch-001', mode: 'parallel', aggregation: 'return_all', delegationIndex: 0, contentOffset: 0, tasks: [
+        { task_index: 0, task_id: 'debug-task-research', subagent_name: 'research-agent', task: '调研模块职责' },
+        { task_index: 1, task_id: 'debug-task-review', subagent_name: 'review-agent', task: '检查实现边界' },
+      ] },
+      { type: 'subagent_task_start', batch_id: 'debug-batch-001', task_id: 'debug-task-research', task_index: 0, subagentName: 'research-agent', status: 'running', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_tool_call', batch_id: 'debug-batch-001', task_id: 'debug-task-research', task_index: 0, subagentName: 'research-agent', toolName: 'web_search', toolDisplayName: '联网搜索', args: '{"query":"LightBot"}', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_tool_result', batch_id: 'debug-batch-001', task_id: 'debug-task-research', task_index: 0, subagentName: 'research-agent', toolName: 'web_search', toolDisplayName: '联网搜索', result: '{"results":2}', contentOffset: 0, delegationIndex: 0 },
+      { type: 'subagent_task_done', batch_id: 'debug-batch-001', task_id: 'debug-task-research', task_index: 0, subagentName: 'research-agent', status: 'completed', contentOffset: 0, delegationIndex: 0, result: { reply: '## 调研结果\\n\\n- 支持流式对话' } },
+      { type: 'subagent_task_done', batch_id: 'debug-batch-001', task_id: 'debug-task-review', task_index: 1, subagentName: 'review-agent', status: 'completed', contentOffset: 0, delegationIndex: 0, result: { reply: '## 检查结果\\n\\n- 保持单一委派渲染链路' } },
+      { type: 'subagent_batch_done', batch_id: 'debug-batch-001', status: 'completed', contentOffset: 0, delegationIndex: 0 },
+    ],
   },
   {
     id: 'skill',
     label: 'Skill 启用',
-    content: `data:[STATUS]{"type":"skill_active","contentOffset":0,"skills":[{"slug":"code-review","name":"code-review","displayName":"代码审查","description":"审查代码质量","builtin":true}]}
-data:已启用代码审查 Skill。`,
+    description: '顶部能力块',
+    events: [
+      { type: 'skill_active', contentOffset: 0, skills: [{ slug: 'code-review', name: 'code-review', displayName: '代码审查', description: '审查代码质量', builtin: true }] },
+    ],
   },
   {
     id: 'workflow',
-    label: '工作流节点',
-    content: `data:[STATUS]{"type":"workflow_node_start","nodeId":"debug-node-1","nodeType":"llm","nodeLabel":"需求分析","contentOffset":0}
-data:[STATUS]{"type":"workflow_node_complete","nodeId":"debug-node-1","nodeType":"llm","nodeLabel":"需求分析","message":"执行完成","success":true,"contentOffset":0}
-data:[STATUS]{"type":"workflow_complete","contentOffset":0}`,
+    label: '工作流',
+    description: '节点开始、完成与收束',
+    events: [
+      { type: 'workflow_node_start', nodeId: 'debug-node-1', nodeType: 'llm', nodeLabel: '需求分析', contentOffset: 0 },
+      { type: 'workflow_node_complete', nodeId: 'debug-node-1', nodeType: 'llm', nodeLabel: '需求分析', message: '执行完成', success: true, contentOffset: 0 },
+      { type: 'workflow_complete', contentOffset: 0 },
+    ],
   },
 ]
 
-const samples = SSE_SAMPLES
-const selectedSample = ref('tool')
+const intervalOptions = [
+  { value: 0, label: '立即完成' },
+  { value: 150, label: '150 ms / 条' },
+  { value: 400, label: '400 ms / 条' },
+  { value: 800, label: '800 ms / 条' },
+  { value: 1500, label: '1.5 s / 条' },
+]
 
-function loadSample() {
-  sseLog.value = SSE_SAMPLES.find(sample => sample.id === selectedSample.value)?.content || ''
-  baseJson.value = apiMessageToEditorJson(createDefaultApiMessage())
+const selectedBlockIds = ref(['batch-subagent', 'skill'])
+const bodyContent = ref('根据执行结果，LightBot 已完成对应能力展示。')
+const includeMetadata = ref(true)
+const sseLog = ref('')
+const baseJson = ref(apiMessageToEditorJson({
+  ...createDefaultApiMessage(),
+  content: '',
+  metadata: { toolEvents: [], workflowEvents: [], reasoningContent: '' },
+}))
+const parseError = ref('')
+const replayInterval = ref(400)
+const isReplaying = ref(false)
+let replayTimer = null
+
+function getSelectedEvents() {
+  return eventBlocks
+    .filter(block => selectedBlockIds.value.includes(block.id))
+    .flatMap(block => block.events.map(event => JSON.parse(JSON.stringify(event))))
 }
 
-function clearAll() {
-  sseLog.value = ''
-  emit('preview', null)
+function generateSseLog() {
+  const events = getSelectedEvents()
+  const lines = events.map(event => `data:[STATUS]${JSON.stringify(event)}`)
+  if (bodyContent.value) {
+    lines.push(`data:${bodyContent.value.replace(/\n/g, '\\n')}`)
+  }
+  if (includeMetadata.value) {
+    const workflowEvents = events.filter(event => String(event.type || '').startsWith('workflow_'))
+    const toolEvents = events.filter(event => !String(event.type || '').startsWith('workflow_') && event.type !== 'reasoning_content')
+    lines.push(`data:[METADATA]${JSON.stringify({ toolEvents, workflowEvents })}`)
+  }
+  sseLog.value = lines.join('\n')
 }
 
-function replay() {
+function stopReplay() {
+  if (replayTimer) {
+    clearTimeout(replayTimer)
+    replayTimer = null
+  }
+  isReplaying.value = false
+}
+
+function startReplay() {
   parseError.value = ''
+  stopReplay()
   try {
     const base = editorJsonToApiMessage(baseJson.value)
     const parsed = parseSseDebugLog(sseLog.value)
-    const merged = buildApiMessageFromSse(base, parsed)
-    emit('preview', merged)
-    message.success(`已解析 ${parsed.statusEvents.length} 个 STATUS 事件，${parsed.chunks.length} 个正文 chunk`)
+    if (!parsed.entries.length) {
+      throw new Error('请先生成或粘贴 SSE 日志')
+    }
+    isReplaying.value = true
+    let cursor = 0
+    const replayNext = () => {
+      if (!isReplaying.value) return
+      cursor += 1
+      const consumed = parsed.entries.slice(0, cursor)
+      const partial = {
+        chunks: consumed.filter(item => item.kind === 'chunk').map(item => item.content),
+        statusEvents: consumed.filter(item => item.kind === 'status').map(item => item.event),
+        metadata: [...consumed].reverse().find(item => item.kind === 'metadata')?.metadata || null,
+      }
+      emit('preview', {
+        apiMessage: buildApiMessageFromSse(base, partial),
+        streaming: cursor < parsed.entries.length,
+      })
+      if (cursor >= parsed.entries.length) {
+        stopReplay()
+        message.success(`已回放 ${parsed.entries.length} 条 SSE 消息`)
+        return
+      }
+      if (replayInterval.value === 0) {
+        replayNext()
+      } else {
+        replayTimer = setTimeout(replayNext, replayInterval.value)
+      }
+    }
+    replayNext()
   } catch (e) {
     parseError.value = e.message || '回放失败'
     emit('preview', null)
   }
 }
+
+function clearAll() {
+  stopReplay()
+  sseLog.value = ''
+  emit('preview', null)
+}
+
+generateSseLog()
+onBeforeUnmount(stopReplay)
 </script>
 
 <style scoped>
-.debug-sse-panel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0;
-}
-
-.debug-panel-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.debug-sse-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  flex: 1;
-  min-height: 0;
-}
-
-.debug-sse-col {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
-
-.debug-editor-label {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--gray-700);
-  margin-bottom: 8px;
-}
-
-.debug-json-textarea {
-  flex: 1;
-  font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.debug-parse-error {
-  margin-top: 8px;
-}
-
-.debug-sse-hint {
-  margin-top: 8px;
-  font-size: 12px;
-  color: var(--gray-500);
-}
-
-@media (max-width: 960px) {
-  .debug-sse-grid {
-    grid-template-columns: 1fr;
-  }
-}
+.debug-sse-panel { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+.debug-panel-toolbar { display: flex; flex-wrap: wrap; gap: 8px; }
+.debug-sse-builder { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas); }
+.debug-sse-blocks { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; width: 100%; }
+.debug-sse-block { display: flex; margin-inline-start: 0; padding: 8px 10px; border: 1px solid var(--color-hairline); border-radius: 6px; }
+.debug-sse-block-title, .debug-sse-block-desc { display: block; }
+.debug-sse-block-title { color: var(--color-ink); font-weight: 600; }
+.debug-sse-block-desc { margin-top: 2px; color: var(--gray-500); font-size: 12px; }
+.debug-sse-body-row { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; margin-top: 12px; }
+.debug-sse-options { display: flex; flex-direction: column; gap: 6px; justify-content: center; color: var(--gray-500); font-size: 12px; }
+.debug-sse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; }
+.debug-sse-col { display: flex; flex-direction: column; min-height: 0; }
+.debug-editor-label { margin-bottom: 8px; color: var(--gray-700); font-size: 13px; font-weight: 600; }
+.debug-json-textarea { font-family: 'Menlo', 'Monaco', 'Consolas', monospace; font-size: 12px; line-height: 1.6; }
+.debug-parse-error { margin-top: 8px; }
+.debug-sse-hint { color: var(--gray-500); font-size: 12px; }
+@media (max-width: 960px) { .debug-sse-grid, .debug-sse-body-row { grid-template-columns: 1fr; } }
 </style>

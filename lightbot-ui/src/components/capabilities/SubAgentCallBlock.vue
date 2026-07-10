@@ -12,6 +12,7 @@
       <span class="subagent-title">
         委派 SubAgent：<strong>{{ subagentTitle }}</strong>
         <span v-if="attemptViews.length > 1" class="subagent-attempt-count">（{{ attemptViews.length }} 次委派）</span>
+        <span v-if="taskStatusSummary" class="subagent-task-summary">{{ taskStatusSummary }}</span>
       </span>
       <span v-if="activeRetry" class="subagent-header-badge retry">
         <LoadingOutlined spin class="subagent-step-icon" />
@@ -38,7 +39,7 @@
     </div>
 
     <CollapseTransition :open="expanded">
-      <div ref="bodyRef" class="subagent-body">
+      <div ref="bodyRef" class="subagent-body" @scroll.passive="onBodyScroll">
         <div
           v-for="(attempt, ai) in attemptViews"
           :key="attempt.key"
@@ -50,7 +51,7 @@
           }"
         >
         <div v-if="attemptViews.length > 1" class="subagent-attempt-header">
-          <span class="subagent-attempt-label">{{ isBatchEvent ? `任务 ${ai + 1}` : `第 ${ai + 1} 次委派` }}</span>
+          <span class="subagent-attempt-label">{{ attemptLabel(attempt, ai) }}</span>
           <span v-if="attempt.isDone && attempt.error" class="subagent-attempt-status error">失败</span>
           <span v-else-if="attempt.isDone && attempt.success" class="subagent-attempt-status success">完成</span>
           <span v-else-if="attempt.isDone" class="subagent-attempt-status error">失败</span>
@@ -183,6 +184,7 @@ const emit = defineEmits(['heightChange'])
 
 const expanded = ref(props.defaultExpanded)
 const bodyRef = ref(null)
+const userReadingInnerHistory = ref(false)
 let userToggled = false
 
 const jsonModalOpen = ref(false)
@@ -301,6 +303,18 @@ const hasAnyModelOutput = computed(() =>
   attemptViews.value.some(a => a.modelOutput?.trim())
 )
 
+const taskStatusSummary = computed(() => {
+  if (!isBatchEvent.value || attemptViews.value.length === 0) return ''
+  const running = attemptViews.value.filter(attempt => !attempt.isDone).length
+  const failed = attemptViews.value.filter(attempt => attempt.isDone && !attempt.success).length
+  const completed = attemptViews.value.filter(attempt => attempt.isDone && attempt.success).length
+  const parts = []
+  if (running) parts.push(`进行中 ${running}`)
+  if (completed) parts.push(`完成 ${completed}`)
+  if (failed) parts.push(`失败 ${failed}`)
+  return parts.join(' · ')
+})
+
 /** 顶部 banner 已展示终态错误时，时间线不再重复 error；失败后也不再展示重试记录 */
 function visibleAttemptTimeline(attempt) {
   const timeline = attempt?.timeline || []
@@ -318,6 +332,11 @@ function visibleAttemptTimeline(attempt) {
 
 function modeLabel(mode) {
   return ({ sync: '同步委派', parallel: '并行委派', background: '后台委派' })[mode] || '批次委派'
+}
+
+function attemptLabel(attempt, index) {
+  if (!isBatchEvent.value) return `第 ${index + 1} 次委派`
+  return `任务 ${index + 1} · ${attempt.call.displayName || attempt.call.subagentName || 'SubAgent'}`
 }
 
 watch(() => props.defaultExpanded, (val) => {
@@ -382,24 +401,29 @@ function triggerRetryPulse() {
   })
 }
 
-function emitLayoutChange(nativeEvent) {
+function emitLayoutChange(nativeEvent, preserveViewport = false) {
   nextTick(() => {
     const rowEl = nativeEvent?.target?.closest?.('[data-index]')
       || bodyRef.value?.closest?.('[data-index]')
-    emit('heightChange', rowEl ? { target: rowEl } : nativeEvent)
+    emit('heightChange', rowEl ? { target: rowEl, preserveViewport } : nativeEvent)
   })
 }
 
 function scrollInnerBodyToBottom() {
   nextTick(() => {
     const el = bodyRef.value
-    if (el && expanded.value) el.scrollTop = el.scrollHeight
+    if (el && expanded.value && !userReadingInnerHistory.value) el.scrollTop = el.scrollHeight
   })
 }
 
+function onBodyScroll(event) {
+  const el = event.currentTarget
+  userReadingInnerHistory.value = el.scrollHeight - el.scrollTop - el.clientHeight > 24
+}
+
 function onToolHeightChange(event) {
-  scrollInnerBodyToBottom()
-  emitLayoutChange(event)
+  // 工具栏由用户主动展开/收起时，仅同步高度；不能把内部滚动位置强制推到底部。
+  emitLayoutChange(event, true)
 }
 
 watch(expanded, (val, oldVal) => {
@@ -409,7 +433,7 @@ watch(expanded, (val, oldVal) => {
 function toggle(event) {
   userToggled = true
   expanded.value = !expanded.value
-  emitLayoutChange(event)
+  emitLayoutChange(event, true)
 }
 
 function openJsonModal(attempt) {
@@ -470,6 +494,12 @@ async function copyText(text) {
   color: var(--color-mute);
   font-weight: normal;
   margin-left: 4px;
+}
+.subagent-task-summary {
+  font-size: 12px;
+  color: var(--color-mute);
+  font-weight: normal;
+  margin-left: 6px;
 }
 .subagent-spinner { color: var(--color-mute); font-size: 14px; }
 .subagent-header-badge {

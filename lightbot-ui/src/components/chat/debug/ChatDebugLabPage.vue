@@ -25,9 +25,10 @@
                 @import-fixture="triggerFixtureImport"
                 @compare-preview="onComparePreview"
                 @stream-preview="onStreamPreview"
-                @sse-preview="onSsePreview"
                 @sub-mode-change="onComposerSubModeChange"
               />
+
+              <ChatDebugSseReplayPanel v-else-if="activeModule === 'sse'" @preview="onSsePreview" />
 
               <ChatDebugToolPanel v-else-if="activeModule === 'tool'" ref="toolRef" @parse="parseTool" />
 
@@ -139,6 +140,7 @@ import { message } from 'ant-design-vue'
 import DebugSplitPane from '@/components/chat/debug/DebugSplitPane.vue'
 import ChatDebugLabHeader from '@/components/chat/debug/ChatDebugLabHeader.vue'
 import ChatDebugComposerWorkspace from '@/components/chat/debug/ChatDebugComposerWorkspace.vue'
+import ChatDebugSseReplayPanel from '@/components/chat/debug/ChatDebugSseReplayPanel.vue'
 import ChatDebugPreviewShell from '@/components/chat/debug/ChatDebugPreviewShell.vue'
 import ChatDebugMessagePreview from '@/components/chat/debug/ChatDebugMessagePreview.vue'
 import ChatDebugToolPanel from '@/components/chat/debug/ChatDebugToolPanel.vue'
@@ -200,6 +202,7 @@ const selectedPresetId = ref(undefined)
 const previewEmptyText = computed(() => {
   if (activeModule.value === 'tool') return '点击「解析预览」查看工具 UI'
   if (activeModule.value === 'markdown') return '点击「解析预览」查看 Markdown'
+  if (activeModule.value === 'sse') return '选择事件积木后开始回放，或直接粘贴真实 SSE 日志'
   return '点击「解析预览」查看渲染效果'
 })
 
@@ -299,14 +302,19 @@ function onStreamPreview(msg) {
   previewMsg.value = msg
 }
 
-function onSsePreview(apiMsg) {
-  if (!apiMsg) {
+function onSsePreview(payload) {
+  if (!payload) {
     previewMsg.value = null
     return
   }
   comparePreviewLeft.value = null
   comparePreviewRight.value = null
-  previewMsg.value = buildMsgPreview(apiMsg)
+  const apiMsg = payload.apiMessage || payload
+  previewMsg.value = buildMsgPreview(apiMsg, {
+    ...composerUiState.value,
+    streaming: !!payload.streaming,
+    toolsDone: !payload.streaming,
+  })
 }
 
 function onComparePreview(payload) {

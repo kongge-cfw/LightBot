@@ -130,22 +130,6 @@
         </div>
       </a-tab-pane>
 
-      <a-tab-pane key="sse" tab="SSE 回放">
-        <div class="debug-workflow-builder">
-          <div class="debug-editor-label">粘贴后端 SSE 文本，本地解析 workflow_* 事件并驱动当前图回放</div>
-          <a-textarea
-            v-model:value="sseText"
-            :rows="10"
-            class="debug-json-textarea"
-            placeholder="data:[STATUS]{&quot;type&quot;:&quot;workflow_node_start&quot;,...}"
-          />
-          <div class="debug-builder-actions">
-            <a-button type="primary" size="small" @click="parseSseReplay">解析为回放轨迹</a-button>
-            <a-button size="small" @click="sseText = ''">清空</a-button>
-          </div>
-        </div>
-      </a-tab-pane>
-
       <a-tab-pane key="advanced" tab="高级拼装">
         <div class="debug-workflow-builder">
           <div class="debug-editor-label">新版高级拼装（生成合法图、父子节点与 workflowEvents）</div>
@@ -170,7 +154,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { processSseLines } from '@/api/chat'
 import { apiMessageToEditorJson, editorJsonToApiMessage } from '@/utils/chat/debug/debugMessageBuilder'
 import {
   WORKFLOW_DEBUG_SCENARIOS,
@@ -200,7 +183,6 @@ const replayIndex = ref(-1)
 const replayPlaying = ref(false)
 const replaySpeed = ref(1)
 const groupViewMode = ref('expanded')
-const sseText = ref('')
 let replayTimer = null
 
 const replaySpeedOptions = [
@@ -365,60 +347,6 @@ function buildAdvancedWorkflow() {
     message.success('已生成合法工作流图')
   } catch (e) {
     parseError.value = e.message || '高级拼装失败'
-  }
-}
-
-function parseSseReplay() {
-  parseError.value = ''
-  if (!sseText.value.trim()) {
-    message.warning('请先粘贴 SSE 文本')
-    return
-  }
-  try {
-    const events = []
-    let content = ''
-    processSseLines(sseText.value, {
-      onChunk: (chunk) => {
-        content += chunk || ''
-      },
-      onToolEvent: (event) => {
-        if (event?.type?.startsWith?.('workflow_')) {
-          events.push(event)
-        }
-      },
-    })
-    if (!events.length) {
-      message.warning('未解析到 workflow 事件')
-      return
-    }
-    if (!currentFixture.value) {
-      currentFixture.value = buildWorkflowDebugFixtureFromNodeTypes(selectedNodeTypes.value)
-    }
-    const baseMessage = currentFixture.value.payload.message
-    const messagePayload = {
-      ...baseMessage,
-      content: content || baseMessage.content || '以下为 SSE 粘贴解析后的工作流回放。',
-      metadata: {
-        ...baseMessage.metadata,
-        workflowEvents: events,
-      },
-    }
-    currentFixture.value = {
-      ...currentFixture.value,
-      events,
-      payload: {
-        ...currentFixture.value.payload,
-        nodeEvents: events,
-        message: messagePayload,
-      },
-    }
-    localJson.value = apiMessageToEditorJson(messagePayload)
-    resetReplay()
-    emit('update:modelValue', localJson.value)
-    activeTab.value = 'trace'
-    message.success(`已解析 ${events.length} 条 workflow 事件`)
-  } catch (e) {
-    parseError.value = e.message || 'SSE 解析失败'
   }
 }
 

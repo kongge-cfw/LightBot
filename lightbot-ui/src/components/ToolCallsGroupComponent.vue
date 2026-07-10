@@ -49,7 +49,7 @@
         <div v-else-if="evt.type === 'tool_result'" class="event-row event-result">
           <CheckCircleOutlined class="event-icon icon-success" />
           <span class="event-label"><strong>{{ resolveDisplayName(evt) }}</strong> 执行完成</span>
-          <button class="result-toggle" @click="toggleResult(ti)" v-if="evt.result">
+          <button class="result-toggle" @click="toggleResult(ti, $event)" v-if="evt.result">
             <RightOutlined :class="{ expanded: expandedResults.has(ti) }" class="expand-icon-sm" />
             <span>查看结果</span>
           </button>
@@ -102,7 +102,7 @@ const isExpanded = ref(props.defaultExpanded)
 
 function toggleExpand(event) {
   isExpanded.value = !isExpanded.value
-  nextTick(() => emit('heightChange', event))
+  nextTick(() => emit('heightChange', { target: event?.target, preserveViewport: true }))
 }
 const expandedResults = ref(new Set())
 const manualToggled = ref(new Set())
@@ -214,12 +214,13 @@ function openArgs(index) {
   argsModalOpen.value = true
 }
 
-function toggleResult(index) {
+function toggleResult(index, event) {
   manualToggled.value.add(index)
   const s = new Set(expandedResults.value)
   if (s.has(index)) s.delete(index)
   else s.add(index)
   expandedResults.value = s
+  nextTick(() => emit('heightChange', { target: event?.target, preserveViewport: true }))
 }
 </script>
 

@@ -82,7 +82,7 @@ public final class ToolEventCompactUtil {
     }
 
     /**
-     * 提取工具块 offset（仅 tool_call / subagent_call，与前端 getToolBlockOffsets 一致）
+     * 提取工具块 offset（tool_call / subagent_call / subagent_batch_start，与前端分段规则一致）
      *
      * @param events 事件列表
      * @return 排序去重后的 offset 列表
@@ -97,7 +97,8 @@ public final class ToolEventCompactUtil {
                 continue;
             }
             String type = stringVal(evt.get("type"));
-            if (!"tool_call".equals(type) && !"subagent_call".equals(type)) {
+            if (!"tool_call".equals(type) && !"subagent_call".equals(type)
+                    && !"subagent_batch_start".equals(type)) {
                 continue;
             }
             Object co = evt.get("contentOffset");
@@ -203,7 +204,8 @@ public final class ToolEventCompactUtil {
 
         for (Map<String, Object> evt : events) {
             String type = stringVal(evt.get("type"));
-            if (!"tool_call".equals(type) && !"subagent_call".equals(type)) {
+            if (!"tool_call".equals(type) && !"subagent_call".equals(type)
+                    && !"subagent_batch_start".equals(type)) {
                 continue;
             }
             int oldOffset = toInt(evt.get("contentOffset"), 0);
@@ -212,7 +214,8 @@ public final class ToolEventCompactUtil {
             offsetRemap.put(oldOffset, newOffset);
             evt.put("contentOffset", newOffset);
             // 保留/刷新前缀锚点，供前端历史消息精确切分正文
-            if ("subagent_call".equals(type) && newOffset > 0 && newOffset <= content.length()) {
+            if (("subagent_call".equals(type) || "subagent_batch_start".equals(type))
+                    && newOffset > 0 && newOffset <= content.length()) {
                 evt.put("contentPrefixAnchor", content.substring(0, newOffset));
             } else {
                 evt.remove("contentPrefixAnchor");
@@ -220,7 +223,8 @@ public final class ToolEventCompactUtil {
         }
 
         for (Map<String, Object> evt : events) {
-            if (!"subagent_call".equals(stringVal(evt.get("type")))) {
+            String type = stringVal(evt.get("type"));
+            if (!"subagent_call".equals(type) && !"subagent_batch_start".equals(type)) {
                 evt.remove("contentPrefixAnchor");
             }
             Object co = evt.get("contentOffset");
@@ -297,7 +301,13 @@ public final class ToolEventCompactUtil {
     }
 
     private static String subagentScopeKey(Map<String, Object> evt) {
-        return stringVal(evt.get("subagentName")) + "@" + stringVal(evt.get("contentOffset"));
+        String taskId = stringVal(evt.get("task_id"));
+        if (!taskId.isEmpty()) {
+            return "task:" + taskId;
+        }
+        String batchId = stringVal(evt.get("batch_id"));
+        return stringVal(evt.get("subagentName")) + "@" + stringVal(evt.get("contentOffset"))
+                + "@" + batchId;
     }
 
     private static void flushToken(List<Map<String, Object>> result, Map<String, Object> pending) {
@@ -318,7 +328,9 @@ public final class ToolEventCompactUtil {
 
     private static boolean sameSubagentScope(Map<String, Object> a, Map<String, Object> b) {
         return Objects.equals(a.get("subagentName"), b.get("subagentName"))
-                && Objects.equals(a.get("contentOffset"), b.get("contentOffset"));
+                && Objects.equals(a.get("contentOffset"), b.get("contentOffset"))
+                && Objects.equals(a.get("batch_id"), b.get("batch_id"))
+                && Objects.equals(a.get("task_id"), b.get("task_id"));
     }
 
     private static Map<String, Object> enrichSubagentResult(Map<String, Object> evt) {

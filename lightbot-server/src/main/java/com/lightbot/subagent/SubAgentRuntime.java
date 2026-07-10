@@ -800,9 +800,21 @@ public class SubAgentRuntime implements SubAgentExecutor {
     }
 
     private void emitSubAgentStreamEvent(ChatContext chatContext, Map<String, Object> evt, String json) {
+        // SSE 已有任务关联字段；metadata 也必须保留，历史消息才能按任务归属工具步骤。
+        if (chatContext.getSubAgentBatchId() != null) {
+            evt.put("batch_id", chatContext.getSubAgentBatchId());
+        }
+        if (chatContext.getSubAgentTaskId() != null) {
+            evt.put("task_id", chatContext.getSubAgentTaskId());
+        }
+        if (chatContext.getSubAgentTaskIndex() != null) {
+            evt.put("task_index", chatContext.getSubAgentTaskIndex());
+        }
         if (chatContext.getRealtimeStatusEmitter() != null) {
             if (chatContext.getToolEventsList() != null) {
-                chatContext.getToolEventsList().add(evt);
+                synchronized (chatContext.getToolEventsList()) {
+                    chatContext.getToolEventsList().add(new java.util.LinkedHashMap<>(evt));
+                }
             }
             chatContext.emitRealtimeStatus(json);
         } else {

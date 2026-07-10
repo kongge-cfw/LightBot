@@ -43,11 +43,6 @@
         </div>
       </a-tab-pane>
 
-      <a-tab-pane key="sse" tab="SSE 回放">
-        <div class="debug-composer-subpane">
-          <ChatDebugSseReplayPanel @preview="$emit('sse-preview', $event)" />
-        </div>
-      </a-tab-pane>
     </a-tabs>
   </div>
 </template>
@@ -58,7 +53,6 @@ import ChatDebugUiStateBar from './ChatDebugUiStateBar.vue'
 import ChatDebugComposerPanel from './ChatDebugComposerPanel.vue'
 import ChatDebugComparePanel from './ChatDebugComparePanel.vue'
 import ChatDebugStreamPanel from './ChatDebugStreamPanel.vue'
-import ChatDebugSseReplayPanel from './ChatDebugSseReplayPanel.vue'
 
 defineProps({
   composerJson: { type: String, default: '' },
@@ -77,7 +71,6 @@ const emit = defineEmits([
   'import-fixture',
   'compare-preview',
   'stream-preview',
-  'sse-preview',
   'sub-mode-change',
 ])
 
