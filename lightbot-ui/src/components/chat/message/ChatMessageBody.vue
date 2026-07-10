@@ -202,23 +202,38 @@ defineEmits([
   font-size: 13px;
   font-family: 'Geist Mono', 'Menlo', monospace;
 }
-.message-content :deep(pre) {
+.message-content :deep(pre:not(.shiki)) {
   background: #171717;
   border-radius: 8px;
   padding: 16px;
   overflow-x: auto;
   margin: 12px 0;
 }
-.message-content :deep(pre)::-webkit-scrollbar { height: 4px; }
-.message-content :deep(pre)::-webkit-scrollbar-track { background: transparent; }
-.message-content :deep(pre)::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
-.message-content :deep(pre)::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
-.message-content :deep(pre code) {
+.message-content :deep(pre:not(.shiki))::-webkit-scrollbar { height: 4px; }
+.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-track { background: transparent; }
+.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
+.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+.message-content :deep(pre:not(.shiki) code) {
   background: transparent !important;
   color: #e4e4e7;
   padding: 0;
   font-size: 13px;
   line-height: 1.6;
+}
+/* Shiki 代码块使用 MarkdownPreview 主题色，避免浅色字 + 白底不可读 */
+.message-content :deep(.markdown-preview pre.shiki) {
+  margin: 12px 0;
+  padding: 12px 14px;
+}
+.message-content :deep(.markdown-preview pre.shiki code) {
+  background: transparent !important;
+  color: inherit;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+.message-content :deep(.markdown-preview .code-block-wrap) {
+  margin: 12px 0;
 }
 .message-content :deep(ul),
 .message-content :deep(ol) {

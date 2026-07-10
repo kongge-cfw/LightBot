@@ -280,8 +280,11 @@ export function isSubagentBlockDone(events, calls, streaming = false) {
 export function buildSubagentAttemptTimeline(events, call, delegationIndex = null, streaming = false, blockCalls = null) {
   const scoped = filterScopedEvents(events, call, delegationIndex, blockCalls)
   const timeline = []
+  const error = scoped.find(e => e.type === 'subagent_error')
   for (const evt of scoped) {
     if (evt.type === 'subagent_error_retry') {
+      // 终态失败后不再保留重试记录，避免与失败 banner 重复展示
+      if (error) continue
       timeline.push({
         kind: 'retry',
         attempt: evt.attempt,
@@ -292,7 +295,6 @@ export function buildSubagentAttemptTimeline(events, call, delegationIndex = nul
       })
     }
   }
-  const error = scoped.find(e => e.type === 'subagent_error')
   const result = scoped.find(e => e.type === 'subagent_result')
   const hasOutput = !!resolveSubagentModelOutput(events, call, delegationIndex, blockCalls)?.trim()
 

@@ -273,15 +273,19 @@ const hasAnyModelOutput = computed(() =>
   attemptViews.value.some(a => a.modelOutput?.trim())
 )
 
-/** 顶部 banner 已展示终态错误时，时间线不再重复同一条 error */
+/** 顶部 banner 已展示终态错误时，时间线不再重复 error；失败后也不再展示重试记录 */
 function visibleAttemptTimeline(attempt) {
   const timeline = attempt?.timeline || []
   if (!timeline.length) return []
+  let visible = timeline
+  if (attempt.isDone && attempt.error) {
+    visible = visible.filter(item => item.kind !== 'retry')
+  }
   const shownInBanner = !!activeError.value
     && attempt.error
     && (attemptViews.value.length === 1 || attempt.isActive)
-  if (!shownInBanner) return timeline
-  return timeline.filter(item => item.kind !== 'error')
+  if (!shownInBanner) return visible
+  return visible.filter(item => item.kind !== 'error')
 }
 
 watch(() => props.defaultExpanded, (val) => {
@@ -290,10 +294,27 @@ watch(() => props.defaultExpanded, (val) => {
 }, { immediate: true })
 
 watch(activeRetry, (val, oldVal) => {
-  if (val && (!oldVal || val.attempt !== oldVal.attempt)) {
+  if (!val) {
+    retryPulseActive.value = false
+    if (retryPulseTimer) {
+      clearTimeout(retryPulseTimer)
+      retryPulseTimer = null
+    }
+    return
+  }
+  if (!oldVal || val.attempt !== oldVal.attempt) {
     triggerRetryPulse()
     expanded.value = true
     emitLayoutChange()
+  }
+})
+
+watch(activeError, (err) => {
+  if (!err) return
+  retryPulseActive.value = false
+  if (retryPulseTimer) {
+    clearTimeout(retryPulseTimer)
+    retryPulseTimer = null
   }
 })
 

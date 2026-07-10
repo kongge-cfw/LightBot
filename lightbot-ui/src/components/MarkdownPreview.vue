@@ -431,6 +431,16 @@ watch(
     background: none;
     border-radius: 0;
     font-family: 'Menlo', 'Monaco', 'Consolas', monospace;
+    color: inherit;
+  }
+  /* 无语言/纯文本代码块：保证浅色背景下文字可读 */
+  pre.shiki.github-light {
+    background-color: var(--gray-25) !important;
+    color: var(--color-text-code) !important;
+  }
+  pre.shiki.github-light code,
+  pre.shiki.github-light code span:not([style*='color']) {
+    color: inherit;
   }
 }
 .no-image-preview img {
