@@ -48,12 +48,21 @@ public class ToolEventGenerator {
      * 为 SubAgent SSE/持久化 JSON 附加 delegationIndex（同 offset 多次委派区分序号）。
      */
     public String enrichSubagentJson(String json, Integer delegationIndex) {
-        if (delegationIndex == null || json == null || json.isBlank()) {
+        return enrichSubagentJson(json, delegationIndex, null, null, null);
+    }
+
+    /** 为 SubAgent SSE 事件附加批次和子任务路由信息。 */
+    public String enrichSubagentJson(String json, Integer delegationIndex, String batchId,
+                                     String taskId, Integer taskIndex) {
+        if (json == null || json.isBlank()) {
             return json;
         }
         try {
             Map<String, Object> map = objectMapper.readValue(json, new TypeReference<>() {});
-            map.put("delegationIndex", delegationIndex);
+            if (delegationIndex != null) map.put("delegationIndex", delegationIndex);
+            if (batchId != null) map.put("batch_id", batchId);
+            if (taskId != null) map.put("task_id", taskId);
+            if (taskIndex != null) map.put("task_index", taskIndex);
             return objectMapper.writeValueAsString(map);
         } catch (Exception e) {
             return json;

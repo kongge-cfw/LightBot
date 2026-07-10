@@ -4,7 +4,7 @@
     title="反馈记录"
     :footer="null"
     width="760px"
-    :bodyStyle="{ maxHeight: '65vh', overflow: 'auto', padding: '0' }"
+    :bodyStyle="{ padding: '0' }"
     @update:open="$emit('update:open', $event)"
   >
     <div class="feedback-page">
@@ -163,7 +163,10 @@ function formatAgentVersion(version) {
 
 <style scoped>
 .feedback-page {
-  padding: 16px 8px 16px 0;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 16px 12px 16px 0;
+  scrollbar-gutter: stable;
 }
 .feedback-header {
   display: flex;

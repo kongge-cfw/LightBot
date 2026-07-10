@@ -8,8 +8,8 @@ export function getSessions(params) {
   return request.get('/chat/sessions', { params })
 }
 
-export function getSession(id) {
-  return request.get(`/chat/sessions/${id}`)
+export function getSession(id, config = {}) {
+  return request.get(`/chat/sessions/${id}`, config)
 }
 
 export function getSessionTitle(id) {

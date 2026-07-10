@@ -61,7 +61,7 @@
             @heightChange="$emit('height-change', $event)"
           />
           <AgentCapabilityPanel
-            v-if="segment.block?.kind === 'subagent'"
+            v-if="segment.block?.kind === 'subagent' || segment.block?.kind === 'subagent-batch'"
             :events="segment.block.events"
             :all-events="msg._toolEvents || []"
             :is-done="isToolBlockSegmentDone(msg, segment.block)"

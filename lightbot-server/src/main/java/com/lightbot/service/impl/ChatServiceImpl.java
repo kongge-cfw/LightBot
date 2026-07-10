@@ -1629,31 +1629,11 @@ public class ChatServiceImpl implements ChatService {
         }
 
         if (DelegateSubAgentTool.TOOL_NAME.equals(toolName)) {
-            Map<String, String> parsed = parseSubagentArgs(args);
-            String subName = parsed.get("subagentName");
-            String displayName = resolveSubAgentDisplayName(subName);
-            String task = parsed.get("task");
             int delegationIndex = ctx != null ? ctx.assignSubAgentDelegationIndex() : 0;
-            Map<String, Object> evt = new HashMap<>();
-            evt.put("type", "subagent_call");
-            evt.put("subagentName", subName);
-            evt.put("displayName", displayName);
-            evt.put("task", task);
-            evt.put("contentOffset", contentOffset);
-            evt.put("delegationIndex", delegationIndex);
-            putContentPrefixAnchor(ctx, evt, contentOffset);
-            int normalizedOffset = evt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
-            toolEventsList.add(evt);
             if (ctx != null) {
-                ctx.setSubAgentContentOffset(normalizedOffset);
-                String callJson = toolEventGenerator.enrichSubagentJson(
-                        toolEventGenerator.subagentCallEvent(subName, displayName, task, normalizedOffset),
-                        delegationIndex);
-                ctx.emitRealtimeStatus(callJson);
-            } else if (statusFluxes != null) {
-                statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.enrichSubagentJson(
-                        toolEventGenerator.subagentCallEvent(subName, displayName, task, normalizedOffset),
-                        delegationIndex)));
+                // 批次事件由 SubAgentTaskService 统一发布；这里只提供本轮插入位置和委派序号。
+                ctx.setSubAgentContentOffset(contentOffset);
+                ctx.setSubAgentDelegationIndex(delegationIndex);
             }
             return;
         }
@@ -1678,40 +1658,23 @@ public class ChatServiceImpl implements ChatService {
     private void appendToolCallResult(ChatContext ctx, List<Map<String, Object>> toolEventsList, List<Flux<String>> statusFluxes,
                                     String toolName, String args, String result, int contentOffset) {
         String truncated = toolEventGenerator.truncateForSse(result);
-        if (DelegateSubAgentTool.TOOL_NAME.equals(toolName)) {
-            // 1. 消费队列中尚未处理的子代理中间事件（实时路径下队列通常已空）
-            if (ctx != null) {
-                List<ChatContext.SubAgentEvent> subEvents = ctx.drainSubAgentEvents();
-                for (ChatContext.SubAgentEvent se : subEvents) {
-                    appendSubAgentStreamEvent(ctx, toolEventsList, statusFluxes, se, contentOffset);
-                }
+        if (DelegateSubAgentTool.TOOL_NAME.equals(toolName)
+                || DelegateSubAgentTool.RESULT_TOOL_NAME.equals(toolName)
+                || DelegateSubAgentTool.CANCEL_TOOL_NAME.equals(toolName)) {
+            // 委派、查询、取消均回填同一个批次面板，禁止落入普通 ToolCallsGroup。
+            Map<String, Object> update = parseSubAgentToolResult(truncated);
+            update.put("type", "subagent_batch_update");
+            update.put("contentOffset", contentOffset);
+            if (ctx != null && ctx.getSubAgentDelegationIndex() != null) {
+                update.put("delegationIndex", ctx.getSubAgentDelegationIndex());
             }
-            // 2. 推送 subagent_result 事件
-            Map<String, String> parsed = parseSubagentArgs(args);
-            String subName = parsed.get("subagentName");
-            String displayName = resolveSubAgentDisplayName(subName);
-            Integer delegationIndex = ctx != null ? ctx.getSubAgentDelegationIndex() : null;
-            Map<String, Object> evt = new HashMap<>();
-            evt.put("type", "subagent_result");
-            evt.put("subagentName", subName);
-            evt.put("displayName", displayName);
-            evt.put("result", truncated);
-            if (delegationIndex != null) {
-                evt.put("delegationIndex", delegationIndex);
-            }
-            String replyText = ToolEventCompactUtil.extractSubagentReplyText(truncated);
-            if (replyText != null && !replyText.isBlank()) {
-                evt.put("replyText", replyText);
-            }
-            evt.put("contentOffset", contentOffset);
-            toolEventsList.add(evt);
-            String resultJson = toolEventGenerator.enrichSubagentJson(
-                    toolEventGenerator.subagentResultEvent(subName, displayName, truncated, contentOffset),
-                    delegationIndex);
-            if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
-                ctx.emitRealtimeStatus(resultJson);
-            } else if (statusFluxes != null) {
-                statusFluxes.add(Flux.just(STATUS_PREFIX + resultJson));
+            toolEventsList.add(update);
+            try {
+                String updateJson = objectMapper.writeValueAsString(update);
+                if (ctx != null && ctx.getRealtimeStatusEmitter() != null) ctx.emitRealtimeStatus(updateJson);
+                else if (statusFluxes != null) statusFluxes.add(Flux.just(STATUS_PREFIX + updateJson));
+            } catch (Exception ignored) {
+                // 前端展示事件失败不影响工具结果回填。
             }
             if (ctx != null) {
                 ctx.setSubAgentContentOffset(null);
@@ -1858,6 +1821,15 @@ public class ChatServiceImpl implements ChatService {
             log.warn("[Chat] 解析 SubAgent 参数失败: {}", e.getMessage());
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseSubAgentToolResult(String result) {
+        try {
+            return new LinkedHashMap<>(objectMapper.readValue(result, Map.class));
+        } catch (Exception ignored) {
+            return new LinkedHashMap<>(Map.of("status", "failed", "error", result));
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -151,6 +151,15 @@ public class ChatContext {
     /** 当前 assistant 消息内 SubAgent 委派序号（同 offset 多次委派时递增） */
     private Integer subAgentDelegationIndex;
 
+    /** 当前子任务所属批次，用于并行 SSE 路由。 */
+    private String subAgentBatchId;
+
+    /** 当前子任务 ID，用于并行 SSE 路由。 */
+    private String subAgentTaskId;
+
+    /** 当前子任务在批次中的序号。 */
+    private Integer subAgentTaskIndex;
+
     /**
      * 分配 SubAgent 委派序号：首次 0，同条消息内再次委派递增。
      *

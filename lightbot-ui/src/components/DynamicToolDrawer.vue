@@ -9,12 +9,12 @@
 
   <a-drawer
     v-model:open="drawerVisible"
-    title="自动启用工具"
+      title="运行时自动注入能力"
     :width="560"
     :bodyStyle="{ padding: '16px' }"
   >
     <div class="drawer-desc">
-      这些工具由 Agent 绑定资源、个人配置或模型能力自动注入，不占用手动绑定工具名额。
+      这些能力由 Agent 绑定资源、个人配置或模型能力在运行时注入，不占用手动绑定工具名额。
     </div>
     <a-spin :spinning="loading">
       <div class="group-list">
@@ -125,15 +125,13 @@ const groups = computed(() => {
     },
     {
       key: 'subagent',
-      title: 'SubAgent 委派工具',
+      title: 'SubAgent 批次委派',
       enabled: subAgentEnabled,
       triggerText: '触发条件：Agent 已绑定 SubAgent',
       triggerCount: props.selectedSubAgents.length,
-      reason: subAgentEnabled ? '支持同步委派、并行委派、后台任务查询与取消。' : '绑定子智能体后，运行时会自动注入委派、查询和取消工具。',
+      reason: subAgentEnabled ? '统一入口支持同步、并行与后台模式；查询和取消会回填同一个任务批次。' : '绑定子智能体后，将自动注入统一的批次委派能力。',
       tools: [
-        { name: 'delegate_to_subagent', displayName: '委派子智能体' },
-        { name: 'get_subagent_task_result', displayName: '查询子智能体后台任务结果' },
-        { name: 'cancel_subagent_task', displayName: '取消子智能体后台任务' },
+        { name: 'delegate_to_subagent', displayName: '统一批次委派入口' },
       ],
     },
     {

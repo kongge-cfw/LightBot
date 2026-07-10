@@ -4,6 +4,7 @@
 import { SKILL_ACTIVE_EVENT_TYPE } from '../../components/skills/skillRegistry.js'
 import { SUBAGENT_EVENT_TYPES } from '../../components/capabilities/subagentRegistry.js'
 import { isSubagentBlockDone } from '../../components/capabilities/subagentEventUtils.js'
+import { isHiddenTool } from '../../components/toolRegistry.js'
 
 export const CAPABILITY_EVENT_TYPES = new Set([
   SKILL_ACTIVE_EVENT_TYPE,
@@ -53,7 +54,7 @@ export function getInlineCapabilityEvents(msg) {
 }
 
 export function getPureToolEvents(events) {
-  return (events || []).filter(e => !CAPABILITY_EVENT_TYPES.has(e.type))
+  return (events || []).filter(e => !CAPABILITY_EVENT_TYPES.has(e.type) && !isHiddenTool(e.toolName))
 }
 
 export function getSubagentCallEvents(msg) {
@@ -107,14 +108,14 @@ export function getOrderedToolBlocks(msg) {
       }
       continue
     }
-    if (e.type === 'subagent_call') {
+    if (e.type === 'subagent_call' || e.type === 'subagent_batch_start') {
       if (current?.kind === 'subagent') {
         current.events.push(e)
         continue
       }
       if (current) blocks.push(current)
       current = {
-        kind: 'subagent',
+        kind: e.type === 'subagent_batch_start' ? 'subagent-batch' : 'subagent',
         offset: e.contentOffset,
         callEvent: e,
         events: [e],
@@ -122,7 +123,7 @@ export function getOrderedToolBlocks(msg) {
       continue
     }
     if (!current || isSkillActiveEvent(e)) continue
-    if (current.kind === 'subagent') {
+    if (current.kind === 'subagent' || current.kind === 'subagent-batch') {
       if (typeof e.type === 'string' && e.type.startsWith('subagent_')) {
         current.events.push(e)
       }
@@ -136,6 +137,10 @@ export function getOrderedToolBlocks(msg) {
 
 export function isToolBlockSegmentDone(msg, block) {
   if (!block) return !msg?._streaming
+  if (block.kind === 'subagent-batch') {
+    return !msg?._streaming || block.events.some(e =>
+      e.type === 'subagent_batch_done' || e.type === 'subagent_batch_update')
+  }
   if (block.kind === 'subagent') {
     const calls = block.events.filter(e => e.type === 'subagent_call')
     return isSubagentBlockDone(msg._toolEvents || [], calls, !!msg._streaming)

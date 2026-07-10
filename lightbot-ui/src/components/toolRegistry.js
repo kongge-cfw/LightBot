@@ -44,7 +44,6 @@ const OcrParseFileResult = defineAsyncComponent(() => import('./tools/OcrParseFi
 const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFileResult.vue'))
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
 const UserMemoryResult = defineAsyncComponent(() => import('./tools/UserMemoryResult.vue'))
-const SubAgentTaskResult = defineAsyncComponent(() => import('./tools/SubAgentTaskResult.vue'))
 
 // 工具渲染组件映射
 export const TOOL_RENDERERS = {
@@ -82,9 +81,6 @@ export const TOOL_RENDERERS = {
   memory_save: UserMemoryResult,
   memory_search: UserMemoryResult,
   memory_delete: UserMemoryResult,
-  delegate_to_subagent: SubAgentTaskResult,
-  get_subagent_task_result: SubAgentTaskResult,
-  cancel_subagent_task: SubAgentTaskResult,
 }
 
 // 工具图标
@@ -171,6 +167,14 @@ export const HIDDEN_TOOL_NAMES = new Set([
   'subagent_token',
   'subagent_tool_call',
   'subagent_tool_result',
+  'subagent_batch_start',
+  'subagent_task_start',
+  'subagent_task_done',
+  'subagent_batch_done',
+  'subagent_batch_update',
+  'delegate_to_subagent',
+  'get_subagent_task_result',
+  'cancel_subagent_task',
 ])
 
 export function getToolIcon(toolName) {

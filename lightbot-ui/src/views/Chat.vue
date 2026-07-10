@@ -24,12 +24,6 @@
         @select-question="applyRecommendedQuestion"
       />
 
-      <div v-if="sessionId && hasMoreMessages && !streaming && initialLoadDone" class="load-more-area">
-        <a-button size="small" :loading="loadingOlder" @click="loadOlderMessages">
-          加载更早的消息
-        </a-button>
-      </div>
-
       <div v-if="loadingHistory" class="history-loading">
         <LoadingOutlined spin class="history-loading-icon" />
       </div>
@@ -449,7 +443,7 @@ const {
 streamHolder.runChatStream = runChatStream
 
 const {
-  hasMoreMessages, loadingOlder, initialLoadDone, switchingSession,
+  hasMoreMessages, loadingOlder, switchingSession,
   loadHistory, loadOlderMessages, onStreamingEnded,
 } = useChatHistory({
   sessionId, messages, streaming, virtualizer, messagesRef,
@@ -461,6 +455,7 @@ const {
   input, inputHistory, historyIndex, pendingAttachments,
   fileDrawerLoadedOnce,
   sessionFilePreviewTarget, sessionFilePreviewOpen, fileStats,
+  onSessionMissing: () => router.replace({ path: '/app/chat' }),
 })
 
 const hasStreamingAssistantMessage = computed(() =>
@@ -582,11 +577,6 @@ watch(sessionId, (newVal, oldVal) => {
 .chat-messages::-webkit-scrollbar-thumb {
   background: #d4d4d8;
   border-radius: 3px;
-}
-
-.load-more-area {
-  text-align: center;
-  padding: 12px 0;
 }
 
 .history-loading {

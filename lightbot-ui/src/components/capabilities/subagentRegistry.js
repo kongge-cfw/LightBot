@@ -4,6 +4,11 @@
 import { RobotOutlined } from '@ant-design/icons-vue'
 
 export const SUBAGENT_EVENT_TYPES = new Set([
+  'subagent_batch_start',
+  'subagent_task_start',
+  'subagent_task_done',
+  'subagent_batch_done',
+  'subagent_batch_update',
   'subagent_call',
   'subagent_result',
   'subagent_token',
@@ -14,6 +19,7 @@ export const SUBAGENT_EVENT_TYPES = new Set([
 ])
 
 export const SUBAGENT_CALL_EVENT_TYPE = 'subagent_call'
+export const SUBAGENT_BATCH_START_EVENT_TYPE = 'subagent_batch_start'
 
 export function isSubagentEvent(event) {
   return SUBAGENT_EVENT_TYPES.has(event?.type)

@@ -16,6 +16,8 @@ import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.chat.ChatContext;
 import com.lightbot.service.chat.ToolEventGenerator;
+import com.lightbot.subagent.spi.SubAgentDefinition;
+import com.lightbot.subagent.spi.SubAgentExecutor;
 import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.TextNormalizeUtil;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +57,7 @@ import java.util.Map;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class SubAgentRuntime {
+public class SubAgentRuntime implements SubAgentExecutor {
 
     private final ModelProviderService modelProviderService;
     private static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
@@ -80,6 +82,13 @@ public class SubAgentRuntime {
      * @param continued 是否为续跑（true=加载了历史消息）
      */
     public record SubAgentResult(String reply, String threadId, boolean continued) {}
+
+    @Override
+    public ExecutionResult execute(SubAgentDefinition definition, String task, String taskId,
+                                   String threadId, String parentThreadId, ChatContext chatContext) {
+        SubAgentResult result = run(definition.source(), task, taskId, threadId, parentThreadId, chatContext);
+        return new ExecutionResult(result.reply(), result.threadId(), result.continued());
+    }
 
     /**
      * 同步执行一个 SubAgent，返回最终回答文本。
@@ -637,7 +646,8 @@ public class SubAgentRuntime {
         String displayName = subAgent.getDisplayName() != null ? subAgent.getDisplayName() : subAgent.getName();
         String json = toolEventGenerator.enrichSubagentJson(
                 toolEventGenerator.subagentErrorEvent(subAgent.getName(), displayName, message, code, offset),
-                delegationIndex);
+                delegationIndex, chatContext.getSubAgentBatchId(), chatContext.getSubAgentTaskId(),
+                chatContext.getSubAgentTaskIndex());
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_error");
         evt.put("subagentName", subAgent.getName());
@@ -661,7 +671,8 @@ public class SubAgentRuntime {
         String json = toolEventGenerator.enrichSubagentJson(
                 toolEventGenerator.subagentErrorRetryEvent(
                         subAgent.getName(), displayName, message, code, attempt, maxRetries, offset),
-                delegationIndex);
+                delegationIndex, chatContext.getSubAgentBatchId(), chatContext.getSubAgentTaskId(),
+                chatContext.getSubAgentTaskIndex());
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_error_retry");
         evt.put("subagentName", subAgent.getName());
@@ -722,7 +733,8 @@ public class SubAgentRuntime {
         int offset = chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
         Integer delegationIndex = chatContext.getSubAgentDelegationIndex();
         String json = toolEventGenerator.enrichSubagentJson(
-                toolEventGenerator.subagentTokenEvent(subAgent.getName(), delta, offset), delegationIndex);
+                toolEventGenerator.subagentTokenEvent(subAgent.getName(), delta, offset), delegationIndex,
+                chatContext.getSubAgentBatchId(), chatContext.getSubAgentTaskId(), chatContext.getSubAgentTaskIndex());
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_token");
         evt.put("subagentName", subAgent.getName());
@@ -746,7 +758,8 @@ public class SubAgentRuntime {
         String json = toolEventGenerator.enrichSubagentJson(
                 toolEventGenerator.subagentToolCallEvent(
                         subAgent.getName(), subDisplayName, toolName, toolDisplayName, args, offset),
-                delegationIndex);
+                delegationIndex, chatContext.getSubAgentBatchId(), chatContext.getSubAgentTaskId(),
+                chatContext.getSubAgentTaskIndex());
         Map<String, Object> evt = new java.util.LinkedHashMap<>();
         evt.put("type", "subagent_tool_call");
         evt.put("subagentName", subAgent.getName());
@@ -772,7 +785,8 @@ public class SubAgentRuntime {
         String json = toolEventGenerator.enrichSubagentJson(
                 toolEventGenerator.subagentToolResultEvent(
                         subAgent.getName(), subDisplayName, toolName, toolDisplayName, result, offset),
-                delegationIndex);
+                delegationIndex, chatContext.getSubAgentBatchId(), chatContext.getSubAgentTaskId(),
+                chatContext.getSubAgentTaskIndex());
         Map<String, Object> evt = new java.util.LinkedHashMap<>();
         evt.put("type", "subagent_tool_result");
         evt.put("subagentName", subAgent.getName());

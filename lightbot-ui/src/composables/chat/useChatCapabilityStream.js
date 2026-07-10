@@ -81,7 +81,7 @@ export function createChatCapabilityStreamHandlers(deps) {
     if (!assistantMsg._toolEvents) assistantMsg._toolEvents = []
     assistantMsg._toolEvents.push(event)
 
-    if (event.type === 'subagent_call') {
+    if (event.type === 'subagent_call' || event.type === 'subagent_batch_start') {
       const content = assistantMsg.content || ''
       const splitAt = resolveToolBlockSplitAt(content, event, offset)
       event.contentOffset = splitAt
@@ -91,8 +91,14 @@ export function createChatCapabilityStreamHandlers(deps) {
       assistantMsg._toolExpanded = true
       assistantMsg._currentToolOffset = splitAt
       registerToolBlockOffset(assistantMsg, splitAt)
-      currentStatus.value = formatSubagentCallStatus(event)
-      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')
+      currentStatus.value = event.type === 'subagent_batch_start'
+        ? `委派 ${event.tasks?.length || 1} 个 SubAgent 任务`
+        : formatSubagentCallStatus(event)
+      scrollToCapabilityBlock(assistantMsg, '.subagent-call-block, .subagent-batch-block')
+    } else if (event.type === 'subagent_task_start') {
+      currentStatus.value = `SubAgent 任务 ${Number(event.task_index || 0) + 1} 执行中...`
+    } else if (event.type === 'subagent_task_done' || event.type === 'subagent_batch_done') {
+      currentStatus.value = event.status === 'failed' ? 'SubAgent 批次执行失败' : 'SubAgent 批次执行完成'
     } else if (event.type === 'subagent_tool_call') {
       currentStatus.value = formatSubagentToolCallStatus(event)
       scrollToCapabilityBlock(assistantMsg, '.subagent-call-block')

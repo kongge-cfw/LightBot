@@ -4,7 +4,7 @@
     title="收藏消息"
     :footer="null"
     width="760px"
-    :bodyStyle="{ maxHeight: '65vh', overflow: 'auto', padding: '0' }"
+    :bodyStyle="{ padding: '0' }"
     @update:open="$emit('update:open', $event)"
   >
     <div class="starred-page">
@@ -143,7 +143,10 @@ function shouldShowStarredMentions(msg) {
 
 <style scoped>
 .starred-page {
-  padding: 16px 8px 16px 0;
+  max-height: 65vh;
+  overflow-y: auto;
+  padding: 16px 12px 16px 0;
+  scrollbar-gutter: stable;
 }
 .empty-state {
   display: flex;

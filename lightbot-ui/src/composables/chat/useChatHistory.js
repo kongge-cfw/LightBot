@@ -38,6 +38,7 @@ export function useChatHistory(deps) {
     sessionFilePreviewTarget,
     sessionFilePreviewOpen,
     fileStats,
+    onSessionMissing,
   } = deps
 
   const messagePage = ref(1)
@@ -50,6 +51,27 @@ export function useChatHistory(deps) {
   let loadHistoryRequestId = 0
   /** 流式进行中触发的 loadHistory 请求，待 streaming 结束后补执行 */
   let pendingHistoryReload = false
+
+  function isSessionMissingError(error) {
+    const text = String(error?.message || '')
+    return text.includes('会话不存在') || text.includes('资源不存在')
+  }
+
+  function resetMissingSessionState() {
+    messages.value = []
+    hasMoreMessages.value = false
+    loadingOlder.value = false
+    messagePage.value = 1
+    selectedAgentId.value = null
+    currentAgent.value = null
+    lastReplyElapsed.value = null
+    sessionTokenCount.value = 0
+    sessionTitle.value = ''
+    pendingAttachments.value = []
+    switchingSession.value = false
+    message.warning('会话不存在或已删除')
+    onSessionMissing?.()
+  }
 
   async function loadHistory() {
     // 流式对话进行中不加载历史，避免替换 messages 数组破坏 stream 闭包引用
@@ -95,10 +117,16 @@ export function useChatHistory(deps) {
       // 并行加载消息（第1页）和会话详情
       const [msgRes, sessionRes] = await Promise.all([
         getSessionMessages(sessionId.value, { pageNum: 1, pageSize: 10 }),
-        getSession(sessionId.value),
+        getSession(sessionId.value, { silent: true }),
       ])
       // 请求已过期，丢弃结果
       if (reqId !== loadHistoryRequestId) return
+
+      const session = sessionRes.data
+      if (!session) {
+        resetMissingSessionState()
+        return
+      }
 
       const records = msgRes.data?.records || []
       // API 按创建时间倒序返回，前端正序显示（旧→新）
@@ -112,7 +140,6 @@ export function useChatHistory(deps) {
       loadBatchFeedbacks(parsed)
 
       // 从会话中恢复 agentId 和 agentVersionId
-      const session = sessionRes.data
       sessionTitle.value = session?.title || '新对话'
       sessionTokenCount.value = session?.totalTokens || 0
       if (session?.agentId) {
@@ -142,6 +169,9 @@ export function useChatHistory(deps) {
     } catch (e) {
       if (reqId !== loadHistoryRequestId) return
       messages.value = []
+      if (isSessionMissingError(e)) {
+        resetMissingSessionState()
+      }
     } finally {
       initialLoadDone.value = true
       if (reqId === loadHistoryRequestId) {
