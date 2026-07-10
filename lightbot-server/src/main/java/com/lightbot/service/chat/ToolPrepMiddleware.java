@@ -243,10 +243,7 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             if (subAgentIds != null && !subAgentIds.isEmpty()) {
                 if (ctx != null) ctx.setBoundSubAgentIds(subAgentIds);
-                ToolCallback delegateCb = delegateSubAgentTool.buildCallback(subAgentIds);
-                if (delegateCb != null) {
-                    allCallbacks.add(delegateCb);
-                }
+                allCallbacks.addAll(delegateSubAgentTool.buildCallbacks(subAgentIds));
             }
 
             // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）

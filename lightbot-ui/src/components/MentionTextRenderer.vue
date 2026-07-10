@@ -21,7 +21,7 @@
 <script setup>
 import { computed } from 'vue'
 import { getMentionChipClass, getMentionTooltip } from '@/utils/mentionDisplay'
-import { buildMentionMap, parseMentionText, resolveMentionSnapshot } from '@/utils/mention_utils'
+import { buildMentionMap, normalizeMentionSnapshot, parseMentionText, resolveMentionSnapshot } from '@/utils/mention_utils'
 
 const props = defineProps({
   /** 原始消息文本（含 @type:id token） */
@@ -45,16 +45,18 @@ const parts = computed(() => {
     }
     const token = segment.token
     const mentionType = segment.type
-    const m = resolveMentionSnapshot(map, props.mentions, token, mentionType, segment.resourceId)
-    const valid = !!m
-    const name = m?.name || mentionType || token
-    const tooltip = getMentionTooltip(mentionType, m?.name || name, token, valid)
+    const m = normalizeMentionSnapshot(
+      resolveMentionSnapshot(map, props.mentions, token, mentionType, segment.resourceId)
+      || { type: mentionType, resourceId: segment.resourceId, token },
+    )
+    const name = m?.name || `${mentionType}:${segment.resourceId}`
+    const tooltip = getMentionTooltip(mentionType, name, m?.resourceId, token)
     result.push({
       type: 'mention',
       token,
       mentionType,
-      name: valid ? name : `${name}（已失效）`,
-      chipClass: getMentionChipClass(mentionType, valid),
+      name,
+      chipClass: getMentionChipClass(mentionType),
       tooltipTitle: tooltip.title,
       tooltipSub: tooltip.sub,
     })
@@ -110,12 +112,6 @@ const parts = computed(() => {
   color: #2563eb;
 }
 
-.mention-text-renderer .mention-chip-invalid {
-  background: rgba(239, 68, 68, 0.14);
-  color: #dc2626;
-  text-decoration: line-through;
-}
-
 [data-theme="dark"] .mention-text-renderer .mention-chip-knowledge {
   background: rgba(16, 185, 129, 0.28);
   color: #6ee7b7;
@@ -138,12 +134,6 @@ const parts = computed(() => {
   background: rgba(59, 130, 246, 0.28);
   color: #93c5fd;
   box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.28);
-}
-
-[data-theme="dark"] .mention-text-renderer .mention-chip-invalid {
-  background: rgba(239, 68, 68, 0.24);
-  color: #fca5a5;
-  box-shadow: inset 0 0 0 1px rgba(252, 165, 165, 0.28);
 }
 
 .mention-tooltip-title {

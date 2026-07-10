@@ -1,7 +1,7 @@
 import { refreshChatAttachmentPreviews } from '../../api/chat'
 import { resolveWorkflowConfirmPending, resolveWorkflowFailureFromEvents, stripWorkflowErrorContent } from '../../components/workflow/workflowStepUtils.js'
 import { safeJsonParse } from '../../utils/request'
-import { contentHasMentionTokens, parseMentionsFromMetadata } from '../../utils/mention_utils'
+import { contentHasMentionTokens, parseMentionsFromMetadata, resolveMentionsForDisplay } from '../../utils/mention_utils'
 import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
 import { normalizeAssistantMessageErrors, applyMessageErrorFromDoneMeta } from '../../utils/chat/messageErrorState.js'
 import { getToolBlockOffsets } from './useChatEventPartition.js'
@@ -19,13 +19,14 @@ export function parseAttachmentsFromMetadata(metadata) {
 /** 从 msg.metadata 或 msg._mentions 提取 mention 快照（用于历史 chip 回显） */
 export function getMsgMentions(msg) {
   if (!msg) return []
+  const content = msg.content ?? ''
   const raw = (Array.isArray(msg._mentions) && msg._mentions.length)
     ? msg._mentions
     : parseMentionsFromMetadata(msg.metadata)
-  return raw.map(m => ({
+  return resolveMentionsForDisplay(content, raw).map(m => ({
     type: m.type,
     resourceId: m.resourceId != null ? String(m.resourceId) : '',
-    name: m.name || m.token || '',
+    name: m.name || `${m.type}:${m.resourceId}` || m.token || '',
     token: m.token || `@${m.type}:${m.resourceId}`,
   }))
 }

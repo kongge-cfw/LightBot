@@ -70,6 +70,7 @@ public class SubAgentRuntime {
     private final SubAgentRunMapper subAgentRunMapper;
     private final SubAgentThreadManager threadManager;
     private final ToolEventGenerator toolEventGenerator;
+    private final SubAgentPermissionPolicy permissionPolicy;
 
     /**
      * 子代理执行结果
@@ -98,7 +99,8 @@ public class SubAgentRuntime {
             return new SubAgentResult("SubAgent 不存在", null, false);
         }
 
-        // 1. 幂等性检查：同一 requestId 已完成则直接返回
+        // 1. 幂等性检查：同一 requestId 已完成则直接返回；未完成则复用已有任务记录
+        SubAgentRun run = null;
         if (requestId != null && !requestId.isBlank()) {
             SubAgentRun existing = subAgentRunMapper.selectByRequestId(requestId);
             if (existing != null && isTerminal(existing.getStatus())) {
@@ -107,6 +109,16 @@ public class SubAgentRuntime {
                         existing.getReply() != null ? existing.getReply() : "",
                         existing.getThreadId(),
                         true);
+            }
+            if (existing != null) {
+                if (isCancelRequested(existing)) {
+                    markCancelled(existing, "SubAgent task cancelled before start");
+                    return new SubAgentResult("SubAgent 任务已取消", existing.getThreadId(), false);
+                }
+                run = existing;
+                if (threadId == null || threadId.isBlank()) {
+                    threadId = existing.getThreadId();
+                }
             }
         }
 
@@ -127,8 +139,10 @@ public class SubAgentRuntime {
                 subAgent.getName(), threadId, taskDescription != null ? taskDescription.length() : 0,
                 connectTimeoutSeconds, readTimeoutSeconds, modelRetryTimes);
 
-        // 3. 创建运行记录
-        SubAgentRun run = new SubAgentRun();
+        // 3. 创建或复用运行记录。后台任务会先写入 pending 记录，运行时只更新状态。
+        if (run == null) {
+            run = new SubAgentRun();
+        }
         run.setThreadId(threadId);
         run.setParentThreadId(parentThreadId != null ? parentThreadId : "");
         run.setSubagentName(subAgent.getName());
@@ -137,22 +151,32 @@ public class SubAgentRuntime {
         run.setRequestId(requestId != null ? requestId : threadId);
         run.setStartTime(LocalDateTime.now());
         run.setToolCallCount(0);
-        subAgentRunMapper.insert(run);
+        if (run.getId() == null) {
+            run.setCancelRequested(0);
+            subAgentRunMapper.insert(run);
+        } else {
+            subAgentRunMapper.updateById(run);
+        }
 
         try {
             // 4. 解析子 Agent 的工具集合（按 ID 查 tool 表）
             List<String> toolIdStrings = parseToolIds(subAgent.getToolIds());
             List<Long> toolIds = toolIdStrings.stream().map(Long::parseLong).toList();
-            List<ToolCallback> toolCallbacks = toolIds.isEmpty()
+            List<Tool> boundTools = toolIds.isEmpty() ? List.of() : toolService.listByIds(toolIds);
+            List<Long> executableToolIds = permissionPolicy.filterExecutableToolIds(subAgent, boundTools);
+            List<ToolCallback> toolCallbacks = executableToolIds.isEmpty()
                     ? List.of()
-                    : toolService.resolveToolCallbacksByIds(toolIds);
+                    : toolService.resolveToolCallbacksByIds(executableToolIds);
             Map<String, ToolCallback> toolMap = new HashMap<>();
             Map<String, String> toolDisplayNameMap = new HashMap<>();
             for (ToolCallback cb : toolCallbacks) {
                 toolMap.put(cb.getToolDefinition().name(), cb);
             }
-            if (!toolIds.isEmpty()) {
-                for (Tool tool : toolService.listByIds(toolIds)) {
+            if (!executableToolIds.isEmpty()) {
+                for (Tool tool : boundTools) {
+                    if (!executableToolIds.contains(tool.getId())) {
+                        continue;
+                    }
                     if (tool != null && tool.getName() != null) {
                         toolDisplayNameMap.put(tool.getName(),
                                 tool.getDisplayName() != null && !tool.getDisplayName().isBlank()
@@ -194,7 +218,12 @@ public class SubAgentRuntime {
             java.util.concurrent.atomic.AtomicLong streamingPausedMs = new java.util.concurrent.atomic.AtomicLong(0);
             for (int depth = 0; depth < MAX_LOOP_DEPTH; depth++) {
                 if (chatContext != null && chatContext.isAborted()) {
-                    markFailed(run, "SubAgent execution cancelled by client", start);
+                    markCancelled(run, "SubAgent execution cancelled by client");
+                    return new SubAgentResult("", threadId, continued);
+                }
+                if (isCancelRequested(run)) {
+                    markCancelled(run, "SubAgent task cancelled");
+                    emitSubAgentError(chatContext, subAgent, "SubAgent 任务已取消", "CANCELLED");
                     return new SubAgentResult("", threadId, continued);
                 }
                 long remainingMs = remainingNonStreamingMs(deadlineMs, start, streamingPausedMs);
@@ -782,8 +811,26 @@ public class SubAgentRuntime {
                 run.getSubagentName(), System.currentTimeMillis() - start, errorMessage);
     }
 
+    private void markCancelled(SubAgentRun run, String message) {
+        run.setStatus("cancelled");
+        run.setErrorMessage(message);
+        run.setCancelRequested(1);
+        run.setEndTime(LocalDateTime.now());
+        subAgentRunMapper.updateById(run);
+        log.info("[SubAgent] 委派取消: name={}, requestId={}", run.getSubagentName(), run.getRequestId());
+    }
+
+    private boolean isCancelRequested(SubAgentRun run) {
+        if (run == null || run.getRequestId() == null) {
+            return false;
+        }
+        SubAgentRun latest = subAgentRunMapper.selectByRequestId(run.getRequestId());
+        return latest != null && (Integer.valueOf(1).equals(latest.getCancelRequested())
+                || "cancelled".equals(latest.getStatus()));
+    }
+
     private boolean isTerminal(String status) {
-        return "completed".equals(status) || "failed".equals(status);
+        return "completed".equals(status) || "failed".equals(status) || "cancelled".equals(status);
     }
 
     /** 解析 SubAgent.toolIds JSON 数组 */

@@ -44,6 +44,7 @@ const OcrParseFileResult = defineAsyncComponent(() => import('./tools/OcrParseFi
 const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFileResult.vue'))
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
 const UserMemoryResult = defineAsyncComponent(() => import('./tools/UserMemoryResult.vue'))
+const SubAgentTaskResult = defineAsyncComponent(() => import('./tools/SubAgentTaskResult.vue'))
 
 // 工具渲染组件映射
 export const TOOL_RENDERERS = {
@@ -81,6 +82,9 @@ export const TOOL_RENDERERS = {
   memory_save: UserMemoryResult,
   memory_search: UserMemoryResult,
   memory_delete: UserMemoryResult,
+  delegate_to_subagent: SubAgentTaskResult,
+  get_subagent_task_result: SubAgentTaskResult,
+  cancel_subagent_task: SubAgentTaskResult,
 }
 
 // 工具图标
@@ -110,6 +114,9 @@ export const TOOL_ICON_MAP = {
   memory_save: DatabaseOutlined,
   memory_search: DatabaseOutlined,
   memory_delete: DatabaseOutlined,
+  delegate_to_subagent: RobotOutlined,
+  get_subagent_task_result: RobotOutlined,
+  cancel_subagent_task: RobotOutlined,
   skill_active: ThunderboltOutlined,
   subagent_call: RobotOutlined,
   subagent_result: RobotOutlined,
@@ -145,6 +152,9 @@ export const TOOL_DISPLAY_NAMES = {
   memory_save: '保存长期记忆',
   memory_search: '查询长期记忆',
   memory_delete: '停用长期记忆',
+  delegate_to_subagent: '委派 SubAgent',
+  get_subagent_task_result: '查询 SubAgent 任务结果',
+  cancel_subagent_task: '取消 SubAgent 任务',
   skill_active: 'Skill 启用',
   subagent_call: 'SubAgent 委派',
   subagent_result: 'SubAgent 结果',

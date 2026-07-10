@@ -313,11 +313,6 @@ defineEmits([
   color: #93c5fd;
   box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.28);
 }
-[data-theme="dark"] .message.user .message-content-wrapper.user-message-stack .message-body-inner .message-content .mention-chip-invalid {
-  background: rgba(239, 68, 68, 0.24);
-  color: #fca5a5;
-  box-shadow: inset 0 0 0 1px rgba(252, 165, 165, 0.28);
-}
 [data-theme="dark"] .message-body-inner .message-content code {
   background: #27272a;
 }

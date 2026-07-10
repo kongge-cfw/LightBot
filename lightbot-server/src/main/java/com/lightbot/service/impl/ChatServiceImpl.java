@@ -1274,19 +1274,22 @@ public class ChatServiceImpl implements ChatService {
         }
         long timeoutSeconds = TOOL_EXECUTION_TIMEOUT_SECONDS;
         try {
-            Map<String, String> parsed = parseSubagentArgs(callArgs);
-            String subName = parsed.get("subagentName");
-            if (subName == null || subName.isBlank()) {
+            List<String> subNames = parseSubagentNames(callArgs);
+            if (subNames.isEmpty()) {
                 return timeoutSeconds;
             }
-            com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subName);
-            if (subAgent == null) {
-                return timeoutSeconds;
+            long maxReadTimeout = timeoutSeconds;
+            for (String subName : subNames) {
+                com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subName);
+                if (subAgent == null) {
+                    continue;
+                }
+                int readTimeout = subAgent.getReadTimeoutSeconds() != null
+                        ? Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()))
+                        : (int) TOOL_EXECUTION_TIMEOUT_SECONDS;
+                maxReadTimeout = Math.max(maxReadTimeout, readTimeout);
             }
-            int readTimeout = subAgent.getReadTimeoutSeconds() != null
-                    ? Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()))
-                    : (int) TOOL_EXECUTION_TIMEOUT_SECONDS;
-            timeoutSeconds = Math.max(30L, readTimeout + 30L);
+            timeoutSeconds = Math.max(30L, maxReadTimeout + 30L);
         } catch (Exception e) {
             log.warn("[Chat] SubAgent tool timeout resolve failed, fallback to default: {}", e.getMessage());
         }
@@ -1855,6 +1858,41 @@ public class ChatServiceImpl implements ChatService {
             log.warn("[Chat] 解析 SubAgent 参数失败: {}", e.getMessage());
         }
         return out;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> parseSubagentNames(String args) {
+        List<String> names = new ArrayList<>();
+        if (args == null || args.isBlank()) {
+            return names;
+        }
+        try {
+            Map<String, Object> map = objectMapper.readValue(args, Map.class);
+            Object tasksObj = map.get("tasks");
+            if (tasksObj instanceof List<?> tasks) {
+                for (Object item : tasks) {
+                    if (item instanceof Map<?, ?> raw) {
+                        Object nameObj = ((Map<String, Object>) raw).get("subagent_name");
+                        if (nameObj == null) {
+                            nameObj = ((Map<String, Object>) raw).get("subagentName");
+                        }
+                        if (nameObj != null && !nameObj.toString().isBlank()) {
+                            names.add(nameObj.toString());
+                        }
+                    }
+                }
+            }
+            if (names.isEmpty()) {
+                Map<String, String> parsed = parseSubagentArgs(args);
+                String subName = parsed.get("subagentName");
+                if (subName != null && !subName.isBlank()) {
+                    names.add(subName);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("[Chat] 解析 SubAgent 名称失败: {}", e.getMessage());
+        }
+        return names;
     }
 
     /**

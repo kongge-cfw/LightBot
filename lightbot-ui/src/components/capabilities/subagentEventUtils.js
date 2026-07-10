@@ -139,14 +139,37 @@ export function parseSubagentReplyText(result) {
   if (typeof result === 'object' && result.reply != null) {
     return String(result.reply)
   }
+  if (typeof result === 'object' && Array.isArray(result.results)) {
+    return formatSubagentResultsText(result)
+  }
   const raw = String(result)
   try {
     const obj = JSON.parse(raw)
     if (obj && typeof obj.reply === 'string') return obj.reply
+    if (obj && Array.isArray(obj.results)) return formatSubagentResultsText(obj)
   } catch {
     // 非 JSON 直接展示
   }
   return raw
+}
+
+function formatSubagentResultsText(obj) {
+  const lines = []
+  if (obj.batch_id) lines.push(`批次：${obj.batch_id}`)
+  if (obj.mode) lines.push(`模式：${obj.mode}`)
+  if (obj.background) {
+    lines.push('后台任务已提交，可通过任务查询工具获取最新结果。')
+  }
+  for (const item of obj.results || []) {
+    const name = item.display_name || item.subagent_name || 'SubAgent'
+    const status = item.status || 'unknown'
+    const title = `### ${name}（${status}）`
+    lines.push(title)
+    if (item.task_id) lines.push(`任务ID：${item.task_id}`)
+    if (item.reply) lines.push(String(item.reply))
+    else if (item.error) lines.push(`错误：${item.error}`)
+  }
+  return lines.join('\n\n')
 }
 
 export function findSubagentResultReply(events, call, delegationIndex = null, blockCalls = null) {

@@ -66,7 +66,7 @@ import { message, Modal } from 'ant-design-vue'
 import { getStarredMessages, toggleMessageStar } from '../api/chatSession'
 import { formatRelativeTime as formatTime } from '../utils/format'
 import MentionTextRenderer from '../components/MentionTextRenderer.vue'
-import { contentHasMentionTokens, parseMentionsFromMetadata } from '../utils/mention_utils'
+import { contentHasMentionTokens, parseMentionsFromMetadata, resolveMentionsForDisplay } from '../utils/mention_utils'
 
 const props = defineProps({ open: Boolean })
 const emit = defineEmits(['update:open'])
@@ -127,10 +127,10 @@ function truncateContent(content) {
 }
 
 function getStarredMentions(msg) {
-  return parseMentionsFromMetadata(msg.metadata).map(m => ({
+  return resolveMentionsForDisplay(msg.content, parseMentionsFromMetadata(msg.metadata)).map(m => ({
     type: m.type,
     resourceId: m.resourceId != null ? String(m.resourceId) : '',
-    name: m.name || m.token || '',
+    name: m.name || `${m.type}:${m.resourceId}` || m.token || '',
     token: m.token || `@${m.type}:${m.resourceId}`,
   }))
 }

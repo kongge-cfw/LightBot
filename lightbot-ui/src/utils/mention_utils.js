@@ -55,6 +55,25 @@ export function buildMentionMap(mentions = []) {
 }
 
 /**
+ * 规范化单条 mention 快照；缺失名称时回退为 type:id，保证历史渲染稳定。
+ * @param {object|null|undefined} m
+ */
+export function normalizeMentionSnapshot(m) {
+  if (!m) return null
+  const type = m.type || ''
+  const resourceId = m.resourceId != null ? String(m.resourceId) : ''
+  const token = m.token || (type && resourceId ? `@${type}:${resourceId}` : '')
+  const fallbackName = type && resourceId ? `${type}:${resourceId}` : (token || type || 'mention')
+  return {
+    ...m,
+    type,
+    resourceId,
+    token,
+    name: m.name || fallbackName,
+  }
+}
+
+/**
  * 按 token 或 type+resourceId 查找 mention 快照
  */
 export function resolveMentionSnapshot(snapMap, snapshotMentions, token, type, resourceId) {
@@ -80,10 +99,31 @@ export function parseMentionsFromMetadata(metadata) {
       meta = JSON.parse(meta)
       if (typeof meta === 'string') meta = JSON.parse(meta)
     }
-    return Array.isArray(meta?.mentions) ? meta.mentions : []
+    return Array.isArray(meta?.mentions) ? meta.mentions.map(normalizeMentionSnapshot).filter(Boolean) : []
   } catch {
     return []
   }
+}
+
+/**
+ * 当 metadata 不完整时，从正文 token 推导出可渲染的 mention 快照。
+ * @param {string} content
+ * @param {Array} snapshots
+ */
+export function resolveMentionsForDisplay(content, snapshots = []) {
+  const normalized = Array.isArray(snapshots)
+    ? snapshots.map(normalizeMentionSnapshot).filter(Boolean)
+    : []
+  if (normalized.length > 0) return normalized
+  return parseMentionText(content)
+    .filter(segment => segment.kind === 'mention')
+    .map(segment => normalizeMentionSnapshot({
+      type: segment.type,
+      resourceId: segment.resourceId,
+      token: segment.token,
+      name: `${segment.type}:${segment.resourceId}`,
+    }))
+    .filter(Boolean)
 }
 
 /**

@@ -593,28 +593,40 @@ async function copyToClipboard(text, key) {
   copyTimer = setTimeout(() => { copiedKey.value = null }, 2000)
 }
 
-function normalizeTraceMentions(raw) {
-  if (!Array.isArray(raw)) return []
+function normalizeTraceMentions(raw, content = '') {
+  if (!Array.isArray(raw) || raw.length === 0) {
+    return contentHasMentionTokens(content)
+      ? content.match(/@(knowledge|subagent|skill|tool):(\d+)/g)?.map(token => {
+          const [, type = '', resourceId = ''] = token.match(/@(knowledge|subagent|skill|tool):(\d+)/) || []
+          return {
+            type,
+            resourceId: String(resourceId),
+            name: `${type}:${resourceId}`,
+            token,
+          }
+        }).filter(Boolean) || []
+      : []
+  }
   return raw.map(m => ({
     type: m?.type || '',
     resourceId: m?.resourceId != null ? String(m.resourceId) : '',
-    name: m?.name || m?.token || '',
+    name: m?.name || (m?.type && m?.resourceId ? `${m.type}:${m.resourceId}` : m?.token || ''),
     token: m?.token || (m?.type && m?.resourceId ? `@${m.type}:${m.resourceId}` : ''),
   }))
 }
 
 function resolveTraceMessageMentions(m, fallbackMentions) {
-  const perMsg = normalizeTraceMentions(m?.mentions)
+  const perMsg = normalizeTraceMentions(m?.mentions, m?.content || '')
   if (perMsg.length > 0) return perMsg
   // 本轮 user_message span 的 mentions 仅对最后一条 user 消息有效
   if (m?.source === 'current' || m?._askUserRole === 'response') {
-    return normalizeTraceMentions(fallbackMentions)
+    return normalizeTraceMentions(fallbackMentions, m?.content || '')
   }
-  return []
+  return normalizeTraceMentions([], m?.content || '')
 }
 
 function shouldShowTraceMentions(content, mentions) {
-  return normalizeTraceMentions(mentions).length > 0 || contentHasMentionTokens(content)
+  return normalizeTraceMentions(mentions, content).length > 0 || contentHasMentionTokens(content)
 }
 
 function copyAllLlmMessages() {

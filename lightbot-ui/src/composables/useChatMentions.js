@@ -52,7 +52,7 @@ export function useChatMentions(agentIdRef, agentVersionIdRef) {
 
   /**
    * 从光标位置往前找最近一个 @，返回 @ 后的 query 字符串。
-   * 触发浮层的条件：@ 在行首或前面是空白字符。
+   * 触发浮层的条件：@ 在行首，或前一个字符不是字母/数字。
    *
    * @param {string} text 输入框全文
    * @param {number} caretIndex 光标位置
@@ -64,8 +64,8 @@ export function useChatMentions(agentIdRef, agentVersionIdRef) {
     // 从光标往前找最近的 @
     const atIdx = before.lastIndexOf('@')
     if (atIdx < 0) return null
-    // @ 必须在行首或前面是空白
-    if (atIdx > 0 && !/\s/.test(before[atIdx - 1])) return null
+    // @ 必须在行首，或前一个字符不是字母/数字，避免误触发邮箱/普通单词
+    if (atIdx > 0 && /[A-Za-z0-9]/.test(before[atIdx - 1])) return null
     // @ 之后到光标之间不能有空白
     const query = before.slice(atIdx + 1)
     if (/\s/.test(query)) return null

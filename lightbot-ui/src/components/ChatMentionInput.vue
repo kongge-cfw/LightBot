@@ -147,14 +147,12 @@ function escapeAttr(s) {
 }
 
 function tokenToChipHtml(m) {
-  const valid = m.valid !== false
-  const name = escapeHtml(m.name || m.token)
+  const name = escapeHtml(m.name || `${m.type || 'mention'}:${m.resourceId ?? ''}` || m.token)
   const token = escapeAttr(m.token)
   const type = escapeAttr(m.type || '')
   const id = escapeAttr(String(m.resourceId ?? ''))
-  const chipClass = escapeAttr(getMentionChipClass(m.type, valid))
-  const displayName = valid ? name : `${name}（已失效）`
-  return `<span class="mention-chip ${chipClass}" contenteditable="false" data-mention-token="${token}" data-mention-type="${type}" data-mention-id="${id}" data-mention-name="${name}">@${displayName}</span>`
+  const chipClass = escapeAttr(getMentionChipClass(m.type))
+  return `<span class="mention-chip ${chipClass}" contenteditable="false" data-mention-token="${token}" data-mention-type="${type}" data-mention-id="${id}" data-mention-name="${name}">@${name}</span>`
 }
 
 /**
@@ -183,9 +181,8 @@ function renderFromText(rawText, snapshotMentions = null) {
     const token = segment.token
     const snap = resolveMentionSnapshot(snapMap, snapshots, token, type, resourceId)
     const opt = findOptionByToken(token)
-    const name = snap?.name || opt?.name || type || token
-    const valid = !!(snap || opt)
-    html += tokenToChipHtml({ type, resourceId, name, token, valid })
+    const name = snap?.name || opt?.name || `${type}:${resourceId}`
+    html += tokenToChipHtml({ type, resourceId, name, token })
     mentions.value.push({
       type,
       resourceId,
@@ -534,7 +531,7 @@ function onPickerSelect(item) {
 
 function createChipElement(m) {
   const chip = document.createElement('span')
-  chip.className = `mention-chip ${getMentionChipClass(m.type, true)}`
+  chip.className = `mention-chip ${getMentionChipClass(m.type)}`
   chip.contentEditable = 'false'
   chip.dataset.mentionToken = m.token
   chip.dataset.mentionType = m.type
@@ -549,8 +546,7 @@ function showChipTooltip(chip) {
   const type = chip.dataset.mentionType || ''
   const name = chip.dataset.mentionName || chip.dataset.mentionToken || ''
   const token = chip.dataset.mentionToken || ''
-  const valid = !chip.classList.contains('mention-chip-invalid')
-  const tooltip = getMentionTooltip(type, name, token, valid)
+  const tooltip = getMentionTooltip(type, name, chip.dataset.mentionId || '', token)
   const rect = chip.getBoundingClientRect()
   chipTooltipActiveChip = chip
   chipTooltip.value = {

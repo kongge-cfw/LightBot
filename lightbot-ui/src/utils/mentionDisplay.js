@@ -9,31 +9,26 @@ export const MENTION_TYPE_LABELS = {
 
 /**
  * @param {string} type mention 类型
- * @param {boolean} valid 资源是否有效
  * @returns {string} chip 样式类名（不含 mention-chip 基础类）
  */
-export function getMentionChipClass(type, valid = true) {
-  if (!valid) return 'mention-chip-invalid'
+export function getMentionChipClass(type) {
   return `mention-chip-${type || 'tool'}`
 }
 
 /**
  * @param {string} type mention 类型
  * @param {string} name 展示名
+ * @param {string|number} resourceId 资源ID
  * @param {string} token 原始 token
- * @param {boolean} valid 资源是否有效
  * @returns {{ title: string, sub: string }}
  */
-export function getMentionTooltip(type, name, token, valid = true) {
+export function getMentionTooltip(type, name, resourceId, token) {
   const typeLabel = MENTION_TYPE_LABELS[type] || type || '资源'
-  if (!valid) {
-    return {
-      title: `${typeLabel}（已失效）`,
-      sub: '资源可能已删除或无权访问',
-    }
-  }
+  const lines = []
+  if (resourceId != null && String(resourceId) !== '') lines.push(`ID：${resourceId}`)
+  if (token) lines.push(token)
   return {
     title: `${typeLabel}：${name}`,
-    sub: token || '',
+    sub: lines.join('\n'),
   }
 }

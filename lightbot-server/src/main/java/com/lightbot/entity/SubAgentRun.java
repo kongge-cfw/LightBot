@@ -32,6 +32,19 @@ public class SubAgentRun {
     @Schema(description = "父Agent线程ID")
     private String parentThreadId;
 
+    @TableField("batch_id")
+    @Schema(description = "委派批次ID")
+    private String batchId;
+
+    @TableField("parent_request_id")
+    @Schema(description = "父Agent请求ID")
+    private String parentRequestId;
+
+    @TableField("parent_session_id")
+    @Schema(description = "父Agent会话ID")
+    @JsonSerialize(using = ToStringSerializer.class)
+    private Long parentSessionId;
+
     @TableField("subagent_name")
     @Schema(description = "子代理名称")
     private String subagentName;
@@ -47,6 +60,14 @@ public class SubAgentRun {
     @TableField("request_id")
     @Schema(description = "幂等键")
     private String requestId;
+
+    @TableField("mode")
+    @Schema(description = "委派模式：sync/parallel/background")
+    private String mode;
+
+    @TableField("cancel_requested")
+    @Schema(description = "是否请求取消：0否 1是")
+    private Integer cancelRequested;
 
     @TableField("reply")
     @Schema(description = "最终回复")
@@ -71,4 +92,8 @@ public class SubAgentRun {
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     @Schema(description = "创建时间")
     private LocalDateTime createTime;
+
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
+    @Schema(description = "更新时间")
+    private LocalDateTime updateTime;
 }

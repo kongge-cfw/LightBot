@@ -129,8 +129,12 @@ const groups = computed(() => {
       enabled: subAgentEnabled,
       triggerText: '触发条件：Agent 已绑定 SubAgent',
       triggerCount: props.selectedSubAgents.length,
-      reason: subAgentEnabled ? '' : '绑定子智能体后，运行时会自动注入委派工具。',
-      tools: [{ name: 'delegate_to_subagent', displayName: '委派子智能体' }],
+      reason: subAgentEnabled ? '支持同步委派、并行委派、后台任务查询与取消。' : '绑定子智能体后，运行时会自动注入委派、查询和取消工具。',
+      tools: [
+        { name: 'delegate_to_subagent', displayName: '委派子智能体' },
+        { name: 'get_subagent_task_result', displayName: '查询子智能体后台任务结果' },
+        { name: 'cancel_subagent_task', displayName: '取消子智能体后台任务' },
+      ],
     },
     {
       key: 'mcp',
