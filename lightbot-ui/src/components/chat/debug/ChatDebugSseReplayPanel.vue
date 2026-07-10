@@ -18,6 +18,17 @@
           <span class="debug-sse-block-desc">{{ block.description }}</span>
         </a-checkbox>
       </a-checkbox-group>
+      <div class="debug-tool-composer">
+        <div class="debug-editor-label">普通工具组合</div>
+        <a-select
+          v-model:value="selectedToolNames"
+          mode="multiple"
+          allow-clear
+          :options="toolOptions"
+          placeholder="选择任意工具，按选择顺序组合 tool_call / tool_result"
+          style="width: 100%"
+        />
+      </div>
       <div class="debug-sse-body-row">
         <div class="debug-sse-body-field">
           <div class="debug-editor-label">助手正文（Markdown）</div>
@@ -54,28 +65,16 @@ import {
   editorJsonToApiMessage,
 } from '@/utils/chat/debug/debugMessageBuilder'
 import { parseSseDebugLog, buildApiMessageFromSse } from '@/utils/chat/debug/debugSseReplay'
+import { getToolDisplayName } from '@/components/toolRegistry'
+import {
+  getToolSampleEvent,
+  getToolSelectOptions,
+  UNREGISTERED_TOOL_NAME,
+} from '@/utils/chat/debug/toolDebugSamples'
 
 const emit = defineEmits(['preview'])
 
 const eventBlocks = [
-  {
-    id: 'knowledge-tool',
-    label: '知识库检索工具',
-    description: 'tool_call / tool_result',
-    events: [
-      { type: 'tool_call', toolName: 'query_knowledge', displayName: '知识库检索', args: '{"query":"LightBot"}', contentOffset: 0 },
-      { type: 'tool_result', toolName: 'query_knowledge', displayName: '知识库检索', result: '{"total":1,"results":[{"content":"LightBot 是 AI Agent 平台"}]}', contentOffset: 0 },
-    ],
-  },
-  {
-    id: 'http-tool',
-    label: 'HTTP 工具',
-    description: '第二种普通工具卡片',
-    events: [
-      { type: 'tool_call', toolName: 'http_request', displayName: 'HTTP 请求', args: '{"url":"https://example.com","method":"GET"}', contentOffset: 0 },
-      { type: 'tool_result', toolName: 'http_request', displayName: 'HTTP 请求', result: '{"status":200,"body":"ok"}', contentOffset: 0 },
-    ],
-  },
   {
     id: 'delegated-subagent',
     label: '委派 SubAgent',
@@ -132,7 +131,11 @@ const intervalOptions = [
   { value: 1500, label: '1.5 s / 条' },
 ]
 
+// 与「工具渲染」页共用同一份真实工具下拉与结果样例，排除仅用于兜底测试的假工具。
+const toolOptions = getToolSelectOptions().filter(option => option.value !== UNREGISTERED_TOOL_NAME)
+
 const selectedBlockIds = ref(['batch-subagent', 'skill'])
+const selectedToolNames = ref(['query_knowledge', 'web_search'])
 const bodyContent = ref('根据执行结果，LightBot 已完成对应能力展示。')
 const includeMetadata = ref(true)
 const sseLog = ref('')
@@ -147,9 +150,18 @@ const isReplaying = ref(false)
 let replayTimer = null
 
 function getSelectedEvents() {
-  return eventBlocks
+  const blockEvents = eventBlocks
     .filter(block => selectedBlockIds.value.includes(block.id))
     .flatMap(block => block.events.map(event => JSON.parse(JSON.stringify(event))))
+  const toolEvents = selectedToolNames.value.flatMap((toolName) => {
+    const sample = getToolSampleEvent(toolName)
+    const displayName = getToolDisplayName(toolName)
+    return [
+      { type: 'tool_call', toolName, displayName, args: '{}', contentOffset: 0 },
+      { ...sample, type: 'tool_result', toolName, displayName, contentOffset: 0 },
+    ]
+  })
+  return [...toolEvents, ...blockEvents]
 }
 
 function generateSseLog() {
@@ -235,6 +247,7 @@ onBeforeUnmount(stopReplay)
 .debug-sse-block-title, .debug-sse-block-desc { display: block; }
 .debug-sse-block-title { color: var(--color-ink); font-weight: 600; }
 .debug-sse-block-desc { margin-top: 2px; color: var(--gray-500); font-size: 12px; }
+.debug-tool-composer { margin-top: 12px; }
 .debug-sse-body-row { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 12px; margin-top: 12px; }
 .debug-sse-options { display: flex; flex-direction: column; gap: 6px; justify-content: center; color: var(--gray-500); font-size: 12px; }
 .debug-sse-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-height: 0; }

@@ -10,6 +10,7 @@ import com.lightbot.service.chat.ChatContext;
 import com.lightbot.subagent.SubAgentThreadManager;
 import com.lightbot.subagent.event.SubAgentEventPublisher;
 import com.lightbot.subagent.service.SubAgentTaskService;
+import com.lightbot.subagent.service.SubAgentTaskEventService;
 import com.lightbot.subagent.spi.SubAgentDefinition;
 import com.lightbot.subagent.spi.SubAgentDefinitionResolver;
 import com.lightbot.subagent.spi.SubAgentExecutor;
@@ -49,6 +50,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private final SubAgentExecutor executor;
     private final SubAgentTaskRepository repository;
     private final SubAgentEventPublisher eventPublisher;
+    private final SubAgentTaskEventService taskEventService;
+    private final SubAgentThreadManager threadManager;
     @Qualifier("lightBotExecutor")
     private final Executor lightBotExecutor;
 
@@ -173,6 +176,47 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         }
         int affected = repository.requestCancelBatch(batchId);
         return Map.of("batch_id", batchId, "status", affected > 0 ? "cancel_requested" : "not_found", "affected", affected);
+    }
+
+    @Override
+    public Map<String, Object> getTaskThreadDetail(String taskId, Long sessionId) {
+        SubAgentRun task = repository.findTask(taskId);
+        if (!ownedBy(task, sessionId)) {
+            throw new BizException("SubAgent 任务不存在或无权访问");
+        }
+        Map<String, Object> output = new LinkedHashMap<>();
+        output.put("task", taskResult(task));
+        output.put("thread_id", task.getThreadId());
+        output.put("available", threadManager.threadExists(task.getThreadId()));
+        output.put("messages", threadManager.getMessageSnapshot(task.getThreadId()));
+        return output;
+    }
+
+    @Override
+    public Map<String, Object> getTaskEvents(String taskId, Long sessionId, Long cursor, int limit) {
+        SubAgentRun task = repository.findTask(taskId);
+        if (!ownedBy(task, sessionId)) {
+            throw new BizException("SubAgent 任务不存在或无权访问");
+        }
+        List<com.lightbot.entity.SubAgentTaskEvent> events = taskEventService.list(taskId, cursor, limit);
+        List<Map<String, Object>> items = events.stream().map(event -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("cursor", String.valueOf(event.getId()));
+            item.put("type", event.getEventType());
+            item.put("payload", event.getPayload());
+            item.put("create_time", event.getCreateTime());
+            return item;
+        }).toList();
+        String nextCursor = events.isEmpty() ? (cursor != null ? String.valueOf(cursor) : null)
+                : String.valueOf(events.get(events.size() - 1).getId());
+        return Map.of("task_id", taskId, "events", items, "next_cursor", nextCursor != null ? nextCursor : "");
+    }
+
+    @Override
+    public List<Map<String, Object>> listRuntimeSummaries(Long sessionId, int limit) {
+        return repository.pageTasks(sessionId, null, 1, Math.min(Math.max(limit, 1), 100)).getRecords().stream()
+                .map(this::taskResult)
+                .toList();
     }
 
     private List<Map<String, Object>> runSequential(String batchId, DelegationInput input, RuntimeContext context,
@@ -391,6 +435,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         output.put("cancel_requested", Integer.valueOf(1).equals(task.getCancelRequested()));
         output.put("start_time", task.getStartTime());
         output.put("end_time", task.getEndTime());
+        output.put("progress_summary", taskEventService.latestSummary(task.getRequestId()));
         return output;
     }
 
@@ -455,8 +500,15 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private record RuntimeContext(String requestId, String parentThreadId, Long parentSessionId, ChatContext chatContext,
                                   int contentOffset, Integer delegationIndex) {
         RuntimeContext background() {
-            // 后台任务完成后通过查询工具回填，避免污染已结束的当前 SSE。
-            return new RuntimeContext(requestId, parentThreadId, parentSessionId, null, contentOffset, delegationIndex);
+            if (chatContext == null) {
+                return new RuntimeContext(requestId, parentThreadId, parentSessionId, null, contentOffset, delegationIndex);
+            }
+            ChatContext backgroundContext = new ChatContext();
+            backgroundContext.setProviderId(chatContext.getProviderId());
+            backgroundContext.setConfigMap(chatContext.getConfigMap());
+            backgroundContext.setAborted(chatContext.isAborted());
+            return new RuntimeContext(requestId, parentThreadId, parentSessionId,
+                    backgroundContext, contentOffset, delegationIndex);
         }
         ChatContext taskContext(String batchId, String taskId, int taskIndex) {
             if (chatContext == null) return null;

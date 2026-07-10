@@ -38,19 +38,25 @@
           <FolderOpenOutlined />
         </button>
       </a-tooltip>
+      <a-tooltip v-if="showSubagentDrawer" title="SubAgent 运行态">
+        <button class="btn-topbar-file" @click="$emit('open-subagent-drawer')">
+          <RobotOutlined />
+        </button>
+      </a-tooltip>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
-import { EditOutlined, CloseOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
+import { EditOutlined, CloseOutlined, FolderOpenOutlined, RobotOutlined } from '@ant-design/icons-vue'
 
 defineProps({
   sessionTitle: { type: String, default: '' },
   titleEditing: { type: Boolean, default: false },
   titleEditValue: { type: String, default: '' },
   showFileDrawer: { type: Boolean, default: true },
+  showSubagentDrawer: { type: Boolean, default: false },
   titleEditable: { type: Boolean, default: true },
 })
 
@@ -60,6 +66,7 @@ defineEmits([
   'cancel-title-edit',
   'update:title-edit-value',
   'open-file-drawer',
+  'open-subagent-drawer',
 ])
 
 const titleInputRef = ref(null)

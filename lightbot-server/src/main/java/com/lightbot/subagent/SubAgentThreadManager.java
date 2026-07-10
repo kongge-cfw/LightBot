@@ -108,6 +108,11 @@ public class SubAgentThreadManager {
         return redisUtil.exists(MSG_KEY_PREFIX + threadId);
     }
 
+    /** 返回可直接提供给前端详情面板的子线程消息快照。 */
+    public List<Map<String, Object>> getMessageSnapshot(String threadId) {
+        return serializeMessages(loadMessages(threadId));
+    }
+
     /**
      * 截断消息列表：保留首条 SystemMessage + 最近的 MAX_MESSAGES-1 条
      */

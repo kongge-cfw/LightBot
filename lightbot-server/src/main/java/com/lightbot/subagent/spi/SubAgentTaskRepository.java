@@ -2,6 +2,7 @@ package com.lightbot.subagent.spi;
 
 import com.lightbot.entity.SubAgentRun;
 import com.lightbot.entity.SubAgentTaskBatch;
+import com.lightbot.entity.SubAgentTaskEvent;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 import java.util.List;
@@ -25,4 +26,10 @@ public interface SubAgentTaskRepository {
 
     /** 分页查询一个会话下的任务运行记录。 */
     Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize);
+
+    void saveTaskEvent(SubAgentTaskEvent event);
+
+    List<SubAgentTaskEvent> findTaskEvents(String taskId, Long cursor, int limit);
+
+    SubAgentTaskEvent findLatestTaskEvent(String taskId);
 }

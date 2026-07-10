@@ -4,6 +4,8 @@ import com.lightbot.entity.SubAgentRun;
 import com.lightbot.entity.SubAgentTaskBatch;
 import com.lightbot.mapper.SubAgentRunMapper;
 import com.lightbot.mapper.SubAgentTaskBatchMapper;
+import com.lightbot.mapper.SubAgentTaskEventMapper;
+import com.lightbot.entity.SubAgentTaskEvent;
 import com.lightbot.subagent.spi.SubAgentTaskRepository;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -19,6 +21,7 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
 
     private final SubAgentRunMapper subAgentRunMapper;
     private final SubAgentTaskBatchMapper subAgentTaskBatchMapper;
+    private final SubAgentTaskEventMapper subAgentTaskEventMapper;
 
     @Override
     public SubAgentTaskBatch findBatch(String batchId) {
@@ -70,5 +73,20 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
                 .eq(SubAgentRun::getParentSessionId, parentSessionId)
                 .eq(batchId != null && !batchId.isBlank(), SubAgentRun::getBatchId, batchId)
                 .orderByDesc(SubAgentRun::getCreateTime));
+    }
+
+    @Override
+    public void saveTaskEvent(SubAgentTaskEvent event) {
+        subAgentTaskEventMapper.insert(event);
+    }
+
+    @Override
+    public List<SubAgentTaskEvent> findTaskEvents(String taskId, Long cursor, int limit) {
+        return subAgentTaskEventMapper.selectAfterCursor(taskId, cursor, limit);
+    }
+
+    @Override
+    public SubAgentTaskEvent findLatestTaskEvent(String taskId) {
+        return subAgentTaskEventMapper.selectLatestByTaskId(taskId);
     }
 }

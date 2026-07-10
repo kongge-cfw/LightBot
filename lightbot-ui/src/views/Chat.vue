@@ -6,12 +6,14 @@
       :title-editing="titleEditing"
       :title-edit-value="titleEditValue"
       :show-file-drawer="!!sessionId"
+      :show-subagent-drawer="!!sessionId"
       :title-editable="!!sessionId"
       @start-title-edit="startTitleEdit"
       @confirm-title-edit="confirmTitleEdit"
       @cancel-title-edit="cancelTitleEdit"
       @update:title-edit-value="titleEditValue = $event"
       @open-file-drawer="openFileDrawer"
+      @open-subagent-drawer="subagentRuntimeOpen = true"
     />
 
     <div ref="messagesRef" class="chat-messages">
@@ -190,6 +192,11 @@
       @refreshed="onFileTreeRefreshed"
     />
 
+    <ChatSubAgentRuntimeDrawer
+      v-model:open="subagentRuntimeOpen"
+      :session-id="sessionId"
+    />
+
     <SessionFilePreviewModal
       v-model:open="sessionFilePreviewOpen"
       :session-id="sessionId"
@@ -214,6 +221,7 @@ import ChatRawContentModal from '../components/chat/modals/ChatRawContentModal.v
 import ChatAskUserModal from '../components/chat/modals/ChatAskUserModal.vue'
 import ChatFeedbackDislikeModal from '../components/chat/modals/ChatFeedbackDislikeModal.vue'
 import ChatSessionFilesDrawer from '../components/chat/session/ChatSessionFilesDrawer.vue'
+import ChatSubAgentRuntimeDrawer from '../components/chat/session/ChatSubAgentRuntimeDrawer.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
 import { useChatAgents } from '../composables/useChatAgents'
 import { useChatAttachments } from '../composables/useChatAttachments'
@@ -268,6 +276,7 @@ const attachmentPreviewOpen = ref(false)
 const attachmentPreviewAtt = ref(null)
 const voiceListening = ref(false)
 const speakingMsgKey = ref(null)
+const subagentRuntimeOpen = ref(false)
 
 function autoResize() {}
 

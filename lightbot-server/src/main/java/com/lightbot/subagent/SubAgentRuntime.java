@@ -18,6 +18,7 @@ import com.lightbot.service.chat.ChatContext;
 import com.lightbot.service.chat.ToolEventGenerator;
 import com.lightbot.subagent.spi.SubAgentDefinition;
 import com.lightbot.subagent.spi.SubAgentExecutor;
+import com.lightbot.subagent.service.SubAgentTaskEventService;
 import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.TextNormalizeUtil;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +73,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
     private final SubAgentRunMapper subAgentRunMapper;
     private final SubAgentThreadManager threadManager;
     private final ToolEventGenerator toolEventGenerator;
+    private final SubAgentTaskEventService taskEventService;
     private final SubAgentPermissionPolicy permissionPolicy;
 
     /**
@@ -810,6 +812,8 @@ public class SubAgentRuntime implements SubAgentExecutor {
         if (chatContext.getSubAgentTaskIndex() != null) {
             evt.put("task_index", chatContext.getSubAgentTaskIndex());
         }
+        taskEventService.record(chatContext.getSubAgentTaskId(), chatContext.getSubAgentBatchId(),
+                String.valueOf(evt.get("type")), evt);
         if (chatContext.getRealtimeStatusEmitter() != null) {
             if (chatContext.getToolEventsList() != null) {
                 synchronized (chatContext.getToolEventsList()) {

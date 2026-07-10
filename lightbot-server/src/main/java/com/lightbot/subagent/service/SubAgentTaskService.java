@@ -29,4 +29,13 @@ public interface SubAgentTaskService {
 
     /** 取消会话内的一个批次。 */
     java.util.Map<String, Object> cancelBatch(String batchId, Long sessionId);
+
+    /** 获取任务对应子线程消息快照。 */
+    java.util.Map<String, Object> getTaskThreadDetail(String taskId, Long sessionId);
+
+    /** 按事件 ID 游标获取任务运行事件。 */
+    java.util.Map<String, Object> getTaskEvents(String taskId, Long sessionId, Long cursor, int limit);
+
+    /** 获取会话侧栏所需的任务运行态摘要。 */
+    List<java.util.Map<String, Object>> listRuntimeSummaries(Long sessionId, int limit);
 }

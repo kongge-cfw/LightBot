@@ -91,6 +91,15 @@ public class SubAgentController {
         return Result.ok(subAgentTaskService.pageRuns(sessionId, batchId, pageNum, pageSize));
     }
 
+    @Operation(summary = "获取会话侧栏的SubAgent运行态摘要")
+    @GetMapping("/runs/summary")
+    public Result<List<java.util.Map<String, Object>>> listRunSummaries(
+            @RequestParam Long sessionId,
+            @RequestParam(defaultValue = "20") int limit) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.listRuntimeSummaries(sessionId, limit));
+    }
+
     @Operation(summary = "获取SubAgent批次详情")
     @GetMapping("/batches/{batchId}")
     public Result<java.util.Map<String, Object>> getBatch(@PathVariable String batchId, @RequestParam Long sessionId) {
@@ -110,5 +119,23 @@ public class SubAgentController {
     public Result<java.util.Map<String, Object>> getRun(@PathVariable String taskId, @RequestParam Long sessionId) {
         chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
         return Result.ok(subAgentTaskService.getTaskDetail(taskId, sessionId));
+    }
+
+    @Operation(summary = "获取SubAgent任务的独立子线程详情")
+    @GetMapping("/runs/{taskId}/thread")
+    public Result<java.util.Map<String, Object>> getRunThread(@PathVariable String taskId, @RequestParam Long sessionId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.getTaskThreadDetail(taskId, sessionId));
+    }
+
+    @Operation(summary = "按游标获取SubAgent任务运行事件")
+    @GetMapping("/runs/{taskId}/events")
+    public Result<java.util.Map<String, Object>> getRunEvents(
+            @PathVariable String taskId,
+            @RequestParam Long sessionId,
+            @RequestParam(required = false) Long cursor,
+            @RequestParam(defaultValue = "50") int limit) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.getTaskEvents(taskId, sessionId, cursor, limit));
     }
 }

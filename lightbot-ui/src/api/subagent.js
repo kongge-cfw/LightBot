@@ -35,6 +35,10 @@ export function getSubAgentRuns(params) {
   return request.get('/subagents/runs', { params })
 }
 
+export function getSubAgentRuntimeSummaries(sessionId, limit = 20) {
+  return request.get('/subagents/runs/summary', { params: { sessionId, limit } })
+}
+
 export function getSubAgentBatch(batchId, sessionId) {
   return request.get(`/subagents/batches/${batchId}`, { params: { sessionId } })
 }
@@ -45,4 +49,14 @@ export function cancelSubAgentBatch(batchId, sessionId) {
 
 export function getSubAgentRun(taskId, sessionId) {
   return request.get(`/subagents/runs/${taskId}`, { params: { sessionId } })
+}
+
+export function getSubAgentRunThread(taskId, sessionId) {
+  return request.get(`/subagents/runs/${taskId}/thread`, { params: { sessionId } })
+}
+
+export function getSubAgentRunEvents(taskId, sessionId, cursor, limit = 50) {
+  const params = { sessionId, limit }
+  if (cursor) params.cursor = cursor
+  return request.get(`/subagents/runs/${taskId}/events`, { params })
 }
