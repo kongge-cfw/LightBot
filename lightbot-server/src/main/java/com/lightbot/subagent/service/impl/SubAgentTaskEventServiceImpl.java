@@ -25,6 +25,10 @@ public class SubAgentTaskEventServiceImpl implements SubAgentTaskEventService {
         if (taskId == null || taskId.isBlank() || eventType == null || eventType.isBlank()) {
             return;
         }
+        // token 用于当前 SSE 实时展示，逐字持久化会制造大量无价值事件。
+        if ("subagent_token".equals(eventType)) {
+            return;
+        }
         try {
             SubAgentTaskEvent event = new SubAgentTaskEvent();
             event.setTaskId(taskId);
@@ -53,7 +57,6 @@ public class SubAgentTaskEventServiceImpl implements SubAgentTaskEventService {
             case "subagent_task_start" -> "正在执行";
             case "subagent_tool_call" -> "正在调用工具";
             case "subagent_tool_result" -> "工具执行完成";
-            case "subagent_token" -> "正在生成结果";
             case "subagent_task_done" -> "任务已完成";
             case "subagent_error" -> "任务执行异常";
             case "subagent_error_retry" -> "正在重试";

@@ -23,6 +23,7 @@ export function createChatCapabilityStreamHandlers(deps) {
     scrollToBottom,
     messages,
     messagesRef,
+    onSubagentEvent,
   } = deps
 
   function scrollToCapabilityBlock(assistantMsg, selector) {
@@ -81,6 +82,7 @@ export function createChatCapabilityStreamHandlers(deps) {
 
     if (!assistantMsg._toolEvents) assistantMsg._toolEvents = []
     assistantMsg._toolEvents.push(event)
+    onSubagentEvent?.(event)
 
     if (event.type === 'subagent_call' || event.type === 'subagent_batch_start') {
       const content = assistantMsg.content || ''

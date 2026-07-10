@@ -658,10 +658,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
         evt.put("code", code);
         evt.put("contentOffset", offset);
         if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
-        if (chatContext.getToolEventsList() != null) {
-            chatContext.getToolEventsList().add(evt);
-        }
-        chatContext.emitRealtimeStatus(json);
+        emitSubAgentStreamEvent(chatContext, evt, json);
     }
 
     private void emitSubAgentErrorRetry(ChatContext chatContext, SubAgent subAgent, String message,
@@ -685,10 +682,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
         evt.put("maxRetries", maxRetries);
         evt.put("contentOffset", offset);
         if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
-        if (chatContext.getToolEventsList() != null) {
-            chatContext.getToolEventsList().add(evt);
-        }
-        chatContext.emitRealtimeStatus(json);
+        emitSubAgentStreamEvent(chatContext, evt, json);
     }
 
     private String classifyErrorMessage(Throwable e) {

@@ -82,6 +82,9 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
 
     @Override
     public List<SubAgentTaskEvent> findTaskEvents(String taskId, Long cursor, int limit) {
+        if (cursor == null) {
+            return subAgentTaskEventMapper.selectFirstPage(taskId, limit);
+        }
         return subAgentTaskEventMapper.selectAfterCursor(taskId, cursor, limit);
     }
 

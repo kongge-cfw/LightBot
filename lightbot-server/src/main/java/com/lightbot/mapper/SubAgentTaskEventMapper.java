@@ -13,10 +13,13 @@ import java.util.List;
 public interface SubAgentTaskEventMapper extends BaseMapper<SubAgentTaskEvent> {
 
     @Select("SELECT * FROM subagent_task_event WHERE task_id = #{taskId} "
-            + "AND (#{cursor} IS NULL OR id > #{cursor}) ORDER BY id ASC LIMIT #{limit}")
+            + "AND id > #{cursor} ORDER BY id ASC LIMIT #{limit}")
     List<SubAgentTaskEvent> selectAfterCursor(@Param("taskId") String taskId,
                                               @Param("cursor") Long cursor,
                                               @Param("limit") int limit);
+
+    @Select("SELECT * FROM subagent_task_event WHERE task_id = #{taskId} ORDER BY id ASC LIMIT #{limit}")
+    List<SubAgentTaskEvent> selectFirstPage(@Param("taskId") String taskId, @Param("limit") int limit);
 
     @Select("SELECT * FROM subagent_task_event WHERE task_id = #{taskId} ORDER BY id DESC LIMIT 1")
     SubAgentTaskEvent selectLatestByTaskId(@Param("taskId") String taskId);

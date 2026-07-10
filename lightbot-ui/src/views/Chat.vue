@@ -7,6 +7,7 @@
       :title-edit-value="titleEditValue"
       :show-file-drawer="!!sessionId"
       :show-subagent-drawer="!!sessionId"
+      :subagent-running-count="runningSubagentCount"
       :title-editable="!!sessionId"
       @start-title-edit="startTitleEdit"
       @confirm-title-edit="confirmTitleEdit"
@@ -195,6 +196,7 @@
     <ChatSubAgentRuntimeDrawer
       v-model:open="subagentRuntimeOpen"
       :session-id="sessionId"
+      :live-events="liveSubagentEvents"
     />
 
     <SessionFilePreviewModal
@@ -277,6 +279,18 @@ const attachmentPreviewAtt = ref(null)
 const voiceListening = ref(false)
 const speakingMsgKey = ref(null)
 const subagentRuntimeOpen = ref(false)
+const liveSubagentEvents = ref([])
+
+const runningSubagentCount = computed(() => {
+  const taskStates = new Map()
+  for (const event of liveSubagentEvents.value) {
+    if (!event?.task_id) continue
+    if (event.type === 'subagent_task_start') taskStates.set(event.task_id, 'running')
+    if (event.type === 'subagent_task_done') taskStates.set(event.task_id, event.status || 'completed')
+    if (event.type === 'subagent_error') taskStates.set(event.task_id, 'failed')
+  }
+  return [...taskStates.values()].filter(status => status === 'running').length
+})
 
 function autoResize() {}
 
@@ -386,6 +400,12 @@ const {
 
 const { handleChatCapabilityStreamEvent } = createChatCapabilityStreamHandlers({
   currentStatus, hasStreamContent, scrollToBottom, messages, messagesRef,
+  onSubagentEvent: (event) => {
+    liveSubagentEvents.value.push({ ...event })
+    if (liveSubagentEvents.value.length > 600) {
+      liveSubagentEvents.value.splice(0, liveSubagentEvents.value.length - 600)
+    }
+  },
 })
 
 const { canSend, workflowConfirmBlocked } = useChatSendGate({
@@ -546,6 +566,7 @@ watch(() => route.params.sessionId, () => {
   }
   expandedRefsMap.value = new Map()
   refsSectionExpandedMap.value = new Map()
+  liveSubagentEvents.value = []
   messageRowComponentRefs.clear()
   loadHistory()
 })

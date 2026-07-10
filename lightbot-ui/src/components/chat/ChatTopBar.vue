@@ -33,14 +33,16 @@
       </div>
     </div>
     <div class="chat-topbar-right">
+      <a-tooltip v-if="showSubagentDrawer" title="SubAgent 运行态">
+        <a-badge :count="subagentRunningCount" :offset="[-2, 2]" :overflow-count="9">
+          <button class="btn-topbar-file" @click="$emit('open-subagent-drawer')">
+            <RobotOutlined />
+          </button>
+        </a-badge>
+      </a-tooltip>
       <a-tooltip v-if="showFileDrawer" title="会话文件">
         <button class="btn-topbar-file" @click="$emit('open-file-drawer')">
           <FolderOpenOutlined />
-        </button>
-      </a-tooltip>
-      <a-tooltip v-if="showSubagentDrawer" title="SubAgent 运行态">
-        <button class="btn-topbar-file" @click="$emit('open-subagent-drawer')">
-          <RobotOutlined />
         </button>
       </a-tooltip>
     </div>
@@ -57,6 +59,7 @@ defineProps({
   titleEditValue: { type: String, default: '' },
   showFileDrawer: { type: Boolean, default: true },
   showSubagentDrawer: { type: Boolean, default: false },
+  subagentRunningCount: { type: Number, default: 0 },
   titleEditable: { type: Boolean, default: true },
 })
 
