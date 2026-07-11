@@ -19,6 +19,12 @@
             <artifactId>lightbot-framework</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- 平台配置：ModelFactory 需读取 SystemConfigService 的模型默认配置 -->
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-platform</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
