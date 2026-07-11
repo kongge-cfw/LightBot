@@ -50,5 +50,16 @@
             <groupId>org.neo4j.driver</groupId>
             <artifactId>neo4j-java-driver</artifactId>
         </dependency>
+        <!-- Tika 文档解析（供 TikaUtil 解析 Office/PDF） -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-tika-document-reader</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>info.picocli</groupId>
+                    <artifactId>picocli</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
     </dependencies>
 </project>
