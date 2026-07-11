@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.SubAgentRun;
 import com.lightbot.entity.SubAgentTaskBatch;
 import com.lightbot.common.BizException;
+import com.lightbot.service.SubAgentService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.service.chat.ChatContext;
 import com.lightbot.subagent.SubAgentThreadManager;
@@ -52,6 +53,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private final SubAgentEventPublisher eventPublisher;
     private final SubAgentTaskEventService taskEventService;
     private final SubAgentThreadManager threadManager;
+    private final SubAgentService subAgentService;
     @Qualifier("lightBotExecutor")
     private final Executor lightBotExecutor;
 
@@ -68,7 +70,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             RuntimeContext context = runtimeContext(toolContext);
             String batchId = batchId(context.requestId(), input);
             ensureRecords(batchId, input, context);
-            publishBatchStart(context, batchId, input);
+            publishBatchStart(context, batchId, input, definitions);
 
             if ("background".equals(input.mode())) {
                 submitBackground(batchId, input, context, definitions);
@@ -214,8 +216,9 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
 
     @Override
     public List<Map<String, Object>> listRuntimeSummaries(Long sessionId, int limit) {
+        Map<String, String> displayNames = displayNames();
         return repository.pageTasks(sessionId, null, 1, Math.min(Math.max(limit, 1), 100)).getRecords().stream()
-                .map(this::taskResult)
+                .map(task -> taskResult(task, displayNames))
                 .toList();
     }
 
@@ -261,7 +264,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
                                         Map<String, SubAgentDefinition> definitions, int taskIndex) {
         String taskId = taskId(context.requestId(), task, taskIndex);
         SubAgentDefinition definition = definitions.get(task.subagentName());
-        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, "running", null);
+        String displayName = definition != null ? definition.displayName() : task.subagentName();
+        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, displayName, "running", null);
         try {
             SubAgentExecutor.ExecutionResult result = executor.execute(definition, task.task(), taskId, task.threadId(),
                     context.parentThreadId(), context.taskContext(batchId, taskId, taskIndex));
@@ -270,7 +274,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             output.put("reply", result.reply());
             output.put("thread_id", result.threadId());
             output.put("continued", result.continued());
-            publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex,
+            output.put("display_name", displayName);
+            publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, displayName,
                     output.get("status").toString(), output);
             return output;
         } catch (Exception e) {
@@ -285,9 +290,13 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             output.put("task_id", taskId);
             output.put("batch_id", batchId);
             output.put("subagent_name", task.subagentName());
+            output.put("display_name", displayName);
+            output.put("task", task.task());
             output.put("status", "failed");
+            output.put("status_label", statusLabel("failed"));
             output.put("error", e.getMessage());
-            publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, "failed", output);
+            publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, displayName,
+                    "failed", output);
             return output;
         }
     }
@@ -351,11 +360,14 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         repository.saveBatch(batch);
     }
 
-    private void publishBatchStart(RuntimeContext context, String batchId, DelegationInput input) {
+    private void publishBatchStart(RuntimeContext context, String batchId, DelegationInput input,
+                                   Map<String, SubAgentDefinition> definitions) {
         List<Map<String, Object>> tasks = new ArrayList<>();
         for (int index = 0; index < input.tasks().size(); index++) {
             DelegatedTask task = input.tasks().get(index);
+            SubAgentDefinition definition = definitions.get(task.subagentName());
             tasks.add(Map.of("task_id", taskId(context.requestId(), task, index), "subagent_name", task.subagentName(),
+                    "display_name", definition != null ? definition.displayName() : task.subagentName(),
                     "task", task.task(), "task_index", index));
         }
         eventPublisher.publish(context.chatContext(), "subagent_batch_start", Map.of("batch_id", batchId, "mode", input.mode(),
@@ -364,13 +376,16 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     private void publishTask(RuntimeContext context, String type, String batchId, String taskId, DelegatedTask task,
-                             int taskIndex, String status, Map<String, Object> result) {
+                             int taskIndex, String displayName, String status, Map<String, Object> result) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("batch_id", batchId);
         payload.put("task_id", taskId);
         payload.put("task_index", taskIndex);
         payload.put("subagentName", task.subagentName());
+        payload.put("displayName", displayName);
+        payload.put("task", task.task());
         payload.put("status", status);
+        payload.put("status_label", statusLabel(status));
         payload.put("contentOffset", context.contentOffset());
         payload.put("delegationIndex", context.delegationIndex());
         if (result != null) payload.put("result", result);
@@ -417,17 +432,26 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         output.put("failed_count", batch.getFailedCount());
         output.put("cancelled_count", batch.getCancelledCount());
         output.put("cancel_requested", Integer.valueOf(1).equals(batch.getCancelRequested()));
-        output.put("results", repository.findTasks(batch.getBatchId()).stream().map(this::taskResult).toList());
+        Map<String, String> displayNames = displayNames();
+        output.put("results", repository.findTasks(batch.getBatchId()).stream()
+                .map(task -> taskResult(task, displayNames)).toList());
         return output;
     }
 
     private Map<String, Object> taskResult(SubAgentRun task) {
+        return taskResult(task, displayNames());
+    }
+
+    private Map<String, Object> taskResult(SubAgentRun task, Map<String, String> displayNames) {
         if (task == null) return new LinkedHashMap<>(Map.of("status", "not_found"));
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("task_id", task.getRequestId());
         output.put("batch_id", task.getBatchId());
         output.put("status", task.getStatus());
+        output.put("status_label", statusLabel(task.getStatus()));
         output.put("subagent_name", task.getSubagentName());
+        output.put("display_name", displayNames.getOrDefault(task.getSubagentName(), task.getSubagentName()));
+        output.put("task", task.getTask());
         output.put("thread_id", task.getThreadId());
         output.put("mode", task.getMode());
         output.put("reply", task.getReply());
@@ -435,8 +459,39 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         output.put("cancel_requested", Integer.valueOf(1).equals(task.getCancelRequested()));
         output.put("start_time", task.getStartTime());
         output.put("end_time", task.getEndTime());
-        output.put("progress_summary", taskEventService.latestSummary(task.getRequestId()));
+        output.put("progress_summary", progressSummary(task));
         return output;
+    }
+
+    private String progressSummary(SubAgentRun task) {
+        return switch (task.getStatus() != null ? task.getStatus() : "") {
+            case "pending" -> "等待调度";
+            case "completed" -> "任务已完成";
+            case "failed" -> "任务执行失败";
+            case "cancel_requested" -> "正在取消任务";
+            case "cancelled" -> "任务已取消";
+            default -> taskEventService.latestSummary(task.getRequestId());
+        };
+    }
+
+    private Map<String, String> displayNames() {
+        Map<String, String> result = new LinkedHashMap<>();
+        subAgentService.list().forEach(subAgent -> result.put(subAgent.getName(),
+                subAgent.getDisplayName() != null && !subAgent.getDisplayName().isBlank()
+                        ? subAgent.getDisplayName() : subAgent.getName()));
+        return result;
+    }
+
+    private String statusLabel(String status) {
+        return switch (status != null ? status : "") {
+            case "pending", "submitted" -> "等待调度";
+            case "running" -> "运行中";
+            case "completed" -> "已完成";
+            case "failed" -> "执行失败";
+            case "cancel_requested" -> "取消中";
+            case "cancelled" -> "已取消";
+            default -> "未知状态";
+        };
     }
 
     private DelegationInput parseDelegation(String toolInput) throws Exception {

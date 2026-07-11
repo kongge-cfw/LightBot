@@ -33,7 +33,7 @@
       </div>
     </div>
     <div class="chat-topbar-right">
-      <a-tooltip v-if="showSubagentDrawer" title="SubAgent 运行态">
+      <a-tooltip v-if="showSubagentDrawer" title="子智能体状态">
         <a-badge :count="subagentRunningCount" :offset="[-2, 2]" :overflow-count="9">
           <button class="btn-topbar-file" @click="$emit('open-subagent-drawer')">
             <RobotOutlined />

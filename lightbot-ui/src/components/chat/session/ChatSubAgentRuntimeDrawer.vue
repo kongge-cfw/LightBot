@@ -1,13 +1,13 @@
 <template>
   <a-drawer
     :open="open"
-    title="SubAgent 运行态"
+    title="子智能体状态"
     placement="right"
     width="380"
     @update:open="$emit('update:open', $event)"
   >
     <template #extra>
-      <a-tooltip title="刷新运行态">
+      <a-tooltip title="刷新子智能体状态">
         <button type="button" class="runtime-refresh" :disabled="loading" @click="loadSummaries">
           <ReloadOutlined :class="{ 'is-spinning': loading }" />
         </button>
@@ -18,21 +18,34 @@
       <button v-for="run in runtimeRuns" :key="run.task_id" type="button" class="runtime-item" @click="openTask(run)">
         <span class="runtime-status" :class="`is-${run.status}`"></span>
         <span class="runtime-main">
-          <span class="runtime-title">{{ run.subagent_name || 'SubAgent' }}</span>
+          <span class="runtime-title">{{ displayNameOf(run) }}</span>
           <span class="runtime-task">{{ run.task || '未提供任务描述' }}</span>
-          <span class="runtime-progress">{{ run.progress_summary || statusLabel(run.status) }}</span>
+          <span class="runtime-progress">{{ run.progress_summary || run.status_label || statusLabel(run.status) }}</span>
         </span>
-        <span class="runtime-status-label" :class="`is-${run.status}`">{{ statusLabel(run.status) }}</span>
+        <span class="runtime-status-label" :class="`is-${run.status}`">{{ run.status_label || statusLabel(run.status) }}</span>
       </button>
     </div>
-    <a-empty v-else-if="!loading" description="当前会话暂无 SubAgent 任务" />
+    <a-empty v-else-if="!loading" description="当前会话暂无子智能体任务" />
 
     <a-modal v-model:open="detailOpen" :title="detailTitle" width="760px" :footer="null" destroy-on-close>
       <a-spin :spinning="detailLoading">
         <div class="task-detail-scroll">
           <div v-if="selectedDisplayTask" class="task-detail-summary">
-            <span :class="['task-detail-status', `is-${selectedDisplayTask.status}`]">{{ statusLabel(selectedDisplayTask.status) }}</span>
-            <span :class="['task-detail-progress', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.progress_summary || statusLabel(selectedDisplayTask.status) }}</span>
+            <span :class="['task-detail-status', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.status_label || statusLabel(selectedDisplayTask.status) }}</span>
+            <span :class="['task-detail-progress', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.progress_summary || selectedDisplayTask.status_label || statusLabel(selectedDisplayTask.status) }}</span>
+          </div>
+          <div v-if="selectedDisplayTask" class="detail-section task-context-section">
+            <div class="detail-section-title">任务信息</div>
+            <div class="task-context-label">任务提示</div>
+            <div class="task-context-content">{{ selectedDisplayTask.task || '未提供任务描述' }}</div>
+            <div class="task-time-row">
+              <span>开始：{{ formatTime(selectedDisplayTask.start_time) || '-' }}</span>
+              <span>结束：{{ formatTime(selectedDisplayTask.end_time) || '-' }}</span>
+            </div>
+            <div v-if="selectedDisplayTask.error" class="task-error">
+              <span class="task-context-label">异常信息</span>
+              <span>{{ selectedDisplayTask.error }}</span>
+            </div>
           </div>
           <div v-if="displayOutput" class="detail-section live-output-section">
             <div class="detail-section-title">{{ isSelectedTaskDone ? '最终输出' : '实时输出' }}</div>
@@ -41,10 +54,10 @@
           <div class="detail-section">
           <div class="detail-section-title">运行事件</div>
           <a-timeline v-if="events.length" class="event-timeline">
-            <a-timeline-item v-for="event in events" :key="event.cursor" :color="eventColor(event.type)">
-              <div class="event-title">{{ eventLabel(event.type) }}</div>
-              <div class="event-time">{{ event.create_time || '' }}</div>
-              <div v-if="eventText(event)" class="event-text">{{ eventText(event) }}</div>
+            <a-timeline-item v-for="event in events" :key="event.cursor" :color="eventColor(event)">
+              <div class="event-title" :class="{ 'is-error': isErrorEvent(event) }">{{ eventLabel(event) }}</div>
+              <div class="event-time">{{ formatTime(event.create_time) }}</div>
+              <div v-if="eventText(event)" class="event-text" :class="{ 'is-error': isErrorEvent(event) }">{{ eventText(event) }}</div>
             </a-timeline-item>
           </a-timeline>
           <a-empty v-else description="暂无运行事件" :image="aEmptyImage" />
@@ -70,6 +83,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Empty } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import { formatTime } from '@/utils/format'
 import {
   getSubAgentRun,
   getSubAgentRunEvents,
@@ -98,8 +112,8 @@ const threadAvailable = ref(false)
 let refreshTimer = null
 
 const detailTitle = computed(() => selectedTask.value
-  ? `${selectedTask.value.subagent_name || 'SubAgent'} · 子线程详情`
-  : 'SubAgent 子线程详情')
+  ? `${displayNameOf(selectedTask.value)} · 子线程详情`
+  : '子智能体子线程详情')
 
 const liveTaskStates = computed(() => {
   const states = new Map()
@@ -110,6 +124,7 @@ const liveTaskStates = computed(() => {
           task_id: task.task_id,
           batch_id: event.batch_id,
           subagent_name: task.subagent_name,
+          display_name: task.display_name || task.displayName || task.subagent_name,
           task: task.task,
           status: 'pending',
           progress_summary: '等待调度',
@@ -124,6 +139,7 @@ const liveTaskStates = computed(() => {
       task_id: event.task_id,
       batch_id: event.batch_id,
       subagent_name: event.subagentName,
+      display_name: event.display_name || event.displayName || event.subagentName,
       task: '',
       status: 'pending',
       progress_summary: '等待调度',
@@ -144,13 +160,20 @@ const liveTaskStates = computed(() => {
     } else if (event.type === 'subagent_error') {
       state.status = 'failed'
       state.progress_summary = event.message || '任务执行异常'
+      state.error = event.message || '任务执行异常'
     } else if (event.type === 'subagent_task_done') {
       state.status = event.status || 'completed'
       state.progress_summary = state.status === 'completed' ? '任务已完成' : '任务执行结束'
       const reply = event.result?.reply
+      if (event.result?.error) state.error = event.result.error
       if (reply) state.reply = String(reply)
       if (!state.liveOutput && reply) state.liveOutput = String(reply)
     }
+    if (event.display_name || event.displayName) {
+      state.display_name = event.display_name || event.displayName
+    }
+    if (event.task) state.task = event.task
+    if (event.status_label) state.status_label = event.status_label
     states.set(event.task_id, state)
   }
   return states
@@ -254,24 +277,43 @@ function statusLabel(status) {
   return ({ pending: '待执行', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消', cancel_requested: '取消中' })[status] || '未知'
 }
 
-function eventLabel(type) {
-  return ({ subagent_task_start: '任务开始', subagent_tool_call: '调用工具', subagent_tool_result: '工具完成', subagent_token: '生成输出', subagent_task_done: '任务完成', subagent_error: '执行异常', subagent_error_retry: '准备重试' })[type] || type
+function displayNameOf(task) {
+  return task?.display_name || task?.displayName || task?.subagent_name || task?.subagentName || '子智能体'
 }
 
-function eventColor(type) {
-  if (type === 'subagent_error') return 'red'
-  if (type === 'subagent_task_done') return 'green'
-  if (type === 'subagent_tool_call' || type === 'subagent_token') return 'blue'
+function eventPayload(event) {
+  try {
+    return typeof event.payload === 'string' ? JSON.parse(event.payload) : (event.payload || {})
+  } catch {
+    return {}
+  }
+}
+
+function isErrorEvent(event) {
+  const payload = eventPayload(event)
+  return event.type === 'subagent_error' || payload.status === 'failed' || payload.status === 'cancelled'
+}
+
+function eventLabel(event) {
+  const payload = eventPayload(event)
+  if (event.type === 'subagent_task_done') {
+    return payload.status === 'completed' ? '任务执行完成' : `任务执行结束（${statusLabel(payload.status)}）`
+  }
+  return ({ subagent_task_start: '任务开始', subagent_tool_call: '调用工具', subagent_tool_result: '工具完成', subagent_token: '生成输出', subagent_error: '执行异常', subagent_error_retry: '准备重试' })[event.type] || event.type
+}
+
+function eventColor(event) {
+  if (isErrorEvent(event)) return 'red'
+  if (event.type === 'subagent_task_done') return 'green'
+  if (event.type === 'subagent_tool_call' || event.type === 'subagent_token') return 'blue'
   return 'gray'
 }
 
 function eventText(event) {
-  try {
-    const payload = typeof event.payload === 'string' ? JSON.parse(event.payload) : event.payload
-    return payload?.toolDisplayName || payload?.toolName || payload?.message || payload?.status || ''
-  } catch {
-    return ''
-  }
+  const payload = eventPayload(event)
+  const result = payload?.result || {}
+  return payload?.toolDisplayName || payload?.toolName || payload?.message || result.error || payload?.error
+    || (payload?.status ? statusLabel(payload.status) : '')
 }
 
 function roleLabel(type) {
@@ -313,6 +355,6 @@ onBeforeUnmount(stopPolling)
 .runtime-item:hover { background: var(--color-canvas-soft); border-color: var(--color-hairline-strong); }
 .runtime-status { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--color-mute); }.runtime-status.is-running { background: var(--color-link); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-link) 55%, transparent); animation: runningPulse 1.5s infinite; }.runtime-status.is-pending { background: var(--color-warning); }.runtime-status.is-completed { background: var(--color-success-500); }.runtime-status.is-failed { background: var(--color-error); }.runtime-status.is-cancelled { background: var(--color-mute); }
 .runtime-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.runtime-title { color: var(--color-ink); font-size: 14px; font-weight: 600; }.runtime-task, .runtime-progress { overflow: hidden; color: var(--color-body); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.runtime-progress { color: var(--color-mute); }.runtime-status-label, .task-detail-status { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }.runtime-status-label.is-running, .task-detail-status.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.runtime-status-label.is-pending, .task-detail-status.is-pending { color: #a16207; background: #fef3c7; }.runtime-status-label.is-completed, .task-detail-status.is-completed { color: #15803d; background: #dcfce7; }.runtime-status-label.is-failed, .task-detail-status.is-failed { color: #b91c1c; background: #fee2e2; }.runtime-status-label.is-cancelled, .task-detail-status.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }
-.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress.is-pending { color: #a16207; }.task-detail-progress.is-completed { color: #15803d; }.task-detail-progress.is-running { color: #1d4ed8; }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; }.task-detail-progress.is-pending { color: #a16207; background: #fef3c7; }.task-detail-progress.is-completed { color: #15803d; background: #dcfce7; }.task-detail-progress.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-progress.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-progress.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.task-context-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-label { color: var(--color-mute); font-size: 12px; font-weight: 600; }.task-context-content { margin-top: 4px; color: var(--color-body); font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }.task-time-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--color-mute); font-size: 12px; }.task-error { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }.task-error .task-context-label { color: #b91c1c; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.event-title.is-error, .event-text.is-error { color: #b91c1c; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
 @keyframes runtimeSpin { to { transform: rotate(360deg); } } @keyframes runningPulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } } @keyframes runningTagPulse { 50% { opacity: .68; } }
 </style>
