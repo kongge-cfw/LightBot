@@ -40,5 +40,15 @@
             <artifactId>rapidocr-onnx-platform</artifactId>
             <version>0.0.7</version>
         </dependency>
+        <!-- Milvus 向量库（供 MilvusUtil/VectorUtil 检索） -->
+        <dependency>
+            <groupId>io.milvus</groupId>
+            <artifactId>milvus-sdk-java</artifactId>
+        </dependency>
+        <!-- Neo4j 图库（供 Neo4jUtil/GraphRetrievalUtil 图谱检索） -->
+        <dependency>
+            <groupId>org.neo4j.driver</groupId>
+            <artifactId>neo4j-java-driver</artifactId>
+        </dependency>
     </dependencies>
 </project>
