@@ -24,5 +24,17 @@
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- Janino Java 编译器（轻量级，~600KB） -->
+        <dependency>
+            <groupId>org.codehaus.janino</groupId>
+            <artifactId>janino</artifactId>
+            <version>3.1.12</version>
+        </dependency>
+        <!-- Groovy 脚本引擎（JSR-223） -->
+        <dependency>
+            <groupId>org.apache.groovy</groupId>
+            <artifactId>groovy-jsr223</artifactId>
+            <version>4.0.26</version>
+        </dependency>
     </dependencies>
 </project>
