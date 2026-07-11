@@ -5,12 +5,12 @@ import com.lightbot.dto.WorkflowNodeTestRequest;
 import com.lightbot.dto.WorkflowAbandonRequest;
 import com.lightbot.dto.WorkflowResumeRequest;
 import com.lightbot.dto.WorkflowTestRequest;
-import com.lightbot.dto.WorkflowTestResultVO;
-import com.lightbot.dto.WorkflowTestRunDetailVO;
-import com.lightbot.dto.WorkflowTestRunVO;
-import com.lightbot.dto.WorkflowTestRunDetailVO;
-import com.lightbot.dto.WorkflowTestRunVO;
-import com.lightbot.dto.WorkflowVersionVO;
+import com.lightbot.vo.WorkflowTestResultVO;
+import com.lightbot.vo.WorkflowTestRunDetailVO;
+import com.lightbot.vo.WorkflowTestRunVO;
+import com.lightbot.vo.WorkflowTestRunDetailVO;
+import com.lightbot.vo.WorkflowTestRunVO;
+import com.lightbot.vo.WorkflowVersionVO;
 
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 

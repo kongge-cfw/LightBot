@@ -1,6 +1,6 @@
 package com.lightbot.util;
 
-import com.lightbot.dto.EvalDatasetExampleVO;
+import com.lightbot.vo.EvalDatasetExampleVO;
 
 import java.util.*;
 

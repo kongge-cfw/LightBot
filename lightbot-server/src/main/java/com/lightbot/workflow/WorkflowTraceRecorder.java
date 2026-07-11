@@ -3,7 +3,7 @@ package com.lightbot.workflow;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.dto.LlmTraceSpan;
-import com.lightbot.dto.WorkflowTestResultVO;
+import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.LlmTrace;
 import com.lightbot.entity.Message;

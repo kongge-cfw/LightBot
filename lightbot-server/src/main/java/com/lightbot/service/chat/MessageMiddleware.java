@@ -10,7 +10,7 @@ import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.dto.ChatMentionDTO;
 import com.lightbot.dto.ChatMentionDTO;
 import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.UserPreferenceVO;
+import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.util.AgentChatCapabilitiesUtil;

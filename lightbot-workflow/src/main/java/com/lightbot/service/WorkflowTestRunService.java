@@ -2,9 +2,9 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.WorkflowTestRequest;
-import com.lightbot.dto.WorkflowTestResultVO;
-import com.lightbot.dto.WorkflowTestRunDetailVO;
-import com.lightbot.dto.WorkflowTestRunVO;
+import com.lightbot.vo.WorkflowTestResultVO;
+import com.lightbot.vo.WorkflowTestRunDetailVO;
+import com.lightbot.vo.WorkflowTestRunVO;
 import com.lightbot.entity.WorkflowTestRun;
 import com.lightbot.workflow.WorkflowDefinition;
 

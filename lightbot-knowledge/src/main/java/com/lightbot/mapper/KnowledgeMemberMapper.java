@@ -1,7 +1,7 @@
 package com.lightbot.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
-import com.lightbot.dto.KnowledgeMemberVO;
+import com.lightbot.vo.KnowledgeMemberVO;
 import com.lightbot.entity.KnowledgeMember;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;

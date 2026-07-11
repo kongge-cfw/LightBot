@@ -1,11 +1,11 @@
 package com.lightbot.service.impl;
 
 import com.lightbot.common.BizException;
-import com.lightbot.dto.SessionAttachmentVO;
-import com.lightbot.dto.SessionFileContentVO;
-import com.lightbot.dto.SessionFileEntryVO;
-import com.lightbot.dto.SessionFileStatsVO;
-import com.lightbot.dto.SessionFileTreeResponseVO;
+import com.lightbot.vo.SessionAttachmentVO;
+import com.lightbot.vo.SessionFileContentVO;
+import com.lightbot.vo.SessionFileEntryVO;
+import com.lightbot.vo.SessionFileStatsVO;
+import com.lightbot.vo.SessionFileTreeResponseVO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.SessionAttachmentSource;
 import com.lightbot.service.ChatSessionService;

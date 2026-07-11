@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.lightbot.common.Result;
 import com.lightbot.dto.ChangePasswordRequest;
 import com.lightbot.dto.InitAdminRequest;
-import com.lightbot.dto.InitStatusVO;
+import com.lightbot.vo.InitStatusVO;
 import com.lightbot.dto.LoginRequest;
 import com.lightbot.dto.ProfileUpdateRequest;
 import com.lightbot.dto.RegisterRequest;

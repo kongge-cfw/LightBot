@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.KnowledgeMemberVO;
+import com.lightbot.vo.KnowledgeMemberVO;
 import com.lightbot.entity.KnowledgeMember;
 import com.lightbot.enums.KnowledgeRole;
 

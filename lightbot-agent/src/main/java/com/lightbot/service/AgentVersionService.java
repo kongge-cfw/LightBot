@@ -1,8 +1,8 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.AgentVersionListVO;
+import com.lightbot.vo.AgentVersionListVO;
 import com.lightbot.dto.WorkflowGraphDTO;
-import com.lightbot.dto.WorkflowVersionVO;
+import com.lightbot.vo.WorkflowVersionVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.workflow.WorkflowDefinition;
 

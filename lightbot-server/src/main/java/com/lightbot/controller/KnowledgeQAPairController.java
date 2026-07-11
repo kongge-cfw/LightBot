@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.lightbot.common.Result;
 import com.lightbot.dto.QaPairCreateDTO;
 import com.lightbot.dto.QaPairUpdateDTO;
-import com.lightbot.dto.QaPairVO;
+import com.lightbot.vo.QaPairVO;
 import com.lightbot.entity.Task;
 import com.lightbot.service.QaPairService;
 import jakarta.validation.Valid;

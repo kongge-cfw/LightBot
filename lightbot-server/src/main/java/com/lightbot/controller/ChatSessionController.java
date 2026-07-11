@@ -144,7 +144,7 @@ public class ChatSessionController {
 
     @Operation(summary = "获取会话附件列表")
     @GetMapping("/{id}/attachments")
-    public Result<List<com.lightbot.dto.SessionAttachmentVO>> getAttachments(@PathVariable Long id) {
+    public Result<List<com.lightbot.vo.SessionAttachmentVO>> getAttachments(@PathVariable Long id) {
         long userId = StpUtil.getLoginIdAsLong();
         chatSessionService.ensureOwnedByUser(id, userId);
         return Result.ok(chatSessionService.getSessionAttachments(id));
@@ -152,7 +152,7 @@ public class ChatSessionController {
 
     @Operation(summary = "获取会话文件树（懒加载单层）")
     @GetMapping("/{id}/files/tree")
-    public Result<com.lightbot.dto.SessionFileTreeResponseVO> getFileTree(
+    public Result<com.lightbot.vo.SessionFileTreeResponseVO> getFileTree(
             @PathVariable Long id,
             @RequestParam(required = false, defaultValue = "") String path) {
         long userId = StpUtil.getLoginIdAsLong();
@@ -162,7 +162,7 @@ public class ChatSessionController {
 
     @Operation(summary = "获取会话文件内容/预览信息")
     @GetMapping("/{id}/files/content")
-    public Result<com.lightbot.dto.SessionFileContentVO> getFileContent(
+    public Result<com.lightbot.vo.SessionFileContentVO> getFileContent(
             @PathVariable Long id,
             @RequestParam String path) {
         long userId = StpUtil.getLoginIdAsLong();

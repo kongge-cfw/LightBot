@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.LlmTraceDetailVO;
+import com.lightbot.vo.LlmTraceDetailVO;
 import com.lightbot.dto.LlmTraceRequest;
 import com.lightbot.service.LlmTraceService;
 import io.swagger.v3.oas.annotations.Operation;

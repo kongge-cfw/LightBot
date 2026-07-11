@@ -7,7 +7,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
-import com.lightbot.dto.ModelProviderPresetVO;
+import com.lightbot.vo.ModelProviderPresetVO;
 import com.lightbot.dto.ModelProviderRequest;
 import com.lightbot.entity.ModelProvider;
 import com.lightbot.enums.CommonStatus;

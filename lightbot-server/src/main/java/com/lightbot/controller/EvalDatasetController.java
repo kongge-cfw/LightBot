@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.dto.EvalDatasetCreateRequest;
-import com.lightbot.dto.EvalDatasetExampleVO;
+import com.lightbot.vo.EvalDatasetExampleVO;
 import com.lightbot.dto.EvalDatasetItemCreateRequest;
 import com.lightbot.dto.EvalDatasetVersionCreateRequest;
 import com.lightbot.entity.EvalDataset;

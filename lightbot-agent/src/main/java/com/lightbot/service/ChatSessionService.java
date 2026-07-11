@@ -140,12 +140,12 @@ public interface ChatSessionService extends IService<ChatSession> {
     /**
      * 注册会话附件（AI 工具产出等，按 objectKey 去重）
      */
-    void registerSessionAttachments(Long sessionId, List<com.lightbot.dto.SessionAttachmentVO> attachments);
+    void registerSessionAttachments(Long sessionId, List<com.lightbot.vo.SessionAttachmentVO> attachments);
 
     /**
      * 获取会话附件列表
      */
-    List<com.lightbot.dto.SessionAttachmentVO> getSessionAttachments(Long sessionId);
+    List<com.lightbot.vo.SessionAttachmentVO> getSessionAttachments(Long sessionId);
 
     /**
      * 校验会话归属当前用户，不属于抛 SESSION_NOT_FOUND。

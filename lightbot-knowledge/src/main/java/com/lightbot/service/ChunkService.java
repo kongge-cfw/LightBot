@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.ChunkVO;
+import com.lightbot.vo.ChunkVO;
 import com.lightbot.entity.Chunk;
 import com.lightbot.enums.ChunkStatus;
 

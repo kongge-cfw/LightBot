@@ -3,7 +3,7 @@ package com.lightbot.task;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.GraphStatsVO;
+import com.lightbot.vo.GraphStatsVO;
 import com.lightbot.dto.GraphTripleDTO;
 import com.lightbot.entity.Chunk;
 import com.lightbot.entity.Document;

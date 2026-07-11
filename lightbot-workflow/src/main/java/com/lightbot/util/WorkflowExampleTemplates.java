@@ -1,6 +1,6 @@
 package com.lightbot.util;
 
-import com.lightbot.dto.WorkflowExampleVO;
+import com.lightbot.vo.WorkflowExampleVO;
 
 import java.util.*;
 

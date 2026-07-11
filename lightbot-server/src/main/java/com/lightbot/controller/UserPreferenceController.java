@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.UserPreferenceUpdateRequest;
-import com.lightbot.dto.UserPreferenceVO;
+import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.service.UserPreferenceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

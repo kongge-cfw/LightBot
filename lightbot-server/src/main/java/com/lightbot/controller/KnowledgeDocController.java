@@ -1,11 +1,11 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.ChunkVO;
-import com.lightbot.dto.DocumentDownloadVO;
-import com.lightbot.dto.DocumentStreamVO;
+import com.lightbot.vo.ChunkVO;
+import com.lightbot.vo.DocumentDownloadVO;
+import com.lightbot.vo.DocumentStreamVO;
 import com.lightbot.dto.IngestRequest;
-import com.lightbot.dto.UrlFetchPreviewVO;
+import com.lightbot.vo.UrlFetchPreviewVO;
 import com.lightbot.dto.UrlSaveRequest;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Task;

@@ -2,6 +2,7 @@ package com.lightbot.controller;
 
 import com.lightbot.enums.TaskStatus;
 import com.lightbot.service.TaskService;
+import com.lightbot.service.port.TaskCountNotifier;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -26,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @RestController
 @RequestMapping("/api/tasks")
 @RequiredArgsConstructor
-public class TaskEventController {
+public class TaskEventController implements TaskCountNotifier {
 
     private final TaskService taskService;
 
@@ -57,7 +58,8 @@ public class TaskEventController {
     /**
      * 供 TaskServiceImpl 在任务创建/状态变更时调用，立即推送最新计数给对应用户
      */
-    public void pushToUser(Long userId) {
+    @Override
+    public void notifyUser(Long userId) {
         SseEmitter emitter = USER_EMITTERS.get(userId);
         if (emitter != null) {
             sendCount(userId, emitter);

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.dto.UserPreferenceUpdateRequest;
-import com.lightbot.dto.UserPreferenceVO;
+import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.entity.User;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.UserMapper;

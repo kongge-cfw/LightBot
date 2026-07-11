@@ -2,8 +2,8 @@ package com.lightbot.tool.builtin;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.UserMemoryVO;
-import com.lightbot.dto.UserPreferenceVO;
+import com.lightbot.vo.UserMemoryVO;
+import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.entity.UserMemory;
 import com.lightbot.enums.UserMemoryStatus;
 import com.lightbot.service.UserMemoryService;

@@ -5,7 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.common.Result;
 import com.lightbot.dto.McpServerRequest;
-import com.lightbot.dto.McpToolVO;
+import com.lightbot.vo.McpToolVO;
 import com.lightbot.entity.McpServer;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.service.McpClientService;

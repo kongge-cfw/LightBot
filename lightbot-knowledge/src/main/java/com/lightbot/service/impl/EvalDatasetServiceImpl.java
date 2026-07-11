@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.EvalDatasetExampleVO;
+import com.lightbot.vo.EvalDatasetExampleVO;
 import com.lightbot.entity.EvalDataset;
 import com.lightbot.entity.EvalDatasetItem;
 import com.lightbot.entity.EvalDatasetVersion;

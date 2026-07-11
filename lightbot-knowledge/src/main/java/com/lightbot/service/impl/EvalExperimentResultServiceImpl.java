@@ -3,7 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lightbot.dto.EvalExperimentOverviewVO;
+import com.lightbot.vo.EvalExperimentOverviewVO;
 import com.lightbot.entity.EvalEvaluator;
 import com.lightbot.entity.EvalEvaluatorVersion;
 import com.lightbot.entity.EvalExperimentResult;

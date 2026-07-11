@@ -3,7 +3,7 @@ package com.lightbot.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.constant.ToolResultPrefixes;
-import com.lightbot.dto.SessionAttachmentVO;
+import com.lightbot.vo.SessionAttachmentVO;
 import com.lightbot.enums.SessionAttachmentSource;
 import com.lightbot.util.SessionStoragePath;
 import lombok.RequiredArgsConstructor;

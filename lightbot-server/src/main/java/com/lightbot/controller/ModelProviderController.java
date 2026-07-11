@@ -114,7 +114,7 @@ public class ModelProviderController {
 
     @Operation(summary = "获取模型提供商预设")
     @GetMapping("/presets")
-    public Result<List<com.lightbot.dto.ModelProviderPresetVO>> listPresets() {
+    public Result<List<com.lightbot.vo.ModelProviderPresetVO>> listPresets() {
         return Result.ok(modelProviderService.listPresets());
     }
 

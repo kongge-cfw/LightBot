@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.ModelProviderPresetVO;
+import com.lightbot.vo.ModelProviderPresetVO;
 import com.lightbot.dto.ModelProviderRequest;
 import com.lightbot.entity.ModelProvider;
 

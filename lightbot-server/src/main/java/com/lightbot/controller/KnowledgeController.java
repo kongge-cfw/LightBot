@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.dto.IngestRequest;
-import com.lightbot.dto.KnowledgeMemberVO;
+import com.lightbot.vo.KnowledgeMemberVO;
 import com.lightbot.dto.KnowledgeSaveRequest;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;

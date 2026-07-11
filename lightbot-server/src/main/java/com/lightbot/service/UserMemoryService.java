@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.UserMemoryRequest;
-import com.lightbot.dto.UserMemoryVO;
+import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.entity.UserMemory;
 import com.lightbot.service.chat.ChatContext;
 

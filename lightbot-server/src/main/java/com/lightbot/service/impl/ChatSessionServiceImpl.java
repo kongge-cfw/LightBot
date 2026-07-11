@@ -13,7 +13,7 @@ import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.ChatSessionService;
 import com.lightbot.service.LlmTraceService;
 import com.lightbot.service.MessageService;
-import com.lightbot.dto.SessionAttachmentVO;
+import com.lightbot.vo.SessionAttachmentVO;
 import com.lightbot.enums.SessionAttachmentSource;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.RedisUtil;

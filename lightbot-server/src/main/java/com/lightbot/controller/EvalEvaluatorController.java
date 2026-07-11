@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.dto.EvalEvaluatorCreateRequest;
-import com.lightbot.dto.EvalEvaluatorExampleVO;
+import com.lightbot.vo.EvalEvaluatorExampleVO;
 import com.lightbot.dto.EvalEvaluatorTestRequest;
 import com.lightbot.dto.EvalEvaluatorVersionCreateRequest;
 import com.lightbot.dto.EvalScoreResult;

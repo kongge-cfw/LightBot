@@ -3,7 +3,7 @@ package com.lightbot.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.MessageFeedbackRequest;
-import com.lightbot.dto.MessageFeedbackVO;
+import com.lightbot.vo.MessageFeedbackVO;
 import com.lightbot.entity.MessageFeedback;
 
 import java.util.List;

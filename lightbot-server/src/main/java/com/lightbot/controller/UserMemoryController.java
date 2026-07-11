@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.UserMemoryRequest;
-import com.lightbot.dto.UserMemoryVO;
+import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.service.UserMemoryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;

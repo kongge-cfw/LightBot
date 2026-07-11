@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.lightbot.dto.UserPreferenceUpdateRequest;
-import com.lightbot.dto.UserPreferenceVO;
+import com.lightbot.vo.UserPreferenceVO;
 
 /**
  * 用户个人配置服务

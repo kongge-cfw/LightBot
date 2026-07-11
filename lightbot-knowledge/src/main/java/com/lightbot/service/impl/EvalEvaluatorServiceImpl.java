@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.EvalEvaluatorExampleVO;
+import com.lightbot.vo.EvalEvaluatorExampleVO;
 import com.lightbot.entity.EvalEvaluator;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.EvalEvaluatorMapper;

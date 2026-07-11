@@ -3,7 +3,7 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.dto.EvalExperimentCreateRequest;
-import com.lightbot.dto.EvalExperimentOverviewVO;
+import com.lightbot.vo.EvalExperimentOverviewVO;
 import com.lightbot.entity.EvalExperiment;
 import com.lightbot.entity.EvalExperimentResult;
 import com.lightbot.service.EvalExperimentResultService;

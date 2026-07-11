@@ -8,6 +8,7 @@ import com.lightbot.enums.TaskStatus;
 import com.lightbot.enums.TaskType;
 import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
+import com.lightbot.service.port.TaskInterruptPort;
 import com.lightbot.task.TaskExecutor;
 import com.lightbot.util.RedisUtil;
 import jakarta.annotation.PostConstruct;
@@ -35,7 +36,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 @Configuration
 @RequiredArgsConstructor
-public class TaskConsumerConfig {
+public class TaskConsumerConfig implements TaskInterruptPort {
 
     private final RedisUtil redisUtil;
     private final TaskService taskService;
@@ -81,7 +82,8 @@ public class TaskConsumerConfig {
      *
      * @param taskId 任务ID
      */
-    public void interruptTask(Long taskId) {
+    @Override
+    public void interrupt(Long taskId) {
         Thread t = runningTasks.get(taskId);
         if (t != null) {
             t.interrupt();

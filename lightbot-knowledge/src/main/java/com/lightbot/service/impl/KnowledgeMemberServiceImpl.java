@@ -4,7 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.KnowledgeMemberVO;
+import com.lightbot.vo.KnowledgeMemberVO;
 import com.lightbot.entity.KnowledgeMember;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.KnowledgeRole;

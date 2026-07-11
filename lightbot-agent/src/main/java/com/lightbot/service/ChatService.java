@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.RagReferenceVO;
+import com.lightbot.vo.RagReferenceVO;
 import reactor.core.publisher.Flux;
 
 import java.util.List;

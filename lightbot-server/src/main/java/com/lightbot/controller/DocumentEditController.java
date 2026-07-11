@@ -2,9 +2,9 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.DocumentEditRequest;
-import com.lightbot.dto.DocumentEditSaveVO;
-import com.lightbot.dto.DocumentVersionVO;
-import com.lightbot.dto.EditableContentVO;
+import com.lightbot.vo.DocumentEditSaveVO;
+import com.lightbot.vo.DocumentVersionVO;
+import com.lightbot.vo.EditableContentVO;
 import com.lightbot.service.DocumentEditService;
 import com.lightbot.service.DocumentVersionService;
 import io.swagger.v3.oas.annotations.Operation;

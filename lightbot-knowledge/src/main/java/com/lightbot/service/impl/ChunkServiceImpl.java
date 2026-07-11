@@ -2,7 +2,7 @@ package com.lightbot.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lightbot.dto.ChunkVO;
+import com.lightbot.vo.ChunkVO;
 import com.lightbot.entity.Chunk;
 import com.lightbot.enums.ChunkStatus;
 import com.lightbot.mapper.ChunkMapper;

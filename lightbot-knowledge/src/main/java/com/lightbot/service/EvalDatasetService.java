@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.EvalDatasetExampleVO;
+import com.lightbot.vo.EvalDatasetExampleVO;
 import com.lightbot.entity.EvalDataset;
 
 import java.util.List;

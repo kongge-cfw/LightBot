@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.dto.MessageFeedbackRequest;
-import com.lightbot.dto.MessageFeedbackVO;
+import com.lightbot.vo.MessageFeedbackVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.AgentVersion;
 import com.lightbot.entity.ChatSession;

@@ -1,7 +1,7 @@
 package com.lightbot.service.workflow;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.WorkflowTestResultVO;
+import com.lightbot.vo.WorkflowTestResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;

@@ -4,13 +4,13 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentSaveRequest;
-import com.lightbot.dto.MentionOptionsVO;
+import com.lightbot.vo.MentionOptionsVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.McpServer;
 import com.lightbot.entity.Tool;
 import org.springframework.web.multipart.MultipartFile;
 
-import com.lightbot.dto.WorkflowExampleVO;
+import com.lightbot.vo.WorkflowExampleVO;
 
 import java.util.List;
 import java.util.Map;

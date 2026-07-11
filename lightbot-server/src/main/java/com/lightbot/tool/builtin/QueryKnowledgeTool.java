@@ -1,7 +1,7 @@
 package com.lightbot.tool.builtin;
 
 import com.lightbot.constant.RagResultType;
-import com.lightbot.dto.QaPairSearchResultVO;
+import com.lightbot.vo.QaPairSearchResultVO;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.impl.EmbeddingServiceImpl;

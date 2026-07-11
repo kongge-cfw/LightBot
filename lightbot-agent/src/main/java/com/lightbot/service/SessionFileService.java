@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.SessionFileContentVO;
-import com.lightbot.dto.SessionFileTreeResponseVO;
+import com.lightbot.vo.SessionFileContentVO;
+import com.lightbot.vo.SessionFileTreeResponseVO;
 
 /**
  * 会话文件服务：基于 MinIO 扫描的懒加载目录树 / 内容预览 / 下载 / 删除。

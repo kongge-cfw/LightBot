@@ -1,12 +1,12 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.GraphEdgeVO;
+import com.lightbot.vo.GraphEdgeVO;
 import com.lightbot.dto.GraphExtractRequest;
 import com.lightbot.dto.GraphImportRequest;
-import com.lightbot.dto.GraphNodeVO;
-import com.lightbot.dto.GraphStatsVO;
-import com.lightbot.dto.GraphSubgraphVO;
+import com.lightbot.vo.GraphNodeVO;
+import com.lightbot.vo.GraphStatsVO;
+import com.lightbot.vo.GraphSubgraphVO;
 import com.lightbot.service.GraphService;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;

@@ -5,7 +5,7 @@ import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.RagResultType;
 import com.lightbot.constant.ToolResultPrefixes;
 import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.RagReferenceVO;
+import com.lightbot.vo.RagReferenceVO;
 import com.lightbot.util.ChatDocumentMessageUtil;
 import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.InlineThinkingStreamParser;
