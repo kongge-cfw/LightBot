@@ -14,6 +14,38 @@
     <name>LightBot Server</name>
 
     <dependencies>
+        <!-- 业务模块：当前仅建立构建边界，后续阶段逐步迁移实现代码 -->
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-platform</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-ai</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-knowledge</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-tool</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-workflow</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.lightbot</groupId>
+            <artifactId>lightbot-agent</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!-- Spring Boot -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -202,6 +234,13 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>33.4.0-jre</version>
+        </dependency>
+
+        <!-- 测试：模块化迁移前的行为基线与回归保护 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 

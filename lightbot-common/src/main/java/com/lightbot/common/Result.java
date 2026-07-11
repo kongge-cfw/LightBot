@@ -2,6 +2,11 @@ package com.lightbot.common;
 
 import lombok.Data;
 
+/**
+ * 统一接口返回对象。
+ *
+ * @param <T> 响应数据类型
+ */
 @Data
 public class Result<T> {
 

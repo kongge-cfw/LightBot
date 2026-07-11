@@ -8,10 +8,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Jackson 全局配置
- *
- * @author finch
- * @since 2026-06-21
+ * Jackson 全局配置。
  */
 @Configuration
 public class JacksonConfig {

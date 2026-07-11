@@ -19,6 +19,14 @@
     </parent>
 
     <modules>
+        <module>lightbot-common</module>
+        <module>lightbot-framework</module>
+        <module>lightbot-platform</module>
+        <module>lightbot-ai</module>
+        <module>lightbot-knowledge</module>
+        <module>lightbot-tool</module>
+        <module>lightbot-workflow</module>
+        <module>lightbot-agent</module>
         <module>lightbot-server</module>
     </modules>
 

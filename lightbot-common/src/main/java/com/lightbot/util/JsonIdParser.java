@@ -7,42 +7,35 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * JSONB 数组 ID 解析工具
- *
- * @author finch
- * @since 2026-06-21
+ * JSONB 数组 ID 解析工具。
  */
 public final class JsonIdParser {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
 
-    private JsonIdParser() {}
+    private JsonIdParser() {
+    }
 
-    /**
-     * 解析 JSONB 数组字段中的 ID 列表
-     * 支持字符串和数字类型的 ID，自动转换为 Long
-     *
-     * @param json JSON 数组字符串
-     * @return ID 列表，解析失败返回空列表
-     */
     public static List<Long> parseIds(String json) {
         if (json == null || json.isBlank()) {
             return List.of();
         }
         try {
-            List<Object> raw = MAPPER.readValue(json, new TypeReference<>() {});
+            List<Object> raw = MAPPER.readValue(json, new TypeReference<>() {
+            });
             List<Long> ids = new ArrayList<>();
             for (Object item : raw) {
-                if (item == null) continue;
-                String text = item.toString().trim();
-                if (text.isBlank()) continue;
+                if (item == null || item.toString().trim().isBlank()) {
+                    continue;
+                }
                 try {
-                    ids.add(Long.parseLong(text));
+                    ids.add(Long.parseLong(item.toString().trim()));
                 } catch (NumberFormatException ignored) {
+                    // 忽略 JSON 数组中的非法 ID，保持既有兼容行为。
                 }
             }
             return ids;
-        } catch (Exception e) {
+        } catch (Exception ignored) {
             return List.of();
         }
     }
