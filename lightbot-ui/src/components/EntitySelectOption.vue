@@ -7,7 +7,8 @@
       <img :src="avatarUrl" :alt="name" @error="avatarBroken = true" />
     </span>
     <span v-else class="entity-select-avatar" :style="{ background: gradient }">
-      {{ letter }}
+      <DynamicIcon v-if="icon" :name="icon" :fallback="name" />
+      <template v-else>{{ letter }}</template>
     </span>
     <a-tooltip v-if="name" :title="name" placement="topLeft">
       <span class="entity-select-name">{{ name }}</span>
@@ -23,10 +24,12 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
 import { BINDING_GRADIENTS } from '../utils/bindingTheme'
+import DynamicIcon from './DynamicIcon.vue'
 
 const props = defineProps({
   type: { type: String, required: true },
   name: { type: String, default: '' },
+  icon: { type: String, default: '' },
   avatarUrl: { type: String, default: '' },
   tag: { type: String, default: '' },
   tagMuted: { type: String, default: '' },
@@ -67,6 +70,9 @@ const letter = computed(() => (props.name || '?')[0].toUpperCase())
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+.entity-select-avatar :deep(.anticon) {
+  font-size: 13px;
 }
 .entity-select-name {
   font-weight: 500;

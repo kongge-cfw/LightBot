@@ -38,6 +38,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
             Map.of(
                     "name", "research-agent",
                     "displayName", "深度研究员",
+                    "icon", "ExperimentOutlined",
                     "description", "利用搜索工具进行深入研究，将调研结果整理并返回。",
                     "systemPrompt", """
 你是一位专注的研究员。你的工作是根据用户的问题进行深入研究。
@@ -54,6 +55,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
             Map.of(
                     "name", "critique-agent",
                     "displayName", "内容审核员",
+                    "icon", "AuditOutlined",
                     "description", "用于审核和评论内容，指出可以改进的地方。",
                     "systemPrompt", """
 你是一位专注的内容审核员。你的任务是审核给定的内容并给出改进建议。
@@ -71,6 +73,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
             Map.of(
                     "name", "summarize-agent",
                     "displayName", "内容摘要员",
+                    "icon", "FileTextOutlined",
                     "description", "将长内容进行摘要，提取关键信息。",
                     "systemPrompt", """
 你是一位专业的内容摘要员。你的任务是将给定的长内容进行摘要，提取关键信息。
@@ -99,6 +102,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                 SubAgent subAgent = new SubAgent();
                 subAgent.setName(name);
                 subAgent.setDisplayName((String) data.get("displayName"));
+                subAgent.setIcon((String) data.get("icon"));
                 subAgent.setDescription((String) data.get("description"));
                 subAgent.setSystemPrompt((String) data.get("systemPrompt"));
                 subAgent.setToolIds(resolveToolIds((List<String>) data.get("tools")));
@@ -115,11 +119,13 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                 String newDescription = (String) data.get("description");
                 String newSystemPrompt = (String) data.get("systemPrompt");
                 String newToolIds = resolveToolIds((List<String>) data.get("tools"));
+                String newIcon = (String) data.get("icon");
 
                 boolean changed = !strEquals(existing.getDisplayName(), newDisplayName)
                         || !strEquals(existing.getDescription(), newDescription)
                         || !strEquals(existing.getSystemPrompt(), newSystemPrompt)
                         || !strEquals(existing.getToolIds(), newToolIds)
+                        || !strEquals(existing.getIcon(), newIcon)
                         || !Integer.valueOf(10).equals(existing.getConnectTimeoutSeconds())
                         || !Integer.valueOf(30).equals(existing.getReadTimeoutSeconds())
                         || !Integer.valueOf(1).equals(existing.getModelRetryTimes());
@@ -129,6 +135,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                     existing.setDescription(newDescription);
                     existing.setSystemPrompt(newSystemPrompt);
                     existing.setToolIds(newToolIds);
+                    existing.setIcon(newIcon);
                     existing.setConnectTimeoutSeconds(10);
                     existing.setReadTimeoutSeconds(30);
                     existing.setModelRetryTimes(1);

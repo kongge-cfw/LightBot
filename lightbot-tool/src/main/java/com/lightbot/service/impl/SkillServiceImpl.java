@@ -106,6 +106,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
         skill.setAgentId("agent".equals(scope) ? request.getAgentId() : null);
         skill.setName(request.getName());
         skill.setDisplayName(request.getDisplayName());
+        skill.setIcon(request.getIcon());
         skill.setDescription(request.getDescription());
         skill.setPromptTemplate(request.getPromptTemplate());
         skill.setConfig(request.getConfig());
@@ -159,6 +160,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
         }
         skill.setName(request.getName());
         skill.setDisplayName(request.getDisplayName());
+        skill.setIcon(request.getIcon());
         skill.setDescription(request.getDescription());
         skill.setConfig(request.getConfig());
         // 清理悬空工具/MCP引用

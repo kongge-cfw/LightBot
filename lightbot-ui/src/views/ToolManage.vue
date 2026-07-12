@@ -52,7 +52,7 @@
           <span v-if="(t.toolType?.code || t.toolType) === 'builtin'" class="type-badge badge-builtin">内置</span>
           <span v-else-if="(t.toolType?.code || t.toolType) === 'knowledge'" class="type-badge badge-knowledge">知识库</span>
           <span class="status-dot" :class="isDisabled(t) ? 'status-disabled' : 'status-active'"></span>
-          {{ (t.displayName || t.name || '?')[0].toUpperCase() }}
+          <DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" />
         </template>
         <template #info>
           <a-tooltip :title="t.displayName || t.name">
@@ -106,6 +106,9 @@
         </a-form-item>
         <a-form-item label="显示名称">
           <a-input v-model:value="form.displayName" placeholder="如：HTTP 请求（不超过30字）" :maxlength="30" show-count />
+        </a-form-item>
+        <a-form-item label="图标">
+          <IconPicker v-model:value="form.icon" />
         </a-form-item>
         <a-form-item label="描述">
           <a-textarea v-model:value="form.description" :rows="2" placeholder="工具用途说明（不超过50字）" :maxlength="50" show-count />
@@ -454,6 +457,8 @@ import { getTools, createTool, updateTool, deleteTool, testTool, setToolEnabled 
 import { getToolTypes } from '../api/enum'
 import JsonInput from '../components/JsonInput.vue'
 import EntityCard from '../components/EntityCard.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
+import IconPicker from '../components/IconPicker.vue'
 import { truncateText } from '../utils/format'
 
 function getPopupContainer() {
@@ -474,7 +479,7 @@ const tagSuggestions = ref([])
 const dialogVisible = ref(false)
 const submitting = ref(false)
 const form = reactive({
-  id: null, name: '', displayName: '', description: '',
+  id: null, name: '', displayName: '', icon: '', description: '',
   toolType: 'api', endpointUrl: '', authType: 'none',
   inputSchema: '{}', outputSchema: '{}', outputExample: '{}', authConfig: '{}', config: '{}',
   tags: [],
@@ -678,7 +683,7 @@ function openDialog(row) {
     })
   } else {
     Object.assign(form, {
-      id: null, name: '', displayName: '', description: '',
+      id: null, name: '', displayName: '', icon: '', description: '',
       toolType: 'api', endpointUrl: '', authType: 'none',
       inputSchema: '{}', outputSchema: '{}', outputExample: '{}', authConfig: '{}', config: '{}',
       tags: [],
@@ -696,6 +701,7 @@ async function handleSubmit() {
       id: form.id,
       name: form.name,
       displayName: form.displayName,
+      icon: form.icon,
       description: form.description,
       toolType: form.toolType,
       inputSchema: form.inputSchema,

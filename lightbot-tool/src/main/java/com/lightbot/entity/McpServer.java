@@ -35,6 +35,10 @@ public class McpServer {
     @Schema(description = "服务名称")
     private String name;
 
+    @TableField("icon")
+    @Schema(description = "图标标识（Ant Design 图标组件名，如 ApiOutlined），为空时前端降级首字母")
+    private String icon;
+
     @TableField("description")
     @Size(max = 200, message = "服务描述不超过200字")
     @Schema(description = "服务描述")

@@ -72,6 +72,7 @@ public class ToolRegistrar {
                 String tagsJson = resolveTagsJson(clazz, method);
                 String config = buildConfig(method);
                 String outputExample = resolveOutputExample(method, clazz);
+                String icon = resolveIcon(clazz, method);
 
                 Tool existing = toolService.getOne(
                         new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Tool>()
@@ -89,6 +90,7 @@ public class ToolRegistrar {
                     tool.setOutputExample(outputExample);
                     tool.setConfig(config);
                     tool.setTags(tagsJson);
+                    tool.setIcon(icon.isEmpty() ? null : icon);
                     tool.setStatus(CommonStatus.ACTIVE);
                     toolService.save(tool);
                     imported++;
@@ -124,6 +126,10 @@ public class ToolRegistrar {
                     }
                     if (!config.equals(existing.getConfig() != null ? existing.getConfig() : "{}")) {
                         existing.setConfig(config);
+                        changed = true;
+                    }
+                    if (!icon.isEmpty() && !icon.equals(existing.getIcon())) {
+                        existing.setIcon(icon);
                         changed = true;
                     }
                     if (changed) {
@@ -164,6 +170,21 @@ public class ToolRegistrar {
             return classTool.displayName();
         }
         return fallback;
+    }
+
+    /**
+     * 解析图标：方法级别 > 类级别，默认空
+     */
+    private String resolveIcon(Class<?> clazz, Method method) {
+        SystemTool methodTool = method.getAnnotation(SystemTool.class);
+        if (methodTool != null && !methodTool.icon().isEmpty()) {
+            return methodTool.icon();
+        }
+        SystemTool classTool = clazz.getAnnotation(SystemTool.class);
+        if (classTool != null && !classTool.icon().isEmpty()) {
+            return classTool.icon();
+        }
+        return "";
     }
 
     /**

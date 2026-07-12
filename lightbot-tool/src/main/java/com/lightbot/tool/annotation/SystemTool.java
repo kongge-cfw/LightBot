@@ -28,6 +28,12 @@ public @interface SystemTool {
     String displayName();
 
     /**
+     * 图标标识（Ant Design 图标组件名，如 GlobalOutlined）
+     * <p>方法级别 > 类级别；为空则前端降级首字母。</p>
+     */
+    String icon() default "";
+
+    /**
      * 工具描述
      */
     String description() default "";

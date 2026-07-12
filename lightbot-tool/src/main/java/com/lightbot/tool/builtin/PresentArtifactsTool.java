@@ -31,7 +31,7 @@ import java.util.Map;
 @Slf4j
 @Component("presentArtifactsTool")
 @RequiredArgsConstructor
-@SystemTool(displayName = "文件交付", description = "将工作区中生成的文件交付给用户，支持图片预览和文档下载",
+@SystemTool(displayName = "文件交付", icon = "FileDoneOutlined", description = "将工作区中生成的文件交付给用户，支持图片预览和文档下载",
         tags = {"file", "交付"},
         outputExample = "{\"success\":true,\"artifacts\":[{\"name\":\"report.pdf\",\"path\":\"output/report.pdf\",\"url\":\"https://...\",\"size\":102400,\"contentType\":\"application/pdf\"}]}",
         outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"artifacts\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"name\":{\"type\":\"string\"},\"path\":{\"type\":\"string\"},\"url\":{\"type\":\"string\"},\"size\":{\"type\":\"integer\"},\"contentType\":{\"type\":\"string\"}}}}}}")

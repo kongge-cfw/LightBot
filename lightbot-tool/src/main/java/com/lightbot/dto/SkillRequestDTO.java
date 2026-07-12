@@ -1,5 +1,6 @@
 package com.lightbot.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -13,6 +14,7 @@ import java.util.List;
  * @since 2026-05-20
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SkillRequestDTO {
 
     private Long id;
@@ -39,6 +41,10 @@ public class SkillRequestDTO {
 
     @Size(max = 30, message = "显示名称不超过30字")
     private String displayName;
+
+    /** 图标标识（Ant Design 图标组件名，如 ExperimentOutlined） */
+    @Size(max = 64, message = "图标标识不超过64字")
+    private String icon;
 
     @Size(max = 50, message = "技能描述不超过50字")
     private String description;

@@ -11,7 +11,7 @@
         @click="openDetail(s)"
       >
         <template #icon>
-          {{ (s.displayName || s.name || 'S')[0].toUpperCase() }}
+          <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
           <span v-if="s.isBuiltin === 1" class="builtin-badge">内置</span>
           <span class="status-dot" :class="s.enabled === 1 ? 'status-active' : 'status-disabled'"></span>
         </template>
@@ -77,6 +77,9 @@
         <a-form-item label="显示名称" required>
           <a-input v-model:value="form.displayName" placeholder="中文显示名称（不超过30字）" :maxlength="30" show-count />
         </a-form-item>
+        <a-form-item label="图标">
+          <IconPicker v-model:value="form.icon" />
+        </a-form-item>
         <a-form-item label="描述" required>
           <a-textarea v-model:value="form.description" placeholder="SubAgent 描述（不超过50字）" :rows="2" :maxlength="50" show-count />
         </a-form-item>
@@ -92,8 +95,8 @@
             allow-clear
             option-label-prop="label"
           >
-            <template #option="{ value, label, toolType, description }">
-              <EntitySelectOption type="tool" :name="label" :tag="toolType" :desc="description" />
+            <template #option="{ value, label, toolType, description, icon }">
+              <EntitySelectOption type="tool" :name="label" :icon="icon" :tag="toolType" :desc="description" />
             </template>
           </a-select>
         </a-form-item>
@@ -264,6 +267,8 @@ import { RobotOutlined, EditOutlined, DeleteOutlined, ToolOutlined, QuestionCirc
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
+import IconPicker from '../components/IconPicker.vue'
 import { getSubAgents, createSubAgent, updateSubAgent, deleteSubAgent, setSubAgentEnabled } from '../api/subagent'
 import { getTools } from '../api/tool'
 import { getProvidersWithModels } from '../api/modelProvider'
@@ -288,6 +293,7 @@ const inheritModel = ref(true)
 const form = reactive({
   name: '',
   displayName: '',
+  icon: '',
   description: '',
   systemPrompt: '',
   toolIds: [],
@@ -310,6 +316,7 @@ const toolOptions = computed(() => {
   return toolList.value.map(t => ({
     value: String(t.id),
     label: t.displayName || t.name,
+    icon: t.icon,
     toolType: getToolTypeLabel(t.toolType),
     description: t.description,
   }))
@@ -376,7 +383,7 @@ function openDialog() {
   editingId.value = null
   inheritModel.value = true
   staleToolOptions.value = []
-  Object.assign(form, { name: '', displayName: '', description: '', systemPrompt: '', toolIds: [], providerId: null, llmModel: null, connectTimeoutSeconds: 10, readTimeoutSeconds: 120, modelRetryTimes: 1, enabled: true })
+  Object.assign(form, { name: '', displayName: '', icon: '', description: '', systemPrompt: '', toolIds: [], providerId: null, llmModel: null, connectTimeoutSeconds: 10, readTimeoutSeconds: 120, modelRetryTimes: 1, enabled: true })
   dialogVisible.value = true
 }
 
@@ -397,6 +404,7 @@ function openEditDialog(record) {
   Object.assign(form, {
     name: record.name,
     displayName: record.displayName,
+    icon: record.icon || '',
     description: record.description,
     systemPrompt: record.systemPrompt,
     toolIds: selectedIds,
@@ -457,6 +465,7 @@ async function doSave() {
     const data = {
       name: form.name,
       displayName: form.displayName,
+      icon: form.icon,
       description: form.description,
       systemPrompt: form.systemPrompt,
       toolIds: form.toolIds,

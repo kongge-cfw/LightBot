@@ -93,6 +93,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 4 }">
         <a-form-item label="模板标识" required>
           <a-input v-model:value="form.promptTemplateKey" :maxlength="30" show-count placeholder="如：customer_service (不超过30字)" :disabled="!!form.id" />
@@ -124,6 +125,7 @@
           <TagInput v-model="form.tags" />
         </a-form-item>
       </a-form>
+      </div>
       <div class="dialog-footer">
         <div></div>
         <div class="dialog-footer-right">
@@ -446,6 +448,23 @@ function handleDelete(id) {
   display: flex;
   justify-content: space-between;
   margin-top: 16px;
+}
+
+.dialog-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 12px);
+  scrollbar-gutter: stable;
+}
+.dialog-scroll-body::-webkit-scrollbar {
+  width: 5px;
+}
+.dialog-scroll-body::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+.dialog-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .dialog-footer-right { display: flex; gap: 8px; }

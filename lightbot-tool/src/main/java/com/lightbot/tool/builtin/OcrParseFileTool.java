@@ -31,7 +31,7 @@ import java.util.Set;
 @Slf4j
 @Component("ocrParseFileTool")
 @RequiredArgsConstructor
-@SystemTool(displayName = "OCR 解析文件", description = "将沙盒中的 PDF/图片文件 OCR 解析为文本并保存为文件", tags = {"文件", "OCR"},
+@SystemTool(displayName = "OCR 解析文件", icon = "ScanOutlined", description = "将沙盒中的 PDF/图片文件 OCR 解析为文本并保存为文件", tags = {"文件", "OCR"},
         outputExample = "{\"source_path\":\"invoice.pdf\",\"parsed_path\":\"ocr/invoice.md\",\"char_count\":1280,\"preview\":\"识别文本前1200字...\",\"truncated\":true}",
         outputSchema = "{\"type\":\"object\",\"properties\":{\"source_path\":{\"type\":\"string\",\"description\":\"源文件路径\"},\"parsed_path\":{\"type\":\"string\",\"description\":\"解析结果 Markdown 文件路径（工作区相对路径）\"},\"char_count\":{\"type\":\"integer\",\"description\":\"识别文本字符数\"},\"preview\":{\"type\":\"string\",\"description\":\"识别文本预览（最多1200字）\"},\"truncated\":{\"type\":\"boolean\",\"description\":\"预览是否被截断\"}}}")
 public class OcrParseFileTool {

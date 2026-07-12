@@ -34,7 +34,7 @@ import java.util.Map;
 @Slf4j
 @Component("installSkillTool")
 @RequiredArgsConstructor
-@SystemTool(displayName = "技能安装", description = "从 GitHub 仓库安装技能，安装后自动激活",
+@SystemTool(displayName = "技能安装", icon = "DownloadOutlined", description = "从 GitHub 仓库安装技能，安装后自动激活",
         tags = {"技能", "安装"},
         outputExample = "{\"success\":true,\"installed\":[{\"slug\":\"deep-research\",\"displayName\":\"深度研究\",\"activated\":true}],\"total\":1}",
         outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"installed\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"slug\":{\"type\":\"string\"},\"displayName\":{\"type\":\"string\"},\"activated\":{\"type\":\"boolean\"}}}},\"errors\":{\"type\":\"array\",\"items\":{\"type\":\"string\"}},\"total\":{\"type\":\"integer\"}}}")

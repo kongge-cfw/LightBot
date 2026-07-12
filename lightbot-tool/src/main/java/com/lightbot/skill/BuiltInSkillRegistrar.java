@@ -70,6 +70,7 @@ public class BuiltInSkillRegistrar implements ApplicationRunner {
             skill.setSlug(slug);
             skill.setName(def.name());
             skill.setDisplayName(def.displayName());
+            skill.setIcon(def.icon());
             skill.setDescription(def.description());
             skill.setPromptTemplate(def.promptTemplate());
             skill.setToolIds(toolIdsJson);
@@ -98,12 +99,14 @@ public class BuiltInSkillRegistrar implements ApplicationRunner {
                 || existing.getIsBuiltin() == null
                 || !toolIdsJson.equals(existing.getToolIds())
                 || existing.getObjectPrefix() == null
+                || !java.util.Objects.equals(def.icon(), existing.getIcon())
                 || minioFileMissing;
         if (!needsUpdate) {
             return;
         }
         existing.setName(def.name());
         existing.setDisplayName(def.displayName());
+        existing.setIcon(def.icon());
         existing.setDescription(def.description());
         existing.setPromptTemplate(def.promptTemplate());
         existing.setToolIds(toolIdsJson);

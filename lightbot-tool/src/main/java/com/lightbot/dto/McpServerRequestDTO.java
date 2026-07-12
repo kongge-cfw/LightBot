@@ -1,5 +1,6 @@
 package com.lightbot.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.lightbot.enums.McpInstallType;
 import com.lightbot.enums.McpTransportType;
 import jakarta.validation.constraints.NotNull;
@@ -13,6 +14,7 @@ import lombok.Data;
  * @since 2026-05-20
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class McpServerRequestDTO {
 
     private Long id;
@@ -23,6 +25,10 @@ public class McpServerRequestDTO {
 
     @Size(max = 50, message = "服务描述不超过50字")
     private String description;
+
+    /** 图标标识（Ant Design 图标组件名，如 ApiOutlined） */
+    @Size(max = 64, message = "图标标识不超过64字")
+    private String icon;
 
     @NotNull(message = "安装类型不能为空")
     private McpInstallType installType;

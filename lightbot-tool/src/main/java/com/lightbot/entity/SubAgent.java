@@ -35,6 +35,10 @@ public class SubAgent {
     @Schema(description = "显示名称（中文）")
     private String displayName;
 
+    @TableField("icon")
+    @Schema(description = "图标标识（Ant Design 图标组件名，如 RobotOutlined），为空时前端降级首字母")
+    private String icon;
+
     @TableField("description")
     @Size(max = 200, message = "子智能体描述不超过200字")
     @Schema(description = "子智能体描述")

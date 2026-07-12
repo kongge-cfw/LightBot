@@ -63,6 +63,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
         // 2. 构建实体并保存
         McpServer server = new McpServer();
         server.setName(request.getName());
+        server.setIcon(request.getIcon());
         server.setDescription(request.getDescription());
         server.setInstallType(request.getInstallType());
         server.setDeployConfig(request.getDeployConfig());
@@ -93,6 +94,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
 
         // 3. 更新字段
         server.setName(request.getName());
+        server.setIcon(request.getIcon());
         server.setDescription(request.getDescription());
         server.setInstallType(request.getInstallType());
         server.setDeployConfig(request.getDeployConfig());

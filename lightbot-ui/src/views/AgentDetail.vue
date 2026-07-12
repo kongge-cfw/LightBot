@@ -952,7 +952,7 @@
                 class="knowledge-tag tool-tag"
                 :class="{ 'binding-tag--deleted': t._deleted, 'binding-tag--disabled': t._disabled && !t._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #10b981, #059669)">{{ (t.displayName || t.name || '?')[0].toUpperCase() }}</span>
+                <span class="tag-avatar" style="background: linear-gradient(135deg, #10b981, #059669)"><DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" /></span>
                 <span>{{ t.displayName || t.name }}</span>
                 <span v-if="t._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="t._disabled" class="binding-disabled-tag">已禁用</span>
@@ -1008,7 +1008,7 @@
                 <div class="item-icon tool-icon-bg">
                   <span v-if="isKnowledgeTool(t)" class="knowledge-badge">知识库</span>
                   <span v-else-if="(t.toolType?.code || t.toolType) === 'builtin'" class="builtin-badge">内置</span>
-                  {{ (t.displayName || t.name || '?')[0].toUpperCase() }}
+                  <DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" />
                 </div>
                 <div class="item-info">
                   <div class="item-name">{{ t.displayName || t.name }}</div>
@@ -1147,7 +1147,7 @@
                 class="knowledge-tag mcp-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)">{{ (s.name || 'M')[0].toUpperCase() }}</span>
+                <span class="tag-avatar" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)"><DynamicIcon :name="s.icon" :fallback="s.name" /></span>
                 <span>{{ s.name }}</span>
                 <span v-if="s._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="s._disabled" class="binding-disabled-tag">已禁用</span>
@@ -1179,7 +1179,7 @@
                 @click="!isVersionPreview && toggleMcpServer(s)"
               >
                 <div class="item-icon mcp-icon-bg">
-                  {{ (s.name || 'M')[0].toUpperCase() }}
+                  <DynamicIcon :name="s.icon" :fallback="s.name" />
                 </div>
                 <div class="item-info">
                   <div class="item-name">{{ s.name }}</div>
@@ -1223,7 +1223,7 @@
                 class="knowledge-tag subagent-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #f59e0b, #d97706)">{{ (s.displayName || s.name || 'S')[0].toUpperCase() }}</span>
+                <span class="tag-avatar" style="background: linear-gradient(135deg, #f59e0b, #d97706)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
                 <span>{{ s.displayName || s.name }}</span>
                 <span v-if="s._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="s._disabled" class="binding-disabled-tag">已禁用</span>
@@ -1256,7 +1256,7 @@
               >
                 <div class="item-icon subagent-icon">
                   <span v-if="s.isBuiltin === 1" class="builtin-badge">内置</span>
-                  {{ (s.displayName || s.name || 'S')[0].toUpperCase() }}
+                  <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
                 </div>
                 <div class="item-info">
                   <div class="item-name">{{ s.displayName }}</div>
@@ -1301,7 +1301,7 @@
                 class="knowledge-tag skill-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #ec4899, #db2777)">{{ (s.displayName || s.name || 'S')[0].toUpperCase() }}</span>
+                <span class="tag-avatar" style="background: linear-gradient(135deg, #ec4899, #db2777)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
                 <span class="tag-name-wrap">
                   <span>{{ s.displayName || s.name }}</span>
                   <span v-if="s.isBuiltin === 1" class="binding-inline-badge">内置</span>
@@ -1337,7 +1337,7 @@
               >
                 <div class="item-icon skill-icon">
                   <span v-if="s.isBuiltin === 1" class="builtin-badge">内置</span>
-                  {{ (s.displayName || s.name || 'S')[0].toUpperCase() }}
+                  <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
                 </div>
                 <div class="item-info">
                   <div class="item-name">{{ s.displayName || s.name }}</div>
@@ -1714,6 +1714,7 @@ import {
   removeDeletedIdsFromSet,
 } from '../utils/bindingId'
 import DynamicToolDrawer from '../components/DynamicToolDrawer.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
 import { useBinding } from '../composables/useBinding'
 const route = useRoute()
 const router = useRouter()

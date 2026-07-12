@@ -1,5 +1,6 @@
 package com.lightbot.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -14,6 +15,7 @@ import java.util.List;
  * @since 2026-05-24
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Schema(description = "SubAgent请求")
 public class SubAgentRequestDTO {
 
@@ -29,6 +31,10 @@ public class SubAgentRequestDTO {
     @Size(max = 30, message = "显示名称不超过30字")
     @Schema(description = "显示名称（中文）")
     private String displayName;
+
+    @Size(max = 64, message = "图标标识不超过64字")
+    @Schema(description = "图标标识（Ant Design 图标组件名，如 RobotOutlined）")
+    private String icon;
 
     @NotBlank(message = "描述不能为空")
     @Size(max = 50, message = "子智能体描述不超过50字")

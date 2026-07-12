@@ -35,6 +35,7 @@ public class BuiltinMcpRegistrar {
             new BuiltInMcp(
                     "sequentialthinking",
                     "顺序思考工具，帮助AI将复杂问题分解为多个步骤",
+                    "BranchesOutlined",
                     McpInstallType.SSE,
                     McpTransportType.STREAMABLE_HTTP,
                     "https://remote.mcpservers.org/sequentialthinking/mcp",
@@ -43,6 +44,7 @@ public class BuiltinMcpRegistrar {
             new BuiltInMcp(
                     "mcp-server-chart",
                     "图表生成工具，支持生成柱状图、折线图、饼图等各类图表",
+                    "BarChartOutlined",
                     McpInstallType.NPX,
                     McpTransportType.STDIO,
                     null,
@@ -66,6 +68,7 @@ public class BuiltinMcpRegistrar {
                     McpServer server = new McpServer();
                     server.setName(def.name);
                     server.setDescription(def.description);
+                    server.setIcon(def.icon);
                     server.setInstallType(def.installType);
                     server.setTransport(def.transport);
                     server.setHost(def.host);
@@ -91,6 +94,7 @@ public class BuiltinMcpRegistrar {
     private record BuiltInMcp(
             String name,
             String description,
+            String icon,
             McpInstallType installType,
             McpTransportType transport,
             String host,

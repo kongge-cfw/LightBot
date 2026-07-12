@@ -42,11 +42,11 @@
         <template #icon>
           <span v-if="s.isBuiltin === 1" class="builtin-badge">内置</span>
           <span class="status-dot" :class="s.status === 'disabled' ? 'status-disabled' : 'status-active'"></span>
-          {{ (s.displayName || s.name || 'S')[0].toUpperCase() }}
+          <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
         </template>
         <template #actions>
-          <a-tooltip v-if="s.isBuiltin !== 1" title="删除">
-            <button class="btn-icon danger" @click="handleDelete(s)"><DeleteOutlined /></button>
+          <a-tooltip v-if="s.isBuiltin !== 1" title="编辑">
+            <button class="btn-icon" @click="openDialog(s)"><EditOutlined /></button>
           </a-tooltip>
           <a-dropdown :trigger="['click']">
             <button class="btn-icon" @click.prevent><MoreOutlined /></button>
@@ -59,6 +59,9 @@
                 </a-menu-item>
                 <a-menu-item @click="handleExport(s)">
                   <ExportOutlined style="margin-right: 6px" /> 导出 ZIP
+                </a-menu-item>
+                <a-menu-item v-if="s.isBuiltin !== 1" danger @click="handleDelete(s)">
+                  <DeleteOutlined style="margin-right: 6px" /> 删除
                 </a-menu-item>
               </a-menu>
             </template>
@@ -90,6 +93,7 @@
         <span>{{ form.id ? '编辑 Skill' : '新增 Skill' }}</span>
         <QuestionCircleOutlined class="help-icon" @click.stop="guideVisible = true" />
       </template>
+      <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 5 }">
         <a-form-item label="slug" required v-if="!form.id || form.scope === 'global'">
           <a-input v-model:value="form.slug" placeholder="英文-小写-短横线，如 deep-research（不超过30字）" :maxlength="30" show-count :disabled="form.id && form.isBuiltin === 1" />
@@ -100,13 +104,16 @@
         <a-form-item label="显示名称">
           <a-input v-model:value="form.displayName" placeholder="中文，如 深度研究（不超过30字）" :maxlength="30" show-count />
         </a-form-item>
+        <a-form-item label="图标">
+          <IconPicker v-model:value="form.icon" />
+        </a-form-item>
         <a-form-item label="描述">
           <a-textarea v-model:value="form.description" :rows="2" placeholder="什么场景启用这个技能（不超过50字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="依赖工具">
           <a-select v-model:value="form.toolIds" mode="multiple" placeholder="选择该 Skill 启用时附带的工具" style="width: 100%" option-label-prop="label">
             <a-select-option v-for="t in toolList" :key="t.id" :value="String(t.id)" :label="t.displayName || t.name">
-              <EntitySelectOption type="tool" :name="t.displayName || t.name" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
+              <EntitySelectOption type="tool" :name="t.displayName || t.name" :icon="t.icon" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
             </a-select-option>
             <a-select-option v-for="s in staleToolOptions" :key="s.value" :value="s.value" :label="s.label" disabled>
               <span style="color: #ef4444;">{{ s.label }}</span>
@@ -116,7 +123,7 @@
         <a-form-item label="依赖 MCP Server">
           <a-select v-model:value="form.mcpServerIds" mode="multiple" placeholder="选择该 Skill 启用时附带的 MCP Server" style="width: 100%" option-label-prop="label">
             <a-select-option v-for="m in mcpList" :key="m.id" :value="String(m.id)" :label="m.name">
-              <EntitySelectOption type="mcp" :name="m.name" :tag="({ npx: 'NPX', uvx: 'UVX', sse: 'SSE' })[m.installType?.code || m.installType] || m.installType?.code || m.installType || ''" :desc="m.description" />
+              <EntitySelectOption type="mcp" :name="m.name" :icon="m.icon" :tag="({ npx: 'NPX', uvx: 'UVX', sse: 'SSE' })[m.installType?.code || m.installType] || m.installType?.code || m.installType || ''" :desc="m.description" />
             </a-select-option>
             <a-select-option v-for="s in staleMcpOptions" :key="s.value" :value="s.value" :label="s.label" disabled>
               <span style="color: #ef4444;">{{ s.label }}</span>
@@ -133,6 +140,7 @@
           <JsonInput v-model="form.config" :rows="2" placeholder="JSON 格式的扩展配置（可选）" />
         </a-form-item>
       </a-form>
+      </div>
       <div class="dialog-footer">
         <div></div>
         <div class="dialog-footer-right">
@@ -200,6 +208,8 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutli
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
+import IconPicker from '../components/IconPicker.vue'
 import { getSkills, createSkill, updateSkill, deleteSkill, setSkillEnabled, exportSkillZip } from '../api/skill'
 import { getTools } from '../api/tool'
 import { getMcpServers } from '../api/mcp'
@@ -225,7 +235,7 @@ const importModalVisible = ref(false)
 const remoteInstallVisible = ref(false)
 const submitting = ref(false)
 const form = reactive({
-  id: null, slug: '', name: '', displayName: '',
+  id: null, slug: '', name: '', displayName: '', icon: '',
   description: '', promptTemplate: '', config: '{}', sortOrder: 0,
   toolIds: [], mcpServerIds: [], skillDependencies: [], scope: 'global', isBuiltin: 0,
 })
@@ -301,7 +311,7 @@ function openDialog(row) {
     })
   } else {
     Object.assign(form, {
-      id: null, slug: '', name: '', displayName: '',
+      id: null, slug: '', name: '', displayName: '', icon: '',
       description: '', promptTemplate: '', config: '{}', sortOrder: 0,
       toolIds: [], mcpServerIds: [], skillDependencies: [], scope: 'global', isBuiltin: 0,
     })
@@ -450,6 +460,22 @@ defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallMo
 
 .card-grid {
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+}
+.dialog-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 12px);
+  scrollbar-gutter: stable;
+}
+.dialog-scroll-body::-webkit-scrollbar {
+  width: 5px;
+}
+.dialog-scroll-body::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+}
+.dialog-scroll-body::-webkit-scrollbar-track {
+  background: transparent;
 }
 .detail-scroll-body {
   max-height: calc(100vh - 260px);

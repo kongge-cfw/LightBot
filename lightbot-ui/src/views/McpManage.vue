@@ -34,7 +34,7 @@
       >
         <template #icon>
           <span class="status-dot" :class="isDisabled(s) ? 'status-disabled' : 'status-active'"></span>
-          {{ (s.name || 'M')[0].toUpperCase() }}
+          <DynamicIcon :name="s.icon" :fallback="s.name" />
         </template>
         <template #actions>
           <a-tooltip title="删除">
@@ -89,6 +89,9 @@
       <a-form :model="form" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：filesystem-server（不超过30字）" :maxlength="30" show-count />
+        </a-form-item>
+        <a-form-item label="图标">
+          <IconPicker v-model:value="form.icon" />
         </a-form-item>
         <a-form-item label="描述">
           <a-input v-model:value="form.description" placeholder="服务用途说明（不超过50字）" :maxlength="50" show-count />
@@ -363,6 +366,8 @@ import { message, Modal } from 'ant-design-vue'
 import { getMcpServers, createMcpServer, updateMcpServer, deleteMcpServer, testMcpServer, getMcpServerTools, refreshMcpServerTools, toggleMcpTool, setMcpServerEnabled } from '../api/mcp'
 import JsonInput from '../components/JsonInput.vue'
 import EntityCard from '../components/EntityCard.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
+import IconPicker from '../components/IconPicker.vue'
 import { truncateText } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
 
@@ -371,7 +376,7 @@ const loading = ref(false)
 const searchText = ref('')
 const dialogVisible = ref(false)
 const submitting = ref(false)
-const form = reactive({ id: null, name: '', description: '', installType: 'npx', transport: 'stdio', host: '' })
+const form = reactive({ id: null, name: '', icon: '', description: '', installType: 'npx', transport: 'stdio', host: '' })
 const deployForm = reactive({ packageName: '', args: '', env: '', headers: '' })
 const testingId = ref(null)
 const toolsDrawerVisible = ref(false)
@@ -521,7 +526,7 @@ function openDialog(row) {
     Object.assign(form, { ...row, installType: row.installType?.code || row.installType, transport })
     parseDeployConfig(row.deployConfig)
   } else {
-    Object.assign(form, { id: null, name: '', description: '', installType: 'npx', transport: 'stdio', host: '' })
+    Object.assign(form, { id: null, name: '', icon: '', description: '', installType: 'npx', transport: 'stdio', host: '' })
     onInstallTypeChange()
   }
   dialogVisible.value = true

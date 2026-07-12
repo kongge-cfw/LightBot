@@ -26,7 +26,7 @@ import java.util.Map;
 @Slf4j
 @Component("executeCodeTool")
 @RequiredArgsConstructor
-@SystemTool(displayName = "代码执行", description = "在安全沙盒中执行代码片段并返回结果",
+@SystemTool(displayName = "代码执行", icon = "CodeOutlined", description = "在安全沙盒中执行代码片段并返回结果",
         tags = {"code", "execution", "sandbox"},
         outputExample = "{\"success\":true,\"output\":\"\",\"returnValue\":\"2026-06-24T10:30:00\",\"error\":null,\"elapsedMs\":42,\"language\":\"java\"}",
         outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\",\"description\":\"是否成功\"},\"output\":{\"type\":\"string\",\"description\":\"stdout输出\"},\"returnValue\":{\"type\":\"string\",\"description\":\"返回值\"},\"error\":{\"type\":\"string\",\"description\":\"错误信息\"},\"elapsedMs\":{\"type\":\"number\",\"description\":\"执行耗时(ms)\"},\"language\":{\"type\":\"string\",\"description\":\"使用的语言\"}}}")

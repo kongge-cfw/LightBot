@@ -27,7 +27,7 @@ import java.util.Map;
 @Slf4j
 @Component("sandboxFileTool")
 @RequiredArgsConstructor
-@SystemTool(displayName = "沙盒文件操作", description = "在沙盒中读写文件，支持 Skill 只读访问和工作区读写",
+@SystemTool(displayName = "沙盒文件操作", icon = "FolderOutlined", description = "在沙盒中读写文件，支持 Skill 只读访问和工作区读写",
         tags = {"file", "sandbox"})
 public class SandboxFileTool {
 

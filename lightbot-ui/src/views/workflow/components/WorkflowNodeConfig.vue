@@ -255,7 +255,7 @@
             :value="String(t.id)"
             :label="t.displayName || t.name"
           >
-            <EntitySelectOption type="tool" :name="t.displayName || t.name" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
+            <EntitySelectOption type="tool" :name="t.displayName || t.name" :icon="t.icon" :tag="getToolTypeLabel(t.toolType)" :desc="t.description" />
           </a-select-option>
         </a-select>
       </a-form-item>
@@ -697,7 +697,7 @@
           >
             <div class="resource-option">
               <div class="resource-option-header">
-                <EntitySelectOption type="mcp" :name="s.name" :tag="mcpInstallTypeLabel(s)" />
+                <EntitySelectOption type="mcp" :name="s.name" :icon="s.icon" :tag="mcpInstallTypeLabel(s)" />
               </div>
               <div v-if="s.description" class="resource-option-desc">{{ s.description }}</div>
             </div>

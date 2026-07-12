@@ -45,6 +45,10 @@ public class Tool {
     @Schema(description = "显示名称")
     private String displayName;
 
+    @TableField("icon")
+    @Schema(description = "图标标识（Ant Design 图标组件名，如 GlobalOutlined），为空时前端降级首字母")
+    private String icon;
+
     @TableField("description")
     @Size(max = 200, message = "工具描述不超过200字")
     @Schema(description = "Tool描述")

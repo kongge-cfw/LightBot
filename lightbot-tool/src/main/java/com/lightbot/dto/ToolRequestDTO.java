@@ -1,5 +1,6 @@
 package com.lightbot.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.lightbot.enums.AuthType;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ToolType;
@@ -15,6 +16,7 @@ import lombok.Data;
  * @since 2026-05-20
  */
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class ToolRequestDTO {
 
     private Long id;
@@ -25,6 +27,10 @@ public class ToolRequestDTO {
 
     @Size(max = 30, message = "显示名称不超过30字")
     private String displayName;
+
+    /** 图标标识（Ant Design 图标组件名，如 GlobalOutlined） */
+    @Size(max = 64, message = "图标标识不超过64字")
+    private String icon;
 
     @Size(max = 50, message = "工具描述不超过50字")
     private String description;

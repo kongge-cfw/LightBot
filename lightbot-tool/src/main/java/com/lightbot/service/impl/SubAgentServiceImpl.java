@@ -67,6 +67,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         SubAgent subAgent = new SubAgent();
         subAgent.setName(request.getName());
         subAgent.setDisplayName(request.getDisplayName());
+        subAgent.setIcon(request.getIcon());
         subAgent.setDescription(request.getDescription());
         subAgent.setSystemPrompt(request.getSystemPrompt());
         subAgent.setToolIds(toJson(request.getToolIds()));
@@ -104,6 +105,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         request.setToolIds(cleanStaleToolIds(request.getToolIds()));
         subAgent.setName(request.getName());
         subAgent.setDisplayName(request.getDisplayName());
+        subAgent.setIcon(request.getIcon());
         subAgent.setDescription(request.getDescription());
         subAgent.setSystemPrompt(request.getSystemPrompt());
         subAgent.setToolIds(toJson(request.getToolIds()));

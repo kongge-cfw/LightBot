@@ -93,6 +93,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         Tool tool = new Tool();
         tool.setName(request.getName());
         tool.setDisplayName(request.getDisplayName());
+        tool.setIcon(request.getIcon());
         tool.setDescription(request.getDescription());
         tool.setToolType(request.getToolType());
         tool.setInputSchema(request.getInputSchema());
@@ -129,6 +130,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         // 4. 更新字段
         tool.setName(request.getName());
         tool.setDisplayName(request.getDisplayName());
+        tool.setIcon(request.getIcon());
         tool.setDescription(request.getDescription());
         tool.setToolType(request.getToolType());
         tool.setInputSchema(request.getInputSchema());
