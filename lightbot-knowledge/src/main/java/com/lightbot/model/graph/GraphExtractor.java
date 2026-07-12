@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.dto.GraphTripleDTO;
 import com.lightbot.model.ModelFactory;
+import com.lightbot.util.ModelErrorClassifier;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -100,6 +101,9 @@ public class GraphExtractor {
             String text = response.getResult().getOutput().getText();
             return parseTriples(text);
         } catch (Exception e) {
+            if (ModelErrorClassifier.isFatal(e)) {
+                throw ModelErrorClassifier.toRuntimeException(e);
+            }
             log.warn("[图谱抽取] LLM 抽取失败: {}", e.toString(), e);
             return Collections.emptyList();
         }
@@ -190,8 +194,11 @@ public class GraphExtractor {
             String text = response.getResult().getOutput().getText();
             return parseTriples(text);
         } catch (Exception e) {
+            if (ModelErrorClassifier.isFatal(e)) {
+                throw ModelErrorClassifier.toRuntimeException(e);
+            }
             log.warn("[图谱抽取] 批量LLM抽取失败, 降级为逐个抽取: {}", e.toString(), e);
-            // 降级：逐个抽取
+            // 降级：逐个抽取（仅非致命错误）
             List<GraphTripleDTO> fallback = new ArrayList<>();
             for (String content : contents) {
                 fallback.addAll(extract(content, providerId, modelId, schema, modelParams));

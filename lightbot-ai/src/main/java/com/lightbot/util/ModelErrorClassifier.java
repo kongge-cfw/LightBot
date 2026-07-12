@@ -60,10 +60,11 @@ public final class ModelErrorClassifier {
      * @return 错误码（TIMEOUT/RATE_LIMITED/AUTH_ERROR/TOKEN_LIMIT/CONTENT_FILTER/LLM_ERROR/UNKNOWN）
      */
     public static String classifyCode(Throwable e) {
-        if (e == null) {
+        Throwable root = unwrap(e);
+        if (root == null) {
             return "UNKNOWN";
         }
-        String msg = e.getMessage();
+        String msg = root.getMessage();
         if (msg == null) {
             return "UNKNOWN";
         }
@@ -83,5 +84,60 @@ public final class ModelErrorClassifier {
             return "CONTENT_FILTER";
         }
         return "LLM_ERROR";
+    }
+
+    /**
+     * 展开 CompletionException 等包装异常，获取根因
+     *
+     * @param e 异常
+     * @return 根因异常
+     */
+    public static Throwable unwrap(Throwable e) {
+        if (e == null) {
+            return null;
+        }
+        Throwable current = e;
+        while (current.getCause() != null && current != current.getCause()) {
+            String className = current.getClass().getName();
+            if (className.contains("CompletionException")
+                    || className.contains("ExecutionException")
+                    || className.contains("RetryException")) {
+                current = current.getCause();
+                continue;
+            }
+            break;
+        }
+        return current;
+    }
+
+    /**
+     * 判断是否为不可重试的致命模型错误（如 API Key 无效、无可用提供商）
+     *
+     * @param e 异常
+     * @return 致命错误返回 true
+     */
+    public static boolean isFatal(Throwable e) {
+        Throwable root = unwrap(e);
+        if (root == null) {
+            return false;
+        }
+        if (root instanceof IllegalStateException) {
+            return true;
+        }
+        String className = root.getClass().getName();
+        if (className.contains("NonTransientAiException")) {
+            return true;
+        }
+        return "AUTH_ERROR".equals(classifyCode(root));
+    }
+
+    /**
+     * 将异常转为带友好提示的运行时异常
+     *
+     * @param e 异常
+     * @return 运行时异常
+     */
+    public static RuntimeException toRuntimeException(Throwable e) {
+        return new RuntimeException(classifyMessage(e), e);
     }
 }

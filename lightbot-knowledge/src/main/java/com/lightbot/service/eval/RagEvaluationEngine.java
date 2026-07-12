@@ -11,6 +11,7 @@ import com.lightbot.service.ChunkService;
 import com.lightbot.service.EmbeddingService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.util.LlmTraceContext;
+import com.lightbot.util.ModelErrorClassifier;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
@@ -170,6 +171,9 @@ public class RagEvaluationEngine {
                 }
 
             } catch (Exception e) {
+                if (ModelErrorClassifier.isFatal(e)) {
+                    throw ModelErrorClassifier.toRuntimeException(e);
+                }
                 log.debug("[RagEval] 生成基准题目失败 attempt={}: {}", attempt, e.getMessage());
             }
         }
@@ -419,6 +423,9 @@ public class RagEvaluationEngine {
             return response.getResult().getOutput().getText();
         } catch (Exception e) {
             log.error("[RagEval] LLM 调用失败: {}", e.getMessage());
+            if (ModelErrorClassifier.isFatal(e)) {
+                throw ModelErrorClassifier.toRuntimeException(e);
+            }
             return null;
         }
     }

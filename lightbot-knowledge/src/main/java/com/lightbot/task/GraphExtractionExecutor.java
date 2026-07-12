@@ -20,6 +20,7 @@ import com.lightbot.service.DocumentService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.service.TaskService;
 import com.lightbot.util.MilvusUtil;
+import com.lightbot.util.ModelErrorClassifier;
 import com.lightbot.util.Neo4jUtil;
 import com.lightbot.util.RedisUtil;
 import lombok.RequiredArgsConstructor;
@@ -151,6 +152,8 @@ public class GraphExtractionExecutor implements TaskExecutor {
 
             String label = Neo4jUtil.kbLabel(knowledgeId);
             int totalNodes = 0, totalEdges = 0;
+            int successDocCount = 0;
+            int totalChunkCount = 0;
 
             // 6. 多文档合并抽取：先清空合并图谱数据
             boolean isMultiDoc = documentIds != null && documentIds.size() > 1;
@@ -174,6 +177,7 @@ public class GraphExtractionExecutor implements TaskExecutor {
                     }
 
                     List<Chunk> docChunks = chunkService.listByDocumentId(doc.getId());
+                    totalChunkCount += docChunks.size();
                     log.info("[图谱抽取执行器] 文档 {}/{}: docId={}, chunks={}", docIdx + 1, documents.size(), doc.getId(), docChunks.size());
 
                     List<GraphTripleDTO> docTriples = extractTriples(task, docChunks, providerId, modelId, schema, modelParams, concurrency);
@@ -181,6 +185,7 @@ public class GraphExtractionExecutor implements TaskExecutor {
                     int[] counts = writeTriplesToNeo4j(label, docTriples, doc.getId(), knowledgeId, "auto", graphSource);
                     totalNodes += counts[0];
                     totalEdges += counts[1];
+                    successDocCount++;
 
                     docProgress.tick("文档 %d/%d 抽取完成".formatted(docIdx + 1, documents.size()));
 
@@ -202,8 +207,15 @@ public class GraphExtractionExecutor implements TaskExecutor {
                 }
             }
 
-            // 8. 写入 Entity/Triple 向量到 Milvus（图检索支持）
-            if (milvusUtil.isAvailable() && embeddingModel != null) {
+            if (successDocCount == 0) {
+                throw new RuntimeException("图谱抽取失败：所有文档均未成功抽取实体关系");
+            }
+            if (totalChunkCount > 0 && totalNodes == 0 && totalEdges == 0) {
+                throw new RuntimeException("图谱抽取失败：未能从文档中抽取到任何实体关系");
+            }
+
+            // 8. 写入 Entity/Triple 向量到 Milvus（仅本次抽取有产出时）
+            if ((totalNodes > 0 || totalEdges > 0) && milvusUtil.isAvailable() && embeddingModel != null) {
                 tracker.nextPhase("正在写入图谱向量...");
                 try {
                     writeGraphVectors(knowledgeId, label);
@@ -283,11 +295,17 @@ public class GraphExtractionExecutor implements TaskExecutor {
                     List<GraphTripleDTO> triples = graphExtractor.extractBatch(contents, providerId, modelId, schema, modelParams);
                     allTriples.addAll(triples);
                 } catch (Exception e) {
+                    if (ModelErrorClassifier.isFatal(e)) {
+                        throw new CompletionException(ModelErrorClassifier.toRuntimeException(e));
+                    }
                     log.warn("[图谱抽取执行器] 批次抽取失败, 降级为逐个抽取: {}", e.getMessage());
                     for (Chunk chunk : batch) {
                         try {
                             allTriples.addAll(graphExtractor.extract(chunk.getContent(), providerId, modelId, schema, modelParams));
                         } catch (Exception ex) {
+                            if (ModelErrorClassifier.isFatal(ex)) {
+                                throw new CompletionException(ModelErrorClassifier.toRuntimeException(ex));
+                            }
                             log.warn("[图谱抽取执行器] Chunk {} 抽取失败: {}", chunk.getId(), ex.getMessage());
                         }
                     }
@@ -301,8 +319,12 @@ public class GraphExtractionExecutor implements TaskExecutor {
         try {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         } catch (CompletionException e) {
-            if (e.getCause() instanceof RuntimeException && "任务已被用户取消".equals(e.getCause().getMessage())) {
-                throw new RuntimeException("任务已被用户取消");
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException re && "任务已被用户取消".equals(re.getMessage())) {
+                throw re;
+            }
+            if (ModelErrorClassifier.isFatal(e)) {
+                throw ModelErrorClassifier.toRuntimeException(e);
             }
             throw e;
         } finally {
