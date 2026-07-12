@@ -110,7 +110,7 @@
       :loading="loading"
       :can-send="canSend"
       :workflow-confirm-blocked="workflowConfirmBlocked"
-      :switching-session="switchingSession"
+      :switching-session="inputMaskLoading"
       :agents="agents"
       :selected-agent-id="selectedAgentId"
       :selected-agent-version-id="selectedAgentVersionId"
@@ -295,7 +295,7 @@ const runningSubagentCount = computed(() => {
 function autoResize() {}
 
 const {
-  agents, selectedAgentId, currentAgent, chatCapabilities,
+  agents, agentsLoading, selectedAgentId, currentAgent, chatCapabilities,
   selectedConfigVersion, selectedAgentVersionId, configVersionOptions,
   showFileUploadBtn, showVoiceInputBtn, showTtsBtn,
   fileAcceptTypes, imageAcceptTypes, documentAcceptTypes, fileUploadHint, imageUploadHint,
@@ -490,6 +490,9 @@ const {
 const hasStreamingAssistantMessage = computed(() =>
   messages.value.some(m => m.role === 'assistant' && m._streaming)
 )
+
+/** 输入框加载遮罩：首次加载 Agent 列表 或 切换会话期间 */
+const inputMaskLoading = computed(() => agentsLoading.value || switchingSession.value)
 
 function onRagToggle(index, payload) {
   const msg = messages.value[index]
