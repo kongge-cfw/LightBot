@@ -90,7 +90,7 @@ public class McpNodeProcessor extends AbstractFlowNodeProcessor implements NodeP
                 mcpServer.getName(), toolName, argsJson);
 
         ToolContext toolContext = new ToolContext(Map.of(
-                "agentId", context.getAgent().getId(),
+                "agentId", context.getAgentId(),
                 "requestId", "wf-" + context.getCurrentNodeId()));
         String result;
         try {

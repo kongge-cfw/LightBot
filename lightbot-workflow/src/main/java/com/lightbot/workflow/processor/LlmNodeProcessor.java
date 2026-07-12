@@ -66,7 +66,7 @@ public class LlmNodeProcessor implements NodeProcessor {
         int llmTimeoutSeconds = NodeTimeoutRetryHelper.resolveReadTimeoutSeconds(nodeData, NodeType.LLM);
 
         // 2. 获取提供商 ID 与具体模型名
-        Long providerId = resolveProviderId(nodeData, context.getAgent().getConfig());
+        Long providerId = resolveProviderId(nodeData, context.getAgentConfig());
         if (providerId == null) {
             log.warn("[LlmNodeProcessor] 未配置 providerId，节点ID={}, nodeDataKeys={}",
                     context.getCurrentNodeId(), nodeData.keySet());

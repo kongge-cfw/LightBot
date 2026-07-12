@@ -62,7 +62,7 @@ public class WorkflowSubgraphExecutor {
                 .agentId(parentContext.getAgentId())
                 .sessionId(parentContext.getSessionId())
                 .userInput(parentContext.getUserInput())
-                .agent(parentContext.getAgent())
+                .agentConfig(parentContext.getAgentConfig())
                 .workflow(workflow)
                 .variables(variables)
                 .scopedVariables(scopedVariables)

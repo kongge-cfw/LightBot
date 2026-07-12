@@ -59,7 +59,7 @@ public class ClassifierNodeProcessor extends AbstractFlowNodeProcessor implement
             return buildResult(context, DEFAULT_INTENT_ID, "其他意图", "", "输入文本为空，走默认分支", 0, 0);
         }
 
-        Long providerId = resolveProviderId(nodeData, context.getAgent().getConfig());
+        Long providerId = resolveProviderId(nodeData, context.getAgentConfig());
         if (providerId == null) {
             String err = "意图分类节点未配置模型提供商，请在节点配置中选择提供商和模型";
             log.warn("[ClassifierNodeProcessor] {}", err);

@@ -58,7 +58,7 @@ public class ParameterExtractorNodeProcessor extends AbstractFlowNodeProcessor i
             throw new IllegalArgumentException("参数提取节点输入为空");
         }
 
-        Long providerId = llmSupport.resolveProviderId(nodeData, context.getAgent().getConfig());
+        Long providerId = llmSupport.resolveProviderId(nodeData, context.getAgentConfig());
         if (providerId == null) {
             throw new IllegalArgumentException("参数提取节点未配置模型提供商");
         }

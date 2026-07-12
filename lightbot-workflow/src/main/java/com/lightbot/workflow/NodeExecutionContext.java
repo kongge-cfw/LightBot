@@ -1,6 +1,5 @@
 package com.lightbot.workflow;
 
-import com.lightbot.entity.Agent;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -74,9 +73,9 @@ public class NodeExecutionContext {
     private WorkflowDefinition workflow;
 
     /**
-     * Agent 实体
+     * Agent 配置 JSON（Agent.config，供节点解析模型 provider 等运行参数）
      */
-    private Agent agent;
+    private String agentConfig;
 
     /**
      * 流式输出回调（LLM 逐 token 回调，非空时启用流式调用）
