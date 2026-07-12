@@ -3,7 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.lightbot.dto.MessageFeedbackRequest;
+import com.lightbot.dto.MessageFeedbackRequestDTO;
 import com.lightbot.vo.MessageFeedbackVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.AgentVersion;
@@ -48,7 +48,7 @@ public class MessageFeedbackServiceImpl extends ServiceImpl<MessageFeedbackMappe
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public MessageFeedback submitFeedback(Long messageId, Long userId, MessageFeedbackRequest request) {
+    public MessageFeedback submitFeedback(Long messageId, Long userId, MessageFeedbackRequestDTO request) {
         // 1. 查询是否已有反馈
         MessageFeedback existing = getOne(new LambdaQueryWrapper<MessageFeedback>()
                 .eq(MessageFeedback::getUserId, userId)

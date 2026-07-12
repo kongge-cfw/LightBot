@@ -7,8 +7,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.vo.LlmTraceDetailVO;
-import com.lightbot.dto.LlmTraceRequest;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.LlmTraceRequestDTO;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.LlmTrace;
 import com.lightbot.entity.Message;
 import com.lightbot.enums.ErrorCode;
@@ -52,7 +52,7 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
      * 分页查询调用链列表
      */
     @Override
-    public Map<String, Object> pageList(LlmTraceRequest request) {
+    public Map<String, Object> pageList(LlmTraceRequestDTO request) {
         // 1. 构建查询条件
         LambdaQueryWrapper<LlmTrace> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(StringUtils.hasText(request.getStatus()), LlmTrace::getStatus, request.getStatus())
@@ -111,7 +111,7 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
         // 解析spans JSON字符串为对象列表
         if (trace.getSpans() != null && !trace.getSpans().isBlank()) {
             try {
-                List<LlmTraceSpan> spans = objectMapper.readValue(trace.getSpans(), new TypeReference<>() {});
+                List<LlmTraceSpanDTO> spans = objectMapper.readValue(trace.getSpans(), new TypeReference<>() {});
                 enrichTraceMentions(trace.getSessionId(), spans);
                 vo.setSpans(spans);
             } catch (Exception e) {
@@ -127,7 +127,7 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
     /**
      * 从会话消息 metadata 回填 Trace 中历史 user 消息的 mentions（兼容旧 Trace 数据）
      */
-    private void enrichTraceMentions(Long sessionId, List<LlmTraceSpan> spans) {
+    private void enrichTraceMentions(Long sessionId, List<LlmTraceSpanDTO> spans) {
         if (sessionId == null || spans == null || spans.isEmpty()) {
             return;
         }

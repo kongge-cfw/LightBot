@@ -1,6 +1,6 @@
 package com.lightbot.controller;
 
-import com.lightbot.dto.ApiKeyCreateRequest;
+import com.lightbot.dto.ApiKeyCreateDTO;
 import com.lightbot.entity.ApiKey;
 import com.lightbot.service.ApiKeyService;
 import com.lightbot.common.Result;
@@ -36,7 +36,7 @@ public class ApiKeyController {
 
     @PostMapping
     @Operation(summary = "创建API Key")
-    public Result<Map<String, Object>> create(@Valid @RequestBody ApiKeyCreateRequest request) {
+    public Result<Map<String, Object>> create(@Valid @RequestBody ApiKeyCreateDTO request) {
         long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
         return Result.ok(apiKeyService.createApiKey(userId, request.getName(), request.getPermissions(),
                 request.getExpiresAt(), request.getAgentIds(), request.getRateLimit(), request.getDailyQuota()));

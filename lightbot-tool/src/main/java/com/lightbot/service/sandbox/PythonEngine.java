@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -59,14 +59,14 @@ public class PythonEngine implements CodeEngine {
     }
 
     @Override
-    public CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs) {
+    public CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs) {
         long timeout = timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
         long start = System.currentTimeMillis();
 
         // 1. 安全校验：危险 import 拦截
         String securityError = checkSecurity(code);
         if (securityError != null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error(securityError)
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -80,7 +80,7 @@ public class PythonEngine implements CodeEngine {
         // 3. 查找 Python 解释器
         String pythonCmd = findPython();
         if (pythonCmd == null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("Python 执行环境不可用：服务器未安装 Python 3.8+。"
                             + "请在服务器上安装 Python 3（apt install python3 / yum install python3），"
@@ -97,7 +97,7 @@ public class PythonEngine implements CodeEngine {
             tempFile.deleteOnExit();
             Files.writeString(tempFile.toPath(), wrappedCode, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("创建临时文件失败: " + e.getMessage())
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -125,7 +125,7 @@ public class PythonEngine implements CodeEngine {
             boolean finished = process.waitFor(timeout, TimeUnit.MILLISECONDS);
             if (!finished) {
                 process.destroyForcibly();
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(false)
                         .error("Python 执行超时（" + timeout + "ms），请检查是否存在死循环")
                         .elapsedMs(timeout)
@@ -140,7 +140,7 @@ public class PythonEngine implements CodeEngine {
             if (exitCode == 0) {
                 // 解析返回值（最后一行 stdout 为返回值标记）
                 String returnValue = parseReturnValue(stdout);
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(true)
                         .output(output)
                         .returnValue(returnValue)
@@ -148,7 +148,7 @@ public class PythonEngine implements CodeEngine {
                         .language("python")
                         .build();
             } else {
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(false)
                         .output(output)
                         .error("Python 执行失败 (exit=" + exitCode + "): " + sanitizeError(errorOutput))
@@ -159,14 +159,14 @@ public class PythonEngine implements CodeEngine {
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行被中断")
                     .elapsedMs(System.currentTimeMillis() - start)
                     .language("python")
                     .build();
         } catch (Exception e) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(e.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)

@@ -64,7 +64,7 @@ public class LlmTraceDetailVO {
     private Long totalDurationMs;
 
     @Schema(description = "调用链Span列表（已解析为对象）")
-    private List<LlmTraceSpan> spans;
+    private List<LlmTraceSpanDTO> spans;
 
     @Schema(description = "AI完整回复内容（模型原始输出，含深度思考标签，不做删改）")
     private String replyContent;

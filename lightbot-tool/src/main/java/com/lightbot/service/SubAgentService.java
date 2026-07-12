@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.SubAgentRequest;
+import com.lightbot.dto.SubAgentRequestDTO;
 import com.lightbot.entity.SubAgent;
 
 import java.util.List;
@@ -18,12 +18,12 @@ public interface SubAgentService extends IService<SubAgent> {
     /**
      * 创建 SubAgent
      */
-    SubAgent create(SubAgentRequest request);
+    SubAgent create(SubAgentRequestDTO request);
 
     /**
      * 更新 SubAgent
      */
-    SubAgent update(SubAgentRequest request);
+    SubAgent update(SubAgentRequestDTO request);
 
     /**
      * 分页查询 SubAgent

@@ -4,7 +4,7 @@ import cn.dev33.satoken.stp.StpUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
-import com.lightbot.dto.UserPreferenceUpdateRequest;
+import com.lightbot.dto.UserPreferenceUpdateDTO;
 import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.entity.User;
 import com.lightbot.enums.ErrorCode;
@@ -40,7 +40,7 @@ public class UserPreferenceServiceImpl implements UserPreferenceService {
     }
 
     @Override
-    public UserPreferenceVO updateCurrentPreferences(UserPreferenceUpdateRequest request) {
+    public UserPreferenceVO updateCurrentPreferences(UserPreferenceUpdateDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
         User user = userMapper.selectById(userId);
         if (user == null) {

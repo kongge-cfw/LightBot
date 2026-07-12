@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.OcrHealthResult;
+import com.lightbot.dto.OcrHealthResultDTO;
 import com.lightbot.util.OcrUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,7 +26,7 @@ public class OcrController {
 
     @Operation(summary = "OCR健康检查")
     @GetMapping("/health")
-    public Result<OcrHealthResult> healthCheck() {
+    public Result<OcrHealthResultDTO> healthCheck() {
         return Result.ok(ocrUtil.healthCheck());
     }
 }

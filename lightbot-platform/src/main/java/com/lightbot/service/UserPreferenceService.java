@@ -1,6 +1,6 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.UserPreferenceUpdateRequest;
+import com.lightbot.dto.UserPreferenceUpdateDTO;
 import com.lightbot.vo.UserPreferenceVO;
 
 /**
@@ -24,7 +24,7 @@ public interface UserPreferenceService {
      * @param request 更新请求
      * @return 更新后的配置
      */
-    UserPreferenceVO updateCurrentPreferences(UserPreferenceUpdateRequest request);
+    UserPreferenceVO updateCurrentPreferences(UserPreferenceUpdateDTO request);
 
     /**
      * 获取指定用户个人配置

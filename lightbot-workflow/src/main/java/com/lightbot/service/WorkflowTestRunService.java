@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.WorkflowTestRequest;
+import com.lightbot.dto.WorkflowTestDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.vo.WorkflowTestRunDetailVO;
 import com.lightbot.vo.WorkflowTestRunVO;
@@ -20,7 +20,7 @@ public interface WorkflowTestRunService extends IService<WorkflowTestRun> {
      *
      * @return runId
      */
-    String startRun(Long agentId, Long userId, WorkflowTestRequest request,
+    String startRun(Long agentId, Long userId, WorkflowTestDTO request,
                     WorkflowDefinition definition, boolean usedDraft);
 
     /**

@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 
 import java.util.Map;
 
@@ -31,5 +31,5 @@ public interface CodeEngine {
      * @param timeoutMs 超时时间（毫秒）
      * @return 执行结果
      */
-    CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs);
+    CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs);
 }

@@ -1,7 +1,7 @@
 package com.lightbot.service.impl;
 
 import com.lightbot.common.BizException;
-import com.lightbot.dto.DocumentEditRequest;
+import com.lightbot.dto.DocumentEditDTO;
 import com.lightbot.vo.DocumentEditSaveVO;
 import com.lightbot.vo.EditableContentVO;
 import com.lightbot.entity.Document;
@@ -92,7 +92,7 @@ public class DocumentEditServiceImpl implements DocumentEditService {
     }
 
     @Override
-    public DocumentEditSaveVO saveContent(Long documentId, DocumentEditRequest request) {
+    public DocumentEditSaveVO saveContent(Long documentId, DocumentEditDTO request) {
         Document doc = documentService.getById(documentId);
         if (doc == null) {
             throw new BizException(ErrorCode.DOCUMENT_NOT_FOUND);

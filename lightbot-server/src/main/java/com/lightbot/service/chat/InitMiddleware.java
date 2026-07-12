@@ -4,7 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.model.ProviderResolver;
 import com.lightbot.constant.ConfigKeys;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.ChatSession;
 import com.lightbot.enums.AgentStatus;
@@ -54,14 +54,14 @@ public class InitMiddleware implements ChatMiddleware {
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
         long t1 = System.currentTimeMillis();
         log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}", t1 - t0, sessionId);
-        ctx.getSpans().add(LlmTraceSpan.of("s1", null, "session_resolve", t0, t1 - t0, "OK", Map.of("sessionId", sessionId)));
+        ctx.getSpans().add(LlmTraceSpanDTO.of("s1", null, "session_resolve", t0, t1 - t0, "OK", Map.of("sessionId", sessionId)));
 
         // 2. 加载Agent配置
         Agent agent = loadAgent(ctx.getRequest().getAgentId());
         ctx.setAgent(agent);
         long t2 = System.currentTimeMillis();
         log.info("[Chat][Trace] Agent加载: {}ms, agentId={}", t2 - t1, agent != null ? agent.getId() : null);
-        ctx.getSpans().add(LlmTraceSpan.of("s2", "s1", "agent_load", t1, t2 - t1, "OK",
+        ctx.getSpans().add(LlmTraceSpanDTO.of("s2", "s1", "agent_load", t1, t2 - t1, "OK",
                 Map.of("agentId", agent != null ? agent.getId() : null, "agentName", agent != null ? agent.getName() : null)));
 
         // 3. 解析 config（支持指定版本 / 草稿 / 默认线上），同时提取版本绑定 ID
@@ -102,7 +102,7 @@ public class InitMiddleware implements ChatMiddleware {
         return resolveRuntimeConfigMap(agent, null, null);
     }
 
-    public Map<String, Object> resolveRuntimeConfigMap(Agent agent, com.lightbot.dto.ChatRequest request) {
+    public Map<String, Object> resolveRuntimeConfigMap(Agent agent, com.lightbot.dto.ChatRequestDTO request) {
         return resolveRuntimeConfigMap(agent, request, null);
     }
 
@@ -110,7 +110,7 @@ public class InitMiddleware implements ChatMiddleware {
      * 解析运行时配置，同时从版本快照中提取绑定 ID 存入 ChatContext（单次加载，避免重复查询）
      */
     @SuppressWarnings("unchecked")
-    public Map<String, Object> resolveRuntimeConfigMap(Agent agent, com.lightbot.dto.ChatRequest request, ChatContext ctx) {
+    public Map<String, Object> resolveRuntimeConfigMap(Agent agent, com.lightbot.dto.ChatRequestDTO request, ChatContext ctx) {
         if (agent == null) {
             return Map.of();
         }

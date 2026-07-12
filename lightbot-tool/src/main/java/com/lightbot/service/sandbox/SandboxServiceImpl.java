@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.SandboxPathValidator;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +27,7 @@ public class SandboxServiceImpl implements SandboxService {
     private final MinioUtil minioUtil;
 
     @Override
-    public CodeExecResult executeCode(String code, String language,
+    public CodeExecResultDTO executeCode(String code, String language,
                                       Map<String, Object> params, Long timeoutMs) {
         long timeout = timeoutMs != null && timeoutMs > 0 ? timeoutMs : 5000L;
         CodeEngine engine = engineRegistry.resolve(language);
@@ -35,7 +35,7 @@ public class SandboxServiceImpl implements SandboxService {
         log.info("[Sandbox] 执行代码: language={}, engine={}, timeout={}ms",
                 engine.language(), engine.getClass().getSimpleName(), timeout);
 
-        CodeExecResult result = engine.execute(code, params, timeout);
+        CodeExecResultDTO result = engine.execute(code, params, timeout);
 
         log.info("[Sandbox] 执行完成: success={}, elapsed={}ms, outputLen={}",
                 result.isSuccess(), result.getElapsedMs(),

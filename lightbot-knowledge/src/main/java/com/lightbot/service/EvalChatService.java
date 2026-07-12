@@ -1,6 +1,6 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.EvalScoreResult;
+import com.lightbot.dto.EvalScoreResultDTO;
 import reactor.core.publisher.Flux;
 
 /**
@@ -39,7 +39,7 @@ public interface EvalChatService {
      * @param variables      变量值（JSON）
      * @return 评分结果
      */
-    EvalScoreResult callEvaluator(String modelConfig, String promptTemplate, String variables);
+    EvalScoreResultDTO callEvaluator(String modelConfig, String promptTemplate, String variables);
 
     /**
      * 替换模板中的变量占位符

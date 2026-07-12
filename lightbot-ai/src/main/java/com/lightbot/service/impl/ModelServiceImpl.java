@@ -3,7 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.ModelRequest;
+import com.lightbot.dto.ModelRequestDTO;
 import com.lightbot.entity.Model;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
@@ -32,7 +32,7 @@ public class ModelServiceImpl extends ServiceImpl<ModelMapper, Model>
     private final ModelCacheUtil modelCacheUtil;
 
     @Override
-    public Model create(ModelRequest request) {
+    public Model create(ModelRequestDTO request) {
         // 1. 校验同一提供商下模型标识不重复
         long count = count(new LambdaQueryWrapper<Model>()
                 .eq(Model::getProviderId, request.getProviderId())

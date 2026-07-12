@@ -2,8 +2,8 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.ModelProviderCheckRequest;
-import com.lightbot.dto.ModelProviderRequest;
+import com.lightbot.dto.ModelProviderCheckDTO;
+import com.lightbot.dto.ModelProviderDTO;
 import com.lightbot.entity.ModelProvider;
 import com.lightbot.model.ConfigField;
 import com.lightbot.model.FetchedModel;
@@ -34,13 +34,13 @@ public class ModelProviderController {
 
     @Operation(summary = "新增模型提供商")
     @PostMapping
-    public Result<ModelProvider> create(@Valid @RequestBody ModelProviderRequest request) {
+    public Result<ModelProvider> create(@Valid @RequestBody ModelProviderDTO request) {
         return Result.ok(modelProviderService.create(request));
     }
 
     @Operation(summary = "更新模型提供商")
     @PutMapping
-    public Result<ModelProvider> update(@Valid @RequestBody ModelProviderRequest request) {
+    public Result<ModelProvider> update(@Valid @RequestBody ModelProviderDTO request) {
         ModelProvider provider = modelProviderService.update(request);
         // 凭证变更后清除缓存，下次调用时重新创建ChatModel
         modelFactory.invalidateCache(request.getId());
@@ -94,7 +94,7 @@ public class ModelProviderController {
 
     @Operation(summary = "检查模型提供商连通性（表单实时数据）")
     @PostMapping("/check")
-    public Result<String> checkConnectivityByForm(@Valid @RequestBody ModelProviderCheckRequest request) {
+    public Result<String> checkConnectivityByForm(@Valid @RequestBody ModelProviderCheckDTO request) {
         return Result.ok(modelFactory.checkConnectivityByForm(request.getType(), request.getApiKey(), request.getBaseUrl(),
                 request.getModelId(), request.getCompletionsPath()));
     }

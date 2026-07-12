@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.EvalExperimentCreateRequest;
+import com.lightbot.dto.EvalExperimentCreateDTO;
 import com.lightbot.entity.*;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.ExperimentStatus;
@@ -127,7 +127,7 @@ public class EvalExperimentServiceImpl extends ServiceImpl<EvalExperimentMapper,
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_EVAL_EXPERIMENT, allEntries = true)
-    public EvalExperiment update(Long id, EvalExperimentCreateRequest request) {
+    public EvalExperiment update(Long id, EvalExperimentCreateDTO request) {
         EvalExperiment experiment = getById(id);
         if (experiment == null) {
             throw new BizException(ErrorCode.EVAL_EXPERIMENT_NOT_FOUND);

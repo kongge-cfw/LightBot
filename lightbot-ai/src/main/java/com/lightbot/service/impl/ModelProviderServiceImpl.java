@@ -8,7 +8,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.vo.ModelProviderPresetVO;
-import com.lightbot.dto.ModelProviderRequest;
+import com.lightbot.dto.ModelProviderDTO;
 import com.lightbot.entity.ModelProvider;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
@@ -59,7 +59,7 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
     private final ObjectMapper objectMapper;
 
     @Override
-    public ModelProvider create(ModelProviderRequest request) {
+    public ModelProvider create(ModelProviderDTO request) {
         // 1. 构建实体并保存
         ModelProvider provider = new ModelProvider();
         provider.setName(request.getName());
@@ -80,7 +80,7 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
     }
 
     @Override
-    public ModelProvider update(ModelProviderRequest request) {
+    public ModelProvider update(ModelProviderDTO request) {
         // 1. 校验存在性
         ModelProvider provider = getById(request.getId());
         if (provider == null) {
@@ -223,7 +223,7 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
      * @param request 提供商请求
      * @return 配置 JSON
      */
-    private String buildProviderConfig(ModelProviderRequest request) {
+    private String buildProviderConfig(ModelProviderDTO request) {
         Map<String, Object> config = parseConfig(request.getConfig());
         String defaultModelId = request.getDefaultModelId();
         if (defaultModelId != null) {

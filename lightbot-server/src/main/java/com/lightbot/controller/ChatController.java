@@ -3,11 +3,11 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import cn.dev33.satoken.stp.StpUtil;
-import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.MessageFeedbackRequest;
+import com.lightbot.dto.ChatRequestDTO;
+import com.lightbot.dto.MessageFeedbackRequestDTO;
 import com.lightbot.vo.MessageFeedbackVO;
 import com.lightbot.vo.RagReferenceVO;
-import com.lightbot.dto.ReconnectRequest;
+import com.lightbot.dto.ReconnectDTO;
 import com.lightbot.entity.MessageFeedback;
 import com.lightbot.interceptor.ApiKeyAuthInterceptor;
 import com.lightbot.service.ChatService;
@@ -54,7 +54,7 @@ public class ChatController {
 
     @Operation(summary = "同步对话")
     @PostMapping
-    public Result<String> chat(@Valid @RequestBody ChatRequest request) {
+    public Result<String> chat(@Valid @RequestBody ChatRequestDTO request) {
         return Result.ok(chatService.chat(request));
     }
 
@@ -69,7 +69,7 @@ public class ChatController {
      */
     @Operation(summary = "流式对话（SSE）")
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter chatStream(@Valid @RequestBody ChatRequest request,
+    public SseEmitter chatStream(@Valid @RequestBody ChatRequestDTO request,
                                  jakarta.servlet.http.HttpServletRequest httpRequest) {
         // 注入 API Key ID（如有），用于 Token 配额扣减
         Object apiKeyAttr = httpRequest.getAttribute(ApiKeyAuthInterceptor.ATTR_API_KEY_ENTITY);
@@ -172,7 +172,7 @@ public class ChatController {
      */
     @Operation(summary = "SSE断线重连")
     @PostMapping("/reconnect")
-    public Result<Map<String, Object>> reconnect(@Valid @RequestBody ReconnectRequest req) {
+    public Result<Map<String, Object>> reconnect(@Valid @RequestBody ReconnectDTO req) {
         Long userId;
         try { userId = StpUtil.getLoginIdAsLong(); } catch (Exception e) { return Result.fail(401, "未登录"); }
 
@@ -240,7 +240,7 @@ public class ChatController {
     @PostMapping("/messages/{messageId}/feedback")
     public Result<MessageFeedback> submitMessageFeedback(
             @PathVariable Long messageId,
-            @Valid @RequestBody MessageFeedbackRequest request) {
+            @Valid @RequestBody MessageFeedbackRequestDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
         return Result.ok(messageFeedbackService.submitFeedback(messageId, userId, request));
     }

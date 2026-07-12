@@ -3,7 +3,7 @@ package com.lightbot.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.vo.ModelProviderPresetVO;
-import com.lightbot.dto.ModelProviderRequest;
+import com.lightbot.dto.ModelProviderDTO;
 import com.lightbot.entity.ModelProvider;
 
 import java.util.List;
@@ -22,7 +22,7 @@ public interface ModelProviderService extends IService<ModelProvider> {
      * @param request 创建请求
      * @return 模型提供商
      */
-    ModelProvider create(ModelProviderRequest request);
+    ModelProvider create(ModelProviderDTO request);
 
     /**
      * 更新模型提供商
@@ -30,7 +30,7 @@ public interface ModelProviderService extends IService<ModelProvider> {
      * @param request 更新请求
      * @return 模型提供商
      */
-    ModelProvider update(ModelProviderRequest request);
+    ModelProvider update(ModelProviderDTO request);
 
     /**
      * 分页查询

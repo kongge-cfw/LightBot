@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.UserMemoryRequest;
+import com.lightbot.dto.UserMemoryRequestDTO;
 import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.entity.UserMemory;
 import com.lightbot.service.chat.ChatContext;
@@ -19,9 +19,9 @@ public interface UserMemoryService extends IService<UserMemory> {
 
     List<UserMemoryVO> listCurrentUserMemories(String keyword, String status);
 
-    UserMemoryVO createCurrentUserMemory(UserMemoryRequest request);
+    UserMemoryVO createCurrentUserMemory(UserMemoryRequestDTO request);
 
-    UserMemoryVO updateCurrentUserMemory(Long id, UserMemoryRequest request);
+    UserMemoryVO updateCurrentUserMemory(Long id, UserMemoryRequestDTO request);
 
     void deleteCurrentUserMemory(Long id);
 

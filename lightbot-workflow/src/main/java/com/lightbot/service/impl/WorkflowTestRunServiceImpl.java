@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.WorkflowTestRequest;
+import com.lightbot.dto.WorkflowTestDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.vo.WorkflowTestRunDetailVO;
 import com.lightbot.vo.WorkflowTestRunVO;
@@ -40,7 +40,7 @@ public class WorkflowTestRunServiceImpl extends ServiceImpl<WorkflowTestRunMappe
     private final ObjectMapper objectMapper;
 
     @Override
-    public String startRun(Long agentId, Long userId, WorkflowTestRequest request,
+    public String startRun(Long agentId, Long userId, WorkflowTestDTO request,
                            WorkflowDefinition definition, boolean usedDraft) {
         String runId = UUID.randomUUID().toString().replace("-", "");
         WorkflowTestRun record = new WorkflowTestRun();

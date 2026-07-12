@@ -9,7 +9,7 @@ import com.lightbot.common.BizException;
 import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.dto.ChatMentionDTO;
 import com.lightbot.dto.ChatMentionDTO;
-import com.lightbot.dto.ChatRequest;
+import com.lightbot.dto.ChatRequestDTO;
 import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
@@ -230,7 +230,7 @@ public class MessageMiddleware implements ChatMiddleware {
         ChatDocumentMessageUtil.validateMediaMix(attachments);
     }
 
-    private String resolveUserText(ChatRequest request) {
+    private String resolveUserText(ChatRequestDTO request) {
         String msg = request.getMessage();
         if (msg != null && !msg.isBlank()) {
             return msg.trim();
@@ -366,7 +366,7 @@ public class MessageMiddleware implements ChatMiddleware {
      * 构建消息列表：系统提示词 + 工具使用引导 + 历史消息 + 当前用户消息
      */
     private List<org.springframework.ai.chat.messages.Message> buildMessages(
-            Long sessionId, String userMessage, Agent agent, ChatRequest request,
+            Long sessionId, String userMessage, Agent agent, ChatRequestDTO request,
             Map<String, Object> agentConfigMap, ChatContext ctx) {
         List<org.springframework.ai.chat.messages.Message> messages = new ArrayList<>();
 

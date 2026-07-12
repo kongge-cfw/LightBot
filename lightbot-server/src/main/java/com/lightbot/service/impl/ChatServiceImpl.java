@@ -4,7 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.RagResultType;
 import com.lightbot.constant.ToolResultPrefixes;
-import com.lightbot.dto.ChatRequest;
+import com.lightbot.dto.ChatRequestDTO;
 import com.lightbot.vo.RagReferenceVO;
 import com.lightbot.util.ChatDocumentMessageUtil;
 import com.lightbot.util.ChatMessageContextUtil;
@@ -23,7 +23,7 @@ import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.builtin.AskUserTool;
 import com.lightbot.tool.builtin.QueryKnowledgeTool;
 import com.lightbot.entity.Knowledge;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.enums.MessageRole;
 import com.lightbot.service.*;
 import com.lightbot.service.chat.*;
@@ -121,7 +121,7 @@ public class ChatServiceImpl implements ChatService {
     private Executor lightBotExecutor;
 
     @Override
-    public String chat(ChatRequest request) {
+    public String chat(ChatRequestDTO request) {
         // 1. 初始化上下文
         ChatContext ctx = ChatContext.of(request);
         ctx.setRequestId(String.valueOf(System.nanoTime()));
@@ -378,7 +378,7 @@ public class ChatServiceImpl implements ChatService {
     }
 
     @Override
-    public Flux<String> chatStream(ChatRequest request) {
+    public Flux<String> chatStream(ChatRequestDTO request) {
         ChatContext ctx = ChatContext.of(request);
         ctx.setRequestId(String.valueOf(System.nanoTime()));
 
@@ -629,7 +629,7 @@ public class ChatServiceImpl implements ChatService {
         int[] outputTokenHolder = ctx.getOutputTokenHolder();
         List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
         String requestId = ctx.getRequestId();
-        List<LlmTraceSpan> spans = ctx.getSpans();
+        List<LlmTraceSpanDTO> spans = ctx.getSpans();
         Map<String, Object> configMap = ctx.getConfigMap();
         StringBuilder reasoningContent = ctx.getReasoningContent();
 
@@ -685,7 +685,7 @@ public class ChatServiceImpl implements ChatService {
                             InlineThinkingStreamParser.ParseResult parsed = feedStreamTextChunk(ctx, text);
                             Flux<String> contentFlux = fluxFromInlineThinking(ctx, agent, parsed, () -> {
                                 if (!llmSpanAdded[0]) {
-                                    spans.add(LlmTraceSpan.of(llmSpanId, "s1", "llm_call", llmCallStart,
+                                    spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                                             System.currentTimeMillis() - llmCallStart, "OK",
                                             Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
                                                     "inputTokens", inputTokenHolder[0], "outputTokens", outputTokenHolder[0],
@@ -722,7 +722,7 @@ public class ChatServiceImpl implements ChatService {
                     boolean asyncEnabled = Boolean.TRUE.equals(configMap.get("asyncToolCalls"));
 
                     if (!llmSpanAdded[0]) {
-                        spans.add(LlmTraceSpan.of(llmSpanId, "s1", "llm_call", llmCallStart,
+                        spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                                 System.currentTimeMillis() - llmCallStart, "OK",
                                 Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
                                         "toolCount", toolCalls.size(),
@@ -766,7 +766,7 @@ public class ChatServiceImpl implements ChatService {
                                 }
                                 long tEnd = System.currentTimeMillis();
                                 log.info("[Chat][Trace] 工具执行结果: name={}, 耗时={}ms, resultLength={}", tcName, tEnd - tStart, result.length());
-                                spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
+                                spans.add(LlmTraceSpanDTO.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                                         tStart, tEnd - tStart, "OK",
                                         buildToolTraceAttributes(tcName, tcArgs, result)));
                                 appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], tcName, result, tStart);
@@ -821,7 +821,7 @@ public class ChatServiceImpl implements ChatService {
                         long tToolEnd = System.currentTimeMillis();
                         log.info("[Chat][Trace] 工具执行结果: name={}, 耗时={}ms, resultLength={}", toolName, tToolEnd - tToolStart, toolResult.length());
 
-                        spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
+                        spans.add(LlmTraceSpanDTO.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                                 tToolStart, tToolEnd - tToolStart, "OK",
                                 buildToolTraceAttributes(toolName, safeArgs, toolResult)));
                         appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], toolName, toolResult, tToolStart);
@@ -974,7 +974,7 @@ public class ChatServiceImpl implements ChatService {
         int[] outputTokenHolder = ctx.getOutputTokenHolder();
         List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
         String requestId = ctx.getRequestId();
-        List<LlmTraceSpan> spans = ctx.getSpans();
+        List<LlmTraceSpanDTO> spans = ctx.getSpans();
         Map<String, Object> configMap = ctx.getConfigMap();
         String[] ragMetadataHolder = ctx.getRagMetadataHolder();
 
@@ -1049,7 +1049,7 @@ public class ChatServiceImpl implements ChatService {
             if (filtered.blocked()) {
                 fullReply.setLength(0);
                 fullReply.append(filtered.text());
-                spans.add(LlmTraceSpan.of(llmSpanId, "s1", "llm_call", llmCallStart,
+                spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                         System.currentTimeMillis() - llmCallStart, "OK",
                         Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
                                 "inputTokens", inputTokenHolder[0], "outputTokens", outputTokenHolder[0],
@@ -1064,7 +1064,7 @@ public class ChatServiceImpl implements ChatService {
                         filtered.text());
             }
             fullReply.append(filtered.text());
-            spans.add(LlmTraceSpan.of(llmSpanId, "s1", "llm_call", llmCallStart,
+            spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                     System.currentTimeMillis() - llmCallStart, "OK",
                     Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
                             "inputTokens", inputTokenHolder[0], "outputTokens", outputTokenHolder[0],
@@ -1078,7 +1078,7 @@ public class ChatServiceImpl implements ChatService {
         List<AssistantMessage.ToolCall> toolCalls = assistantMsg.getToolCalls();
         boolean asyncEnabled = Boolean.TRUE.equals(configMap.get("asyncToolCalls"));
 
-        spans.add(LlmTraceSpan.of(llmSpanId, "s1", "llm_call", llmCallStart,
+        spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                 System.currentTimeMillis() - llmCallStart, "OK",
                 Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
                         "toolCount", toolCalls.size(),
@@ -1105,7 +1105,7 @@ public class ChatServiceImpl implements ChatService {
                     long tStart = System.currentTimeMillis();
                     String result = executeToolCallback(toolCallbackMap, tcName, safeTcArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
                     long tEnd = System.currentTimeMillis();
-                    spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
+                    spans.add(LlmTraceSpanDTO.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                             tStart, tEnd - tStart, "OK",
                             buildToolTraceAttributes(tcName, tcArgs, result)));
                     appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], tcName, result, tStart);
@@ -1153,7 +1153,7 @@ public class ChatServiceImpl implements ChatService {
             long tToolStart = System.currentTimeMillis();
             String toolResult = executeToolCallback(toolCallbackMap, toolName, callArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
             long tToolEnd = System.currentTimeMillis();
-            spans.add(LlmTraceSpan.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
+            spans.add(LlmTraceSpanDTO.of("tool_" + toolCallCountHolder[0], llmSpanId, "tool_execute",
                     tToolStart, tToolEnd - tToolStart, "OK",
                     buildToolTraceAttributes(toolName, safeArgs, toolResult)));
             appendSubAgentTraceSpans(spans, "tool_" + toolCallCountHolder[0], toolName, toolResult, tToolStart);
@@ -1876,7 +1876,7 @@ public class ChatServiceImpl implements ChatService {
      * 在通用 tool_execute span 下补充 SubAgent 批次和任务子 span，形成可观测调用树。
      */
     @SuppressWarnings("unchecked")
-    private void appendSubAgentTraceSpans(List<LlmTraceSpan> spans, String toolSpanId,
+    private void appendSubAgentTraceSpans(List<LlmTraceSpanDTO> spans, String toolSpanId,
                                           String toolName, String result, long startTime) {
         if (!isSubAgentTool(toolName) || result == null || result.isBlank()) {
             return;
@@ -1894,7 +1894,7 @@ public class ChatServiceImpl implements ChatService {
             batchAttributes.put("mode", output.get("mode"));
             batchAttributes.put("aggregation", output.get("aggregation"));
             synchronized (spans) {
-                spans.add(LlmTraceSpan.of(batchSpanId, toolSpanId, "subagent_batch", startTime, 0L,
+                spans.add(LlmTraceSpanDTO.of(batchSpanId, toolSpanId, "subagent_batch", startTime, 0L,
                         "failed".equals(status) ? "ERROR" : "OK", batchAttributes));
                 if (output.get("results") instanceof List<?> results) {
                     int index = 0;
@@ -1908,7 +1908,7 @@ public class ChatServiceImpl implements ChatService {
                         taskAttributes.put("status", task.get("status"));
                         taskAttributes.put("replyPreview", task.get("reply"));
                         taskAttributes.put("error", task.get("error"));
-                        spans.add(LlmTraceSpan.of(batchSpanId + ":task:" + index, batchSpanId,
+                        spans.add(LlmTraceSpanDTO.of(batchSpanId + ":task:" + index, batchSpanId,
                                 "subagent_task", startTime, 0L,
                                 "failed".equals(task.get("status")) ? "ERROR" : "OK", taskAttributes));
                         index++;

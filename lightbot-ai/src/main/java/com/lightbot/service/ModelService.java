@@ -1,7 +1,7 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.ModelRequest;
+import com.lightbot.dto.ModelRequestDTO;
 import com.lightbot.entity.Model;
 import com.lightbot.enums.ModelType;
 
@@ -21,7 +21,7 @@ public interface ModelService extends IService<Model> {
      * @param request 创建请求
      * @return 模型
      */
-    Model create(ModelRequest request);
+    Model create(ModelRequestDTO request);
 
     /**
      * 获取指定提供商下的模型列表

@@ -1,6 +1,6 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.DocumentEditRequest;
+import com.lightbot.dto.DocumentEditDTO;
 import com.lightbot.vo.DocumentEditSaveVO;
 import com.lightbot.vo.EditableContentVO;
 
@@ -27,5 +27,5 @@ public interface DocumentEditService {
      * @param request    编辑请求
      * @return 保存结果
      */
-    DocumentEditSaveVO saveContent(Long documentId, DocumentEditRequest request);
+    DocumentEditSaveVO saveContent(Long documentId, DocumentEditDTO request);
 }

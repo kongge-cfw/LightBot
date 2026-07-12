@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.DocumentEditRequest;
+import com.lightbot.dto.DocumentEditDTO;
 import com.lightbot.vo.DocumentEditSaveVO;
 import com.lightbot.vo.DocumentVersionVO;
 import com.lightbot.vo.EditableContentVO;
@@ -36,7 +36,7 @@ public class DocumentEditController {
     @Operation(summary = "保存文档编辑内容（触发全量重建）")
     @PutMapping("/{documentId}/content")
     public Result<DocumentEditSaveVO> saveContent(@PathVariable Long documentId,
-                                                   @RequestBody @jakarta.validation.Valid DocumentEditRequest request) {
+                                                   @RequestBody @jakarta.validation.Valid DocumentEditDTO request) {
         return Result.ok(documentEditService.saveContent(documentId, request));
     }
 

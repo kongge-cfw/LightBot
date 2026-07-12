@@ -1,6 +1,6 @@
 package com.lightbot.util;
 
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Message;
 import com.lightbot.service.MentionTraceSnapshotService;
 
@@ -21,14 +21,14 @@ public final class LlmTraceMentionEnricher {
      * @param sessionMessages  会话全部消息（按 createTime 升序）
      * @param snapshotService  mention 快照解析服务
      */
-    public static void enrich(List<LlmTraceSpan> spans,
+    public static void enrich(List<LlmTraceSpanDTO> spans,
                               List<Message> sessionMessages,
                               MentionTraceSnapshotService snapshotService) {
         if (spans == null || spans.isEmpty() || sessionMessages == null || sessionMessages.isEmpty()
                 || snapshotService == null) {
             return;
         }
-        LlmTraceSpan llmInput = spans.stream()
+        LlmTraceSpanDTO llmInput = spans.stream()
                 .filter(s -> "messages_to_llm".equals(s.getName()))
                 .findFirst()
                 .orElse(null);

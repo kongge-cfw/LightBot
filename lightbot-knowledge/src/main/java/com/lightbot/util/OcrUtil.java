@@ -2,7 +2,7 @@ package com.lightbot.util;
 
 import com.benjaminwan.ocrlibrary.OcrResult;
 import com.lightbot.config.OcrProperties;
-import com.lightbot.dto.OcrHealthResult;
+import com.lightbot.dto.OcrHealthResultDTO;
 import io.github.mymonstercat.Model;
 import io.github.mymonstercat.ocr.InferenceEngine;
 import lombok.extern.slf4j.Slf4j;
@@ -55,7 +55,7 @@ public class OcrUtil {
     /**
      * 健康检查：尝试初始化引擎验证可用性，回显完整模型路径
      */
-    public OcrHealthResult healthCheck() {
+    public OcrHealthResultDTO healthCheck() {
         String configPath = resolveModelPath();
 
         try {
@@ -70,7 +70,7 @@ public class OcrUtil {
                     MODEL.getRecName(),
                     MODEL.getKeysName());
 
-            return OcrHealthResult.builder()
+            return OcrHealthResultDTO.builder()
                     .healthy(true)
                     .modelPath(modelInfo)
                     .modelExists(true)
@@ -78,7 +78,7 @@ public class OcrUtil {
                     .build();
         } catch (Exception e) {
             log.error("[OCR] 引擎初始化失败", e);
-            return OcrHealthResult.builder()
+            return OcrHealthResultDTO.builder()
                     .healthy(false)
                     .modelPath(configPath)
                     .modelExists(false)

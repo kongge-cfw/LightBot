@@ -7,8 +7,8 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.IngestRequest;
-import com.lightbot.dto.KnowledgeSaveRequest;
+import com.lightbot.dto.IngestDTO;
+import com.lightbot.dto.KnowledgeSaveDTO;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
 import org.springframework.util.StringUtils;
@@ -87,7 +87,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     @Override
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_KNOWLEDGE, allEntries = true)
-    public Knowledge create(KnowledgeSaveRequest request) {
+    public Knowledge create(KnowledgeSaveDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
 
         // 1. 校验名称唯一性
@@ -125,7 +125,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     }
 
     @Override
-    public Knowledge update(KnowledgeSaveRequest request) {
+    public Knowledge update(KnowledgeSaveDTO request) {
         // 1. 权限校验：需要MANAGER及以上权限
         checkPermission(request.getId(), KnowledgeRole.MANAGER);
 
@@ -629,13 +629,13 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     }
 
     @Override
-    public IngestRequest getDefaultIngestConfig(Long knowledgeId) {
+    public IngestDTO getDefaultIngestConfig(Long knowledgeId) {
         Knowledge knowledge = getById(knowledgeId);
         if (knowledge == null) {
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }
 
-        IngestRequest config = new IngestRequest();
+        IngestDTO config = new IngestDTO();
 
         // 从 config JSONB 中解析默认分块配置
         try {

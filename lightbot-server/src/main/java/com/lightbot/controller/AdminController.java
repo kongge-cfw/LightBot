@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.AdminUserUpdateRequest;
+import com.lightbot.dto.AdminUserUpdateDTO;
 import com.lightbot.dto.UserDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.Knowledge;
@@ -59,7 +59,7 @@ public class AdminController {
 
     @Operation(summary = "更新用户信息")
     @PutMapping("/users/{id}")
-    public Result<Void> updateUser(@PathVariable Long id, @Valid @RequestBody AdminUserUpdateRequest request) {
+    public Result<Void> updateUser(@PathVariable Long id, @Valid @RequestBody AdminUserUpdateDTO request) {
         request.setUserId(id);
         userService.adminUpdateUser(request);
         return Result.ok();

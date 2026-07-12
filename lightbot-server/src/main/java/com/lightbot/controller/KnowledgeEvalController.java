@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.common.Result;
-import com.lightbot.dto.EvalBenchmarkGenerateRequest;
-import com.lightbot.dto.EvalRunRequest;
+import com.lightbot.dto.EvalBenchmarkGenerateDTO;
+import com.lightbot.dto.EvalRunDTO;
 import com.lightbot.entity.EvalRagBenchmark;
 import com.lightbot.entity.EvalRagBenchmarkItem;
 import com.lightbot.enums.ErrorCode;
@@ -71,7 +71,7 @@ public class KnowledgeEvalController {
     @Operation(summary = "AI 自动生成评估基准（异步任务）")
     public Result<Task> generateBenchmark(
             @PathVariable Long knowledgeId,
-            @RequestBody @Valid EvalBenchmarkGenerateRequest request) throws Exception {
+            @RequestBody @Valid EvalBenchmarkGenerateDTO request) throws Exception {
         // 1. 创建空基准记录
         EvalRagBenchmark benchmark = benchmarkService.createEmptyBenchmark(
                 knowledgeId, request.getName(), request.getDescription());
@@ -168,7 +168,7 @@ public class KnowledgeEvalController {
     @Operation(summary = "运行 RAG 评估（异步任务）")
     public Result<Task> runEvaluation(
             @PathVariable Long knowledgeId,
-            @RequestBody @Valid EvalRunRequest request) throws Exception {
+            @RequestBody @Valid EvalRunDTO request) throws Exception {
         // 1. 创建评估结果记录
         EvalRagResult result = resultService.createEvalResult(knowledgeId, request.getBenchmarkId());
 

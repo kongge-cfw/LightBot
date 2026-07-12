@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.vo.LlmTraceDetailVO;
-import com.lightbot.dto.LlmTraceRequest;
+import com.lightbot.dto.LlmTraceRequestDTO;
 import com.lightbot.entity.LlmTrace;
 
 import java.util.List;
@@ -22,7 +22,7 @@ public interface LlmTraceService extends IService<LlmTrace> {
      * @param request 查询参数
      * @return 分页结果
      */
-    Map<String, Object> pageList(LlmTraceRequest request);
+    Map<String, Object> pageList(LlmTraceRequestDTO request);
 
     /**
      * 查询调用链详情（spans解析为对象列表）

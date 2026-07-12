@@ -1,8 +1,8 @@
 package com.lightbot.service.sandbox;
 
 import com.lightbot.common.BizException;
-import com.lightbot.dto.SkillFileTreeNode;
-import com.lightbot.dto.SkillImportPreview;
+import com.lightbot.dto.SkillFileTreeNodeDTO;
+import com.lightbot.dto.SkillImportPreviewDTO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.model.SkillMetadata;
 import com.lightbot.util.MinioUtil;
@@ -113,7 +113,7 @@ public class SkillStorageService {
      * @param slug Skill 标识
      * @return 文件树根节点列表
      */
-    public List<SkillFileTreeNode> buildFileTree(String slug) {
+    public List<SkillFileTreeNodeDTO> buildFileTree(String slug) {
         List<String> files = listSkillFiles(slug);
         return buildTreeFromPaths(files);
     }
@@ -193,22 +193,22 @@ public class SkillStorageService {
     /**
      * 从扁平路径列表构建树形结构
      */
-    private List<SkillFileTreeNode> buildTreeFromPaths(List<String> paths) {
+    private List<SkillFileTreeNodeDTO> buildTreeFromPaths(List<String> paths) {
         // 使用 LinkedHashMap 保持插入顺序
-        Map<String, SkillFileTreeNode> rootMap = new LinkedHashMap<>();
+        Map<String, SkillFileTreeNodeDTO> rootMap = new LinkedHashMap<>();
 
         for (String path : paths) {
             String[] parts = path.split("/");
-            Map<String, SkillFileTreeNode> currentLevel = rootMap;
-            List<SkillFileTreeNode> parentChildren = null; // 父节点的 children 列表，root 层为 null
+            Map<String, SkillFileTreeNodeDTO> currentLevel = rootMap;
+            List<SkillFileTreeNodeDTO> parentChildren = null; // 父节点的 children 列表，root 层为 null
 
             for (int i = 0; i < parts.length; i++) {
                 String part = parts[i];
                 boolean isLeaf = (i == parts.length - 1);
 
-                SkillFileTreeNode node = currentLevel.get(part);
+                SkillFileTreeNodeDTO node = currentLevel.get(part);
                 if (node == null) {
-                    node = new SkillFileTreeNode();
+                    node = new SkillFileTreeNodeDTO();
                     node.setName(part);
                     if (isLeaf) {
                         // 完整相对路径
@@ -233,8 +233,8 @@ public class SkillStorageService {
                     }
                     parentChildren = node.getChildren();
                     // 从 children 列表重建子层级索引
-                    Map<String, SkillFileTreeNode> childMap = new LinkedHashMap<>();
-                    for (SkillFileTreeNode child : parentChildren) {
+                    Map<String, SkillFileTreeNodeDTO> childMap = new LinkedHashMap<>();
+                    for (SkillFileTreeNodeDTO child : parentChildren) {
                         childMap.put(child.getName(), child);
                     }
                     currentLevel = childMap;
@@ -333,7 +333,7 @@ public class SkillStorageService {
      * @param zipStream ZIP 输入流
      * @return 导入预览
      */
-    public SkillImportPreview stageDraft(String draftId, InputStream zipStream) {
+    public SkillImportPreviewDTO stageDraft(String draftId, InputStream zipStream) {
         String draftPrefix = DRAFTS_ROOT + draftId + "/";
         String skillMdContent = null;
         List<String> fileNames = new ArrayList<>();
@@ -377,7 +377,7 @@ public class SkillStorageService {
 
         SkillMetadata metadata = parseSkillMarkdown(skillMdContent);
 
-        SkillImportPreview preview = new SkillImportPreview();
+        SkillImportPreviewDTO preview = new SkillImportPreviewDTO();
         preview.setDraftId(draftId);
         preview.setSlug(metadata.getSlug());
         preview.setName(metadata.getName());

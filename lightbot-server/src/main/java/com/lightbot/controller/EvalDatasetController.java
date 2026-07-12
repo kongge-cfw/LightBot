@@ -2,10 +2,10 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.EvalDatasetCreateRequest;
+import com.lightbot.dto.EvalDatasetCreateDTO;
 import com.lightbot.vo.EvalDatasetExampleVO;
-import com.lightbot.dto.EvalDatasetItemCreateRequest;
-import com.lightbot.dto.EvalDatasetVersionCreateRequest;
+import com.lightbot.dto.EvalDatasetItemCreateDTO;
+import com.lightbot.dto.EvalDatasetVersionCreateDTO;
 import com.lightbot.entity.EvalDataset;
 import com.lightbot.entity.EvalDatasetItem;
 import com.lightbot.entity.EvalDatasetVersion;
@@ -39,7 +39,7 @@ public class EvalDatasetController {
 
     @Operation(summary = "创建评测集")
     @PostMapping
-    public Result<EvalDataset> create(@Valid @RequestBody EvalDatasetCreateRequest request) {
+    public Result<EvalDataset> create(@Valid @RequestBody EvalDatasetCreateDTO request) {
         return Result.ok(datasetService.create(request.getName(), request.getDescription(), request.getColumnsConfig(), StpUtil.getLoginIdAsLong()));
     }
 
@@ -60,7 +60,7 @@ public class EvalDatasetController {
 
     @Operation(summary = "更新评测集")
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody EvalDatasetCreateRequest request) {
+    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody EvalDatasetCreateDTO request) {
         datasetService.update(id, request.getName(), request.getDescription(), request.getColumnsConfig());
         return Result.ok();
     }
@@ -74,7 +74,7 @@ public class EvalDatasetController {
 
     @Operation(summary = "创建评测集版本")
     @PostMapping("/versions")
-    public Result<EvalDatasetVersion> createVersion(@Valid @RequestBody EvalDatasetVersionCreateRequest request) {
+    public Result<EvalDatasetVersion> createVersion(@Valid @RequestBody EvalDatasetVersionCreateDTO request) {
         return Result.ok(datasetVersionService.create(request.getDatasetId(), request.getVersion()));
     }
 
@@ -92,13 +92,13 @@ public class EvalDatasetController {
 
     @Operation(summary = "添加评测数据项")
     @PostMapping("/items")
-    public Result<EvalDatasetItem> addItem(@Valid @RequestBody EvalDatasetItemCreateRequest request) {
+    public Result<EvalDatasetItem> addItem(@Valid @RequestBody EvalDatasetItemCreateDTO request) {
         return Result.ok(datasetItemService.create(request.getDatasetId(), request.getDataContent()));
     }
 
     @Operation(summary = "批量添加评测数据项")
     @PostMapping("/items/batch")
-    public Result<Integer> batchAddItems(@Valid @RequestBody EvalDatasetItemCreateRequest request) {
+    public Result<Integer> batchAddItems(@Valid @RequestBody EvalDatasetItemCreateDTO request) {
         return Result.ok(datasetItemService.batchCreate(request.getDatasetId(), request.getDataContents()));
     }
 

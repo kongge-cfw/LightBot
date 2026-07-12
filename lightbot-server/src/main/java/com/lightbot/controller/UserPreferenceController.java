@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.UserPreferenceUpdateRequest;
+import com.lightbot.dto.UserPreferenceUpdateDTO;
 import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.service.UserPreferenceService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -47,7 +47,7 @@ public class UserPreferenceController {
      */
     @Operation(summary = "更新当前用户个人配置")
     @PutMapping
-    public Result<UserPreferenceVO> updatePreferences(@Valid @RequestBody UserPreferenceUpdateRequest request) {
+    public Result<UserPreferenceVO> updatePreferences(@Valid @RequestBody UserPreferenceUpdateDTO request) {
         return Result.ok(userPreferenceService.updateCurrentPreferences(request));
     }
 }

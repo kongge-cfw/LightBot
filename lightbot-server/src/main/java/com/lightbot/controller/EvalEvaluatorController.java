@@ -2,11 +2,11 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.EvalEvaluatorCreateRequest;
+import com.lightbot.dto.EvalEvaluatorCreateDTO;
 import com.lightbot.vo.EvalEvaluatorExampleVO;
-import com.lightbot.dto.EvalEvaluatorTestRequest;
-import com.lightbot.dto.EvalEvaluatorVersionCreateRequest;
-import com.lightbot.dto.EvalScoreResult;
+import com.lightbot.dto.EvalEvaluatorTestDTO;
+import com.lightbot.dto.EvalEvaluatorVersionCreateDTO;
+import com.lightbot.dto.EvalScoreResultDTO;
 import com.lightbot.entity.EvalEvaluator;
 import com.lightbot.entity.EvalEvaluatorTemplate;
 import com.lightbot.entity.EvalEvaluatorVersion;
@@ -42,7 +42,7 @@ public class EvalEvaluatorController {
 
     @Operation(summary = "创建评估器")
     @PostMapping
-    public Result<EvalEvaluator> create(@Valid @RequestBody EvalEvaluatorCreateRequest request) {
+    public Result<EvalEvaluator> create(@Valid @RequestBody EvalEvaluatorCreateDTO request) {
         return Result.ok(evaluatorService.create(request.getName(), request.getDescription(), request.getTags(), StpUtil.getLoginIdAsLong()));
     }
 
@@ -63,7 +63,7 @@ public class EvalEvaluatorController {
 
     @Operation(summary = "更新评估器")
     @PutMapping("/{id}")
-    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody EvalEvaluatorCreateRequest request) {
+    public Result<Void> update(@PathVariable Long id, @Valid @RequestBody EvalEvaluatorCreateDTO request) {
         evaluatorService.update(id, request.getName(), request.getDescription(), request.getTags());
         return Result.ok();
     }
@@ -77,7 +77,7 @@ public class EvalEvaluatorController {
 
     @Operation(summary = "创建评估器版本")
     @PostMapping("/versions")
-    public Result<EvalEvaluatorVersion> createVersion(@Valid @RequestBody EvalEvaluatorVersionCreateRequest request) {
+    public Result<EvalEvaluatorVersion> createVersion(@Valid @RequestBody EvalEvaluatorVersionCreateDTO request) {
         return Result.ok(evaluatorVersionService.create(
                 request.getEvaluatorId(), request.getVersion(),
                 request.getPrompt(), request.getVariables(), request.getModelConfig()));
@@ -103,12 +103,12 @@ public class EvalEvaluatorController {
 
     @Operation(summary = "测试评估器")
     @PostMapping("/test")
-    public Result<EvalScoreResult> test(@Valid @RequestBody EvalEvaluatorTestRequest request) {
+    public Result<EvalScoreResultDTO> test(@Valid @RequestBody EvalEvaluatorTestDTO request) {
         EvalEvaluatorVersion version = evaluatorVersionService.getById(request.getEvaluatorVersionId());
         if (version == null) {
             return Result.ok(null);
         }
-        EvalScoreResult result = evalChatService.callEvaluator(
+        EvalScoreResultDTO result = evalChatService.callEvaluator(
                 version.getModelConfig(), version.getPrompt(), request.getVariables());
         return Result.ok(result);
     }

@@ -1,7 +1,7 @@
 package com.lightbot.workflow.processor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import com.lightbot.enums.NodeType;
 import com.lightbot.service.sandbox.SandboxService;
 import com.lightbot.workflow.NodeExecutionContext;
@@ -56,7 +56,7 @@ public class ScriptNodeProcessor extends AbstractFlowNodeProcessor implements No
 
         // 委托统一沙盒执行
         String lang = language.isBlank() ? "javascript" : language;
-        CodeExecResult result = sandboxService.executeCode(script, lang, params, timeoutMs);
+        CodeExecResultDTO result = sandboxService.executeCode(script, lang, params, timeoutMs);
 
         if (!result.isSuccess()) {
             // 失败策略：defaultValue 则返回默认输出，否则抛异常

@@ -1,6 +1,6 @@
 package com.lightbot.service;
 
-import com.lightbot.dto.ChatRequest;
+import com.lightbot.dto.ChatRequestDTO;
 import com.lightbot.vo.RagReferenceVO;
 import reactor.core.publisher.Flux;
 
@@ -20,7 +20,7 @@ public interface ChatService {
      * @param request 对话请求
      * @return AI回复
      */
-    String chat(ChatRequest request);
+    String chat(ChatRequestDTO request);
 
     /**
      * 流式对话（SSE）
@@ -28,7 +28,7 @@ public interface ChatService {
      * @param request 对话请求
      * @return 流式回复
      */
-    Flux<String> chatStream(ChatRequest request);
+    Flux<String> chatStream(ChatRequestDTO request);
 
     /**
      * 获取会话的RAG引用信息

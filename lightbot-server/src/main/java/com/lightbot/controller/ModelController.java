@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.ModelRequest;
+import com.lightbot.dto.ModelRequestDTO;
 import com.lightbot.entity.Model;
 import com.lightbot.enums.ModelType;
 import com.lightbot.service.ModelService;
@@ -23,7 +23,7 @@ public class ModelController {
 
     @Operation(summary = "新增模型")
     @PostMapping
-    public Result<Model> create(@Valid @RequestBody ModelRequest request) {
+    public Result<Model> create(@Valid @RequestBody ModelRequestDTO request) {
         return Result.ok(modelService.create(request));
     }
 

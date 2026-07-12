@@ -9,9 +9,9 @@ import com.lightbot.common.BizException;
 import com.lightbot.vo.DocumentDownloadVO;
 import com.lightbot.vo.DocumentStreamVO;
 import com.lightbot.vo.DuplicateCheckResultVO;
-import com.lightbot.dto.IngestRequest;
+import com.lightbot.dto.IngestDTO;
 import com.lightbot.vo.UrlFetchPreviewVO;
-import com.lightbot.dto.UrlSaveRequest;
+import com.lightbot.dto.UrlSaveDTO;
 import com.lightbot.entity.Chunk;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
@@ -690,7 +690,7 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
     }
 
     @Override
-    public Document saveUrlDocument(Long knowledgeId, UrlSaveRequest request) {
+    public Document saveUrlDocument(Long knowledgeId, UrlSaveDTO request) {
         // 权限校验：需要DEVELOPER及以上权限
         permissionHelper.checkPermission(knowledgeId, KnowledgeRole.DEVELOPER);
         return persistUrlContent(knowledgeId, request.getUrl(), request.getTitle(), request.getContent(), System.currentTimeMillis(), request.getSyncConfig());

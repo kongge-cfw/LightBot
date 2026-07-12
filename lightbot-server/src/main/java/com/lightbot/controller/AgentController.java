@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.BizException;
 import com.lightbot.common.Result;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
-import com.lightbot.dto.AgentPublishRequest;
-import com.lightbot.dto.AgentSaveRequest;
+import com.lightbot.dto.AgentPublishDTO;
+import com.lightbot.dto.AgentSaveDTO;
 import com.lightbot.vo.AgentVersionListVO;
 import com.lightbot.vo.MentionOptionsVO;
 import com.lightbot.vo.WorkflowVersionVO;
@@ -44,13 +44,13 @@ public class AgentController {
 
     @Operation(summary = "创建Agent")
     @PostMapping
-    public Result<Agent> create(@RequestBody @Valid AgentSaveRequest request) {
+    public Result<Agent> create(@RequestBody @Valid AgentSaveDTO request) {
         return Result.ok(agentService.create(request));
     }
 
     @Operation(summary = "更新Agent")
     @PutMapping
-    public Result<Agent> update(@RequestBody @Valid AgentSaveRequest request) {
+    public Result<Agent> update(@RequestBody @Valid AgentSaveDTO request) {
         return Result.ok(agentService.update(request));
     }
 
@@ -272,7 +272,7 @@ public class AgentController {
     @PostMapping("/{id}/publish")
     public Result<Map<String, Object>> publishAgent(
             @PathVariable Long id,
-            @RequestBody(required = false) @Valid AgentPublishRequest body) {
+            @RequestBody(required = false) @Valid AgentPublishDTO body) {
         String description = body != null ? body.getDescription() : null;
         return Result.ok(agentVersionService.publishChatAgent(id, description));
     }

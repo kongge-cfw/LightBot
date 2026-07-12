@@ -2,12 +2,12 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.RemoteListRequest;
-import com.lightbot.dto.RemotePrepareRequest;
-import com.lightbot.dto.SkillFileTreeNode;
-import com.lightbot.dto.SkillFileWriteRequest;
-import com.lightbot.dto.SkillImportPreview;
-import com.lightbot.dto.SkillRequest;
+import com.lightbot.dto.RemoteListDTO;
+import com.lightbot.dto.RemotePrepareDTO;
+import com.lightbot.dto.SkillFileTreeNodeDTO;
+import com.lightbot.dto.SkillFileWriteDTO;
+import com.lightbot.dto.SkillImportPreviewDTO;
+import com.lightbot.dto.SkillRequestDTO;
 import com.lightbot.entity.Skill;
 import com.lightbot.service.SkillService;
 import com.lightbot.service.sandbox.GitHubSkillService;
@@ -34,13 +34,13 @@ public class SkillController {
 
     @Operation(summary = "新增 Skill（全局或 Agent 私有）")
     @PostMapping
-    public Result<Skill> create(@Valid @RequestBody SkillRequest request) {
+    public Result<Skill> create(@Valid @RequestBody SkillRequestDTO request) {
         return Result.ok(skillService.create(request));
     }
 
     @Operation(summary = "更新 Skill（内置不可编辑）")
     @PutMapping
-    public Result<Skill> update(@Valid @RequestBody SkillRequest request) {
+    public Result<Skill> update(@Valid @RequestBody SkillRequestDTO request) {
         return Result.ok(skillService.update(request));
     }
 
@@ -82,7 +82,7 @@ public class SkillController {
 
     @Operation(summary = "ZIP 导入 Skill（阶段一：暂存草稿并返回预览）")
     @PostMapping("/import/preview")
-    public Result<SkillImportPreview> importPreview(
+    public Result<SkillImportPreviewDTO> importPreview(
             @RequestParam("file") MultipartFile file) throws Exception {
         return Result.ok(skillService.importZipStage(file.getInputStream()));
     }
@@ -105,7 +105,7 @@ public class SkillController {
 
     @Operation(summary = "获取 Skill 文件树")
     @GetMapping("/{id}/files")
-    public Result<List<SkillFileTreeNode>> listFiles(@PathVariable Long id) {
+    public Result<List<SkillFileTreeNodeDTO>> listFiles(@PathVariable Long id) {
         return Result.ok(skillService.listFiles(id));
     }
 
@@ -117,14 +117,14 @@ public class SkillController {
 
     @Operation(summary = "创建 Skill 文件/目录")
     @PostMapping("/{id}/file")
-    public Result<Void> createFile(@PathVariable Long id, @Valid @RequestBody SkillFileWriteRequest request) {
+    public Result<Void> createFile(@PathVariable Long id, @Valid @RequestBody SkillFileWriteDTO request) {
         skillService.createFile(id, request.getPath(), request.getContent(), Boolean.TRUE.equals(request.getDir()));
         return Result.ok();
     }
 
     @Operation(summary = "更新 Skill 文件内容")
     @PutMapping("/{id}/file")
-    public Result<Void> updateFile(@PathVariable Long id, @Valid @RequestBody SkillFileWriteRequest request) {
+    public Result<Void> updateFile(@PathVariable Long id, @Valid @RequestBody SkillFileWriteDTO request) {
         skillService.updateFile(id, request.getPath(), request.getContent());
         return Result.ok();
     }
@@ -140,7 +140,7 @@ public class SkillController {
 
     @Operation(summary = "列出远程仓库中的 Skill")
     @PostMapping("/remote/list")
-    public Result<List<Map<String, String>>> listRemoteSkills(@RequestBody @Valid RemoteListRequest request) {
+    public Result<List<Map<String, String>>> listRemoteSkills(@RequestBody @Valid RemoteListDTO request) {
         String source = request.getSource().trim();
         if (gitHubSkillService.isModelScopeUrl(source)) {
             return Result.ok(gitHubSkillService.listModelScopeSkills(source));
@@ -151,13 +151,13 @@ public class SkillController {
 
     @Operation(summary = "全局搜索远程 Skill")
     @PostMapping("/remote/search")
-    public Result<List<Map<String, String>>> searchRemoteSkills(@RequestBody @Valid RemoteListRequest request) {
+    public Result<List<Map<String, String>>> searchRemoteSkills(@RequestBody @Valid RemoteListDTO request) {
         return Result.ok(gitHubSkillService.searchRemoteSkills(request.getSource()));
     }
 
     @Operation(summary = "远程安装准备（下载并暂存草稿）")
     @PostMapping("/remote/prepare")
-    public Result<List<SkillImportPreview>> prepareRemoteInstall(@RequestBody @Valid RemotePrepareRequest request) {
+    public Result<List<SkillImportPreviewDTO>> prepareRemoteInstall(@RequestBody @Valid RemotePrepareDTO request) {
         String source = request.getSource().trim();
         log.info("[SkillController] 远程安装准备: source={}, skills={}", source, request.getSkills());
         if (gitHubSkillService.isModelScopeUrl(source)) {

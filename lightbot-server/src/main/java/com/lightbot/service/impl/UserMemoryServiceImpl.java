@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.UserMemoryRequest;
+import com.lightbot.dto.UserMemoryRequestDTO;
 import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.vo.UserPreferenceVO;
 import com.lightbot.entity.UserMemory;
@@ -78,7 +78,7 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserMemoryVO createCurrentUserMemory(UserMemoryRequest request) {
+    public UserMemoryVO createCurrentUserMemory(UserMemoryRequestDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
         UserMemory memory = buildMemory(userId, request.getAgentId(), null, null,
                 request.getMemoryType(), request.getContent(), request.getKeywords(), request.getConfidence());
@@ -90,7 +90,7 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public UserMemoryVO updateCurrentUserMemory(Long id, UserMemoryRequest request) {
+    public UserMemoryVO updateCurrentUserMemory(Long id, UserMemoryRequestDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
         UserMemory memory = getOwnedMemory(id, userId);
         memory.setContent(normalizeContent(request.getContent()));

@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.ToolRequest;
+import com.lightbot.dto.ToolRequestDTO;
 import com.lightbot.entity.Tool;
 import org.springframework.ai.tool.ToolCallback;
 
@@ -17,9 +17,9 @@ import java.util.Map;
  */
 public interface ToolService extends IService<Tool> {
 
-    Tool create(ToolRequest request);
+    Tool create(ToolRequestDTO request);
 
-    Tool update(ToolRequest request);
+    Tool update(ToolRequestDTO request);
 
     Page<Tool> listPage(int pageNum, int pageSize, String name);
 

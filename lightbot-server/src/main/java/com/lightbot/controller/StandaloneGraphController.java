@@ -37,7 +37,7 @@ public class StandaloneGraphController {
     @Operation(summary = "手动批量导入三元组")
     @PostMapping("/import")
     public Result<GraphStatsVO> importTriples(
-            @RequestBody @jakarta.validation.Valid GraphImportRequest request,
+            @RequestBody @jakarta.validation.Valid GraphImportDTO request,
             @RequestParam(required = false) Long providerId) {
         return Result.ok(standaloneGraphService.importTriples(request.getTriples(), providerId));
     }

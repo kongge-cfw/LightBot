@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 
 import java.util.List;
 import java.util.Map;
@@ -22,7 +22,7 @@ public interface SandboxService {
      * @param timeoutMs 超时时间（毫秒），null 使用默认 5000
      * @return 执行结果
      */
-    CodeExecResult executeCode(String code, String language, Map<String, Object> params, Long timeoutMs);
+    CodeExecResultDTO executeCode(String code, String language, Map<String, Object> params, Long timeoutMs);
 
     /**
      * 读取沙盒文件

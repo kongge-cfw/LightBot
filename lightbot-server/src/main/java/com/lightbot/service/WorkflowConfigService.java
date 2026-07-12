@@ -1,10 +1,10 @@
 package com.lightbot.service;
 
 import com.lightbot.dto.WorkflowGraphDTO;
-import com.lightbot.dto.WorkflowNodeTestRequest;
-import com.lightbot.dto.WorkflowAbandonRequest;
-import com.lightbot.dto.WorkflowResumeRequest;
-import com.lightbot.dto.WorkflowTestRequest;
+import com.lightbot.dto.WorkflowNodeTestDTO;
+import com.lightbot.dto.WorkflowAbandonDTO;
+import com.lightbot.dto.WorkflowResumeDTO;
+import com.lightbot.dto.WorkflowTestDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.vo.WorkflowTestRunDetailVO;
 import com.lightbot.vo.WorkflowTestRunVO;
@@ -65,32 +65,32 @@ public interface WorkflowConfigService {
     /**
      * 调试运行
      */
-    WorkflowTestResultVO testRun(Long agentId, WorkflowTestRequest request);
+    WorkflowTestResultVO testRun(Long agentId, WorkflowTestDTO request);
 
     /**
      * 调试运行（SSE 实时推送节点事件）
      */
-    SseEmitter testRunStream(Long agentId, WorkflowTestRequest request);
+    SseEmitter testRunStream(Long agentId, WorkflowTestDTO request);
 
     /**
      * 人工确认后恢复工作流
      */
-    WorkflowTestResultVO resumeWorkflow(Long agentId, WorkflowResumeRequest request);
+    WorkflowTestResultVO resumeWorkflow(Long agentId, WorkflowResumeDTO request);
 
     /**
      * 人工确认后恢复工作流（SSE 实时推送）
      */
-    SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeRequest request);
+    SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeDTO request);
 
     /**
      * 放弃人工确认：删除 Redis 挂起快照并回写 Chat 消息状态
      */
-    void abandonWorkflowConfirm(Long agentId, WorkflowAbandonRequest request);
+    void abandonWorkflowConfirm(Long agentId, WorkflowAbandonDTO request);
 
     /**
      * 单节点调试运行
      */
-    WorkflowTestResultVO testNode(Long agentId, WorkflowNodeTestRequest request);
+    WorkflowTestResultVO testNode(Long agentId, WorkflowNodeTestDTO request);
 
     /**
      * 测试运行历史列表

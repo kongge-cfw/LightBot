@@ -3,7 +3,7 @@ package com.lightbot.service.sandbox;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.SkillImportPreview;
+import com.lightbot.dto.SkillImportPreviewDTO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.model.SkillMetadata;
 import lombok.RequiredArgsConstructor;
@@ -258,9 +258,9 @@ public class GitHubSkillService {
      * @param repo        仓库名
      * @param branch      分支名（null 时使用默认分支）
      * @param skillSlugs  选中的 Skill slug 列表
-     * @return SkillImportPreview 列表（共享同一个 draftId）
+     * @return SkillImportPreviewDTO 列表（共享同一个 draftId）
      */
-    public List<SkillImportPreview> prepareRemoteInstall(String owner, String repo, String branch,
+    public List<SkillImportPreviewDTO> prepareRemoteInstall(String owner, String repo, String branch,
                                                           List<String> skillSlugs) {
         String draftId = UUID.randomUUID().toString().replace("-", "");
         String effectiveBranch = branch != null ? branch : "main";
@@ -281,7 +281,7 @@ public class GitHubSkillService {
             }
 
             // 3. 扫描所有 SKILL.md，提取目标 Skill
-            List<SkillImportPreview> previews = new ArrayList<>();
+            List<SkillImportPreviewDTO> previews = new ArrayList<>();
             List<String> foundSlugs = new ArrayList<>();
             Files.walk(root)
                     .filter(p -> SKILL_MD.equals(p.getFileName().toString()))
@@ -322,7 +322,7 @@ public class GitHubSkillService {
                                     });
 
                             SkillMetadata metadata = skillStorageService.parseSkillMarkdown(skillMdContent);
-                            SkillImportPreview preview = new SkillImportPreview();
+                            SkillImportPreviewDTO preview = new SkillImportPreviewDTO();
                             preview.setDraftId(draftId);
                             preview.setSlug(slug);
                             preview.setName(metadata.getName());
@@ -345,7 +345,7 @@ public class GitHubSkillService {
             }
 
             log.info("[GitHubSkill] 远程安装准备完成: source={}/{}, draftId={}, skills={}",
-                    owner, repo, draftId, previews.stream().map(SkillImportPreview::getSlug).toList());
+                    owner, repo, draftId, previews.stream().map(SkillImportPreviewDTO::getSlug).toList());
             return previews;
 
         } catch (BizException e) {
@@ -546,9 +546,9 @@ public class GitHubSkillService {
      *
      * @param source     ModelScope Skill URL
      * @param skillSlugs 选中的 Skill slug 列表（ModelScope 场景下只有一个）
-     * @return SkillImportPreview 列表
+     * @return SkillImportPreviewDTO 列表
      */
-    public List<SkillImportPreview> prepareModelScopeInstall(String source, List<String> skillSlugs) {
+    public List<SkillImportPreviewDTO> prepareModelScopeInstall(String source, List<String> skillSlugs) {
         String skillId = parseModelScopeSkillId(source);
         String draftId = UUID.randomUUID().toString().replace("-", "");
 
@@ -599,7 +599,7 @@ public class GitHubSkillService {
 
             // 4. 解析 SKILL.md 元数据
             SkillMetadata metadata = skillStorageService.parseSkillMarkdown(skillMdContent);
-            SkillImportPreview preview = new SkillImportPreview();
+            SkillImportPreviewDTO preview = new SkillImportPreviewDTO();
             preview.setDraftId(draftId);
             preview.setSlug(slug);
             preview.setName(metadata.getName());

@@ -2,7 +2,7 @@ package com.lightbot.tool.builtin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.constant.ToolResultPrefixes;
-import com.lightbot.dto.SkillImportPreview;
+import com.lightbot.dto.SkillImportPreviewDTO;
 import com.lightbot.entity.Skill;
 import com.lightbot.service.SkillService;
 import com.lightbot.service.sandbox.GitHubSkillService;
@@ -71,7 +71,7 @@ public class InstallSkillTool {
         ToolEventEmitter.emit("正在从 " + owner + "/" + repo + " 下载技能...");
 
         // 2. 远程安装准备（下载 ZIP、暂存草稿），失败时降级全局搜索
-        List<SkillImportPreview> previews;
+        List<SkillImportPreviewDTO> previews;
         try {
             previews = gitHubSkillService.prepareRemoteInstall(owner, repo, branch,
                     skillNames != null && !skillNames.isEmpty() ? skillNames : List.of());
@@ -89,7 +89,7 @@ public class InstallSkillTool {
         List<Map<String, Object>> installed = new ArrayList<>();
         List<String> errors = new ArrayList<>();
 
-        for (SkillImportPreview preview : previews) {
+        for (SkillImportPreviewDTO preview : previews) {
             try {
                 ToolEventEmitter.emit("正在安装技能: " + preview.getSlug() + "...");
 

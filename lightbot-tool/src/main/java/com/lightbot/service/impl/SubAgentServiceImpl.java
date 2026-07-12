@@ -7,7 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.SubAgentRequest;
+import com.lightbot.dto.SubAgentRequestDTO;
 import com.lightbot.entity.SubAgent;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.SubAgentMapper;
@@ -57,7 +57,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_SUBAGENT, allEntries = true)
-    public SubAgent create(SubAgentRequest request) {
+    public SubAgent create(SubAgentRequestDTO request) {
         // 1. 校验名称唯一性
         long count = count(new LambdaQueryWrapper<SubAgent>().eq(SubAgent::getName, request.getName()));
         if (count > 0) {
@@ -83,7 +83,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_SUBAGENT, key = "#request.id")
-    public SubAgent update(SubAgentRequest request) {
+    public SubAgent update(SubAgentRequestDTO request) {
         // 1. 校验存在性
         SubAgent subAgent = getById(request.getId());
         if (subAgent == null) {

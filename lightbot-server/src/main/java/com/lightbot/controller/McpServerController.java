@@ -4,7 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.common.Result;
-import com.lightbot.dto.McpServerRequest;
+import com.lightbot.dto.McpServerRequestDTO;
 import com.lightbot.vo.McpToolVO;
 import com.lightbot.entity.McpServer;
 import com.lightbot.enums.ErrorCode;
@@ -36,13 +36,13 @@ public class McpServerController {
 
     @Operation(summary = "新增MCP Server")
     @PostMapping
-    public Result<McpServer> create(@Valid @RequestBody McpServerRequest request) {
+    public Result<McpServer> create(@Valid @RequestBody McpServerRequestDTO request) {
         return Result.ok(mcpServerService.create(request));
     }
 
     @Operation(summary = "更新MCP Server")
     @PutMapping
-    public Result<McpServer> update(@Valid @RequestBody McpServerRequest request) {
+    public Result<McpServer> update(@Valid @RequestBody McpServerRequestDTO request) {
         return Result.ok(mcpServerService.update(request));
     }
 

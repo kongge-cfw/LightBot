@@ -3,10 +3,10 @@ package com.lightbot.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.WorkflowGraphDTO;
-import com.lightbot.dto.WorkflowNodeTestRequest;
-import com.lightbot.dto.WorkflowAbandonRequest;
-import com.lightbot.dto.WorkflowResumeRequest;
-import com.lightbot.dto.WorkflowTestRequest;
+import com.lightbot.dto.WorkflowNodeTestDTO;
+import com.lightbot.dto.WorkflowAbandonDTO;
+import com.lightbot.dto.WorkflowResumeDTO;
+import com.lightbot.dto.WorkflowTestDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.vo.WorkflowTestRunDetailVO;
 import com.lightbot.vo.WorkflowTestRunVO;
@@ -126,7 +126,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public WorkflowTestResultVO testRun(Long agentId, WorkflowTestRequest request) {
+    public WorkflowTestResultVO testRun(Long agentId, WorkflowTestDTO request) {
         TestRunContext ctx = prepareTestRun(agentId, request);
         long startMs = System.currentTimeMillis();
         try {
@@ -143,7 +143,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public SseEmitter testRunStream(Long agentId, WorkflowTestRequest request) {
+    public SseEmitter testRunStream(Long agentId, WorkflowTestDTO request) {
         TestRunContext ctx = prepareTestRun(agentId, request);
         SseEmitter emitter = workflowTestSseHelper.createEmitter();
         AtomicInteger counter = new AtomicInteger(0);
@@ -169,7 +169,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     /**
      * 准备调试运行上下文（定义加载、runId、初始变量）
      */
-    private TestRunContext prepareTestRun(Long agentId, WorkflowTestRequest request) {
+    private TestRunContext prepareTestRun(Long agentId, WorkflowTestDTO request) {
         Agent agent = requireAgent(agentId);
         WorkflowDefinition definition;
         if (request.getGraph() != null
@@ -209,7 +209,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public WorkflowTestResultVO resumeWorkflow(Long agentId, WorkflowResumeRequest request) {
+    public WorkflowTestResultVO resumeWorkflow(Long agentId, WorkflowResumeDTO request) {
         requireAgent(agentId);
         Map<String, Object> formData = request.getFormData() != null ? request.getFormData() : Map.of();
         long startMs = System.currentTimeMillis();
@@ -226,7 +226,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeRequest request) {
+    public SseEmitter resumeWorkflowStream(Long agentId, WorkflowResumeDTO request) {
         requireAgent(agentId);
         Map<String, Object> formData = request.getFormData() != null ? request.getFormData() : Map.of();
         SseEmitter emitter = workflowTestSseHelper.createEmitter();
@@ -257,7 +257,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public void abandonWorkflowConfirm(Long agentId, WorkflowAbandonRequest request) {
+    public void abandonWorkflowConfirm(Long agentId, WorkflowAbandonDTO request) {
         requireAgent(agentId);
         String runId = request.getRunId();
         WorkflowSuspendedRun suspended = workflowRunStateUtil.getSuspended(runId);
@@ -466,7 +466,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     }
 
     @Override
-    public WorkflowTestResultVO testNode(Long agentId, WorkflowNodeTestRequest request) {
+    public WorkflowTestResultVO testNode(Long agentId, WorkflowNodeTestDTO request) {
         Agent agent = requireAgent(agentId);
         WorkflowDefinition definition;
         if (request.getGraph() != null
@@ -521,7 +521,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     /**
      * 构建调试运行预置变量：文本生成 / 文本对话
      */
-    private Map<String, Object> buildTestInitialVariables(WorkflowTestRequest request) {
+    private Map<String, Object> buildTestInitialVariables(WorkflowTestDTO request) {
         Map<String, Object> vars = new HashMap<>();
         String input = request.getInput();
         if (input != null) {

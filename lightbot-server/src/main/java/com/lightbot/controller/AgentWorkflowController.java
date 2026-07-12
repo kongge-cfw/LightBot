@@ -2,10 +2,10 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.WorkflowGraphDTO;
-import com.lightbot.dto.WorkflowNodeTestRequest;
-import com.lightbot.dto.WorkflowAbandonRequest;
-import com.lightbot.dto.WorkflowResumeRequest;
-import com.lightbot.dto.WorkflowTestRequest;
+import com.lightbot.dto.WorkflowNodeTestDTO;
+import com.lightbot.dto.WorkflowAbandonDTO;
+import com.lightbot.dto.WorkflowResumeDTO;
+import com.lightbot.dto.WorkflowTestDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.vo.WorkflowTestRunDetailVO;
 import com.lightbot.vo.WorkflowTestRunVO;
@@ -89,7 +89,7 @@ public class AgentWorkflowController {
     @PostMapping("/test")
     public Result<WorkflowTestResultVO> testRun(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowTestRequest request) {
+            @RequestBody @Valid WorkflowTestDTO request) {
         return Result.ok(workflowConfigService.testRun(agentId, request));
     }
 
@@ -97,7 +97,7 @@ public class AgentWorkflowController {
     @PostMapping(value = "/test/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter testRunStream(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowTestRequest request) {
+            @RequestBody @Valid WorkflowTestDTO request) {
         return workflowConfigService.testRunStream(agentId, request);
     }
 
@@ -105,7 +105,7 @@ public class AgentWorkflowController {
     @PostMapping("/resume")
     public Result<WorkflowTestResultVO> resume(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowResumeRequest request) {
+            @RequestBody @Valid WorkflowResumeDTO request) {
         return Result.ok(workflowConfigService.resumeWorkflow(agentId, request));
     }
 
@@ -113,7 +113,7 @@ public class AgentWorkflowController {
     @PostMapping(value = "/resume/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter resumeStream(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowResumeRequest request) {
+            @RequestBody @Valid WorkflowResumeDTO request) {
         return workflowConfigService.resumeWorkflowStream(agentId, request);
     }
 
@@ -121,7 +121,7 @@ public class AgentWorkflowController {
     @PostMapping("/abandon")
     public Result<Void> abandonConfirm(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowAbandonRequest request) {
+            @RequestBody @Valid WorkflowAbandonDTO request) {
         workflowConfigService.abandonWorkflowConfirm(agentId, request);
         return Result.ok();
     }
@@ -130,7 +130,7 @@ public class AgentWorkflowController {
     @PostMapping("/test-node")
     public Result<WorkflowTestResultVO> testNode(
             @PathVariable Long agentId,
-            @RequestBody @Valid WorkflowNodeTestRequest request) {
+            @RequestBody @Valid WorkflowNodeTestDTO request) {
         return Result.ok(workflowConfigService.testNode(agentId, request));
     }
 

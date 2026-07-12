@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.ToolRequest;
+import com.lightbot.dto.ToolRequestDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.Tool;
 import com.lightbot.enums.CommonStatus;
@@ -86,7 +86,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_TOOL, allEntries = true)
-    public Tool create(ToolRequest request) {
+    public Tool create(ToolRequestDTO request) {
         // 1. 校验名称唯一性
         long count = count(new LambdaQueryWrapper<Tool>().eq(Tool::getName, request.getName()));
         if (count > 0) {
@@ -112,7 +112,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
     }
 
     @Override
-    public Tool update(ToolRequest request) {
+    public Tool update(ToolRequestDTO request) {
         // 1. 校验存在性
         Tool tool = getById(request.getId());
         if (tool == null) {

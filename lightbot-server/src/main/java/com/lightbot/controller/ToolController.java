@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.ToolRequest;
+import com.lightbot.dto.ToolRequestDTO;
 import com.lightbot.entity.Tool;
 import com.lightbot.service.ToolService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -23,13 +23,13 @@ public class ToolController {
 
     @Operation(summary = "新增Tool")
     @PostMapping
-    public Result<Tool> create(@Valid @RequestBody ToolRequest request) {
+    public Result<Tool> create(@Valid @RequestBody ToolRequestDTO request) {
         return Result.ok(toolService.create(request));
     }
 
     @Operation(summary = "更新Tool")
     @PutMapping
-    public Result<Tool> update(@Valid @RequestBody ToolRequest request) {
+    public Result<Tool> update(@Valid @RequestBody ToolRequestDTO request) {
         return Result.ok(toolService.update(request));
     }
 

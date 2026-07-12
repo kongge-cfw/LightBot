@@ -2,7 +2,7 @@ package com.lightbot.workflow;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.vo.WorkflowTestResultVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.LlmTrace;
@@ -186,7 +186,7 @@ public class WorkflowTraceRecorder {
             }
         }
 
-        List<LlmTraceSpan> spans = new ArrayList<>();
+        List<LlmTraceSpanDTO> spans = new ArrayList<>();
         long totalDurationMs = System.currentTimeMillis() - startTimeMs;
         boolean hasError = events.stream().anyMatch(e ->
                 "workflow_node_complete".equals(e.get("type")) && Boolean.FALSE.equals(e.get("success")));
@@ -194,7 +194,7 @@ public class WorkflowTraceRecorder {
                 : (hasError ? "failed" : (workflowSuspended ? "running" : "completed"));
 
         Map<String, Object> rootAttrs = buildRootAttrs(userInput, workflow, events, result, nodeDefMap);
-        spans.add(LlmTraceSpan.of("workflow_run", null, "workflow_run",
+        spans.add(LlmTraceSpanDTO.of("workflow_run", null, "workflow_run",
                 startTimeMs, totalDurationMs, rootStatus, rootAttrs));
 
         Map<String, Map<String, Object>> startEvents = new HashMap<>();
@@ -314,7 +314,7 @@ public class WorkflowTraceRecorder {
 
     @SuppressWarnings("unchecked")
     private void buildNodeSpan(String nodeId, Map<String, Object> start, Map<String, Object> complete,
-                               WorkflowNode nodeDef, List<LlmTraceSpan> spans, int[] llmTokenAgg,
+                               WorkflowNode nodeDef, List<LlmTraceSpanDTO> spans, int[] llmTokenAgg,
                                long workflowStartTime) {
         String nodeType = (String) complete.get("nodeType");
         String nodeLabel = (String) complete.get("nodeLabel");
@@ -366,7 +366,7 @@ public class WorkflowTraceRecorder {
         }
 
         String spanStatus = success ? "completed" : "failed";
-        spans.add(LlmTraceSpan.of("node:" + nodeId, "workflow_run", "node:" + nodeType,
+        spans.add(LlmTraceSpanDTO.of("node:" + nodeId, "workflow_run", "node:" + nodeType,
                 nodeStartMs, durationMs, spanStatus, attrs));
 
         if ("llm".equals(nodeType) || "classifier".equals(nodeType)) {
@@ -376,7 +376,7 @@ public class WorkflowTraceRecorder {
 
     private void buildLlmSpan(String nodeId, Map<String, Object> nodeConfig, Map<String, Object> complete,
                               long nodeStartMs, long durationMs, boolean success,
-                              List<LlmTraceSpan> spans, int[] llmTokenAgg) {
+                              List<LlmTraceSpanDTO> spans, int[] llmTokenAgg) {
         String model = extractString(nodeConfig, "model");
         String sysPrompt = extractString(nodeConfig, "sysPrompt");
         String promptTemplate = extractString(nodeConfig, "promptTemplate");
@@ -411,7 +411,7 @@ public class WorkflowTraceRecorder {
         llmTokenAgg[0] += inputTokens;
         llmTokenAgg[1] += outputTokens;
 
-        spans.add(LlmTraceSpan.of("llm:" + nodeId, "node:" + nodeId, "llm_call",
+        spans.add(LlmTraceSpanDTO.of("llm:" + nodeId, "node:" + nodeId, "llm_call",
                 nodeStartMs, durationMs, success ? "completed" : "failed", llmAttrs));
     }
 
@@ -439,8 +439,8 @@ public class WorkflowTraceRecorder {
             return null;
         }
         try {
-            List<LlmTraceSpan> spans = objectMapper.readValue(existing.getSpans(), new TypeReference<>() {});
-            for (LlmTraceSpan span : spans) {
+            List<LlmTraceSpanDTO> spans = objectMapper.readValue(existing.getSpans(), new TypeReference<>() {});
+            for (LlmTraceSpanDTO span : spans) {
                 if ("workflow_run".equals(span.getName()) && span.getAttributes() != null) {
                     Object userInput = span.getAttributes().get("userInput");
                     return userInput != null ? String.valueOf(userInput) : null;

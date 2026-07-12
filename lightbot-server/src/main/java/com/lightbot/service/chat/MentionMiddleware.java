@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * Mention 校验中间件：在 {@code InitMiddleware} 之后校验 {@code ChatRequest.mentions}。
+ * Mention 校验中间件：在 {@code InitMiddleware} 之后校验 {@code ChatRequestDTO.mentions}。
  * <p>校验通过后构建 {@link MentionScope} 写入 {@link ChatContext}，
  * 供提示词注入「优先使用」说明；不再收窄运行时工具/知识库/SubAgent 加载范围。</p>
  *

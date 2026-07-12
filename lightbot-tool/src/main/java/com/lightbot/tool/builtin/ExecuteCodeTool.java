@@ -2,7 +2,7 @@ package com.lightbot.tool.builtin;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import com.lightbot.service.sandbox.SandboxService;
 import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.annotation.SystemTool;
@@ -54,7 +54,7 @@ public class ExecuteCodeTool {
         log.info("[Tool:execute_code] 语言={}, 代码长度={}", lang, code != null ? code.length() : 0);
 
         if (code == null || code.isBlank()) {
-            return toJson(CodeExecResult.builder()
+            return toJson(CodeExecResultDTO.builder()
                     .success(false)
                     .error("代码不能为空")
                     .language(lang)
@@ -63,7 +63,7 @@ public class ExecuteCodeTool {
 
         try {
             ToolEventEmitter.emit("正在执行 " + lang.toUpperCase() + " 代码...");
-            CodeExecResult result = sandboxService.executeCode(code.trim(), language, null, null);
+            CodeExecResultDTO result = sandboxService.executeCode(code.trim(), language, null, null);
             if (result.isSuccess()) {
                 ToolEventEmitter.emit("代码执行完成（" + result.getElapsedMs() + "ms）");
             } else {
@@ -74,7 +74,7 @@ public class ExecuteCodeTool {
             // 环境不可用（引擎未就绪 / 语言不支持）
             log.warn("[Tool:execute_code] 环境异常: {}", e.getMessage());
             ToolEventEmitter.emit("代码执行失败: " + e.getMessage());
-            return toJson(CodeExecResult.builder()
+            return toJson(CodeExecResultDTO.builder()
                     .success(false)
                     .error(e.getMessage())
                     .language(lang)
@@ -82,7 +82,7 @@ public class ExecuteCodeTool {
         } catch (Exception e) {
             log.error("[Tool:execute_code] 执行异常", e);
             ToolEventEmitter.emit("代码执行异常: " + e.getMessage());
-            return toJson(CodeExecResult.builder()
+            return toJson(CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + e.getMessage())
                     .language(lang)
@@ -90,7 +90,7 @@ public class ExecuteCodeTool {
         }
     }
 
-    private String toJson(CodeExecResult result) {
+    private String toJson(CodeExecResultDTO result) {
         try {
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {

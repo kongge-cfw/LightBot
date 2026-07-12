@@ -2,9 +2,9 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.SkillFileTreeNode;
-import com.lightbot.dto.SkillImportPreview;
-import com.lightbot.dto.SkillRequest;
+import com.lightbot.dto.SkillFileTreeNodeDTO;
+import com.lightbot.dto.SkillImportPreviewDTO;
+import com.lightbot.dto.SkillRequestDTO;
 import com.lightbot.entity.Skill;
 
 import java.io.InputStream;
@@ -21,10 +21,10 @@ import java.util.Map;
 public interface SkillService extends IService<Skill> {
 
     /** 创建 Skill（自定义） */
-    Skill create(SkillRequest request);
+    Skill create(SkillRequestDTO request);
 
     /** 更新 Skill（内置不可编辑） */
-    Skill update(SkillRequest request);
+    Skill update(SkillRequestDTO request);
 
     /** 按 Agent 兼容查询（旧接口，保留） */
     List<Skill> listByAgentId(Long agentId, String name);
@@ -45,7 +45,7 @@ public interface SkillService extends IService<Skill> {
     void setEnabled(Long id, boolean enabled);
 
     /** ZIP 导入（阶段一：暂存草稿并返回预览） */
-    SkillImportPreview importZipStage(InputStream zipStream);
+    SkillImportPreviewDTO importZipStage(InputStream zipStream);
 
     /** ZIP 导入（阶段二：确认提交） */
     Skill importZipCommit(String draftId, String targetSlug);
@@ -68,7 +68,7 @@ public interface SkillService extends IService<Skill> {
     // ==================== 文件管理 ====================
 
     /** 获取 Skill 文件树 */
-    List<SkillFileTreeNode> listFiles(Long id);
+    List<SkillFileTreeNodeDTO> listFiles(Long id);
 
     /** 读取 Skill 文件内容 */
     byte[] readFile(Long id, String path);

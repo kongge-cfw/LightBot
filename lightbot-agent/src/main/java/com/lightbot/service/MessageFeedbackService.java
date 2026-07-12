@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.MessageFeedbackRequest;
+import com.lightbot.dto.MessageFeedbackRequestDTO;
 import com.lightbot.vo.MessageFeedbackVO;
 import com.lightbot.entity.MessageFeedback;
 
@@ -25,7 +25,7 @@ public interface MessageFeedbackService extends IService<MessageFeedback> {
      * @param request   反馈请求
      * @return 反馈记录（null 表示取消）
      */
-    MessageFeedback submitFeedback(Long messageId, Long userId, MessageFeedbackRequest request);
+    MessageFeedback submitFeedback(Long messageId, Long userId, MessageFeedbackRequestDTO request);
 
     /**
      * 获取当前用户对指定消息的反馈

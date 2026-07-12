@@ -79,7 +79,7 @@ public class GraphServiceImpl implements GraphService {
     // ==================== 抽取 ====================
 
     @Override
-    public Long extractFromDocument(Long knowledgeId, GraphExtractRequest request) {
+    public Long extractFromDocument(Long knowledgeId, GraphExtractDTO request) {
         checkNeo4jAvailable();
         permissionHelper.checkPermission(knowledgeId, KnowledgeRole.DEVELOPER);
         return doExtract(knowledgeId, request);
@@ -94,12 +94,12 @@ public class GraphServiceImpl implements GraphService {
         if (knowledge == null) {
             return null;
         }
-        GraphExtractRequest request = new GraphExtractRequest();
+        GraphExtractDTO request = new GraphExtractDTO();
         request.setDocumentIds(List.of(documentId));
         return doExtract(knowledgeId, request);
     }
 
-    private Long doExtract(Long knowledgeId, GraphExtractRequest request) {
+    private Long doExtract(Long knowledgeId, GraphExtractDTO request) {
         Knowledge knowledge = knowledgeService.getById(knowledgeId);
         if (knowledge == null) {
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);

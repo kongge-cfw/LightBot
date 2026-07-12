@@ -4,8 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.dto.ChatMentionDTO;
-import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.ChatRequestDTO;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.ChatSession;
 import com.lightbot.entity.LlmTrace;
@@ -68,7 +68,7 @@ public class TraceMiddleware implements ChatMiddleware {
                     annotateAskUserLink(ctx);
 
                     // 3. 记录发送给 LLM 的完整请求（messages + config + tools）
-                    ChatRequest chatRequest = ctx.getRequest();
+                    ChatRequestDTO chatRequest = ctx.getRequest();
                     if (ctx.getMessages() != null && !ctx.getMessages().isEmpty()) {
                         boolean lastUserHasAttachments = chatRequest != null && chatRequest.getAttachments() != null
                                 && !chatRequest.getAttachments().isEmpty();
@@ -99,14 +99,14 @@ public class TraceMiddleware implements ChatMiddleware {
                             llmInputAttrs.put("tools", toolDefs);
                         }
 
-                        ctx.getSpans().add(LlmTraceSpan.of("llm_input", null, "messages_to_llm",
+                        ctx.getSpans().add(LlmTraceSpanDTO.of("llm_input", null, "messages_to_llm",
                                 ctx.getStartTime(), 0, "OK", llmInputAttrs));
                     }
 
                     // 4. 追加AI思考内容到spans
                     ctx.finalizeInlineThinking();
                     if (ctx.getReasoningContent().length() > 0) {
-                        ctx.getSpans().add(LlmTraceSpan.of("reasoning", null, "ai_reasoning",
+                        ctx.getSpans().add(LlmTraceSpanDTO.of("reasoning", null, "ai_reasoning",
                                 ctx.getStartTime(), tEnd - ctx.getStartTime(), "OK",
                                 Map.of("content", com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(
                                         ctx.getReasoningContent().toString()))));
@@ -135,7 +135,7 @@ public class TraceMiddleware implements ChatMiddleware {
         attrs.put("childMessageId", ctx.getUserMessageId());
         attrs.put("parentMessageId", ctx.getUserMessageParentId());
         attrs.put("linkType", "ask_user_response");
-        ctx.getSpans().add(LlmTraceSpan.of("ask_user_link", null, "ask_user_link",
+        ctx.getSpans().add(LlmTraceSpanDTO.of("ask_user_link", null, "ask_user_link",
                 ctx.getStartTime(), 0, "OK", attrs));
     }
 
@@ -143,7 +143,7 @@ public class TraceMiddleware implements ChatMiddleware {
      * 记录本轮用户问题与附件
      */
     private void recordUserInputSpan(ChatContext ctx) {
-        ChatRequest request = ctx.getRequest();
+        ChatRequestDTO request = ctx.getRequest();
         if (request == null) {
             return;
         }
@@ -172,7 +172,7 @@ public class TraceMiddleware implements ChatMiddleware {
         if (attrs.isEmpty()) {
             return;
         }
-        ctx.getSpans().add(LlmTraceSpan.of("user_input", null, "user_message",
+        ctx.getSpans().add(LlmTraceSpanDTO.of("user_input", null, "user_message",
                 ctx.getStartTime(), 0, "OK", attrs));
     }
 

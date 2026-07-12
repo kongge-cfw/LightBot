@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -35,7 +35,7 @@ public class GraalVmEngine implements CodeEngine {
     }
 
     @Override
-    public CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs) {
+    public CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs) {
         throw new UnsupportedOperationException("GraalVM 引擎未启用，请使用 Nashorn 引擎");
     }
 }

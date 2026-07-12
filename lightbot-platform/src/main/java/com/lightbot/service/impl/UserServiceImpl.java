@@ -7,11 +7,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lightbot.dto.AdminUserUpdateRequest;
-import com.lightbot.dto.ChangePasswordRequest;
-import com.lightbot.dto.LoginRequest;
-import com.lightbot.dto.ProfileUpdateRequest;
-import com.lightbot.dto.RegisterRequest;
+import com.lightbot.dto.AdminUserUpdateDTO;
+import com.lightbot.dto.ChangePasswordDTO;
+import com.lightbot.dto.LoginDTO;
+import com.lightbot.dto.ProfileUpdateDTO;
+import com.lightbot.dto.RegisterDTO;
 import com.lightbot.dto.UserDTO;
 import com.lightbot.entity.User;
 import com.lightbot.enums.ErrorCode;
@@ -53,7 +53,7 @@ public class UserServiceImpl implements UserService {
     private final ObjectMapper objectMapper;
 
     @Override
-    public UserDTO register(RegisterRequest request) {
+    public UserDTO register(RegisterDTO request) {
         // 1. 用户名唯一校验
         long count = userMapper.selectCount(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, request.getUsername()));
@@ -75,7 +75,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDTO login(LoginRequest request) {
+    public UserDTO login(LoginDTO request) {
         // 1. 查找用户
         User user = userMapper.selectOne(
                 new LambdaQueryWrapper<User>().eq(User::getUsername, request.getUsername()));
@@ -141,7 +141,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserDTO updateProfile(ProfileUpdateRequest request) {
+    public UserDTO updateProfile(ProfileUpdateDTO request) {
         // 1. 获取当前用户
         long userId = StpUtil.getLoginIdAsLong();
         User user = userMapper.selectById(userId);
@@ -195,7 +195,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void changePassword(ChangePasswordRequest request) {
+    public void changePassword(ChangePasswordDTO request) {
         // 1. 获取当前用户
         long userId = StpUtil.getLoginIdAsLong();
         User user = userMapper.selectById(userId);
@@ -292,7 +292,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public void adminUpdateUser(AdminUserUpdateRequest request) {
+    public void adminUpdateUser(AdminUserUpdateDTO request) {
         checkAdmin();
 
         User user = userMapper.selectById(request.getUserId());

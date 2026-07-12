@@ -1,11 +1,11 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lightbot.dto.AdminUserUpdateRequest;
-import com.lightbot.dto.ChangePasswordRequest;
-import com.lightbot.dto.LoginRequest;
-import com.lightbot.dto.ProfileUpdateRequest;
-import com.lightbot.dto.RegisterRequest;
+import com.lightbot.dto.AdminUserUpdateDTO;
+import com.lightbot.dto.ChangePasswordDTO;
+import com.lightbot.dto.LoginDTO;
+import com.lightbot.dto.ProfileUpdateDTO;
+import com.lightbot.dto.RegisterDTO;
 import com.lightbot.dto.UserDTO;
 import com.lightbot.entity.User;
 import org.springframework.web.multipart.MultipartFile;
@@ -26,7 +26,7 @@ public interface UserService {
      * @param request 注册请求
      * @return 用户信息
      */
-    UserDTO register(RegisterRequest request);
+    UserDTO register(RegisterDTO request);
 
     /**
      * 用户登录
@@ -34,7 +34,7 @@ public interface UserService {
      * @param request 登录请求
      * @return 用户信息
      */
-    UserDTO login(LoginRequest request);
+    UserDTO login(LoginDTO request);
 
     /**
      * 用户登出
@@ -70,14 +70,14 @@ public interface UserService {
      * @param request 更新请求
      * @return 更新后的用户信息
      */
-    UserDTO updateProfile(ProfileUpdateRequest request);
+    UserDTO updateProfile(ProfileUpdateDTO request);
 
     /**
      * 修改密码
      *
      * @param request 修改密码请求
      */
-    void changePassword(ChangePasswordRequest request);
+    void changePassword(ChangePasswordDTO request);
 
     /**
      * 判断是否首次登录（lastLoginAt 为 null）
@@ -115,7 +115,7 @@ public interface UserService {
      *
      * @param request 更新请求
      */
-    void adminUpdateUser(AdminUserUpdateRequest request);
+    void adminUpdateUser(AdminUserUpdateDTO request);
 
     /**
      * 管理员删除用户（逻辑删除）

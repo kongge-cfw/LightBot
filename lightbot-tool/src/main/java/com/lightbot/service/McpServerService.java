@@ -2,7 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.McpServerRequest;
+import com.lightbot.dto.McpServerRequestDTO;
 import com.lightbot.entity.McpServer;
 
 /**
@@ -19,7 +19,7 @@ public interface McpServerService extends IService<McpServer> {
      * @param request 创建请求
      * @return MCP Server
      */
-    McpServer create(McpServerRequest request);
+    McpServer create(McpServerRequestDTO request);
 
     /**
      * 更新 MCP Server
@@ -27,7 +27,7 @@ public interface McpServerService extends IService<McpServer> {
      * @param request 更新请求
      * @return MCP Server
      */
-    McpServer update(McpServerRequest request);
+    McpServer update(McpServerRequestDTO request);
 
     /**
      * 分页查询

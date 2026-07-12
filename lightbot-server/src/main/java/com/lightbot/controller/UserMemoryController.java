@@ -1,7 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.UserMemoryRequest;
+import com.lightbot.dto.UserMemoryRequestDTO;
 import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.service.UserMemoryService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -57,7 +57,7 @@ public class UserMemoryController {
      */
     @Operation(summary = "新增当前用户长期记忆")
     @PostMapping
-    public Result<UserMemoryVO> createMemory(@Valid @RequestBody UserMemoryRequest request) {
+    public Result<UserMemoryVO> createMemory(@Valid @RequestBody UserMemoryRequestDTO request) {
         return Result.ok(userMemoryService.createCurrentUserMemory(request));
     }
 
@@ -71,7 +71,7 @@ public class UserMemoryController {
     @Operation(summary = "更新当前用户长期记忆")
     @PutMapping("/{id}")
     public Result<UserMemoryVO> updateMemory(@PathVariable Long id,
-                                             @Valid @RequestBody UserMemoryRequest request) {
+                                             @Valid @RequestBody UserMemoryRequestDTO request) {
         return Result.ok(userMemoryService.updateCurrentUserMemory(id, request));
     }
 

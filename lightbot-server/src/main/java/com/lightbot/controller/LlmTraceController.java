@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.vo.LlmTraceDetailVO;
-import com.lightbot.dto.LlmTraceRequest;
+import com.lightbot.dto.LlmTraceRequestDTO;
 import com.lightbot.service.LlmTraceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,7 +31,7 @@ public class LlmTraceController {
      */
     @GetMapping("/traces")
     @Operation(summary = "调用链列表")
-    public Result<Map<String, Object>> listTraces(LlmTraceRequest request) {
+    public Result<Map<String, Object>> listTraces(LlmTraceRequestDTO request) {
         return Result.ok(llmTraceService.pageList(request));
     }
 

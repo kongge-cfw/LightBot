@@ -1,7 +1,7 @@
 package com.lightbot.util;
 
 import com.lightbot.dto.ChatAttachmentDTO;
-import com.lightbot.dto.ChatRequest;
+import com.lightbot.dto.ChatRequestDTO;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -31,7 +31,7 @@ public final class LlmTraceMessageSerializer {
      */
     public static List<Map<String, Object>> toTraceMessages(
             List<Message> messages,
-            ChatRequest request,
+            ChatRequestDTO request,
             boolean lastUserHasAttachments) {
         return toTraceMessages(messages, request, lastUserHasAttachments, null);
     }
@@ -41,7 +41,7 @@ public final class LlmTraceMessageSerializer {
      */
     public static List<Map<String, Object>> toTraceMessages(
             List<Message> messages,
-            ChatRequest request,
+            ChatRequestDTO request,
             boolean lastUserHasAttachments,
             List<List<Map<String, Object>>> userMentionsPerUserIndex) {
         if (messages == null || messages.isEmpty()) {

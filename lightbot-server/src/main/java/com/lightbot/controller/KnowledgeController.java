@@ -2,9 +2,9 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.IngestRequest;
+import com.lightbot.dto.IngestDTO;
 import com.lightbot.vo.KnowledgeMemberVO;
-import com.lightbot.dto.KnowledgeSaveRequest;
+import com.lightbot.dto.KnowledgeSaveDTO;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.enums.KnowledgeRole;
@@ -46,13 +46,13 @@ public class KnowledgeController {
 
     @Operation(summary = "创建知识库")
     @PostMapping
-    public Result<Knowledge> create(@Valid @RequestBody KnowledgeSaveRequest request) {
+    public Result<Knowledge> create(@Valid @RequestBody KnowledgeSaveDTO request) {
         return Result.ok(knowledgeService.create(request));
     }
 
     @Operation(summary = "更新知识库（需要MANAGER及以上权限）")
     @PutMapping
-    public Result<Knowledge> update(@Valid @RequestBody KnowledgeSaveRequest request) {
+    public Result<Knowledge> update(@Valid @RequestBody KnowledgeSaveDTO request) {
         return Result.ok(knowledgeService.update(request));
     }
 
@@ -115,7 +115,7 @@ public class KnowledgeController {
 
     @Operation(summary = "获取知识库默认入库配置")
     @GetMapping("/{id}/default-ingest-config")
-    public Result<IngestRequest> getDefaultIngestConfig(@PathVariable Long id) {
+    public Result<IngestDTO> getDefaultIngestConfig(@PathVariable Long id) {
         return Result.ok(knowledgeService.getDefaultIngestConfig(id));
     }
 

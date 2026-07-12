@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.SubAgentRequest;
+import com.lightbot.dto.SubAgentRequestDTO;
 import com.lightbot.entity.SubAgent;
 import com.lightbot.service.SubAgentService;
 import com.lightbot.service.ChatSessionService;
@@ -34,13 +34,13 @@ public class SubAgentController {
 
     @Operation(summary = "新增SubAgent")
     @PostMapping
-    public Result<SubAgent> create(@Valid @RequestBody SubAgentRequest request) {
+    public Result<SubAgent> create(@Valid @RequestBody SubAgentRequestDTO request) {
         return Result.ok(subAgentService.create(request));
     }
 
     @Operation(summary = "更新SubAgent")
     @PutMapping
-    public Result<SubAgent> update(@Valid @RequestBody SubAgentRequest request) {
+    public Result<SubAgent> update(@Valid @RequestBody SubAgentRequestDTO request) {
         return Result.ok(subAgentService.update(request));
     }
 

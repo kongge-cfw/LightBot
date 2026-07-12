@@ -2,8 +2,8 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
-import com.lightbot.dto.IngestRequest;
-import com.lightbot.dto.KnowledgeSaveRequest;
+import com.lightbot.dto.IngestDTO;
+import com.lightbot.dto.KnowledgeSaveDTO;
 import com.lightbot.entity.Knowledge;
 
 import java.util.List;
@@ -23,7 +23,7 @@ public interface KnowledgeService extends IService<Knowledge> {
      * @param request 知识库创建请求
      * @return 知识库
      */
-    Knowledge create(KnowledgeSaveRequest request);
+    Knowledge create(KnowledgeSaveDTO request);
 
     /**
      * 更新知识库
@@ -31,7 +31,7 @@ public interface KnowledgeService extends IService<Knowledge> {
      * @param request 知识库更新请求
      * @return 知识库
      */
-    Knowledge update(KnowledgeSaveRequest request);
+    Knowledge update(KnowledgeSaveDTO request);
 
     /**
      * 分页查询当前用户有权限的知识库
@@ -106,7 +106,7 @@ public interface KnowledgeService extends IService<Knowledge> {
      * @param knowledgeId 知识库ID
      * @return 默认入库配置
      */
-    IngestRequest getDefaultIngestConfig(Long knowledgeId);
+    IngestDTO getDefaultIngestConfig(Long knowledgeId);
 
     /**
      * 为指定文档生成示例问题并追加到知识库

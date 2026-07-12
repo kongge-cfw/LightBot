@@ -1,6 +1,6 @@
 package com.lightbot.service.sandbox;
 
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -50,14 +50,14 @@ public class NashornEngine implements CodeEngine {
     }
 
     @Override
-    public CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs) {
+    public CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs) {
         long timeout = timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
         long start = System.currentTimeMillis();
 
         // 1. 安全校验
         String securityError = checkSecurity(code);
         if (securityError != null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error(securityError)
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -67,7 +67,7 @@ public class NashornEngine implements CodeEngine {
 
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("javascript");
         if (engine == null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("JavaScript 引擎初始化失败：当前 JVM 未包含 Nashorn 引擎。"
                             + "JDK 15+ 已移除内置 Nashorn，请引入依赖 org.openjdk.nashorn:nashorn-core:15.4")
@@ -103,7 +103,7 @@ public class NashornEngine implements CodeEngine {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     String returnValue = serializeJsReturnValue(engine, bindings, result);
 
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(true)
                             .output(output)
                             .returnValue(returnValue)
@@ -114,7 +114,7 @@ public class NashornEngine implements CodeEngine {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
                     String errMsg = sanitizeError(cause.getMessage());
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(false)
                             .output(output)
                             .error("执行错误: " + errMsg + hintForError(errMsg))
@@ -128,7 +128,7 @@ public class NashornEngine implements CodeEngine {
         } catch (java.util.concurrent.CompletionException e) {
             System.setOut(originalOut);
             if (e.getCause() instanceof java.util.concurrent.TimeoutException) {
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(false)
                         .error("代码执行超时（" + timeout + "ms），请检查是否存在死循环")
                         .elapsedMs(timeout)
@@ -136,7 +136,7 @@ public class NashornEngine implements CodeEngine {
                         .build();
             }
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(cause.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -144,7 +144,7 @@ public class NashornEngine implements CodeEngine {
                     .build();
         } catch (Exception e) {
             System.setOut(originalOut);
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(e.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)

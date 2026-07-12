@@ -2,10 +2,10 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.PromptCreateRequest;
-import com.lightbot.dto.PromptRunRequest;
-import com.lightbot.dto.PromptTemplateCreateRequest;
-import com.lightbot.dto.PromptVersionCreateRequest;
+import com.lightbot.dto.PromptCreateDTO;
+import com.lightbot.dto.PromptRunDTO;
+import com.lightbot.dto.PromptTemplateCreateDTO;
+import com.lightbot.dto.PromptVersionCreateDTO;
 import com.lightbot.entity.Prompt;
 import com.lightbot.entity.PromptBuildTemplate;
 import com.lightbot.entity.PromptVersion;
@@ -53,7 +53,7 @@ public class PromptController {
 
     @Operation(summary = "创建Prompt")
     @PostMapping
-    public Result<Prompt> create(@Valid @RequestBody PromptCreateRequest request) {
+    public Result<Prompt> create(@Valid @RequestBody PromptCreateDTO request) {
         return Result.ok(promptService.create(request.getPromptKey(), request.getDescription(), request.getTags(), StpUtil.getLoginIdAsLong()));
     }
 
@@ -74,7 +74,7 @@ public class PromptController {
 
     @Operation(summary = "更新Prompt")
     @PutMapping
-    public Result<Void> update(@RequestParam Long id, @Valid @RequestBody PromptCreateRequest request) {
+    public Result<Void> update(@RequestParam Long id, @Valid @RequestBody PromptCreateDTO request) {
         promptService.update(id, request.getDescription(), request.getTags());
         return Result.ok();
     }
@@ -88,7 +88,7 @@ public class PromptController {
 
     @Operation(summary = "创建Prompt版本")
     @PostMapping("/versions")
-    public Result<PromptVersion> createVersion(@Valid @RequestBody PromptVersionCreateRequest request) {
+    public Result<PromptVersion> createVersion(@Valid @RequestBody PromptVersionCreateDTO request) {
         return Result.ok(promptVersionService.create(
                 request.getPromptKey(), request.getVersion(), request.getVersionDesc(),
                 request.getTemplate(), request.getVariables(), request.getModelConfig(),
@@ -122,7 +122,7 @@ public class PromptController {
 
     @Operation(summary = "创建Prompt构建模板")
     @PostMapping("/templates")
-    public Result<PromptBuildTemplate> createTemplate(@Valid @RequestBody PromptTemplateCreateRequest request) {
+    public Result<PromptBuildTemplate> createTemplate(@Valid @RequestBody PromptTemplateCreateDTO request) {
         return Result.ok(promptBuildTemplateService.create(
                 request.getPromptTemplateKey(), request.getTemplateDesc(), request.getTemplate(),
                 request.getVariables(), request.getModelConfig(), request.getTags()));
@@ -130,7 +130,7 @@ public class PromptController {
 
     @Operation(summary = "更新Prompt构建模板")
     @PutMapping("/templates")
-    public Result<Void> updateTemplate(@RequestParam Long id, @Valid @RequestBody PromptTemplateCreateRequest request) {
+    public Result<Void> updateTemplate(@RequestParam Long id, @Valid @RequestBody PromptTemplateCreateDTO request) {
         promptBuildTemplateService.update(id, request.getTemplateDesc(), request.getTemplate(),
                 request.getVariables(), request.getModelConfig(), request.getTags());
         return Result.ok();
@@ -149,7 +149,7 @@ public class PromptController {
      */
     @Operation(summary = "流式运行Prompt调试")
     @PostMapping(value = "/run", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter run(@Valid @RequestBody PromptRunRequest request) {
+    public SseEmitter run(@Valid @RequestBody PromptRunDTO request) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
 
         String template = request.getTemplate();

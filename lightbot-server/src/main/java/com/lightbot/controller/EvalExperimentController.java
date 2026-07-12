@@ -2,7 +2,7 @@ package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
-import com.lightbot.dto.EvalExperimentCreateRequest;
+import com.lightbot.dto.EvalExperimentCreateDTO;
 import com.lightbot.vo.EvalExperimentOverviewVO;
 import com.lightbot.entity.EvalExperiment;
 import com.lightbot.entity.EvalExperimentResult;
@@ -34,7 +34,7 @@ public class EvalExperimentController {
 
     @Operation(summary = "创建实验")
     @PostMapping
-    public Result<EvalExperiment> create(@Valid @RequestBody EvalExperimentCreateRequest request) {
+    public Result<EvalExperiment> create(@Valid @RequestBody EvalExperimentCreateDTO request) {
         long userId = StpUtil.getLoginIdAsLong();
         return Result.ok(experimentService.create(
                 request.getName(), request.getDescription(),
@@ -74,7 +74,7 @@ public class EvalExperimentController {
 
     @Operation(summary = "更新实验")
     @PutMapping("/{id}")
-    public Result<EvalExperiment> update(@PathVariable Long id, @Valid @RequestBody EvalExperimentCreateRequest request) {
+    public Result<EvalExperiment> update(@PathVariable Long id, @Valid @RequestBody EvalExperimentCreateDTO request) {
         return Result.ok(experimentService.update(id, request));
     }
 

@@ -21,7 +21,7 @@ public interface GraphService {
      * @param request     抽取配置请求
      * @return 任务ID
      */
-    Long extractFromDocument(Long knowledgeId, GraphExtractRequest request);
+    Long extractFromDocument(Long knowledgeId, GraphExtractDTO request);
 
     /**
      * 自动触发图谱抽取（内部调用，跳过权限校验）

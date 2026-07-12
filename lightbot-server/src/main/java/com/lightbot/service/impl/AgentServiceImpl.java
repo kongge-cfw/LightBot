@@ -16,7 +16,7 @@ import com.lightbot.model.ModelFactory;
 import com.lightbot.model.ProviderResolver;
 import com.lightbot.entity.McpServer;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
-import com.lightbot.dto.AgentSaveRequest;
+import com.lightbot.dto.AgentSaveDTO;
 import com.lightbot.service.AgentService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
 import com.lightbot.util.AgentChatRuntimeConfigUtil;
@@ -120,7 +120,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT, allEntries = true)
-    public Agent create(AgentSaveRequest request) {
+    public Agent create(AgentSaveDTO request) {
         // 1. 校验名称唯一性
         long count = count(new LambdaQueryWrapper<Agent>().eq(Agent::getName, request.getName()));
         if (count > 0) {
@@ -194,7 +194,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
-    public Agent update(AgentSaveRequest request) {
+    public Agent update(AgentSaveDTO request) {
         // 1. 校验存在性
         Agent existing = getById(request.getId());
         if (existing == null) {

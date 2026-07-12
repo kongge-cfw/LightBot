@@ -3,7 +3,7 @@ package com.lightbot.service.impl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.EvalScoreResult;
+import com.lightbot.dto.EvalScoreResultDTO;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.service.EvalChatService;
@@ -105,7 +105,7 @@ public class EvalChatServiceImpl implements EvalChatService {
     }
 
     @Override
-    public EvalScoreResult callEvaluator(String modelConfig, String promptTemplate, String variables) {
+    public EvalScoreResultDTO callEvaluator(String modelConfig, String promptTemplate, String variables) {
         // 1. 解析模型配置
         Map<String, Object> config = parseModelConfig(modelConfig);
         Long providerId = getProviderId(config);
@@ -157,18 +157,18 @@ public class EvalChatServiceImpl implements EvalChatService {
     /**
      * 解析LLM返回的评分JSON
      */
-    private EvalScoreResult parseScoreResult(String content) {
+    private EvalScoreResultDTO parseScoreResult(String content) {
         // 1. 提取JSON（可能包含在markdown代码块中）
         String json = extractJson(content);
         try {
-            EvalScoreResult result = objectMapper.readValue(json, EvalScoreResult.class);
+            EvalScoreResultDTO result = objectMapper.readValue(json, EvalScoreResultDTO.class);
             if (result.getScore() == null) {
                 result.setScore(BigDecimal.ZERO);
             }
             return result;
         } catch (Exception e) {
             log.warn("[EvalChatService] 评分结果解析失败, content={}, error={}", content, e.getMessage());
-            EvalScoreResult fallback = new EvalScoreResult();
+            EvalScoreResultDTO fallback = new EvalScoreResultDTO();
             fallback.setScore(BigDecimal.ZERO);
             fallback.setReason("评分结果解析失败: " + content);
             return fallback;

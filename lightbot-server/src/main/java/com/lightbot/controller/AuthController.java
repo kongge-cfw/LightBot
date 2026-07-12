@@ -1,12 +1,12 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
-import com.lightbot.dto.ChangePasswordRequest;
-import com.lightbot.dto.InitAdminRequest;
+import com.lightbot.dto.ChangePasswordDTO;
+import com.lightbot.dto.InitAdminDTO;
 import com.lightbot.vo.InitStatusVO;
-import com.lightbot.dto.LoginRequest;
-import com.lightbot.dto.ProfileUpdateRequest;
-import com.lightbot.dto.RegisterRequest;
+import com.lightbot.dto.LoginDTO;
+import com.lightbot.dto.ProfileUpdateDTO;
+import com.lightbot.dto.RegisterDTO;
 import com.lightbot.dto.UserDTO;
 import com.lightbot.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -30,14 +30,14 @@ public class AuthController {
 
     @Operation(summary = "用户注册")
     @PostMapping("/register")
-    public Result<UserDTO> register(@Valid @RequestBody RegisterRequest request) {
+    public Result<UserDTO> register(@Valid @RequestBody RegisterDTO request) {
         UserDTO user = userService.register(request);
         return Result.ok(user);
     }
 
     @Operation(summary = "用户登录")
     @PostMapping("/login")
-    public Result<Map<String, Object>> login(@Valid @RequestBody LoginRequest request) {
+    public Result<Map<String, Object>> login(@Valid @RequestBody LoginDTO request) {
         // 1. 先判断是否首次登录（login 会更新 lastLoginAt）
         boolean firstLogin = userService.isFirstLogin(request.getUsername());
         // 2. 执行登录
@@ -77,13 +77,13 @@ public class AuthController {
 
     @Operation(summary = "更新个人信息")
     @PutMapping("/profile")
-    public Result<UserDTO> updateProfile(@Valid @RequestBody ProfileUpdateRequest request) {
+    public Result<UserDTO> updateProfile(@Valid @RequestBody ProfileUpdateDTO request) {
         return Result.ok(userService.updateProfile(request));
     }
 
     @Operation(summary = "修改密码")
     @PutMapping("/password")
-    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+    public Result<Void> changePassword(@Valid @RequestBody ChangePasswordDTO request) {
         userService.changePassword(request);
         return Result.ok();
     }
@@ -102,7 +102,7 @@ public class AuthController {
 
     @Operation(summary = "初始化管理员账号（仅系统无用户时可用）")
     @PostMapping("/init-admin")
-    public Result<Map<String, Object>> initAdmin(@Valid @RequestBody InitAdminRequest request) {
+    public Result<Map<String, Object>> initAdmin(@Valid @RequestBody InitAdminDTO request) {
         UserDTO user = userService.initAdmin(request.getUsername(), request.getPassword(), request.getNickname());
         Map<String, Object> data = new HashMap<>();
         data.put("token", cn.dev33.satoken.stp.StpUtil.getTokenValue());

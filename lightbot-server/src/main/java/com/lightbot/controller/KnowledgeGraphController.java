@@ -2,8 +2,8 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.vo.GraphEdgeVO;
-import com.lightbot.dto.GraphExtractRequest;
-import com.lightbot.dto.GraphImportRequest;
+import com.lightbot.dto.GraphExtractDTO;
+import com.lightbot.dto.GraphImportDTO;
 import com.lightbot.vo.GraphNodeVO;
 import com.lightbot.vo.GraphStatsVO;
 import com.lightbot.vo.GraphSubgraphVO;
@@ -33,14 +33,14 @@ public class KnowledgeGraphController {
     @Operation(summary = "触发图谱抽取（需要DEVELOPER及以上权限）")
     @PostMapping("/{id}/graph/extract")
     public Result<Long> extractGraph(@PathVariable Long id,
-                                     @Valid @RequestBody GraphExtractRequest request) {
+                                     @Valid @RequestBody GraphExtractDTO request) {
         return Result.ok(graphService.extractFromDocument(id, request));
     }
 
     @Operation(summary = "批量导入三元组（需要DEVELOPER及以上权限）")
     @PostMapping("/{id}/graph/import")
     public Result<GraphStatsVO> importTriples(@PathVariable Long id,
-                                              @Valid @RequestBody GraphImportRequest request,
+                                              @Valid @RequestBody GraphImportDTO request,
                                               @RequestParam(required = false) Long providerId) {
         return Result.ok(graphService.importTriples(id, request.getTriples(), providerId));
     }

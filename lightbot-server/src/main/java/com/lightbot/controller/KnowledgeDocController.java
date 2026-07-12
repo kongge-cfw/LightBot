@@ -4,9 +4,9 @@ import com.lightbot.common.Result;
 import com.lightbot.vo.ChunkVO;
 import com.lightbot.vo.DocumentDownloadVO;
 import com.lightbot.vo.DocumentStreamVO;
-import com.lightbot.dto.IngestRequest;
+import com.lightbot.dto.IngestDTO;
 import com.lightbot.vo.UrlFetchPreviewVO;
-import com.lightbot.dto.UrlSaveRequest;
+import com.lightbot.dto.UrlSaveDTO;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Task;
 import com.lightbot.service.ChunkService;
@@ -75,7 +75,7 @@ public class KnowledgeDocController {
     @Operation(summary = "保存已预览的URL网页内容")
     @PostMapping("/{id}/documents/save-url")
     public Result<Document> saveUrlDocument(@PathVariable Long id,
-                                             @Valid @RequestBody UrlSaveRequest request) {
+                                             @Valid @RequestBody UrlSaveDTO request) {
         return Result.ok(documentService.saveUrlDocument(id, request));
     }
 
@@ -111,7 +111,7 @@ public class KnowledgeDocController {
     @Operation(summary = "文档入库：分块+向量化（需要DEVELOPER及以上权限）")
     @PostMapping("/documents/{docId}/ingest")
     public Result<Task> ingestDocument(@PathVariable Long docId,
-                                        @Valid @RequestBody IngestRequest request) throws Exception {
+                                        @Valid @RequestBody IngestDTO request) throws Exception {
         String embeddingJson = objectMapper.writeValueAsString(request);
         return Result.ok(documentService.ingestDocument(docId, embeddingJson));
     }
@@ -125,7 +125,7 @@ public class KnowledgeDocController {
     @Operation(summary = "预览分块结果（不入库）")
     @PostMapping("/documents/{docId}/preview-chunks")
     public Result<List<String>> previewChunks(@PathVariable Long docId,
-                                               @Valid @RequestBody IngestRequest request) throws Exception {
+                                               @Valid @RequestBody IngestDTO request) throws Exception {
         String embeddingJson = objectMapper.writeValueAsString(request);
         return Result.ok(documentService.previewChunks(docId, embeddingJson));
     }

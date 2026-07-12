@@ -1,7 +1,7 @@
 package com.lightbot.service.sandbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -56,13 +56,13 @@ public class GroovyEngine implements CodeEngine {
     }
 
     @Override
-    public CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs) {
+    public CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs) {
         long timeout = timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
         long start = System.currentTimeMillis();
 
         String securityError = checkSecurity(code);
         if (securityError != null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error(securityError)
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -72,7 +72,7 @@ public class GroovyEngine implements CodeEngine {
 
         ScriptEngine engine = new ScriptEngineManager().getEngineByName("groovy");
         if (engine == null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("Groovy 执行环境不可用：未加载 groovy-jsr223 依赖")
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -110,7 +110,7 @@ public class GroovyEngine implements CodeEngine {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     String returnValue = serializeReturnValue(result);
 
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(true)
                             .output(output)
                             .returnValue(returnValue)
@@ -120,7 +120,7 @@ public class GroovyEngine implements CodeEngine {
                 } catch (Exception e) {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(false)
                             .output(output)
                             .error("执行错误: " + sanitizeError(cause.getMessage()))
@@ -134,7 +134,7 @@ public class GroovyEngine implements CodeEngine {
         } catch (java.util.concurrent.CompletionException e) {
             System.setOut(originalOut);
             if (e.getCause() instanceof java.util.concurrent.TimeoutException) {
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(false)
                         .error("Groovy 执行超时（" + timeout + "ms），请检查是否存在死循环")
                         .elapsedMs(timeout)
@@ -142,7 +142,7 @@ public class GroovyEngine implements CodeEngine {
                         .build();
             }
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(cause.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -150,7 +150,7 @@ public class GroovyEngine implements CodeEngine {
                     .build();
         } catch (Exception e) {
             System.setOut(originalOut);
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(e.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)

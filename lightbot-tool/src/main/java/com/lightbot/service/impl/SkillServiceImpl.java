@@ -6,9 +6,9 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.SkillFileTreeNode;
-import com.lightbot.dto.SkillImportPreview;
-import com.lightbot.dto.SkillRequest;
+import com.lightbot.dto.SkillFileTreeNodeDTO;
+import com.lightbot.dto.SkillImportPreviewDTO;
+import com.lightbot.dto.SkillRequestDTO;
 import com.lightbot.entity.Skill;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
@@ -86,7 +86,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     @Override
     @Transactional
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
-    public Skill create(SkillRequest request) {
+    public Skill create(SkillRequestDTO request) {
         // 1. 解析作用域：默认 global
         String scope = StringUtils.hasText(request.getScope()) ? request.getScope() : "global";
         if ("global".equals(scope)) {
@@ -137,7 +137,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     @Override
     @Transactional
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
-    public Skill update(SkillRequest request) {
+    public Skill update(SkillRequestDTO request) {
         Skill skill = getById(request.getId());
         if (skill == null) {
             throw new BizException(ErrorCode.SKILL_NOT_FOUND);
@@ -266,7 +266,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     // ==================== ZIP 导入导出 ====================
 
     @Override
-    public SkillImportPreview importZipStage(InputStream zipStream) {
+    public SkillImportPreviewDTO importZipStage(InputStream zipStream) {
         String draftId = java.util.UUID.randomUUID().toString().replace("-", "");
         return skillStorageService.stageDraft(draftId, zipStream);
     }
@@ -415,7 +415,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     // ==================== 文件管理 ====================
 
     @Override
-    public List<SkillFileTreeNode> listFiles(Long id) {
+    public List<SkillFileTreeNodeDTO> listFiles(Long id) {
         Skill skill = getById(id);
         if (skill == null) {
             throw new BizException(ErrorCode.SKILL_NOT_FOUND);

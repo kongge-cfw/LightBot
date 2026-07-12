@@ -1,7 +1,7 @@
 package com.lightbot.service.chat;
 
-import com.lightbot.dto.ChatRequest;
-import com.lightbot.dto.LlmTraceSpan;
+import com.lightbot.dto.ChatRequestDTO;
+import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.ToolCall;
 import com.lightbot.util.SensitiveWordFilter;
@@ -28,7 +28,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public class ChatContext {
 
     // ===== 输入 =====
-    private ChatRequest request;
+    private ChatRequestDTO request;
 
     // ===== InitMiddleware 解析 =====
     private Long userId;
@@ -99,7 +99,7 @@ public class ChatContext {
     private List<Map<String, Object>> toolEventsList;
     /** 工作流节点执行事件（WORKFLOW 类型 Agent） */
     private List<Map<String, Object>> workflowEventsList;
-    private List<LlmTraceSpan> spans;
+    private List<LlmTraceSpanDTO> spans;
     private long startTime;
 
     /** 流式模型调用是否最终失败 */
@@ -340,7 +340,7 @@ public class ChatContext {
     /**
      * 工厂方法：创建上下文并初始化所有累加器
      */
-    public static ChatContext of(ChatRequest request) {
+    public static ChatContext of(ChatRequestDTO request) {
         ChatContext ctx = new ChatContext();
         ctx.request = request;
         ctx.fullReply = new StringBuilder();

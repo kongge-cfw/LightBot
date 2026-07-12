@@ -5,7 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
-import com.lightbot.dto.McpServerRequest;
+import com.lightbot.dto.McpServerRequestDTO;
 import com.lightbot.entity.McpServer;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
@@ -53,7 +53,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_MCP_SERVER, allEntries = true)
-    public McpServer create(McpServerRequest request) {
+    public McpServer create(McpServerRequestDTO request) {
         // 1. 校验名称唯一性
         long count = count(new LambdaQueryWrapper<McpServer>().eq(McpServer::getName, request.getName()));
         if (count > 0) {
@@ -77,7 +77,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
     }
 
     @Override
-    public McpServer update(McpServerRequest request) {
+    public McpServer update(McpServerRequestDTO request) {
         // 1. 校验存在性
         McpServer server = getById(request.getId());
         if (server == null) {

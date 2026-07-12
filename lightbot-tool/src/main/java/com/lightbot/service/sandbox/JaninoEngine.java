@@ -2,7 +2,7 @@ package com.lightbot.service.sandbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
-import com.lightbot.dto.CodeExecResult;
+import com.lightbot.dto.CodeExecResultDTO;
 import com.lightbot.enums.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
 import org.codehaus.janino.SimpleCompiler;
@@ -66,14 +66,14 @@ public class JaninoEngine implements CodeEngine {
     }
 
     @Override
-    public CodeExecResult execute(String code, Map<String, Object> params, long timeoutMs) {
+    public CodeExecResultDTO execute(String code, Map<String, Object> params, long timeoutMs) {
         long timeout = timeoutMs > 0 ? timeoutMs : DEFAULT_TIMEOUT_MS;
         long start = System.currentTimeMillis();
 
         // 1. 安全校验：危险关键字拦截
         String securityError = checkSecurity(code);
         if (securityError != null) {
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error(securityError)
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -100,7 +100,7 @@ public class JaninoEngine implements CodeEngine {
                 errMsg = errMsg + " 提示：Java 代码直接写方法体，不要写 import 语句"
                         + "（java.time.*、java.util.* 等已自动导入）";
             }
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("编译错误: " + errMsg)
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -123,7 +123,7 @@ public class JaninoEngine implements CodeEngine {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     String returnValue = serializeReturnValue(result);
 
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(true)
                             .output(output)
                             .returnValue(returnValue)
@@ -133,7 +133,7 @@ public class JaninoEngine implements CodeEngine {
                 } catch (Exception e) {
                     String output = truncateOutput(outputBuf.toString(StandardCharsets.UTF_8));
                     Throwable cause = e.getCause() != null ? e.getCause() : e;
-                    return CodeExecResult.builder()
+                    return CodeExecResultDTO.builder()
                             .success(false)
                             .output(output)
                             .error("运行时错误: " + sanitizeError(cause.getMessage()))
@@ -148,7 +148,7 @@ public class JaninoEngine implements CodeEngine {
         } catch (java.util.concurrent.CompletionException e) {
             System.setOut(originalOut);
             if (e.getCause() instanceof java.util.concurrent.TimeoutException) {
-                return CodeExecResult.builder()
+                return CodeExecResultDTO.builder()
                         .success(false)
                         .error("代码执行超时（" + timeout + "ms），请检查是否存在死循环")
                         .elapsedMs(timeout)
@@ -156,7 +156,7 @@ public class JaninoEngine implements CodeEngine {
                         .build();
             }
             Throwable cause = e.getCause() != null ? e.getCause() : e;
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(cause.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)
@@ -164,7 +164,7 @@ public class JaninoEngine implements CodeEngine {
                     .build();
         } catch (Exception e) {
             System.setOut(originalOut);
-            return CodeExecResult.builder()
+            return CodeExecResultDTO.builder()
                     .success(false)
                     .error("执行异常: " + sanitizeError(e.getMessage()))
                     .elapsedMs(System.currentTimeMillis() - start)
