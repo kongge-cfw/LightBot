@@ -1,5 +1,9 @@
 package com.lightbot.util;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
+import java.util.Set;
+
 /**
  * 模型调用异常分类工具
  * <p>将底层模型/网络异常翻译为用户友好的中文提示与错误码，
@@ -11,6 +15,7 @@ package com.lightbot.util;
 public final class ModelErrorClassifier {
 
     private static final int MAX_MESSAGE_LENGTH = 100;
+    private static final int MAX_DETAIL_LENGTH = 300;
 
     private ModelErrorClassifier() {
     }
@@ -25,32 +30,71 @@ public final class ModelErrorClassifier {
         if (e == null) {
             return "模型调用异常：未知错误";
         }
+
+        String timeout = matchInChain(e, msg -> msg.contains("timeout") || msg.contains("timed out") || msg.contains("Timeout"));
+        if (timeout != null) {
+            return "模型响应超时，请稍后重试";
+        }
+        String rateLimited = matchInChain(e, msg -> msg.contains("429") || msg.contains("rate") || msg.contains("Rate"));
+        if (rateLimited != null) {
+            return "模型请求被限流，请稍后重试";
+        }
+        String auth = matchInChain(e, msg -> msg.contains("401") || msg.contains("403")
+                || msg.contains("Unauthorized") || msg.contains("Forbidden")
+                || msg.contains("模型认证失败") || msg.contains("Invalid API Key")
+                || msg.contains("invalid_key"));
+        if (auth != null) {
+            return "模型认证失败，请检查 API Key 配置";
+        }
+        String tokenLimit = matchInChain(e, msg -> msg.contains("token")
+                && (msg.contains("limit") || msg.contains("exceed") || msg.contains("maximum")));
+        if (tokenLimit != null) {
+            return "上下文长度超限，请缩短对话后重试";
+        }
+        String contentFilter = matchInChain(e, msg -> msg.contains("content_filter")
+                || msg.contains("safety") || msg.contains("blocked"));
+        if (contentFilter != null) {
+            return "内容触发安全策略，请调整输入后重试";
+        }
+
         String msg = e.getMessage();
+        if (msg == null || msg.isBlank()) {
+            Throwable root = unwrap(e);
+            msg = root != null ? root.getMessage() : null;
+        }
         if (msg == null) {
             msg = e.getClass().getSimpleName();
         }
-
-        // 网络超时
-        if (msg.contains("timeout") || msg.contains("timed out") || msg.contains("Timeout")) {
-            return "模型响应超时，请稍后重试";
-        }
-        // 限流
-        if (msg.contains("429") || msg.contains("rate") || msg.contains("Rate")) {
-            return "模型请求被限流，请稍后重试";
-        }
-        // 认证失败
-        if (msg.contains("401") || msg.contains("403") || msg.contains("Unauthorized") || msg.contains("Forbidden")) {
-            return "模型认证失败，请检查 API Key 配置";
-        }
-        // Token 超限
-        if (msg.contains("token") && (msg.contains("limit") || msg.contains("exceed") || msg.contains("maximum"))) {
-            return "上下文长度超限，请缩短对话后重试";
-        }
-        // 内容审核
-        if (msg.contains("content_filter") || msg.contains("safety") || msg.contains("blocked")) {
-            return "内容触发安全策略，请调整输入后重试";
-        }
         return "模型调用异常：" + (msg.length() > MAX_MESSAGE_LENGTH ? msg.substring(0, MAX_MESSAGE_LENGTH) + "..." : msg);
+    }
+
+    /**
+     * 生成带底层错误细节的错误信息（友好提示 + 原始错误摘要）
+     *
+     * @param e 异常
+     * @return 完整错误信息
+     */
+    public static String formatDetail(Throwable e) {
+        if (e == null) {
+            return "模型调用异常：未知错误";
+        }
+        String friendly = classifyMessage(e);
+        Throwable root = unwrap(e);
+        if (root == null) {
+            return friendly;
+        }
+        String detail = root.getMessage();
+        if (detail == null || detail.isBlank()) {
+            return friendly;
+        }
+        String trimmed = detail.strip();
+        if (trimmed.length() > MAX_DETAIL_LENGTH) {
+            trimmed = trimmed.substring(0, MAX_DETAIL_LENGTH) + "...";
+        }
+        if (friendly.equals(trimmed) || friendly.contains(trimmed)) {
+            return friendly;
+        }
+        return friendly + " | " + trimmed;
     }
 
     /**
@@ -60,11 +104,86 @@ public final class ModelErrorClassifier {
      * @return 错误码（TIMEOUT/RATE_LIMITED/AUTH_ERROR/TOKEN_LIMIT/CONTENT_FILTER/LLM_ERROR/UNKNOWN）
      */
     public static String classifyCode(Throwable e) {
-        Throwable root = unwrap(e);
-        if (root == null) {
+        if (e == null) {
             return "UNKNOWN";
         }
-        String msg = root.getMessage();
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = e;
+        while (current != null && !seen.contains(current)) {
+            seen.add(current);
+            String code = classifyCodeSingle(current);
+            if (!"UNKNOWN".equals(code) && !"LLM_ERROR".equals(code)) {
+                return code;
+            }
+            current = current.getCause();
+        }
+        return "UNKNOWN";
+    }
+
+    /**
+     * 展开异常链，获取最底层根因
+     *
+     * @param e 异常
+     * @return 根因异常
+     */
+    public static Throwable unwrap(Throwable e) {
+        if (e == null) {
+            return null;
+        }
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable root = e;
+        while (root != null && !seen.contains(root)) {
+            seen.add(root);
+            Throwable cause = root.getCause();
+            if (cause == null || cause == root) {
+                break;
+            }
+            root = cause;
+        }
+        return root;
+    }
+
+    /**
+     * 判断是否为不可重试的致命模型错误（如 API Key 无效、无可用提供商）
+     *
+     * @param e 异常
+     * @return 致命错误返回 true
+     */
+    public static boolean isFatal(Throwable e) {
+        if (e == null) {
+            return false;
+        }
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
+        Throwable current = e;
+        while (current != null && !seen.contains(current)) {
+            seen.add(current);
+            if (current instanceof IllegalStateException) {
+                return true;
+            }
+            String className = current.getClass().getName();
+            if (className.contains("NonTransientAiException")) {
+                return true;
+            }
+            if ("AUTH_ERROR".equals(classifyCodeSingle(current))) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
+    }
+
+    /**
+     * 将异常转为带友好提示和底层细节的运行时异常
+     *
+     * @param e 异常
+     * @return 运行时异常
+     */
+    public static RuntimeException toRuntimeException(Throwable e) {
+        return new RuntimeException(formatDetail(e), e);
+    }
+
+    private static String classifyCodeSingle(Throwable e) {
+        String msg = e.getMessage();
         if (msg == null) {
             return "UNKNOWN";
         }
@@ -74,7 +193,10 @@ public final class ModelErrorClassifier {
         if (msg.contains("429") || msg.contains("rate") || msg.contains("Rate")) {
             return "RATE_LIMITED";
         }
-        if (msg.contains("401") || msg.contains("403")) {
+        if (msg.contains("401") || msg.contains("403")
+                || msg.contains("Unauthorized") || msg.contains("Forbidden")
+                || msg.contains("模型认证失败") || msg.contains("Invalid API Key")
+                || msg.contains("invalid_key")) {
             return "AUTH_ERROR";
         }
         if (msg.contains("token") && (msg.contains("limit") || msg.contains("exceed"))) {
@@ -86,58 +208,17 @@ public final class ModelErrorClassifier {
         return "LLM_ERROR";
     }
 
-    /**
-     * 展开 CompletionException 等包装异常，获取根因
-     *
-     * @param e 异常
-     * @return 根因异常
-     */
-    public static Throwable unwrap(Throwable e) {
-        if (e == null) {
-            return null;
-        }
+    private static String matchInChain(Throwable e, java.util.function.Predicate<String> matcher) {
+        Set<Throwable> seen = Collections.newSetFromMap(new IdentityHashMap<>());
         Throwable current = e;
-        while (current.getCause() != null && current != current.getCause()) {
-            String className = current.getClass().getName();
-            if (className.contains("CompletionException")
-                    || className.contains("ExecutionException")
-                    || className.contains("RetryException")) {
-                current = current.getCause();
-                continue;
+        while (current != null && !seen.contains(current)) {
+            seen.add(current);
+            String msg = current.getMessage();
+            if (msg != null && matcher.test(msg)) {
+                return msg;
             }
-            break;
+            current = current.getCause();
         }
-        return current;
-    }
-
-    /**
-     * 判断是否为不可重试的致命模型错误（如 API Key 无效、无可用提供商）
-     *
-     * @param e 异常
-     * @return 致命错误返回 true
-     */
-    public static boolean isFatal(Throwable e) {
-        Throwable root = unwrap(e);
-        if (root == null) {
-            return false;
-        }
-        if (root instanceof IllegalStateException) {
-            return true;
-        }
-        String className = root.getClass().getName();
-        if (className.contains("NonTransientAiException")) {
-            return true;
-        }
-        return "AUTH_ERROR".equals(classifyCode(root));
-    }
-
-    /**
-     * 将异常转为带友好提示的运行时异常
-     *
-     * @param e 异常
-     * @return 运行时异常
-     */
-    public static RuntimeException toRuntimeException(Throwable e) {
-        return new RuntimeException(classifyMessage(e), e);
+        return null;
     }
 }

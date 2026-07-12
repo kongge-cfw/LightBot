@@ -198,20 +198,32 @@ public class GraphExtractionExecutor implements TaskExecutor {
                     }
 
                 } catch (Exception e) {
-                    log.warn("[图谱抽取执行器] 文档 {} 抽取失败: {}", doc.getId(), e.getMessage());
+                    String errorMsg = ModelErrorClassifier.formatDetail(e);
+                    log.warn("[图谱抽取执行器] 文档 {} 抽取失败: {}", doc.getId(), errorMsg);
                     if (docGraphDoc != null) {
                         docGraphDoc.setStatus(GraphTaskStatus.FAILED);
-                        docGraphDoc.setErrorMessage(e.getMessage());
+                        docGraphDoc.setErrorMessage(errorMsg);
                         graphDocumentMapper.updateById(docGraphDoc);
+                    }
+                    if (ModelErrorClassifier.isFatal(e)) {
+                        throw ModelErrorClassifier.toRuntimeException(e);
                     }
                 }
             }
 
             if (successDocCount == 0) {
+                String docError = graphDocs.stream()
+                        .map(GraphDocument::getErrorMessage)
+                        .filter(msg -> msg != null && !msg.isBlank())
+                        .findFirst()
+                        .orElse(null);
+                if (docError != null) {
+                    throw new RuntimeException("图谱抽取失败：" + docError);
+                }
                 throw new RuntimeException("图谱抽取失败：所有文档均未成功抽取实体关系");
             }
-            if (totalChunkCount > 0 && totalNodes == 0 && totalEdges == 0) {
-                throw new RuntimeException("图谱抽取失败：未能从文档中抽取到任何实体关系");
+            if (successDocCount > 0 && totalChunkCount > 0 && totalNodes == 0 && totalEdges == 0) {
+                throw new RuntimeException("图谱抽取失败：未能从文档中抽取到任何实体关系（文档可能不包含可识别的实体关系）");
             }
 
             // 8. 写入 Entity/Triple 向量到 Milvus（仅本次抽取有产出时）

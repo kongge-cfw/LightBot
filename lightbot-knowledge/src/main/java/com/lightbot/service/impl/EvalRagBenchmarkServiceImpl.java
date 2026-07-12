@@ -109,6 +109,10 @@ public class EvalRagBenchmarkServiceImpl
                 knowledgeId, count, providerId, modelId, neighborCount != null ? neighborCount : 3,
                 progressCallback);
 
+        if (items.isEmpty()) {
+            throw new RuntimeException("基准题目生成失败：未能生成任何有效题目");
+        }
+
         // 2. 保存题目
         for (int i = 0; i < items.size(); i++) {
             EvalRagBenchmarkItem item = items.get(i);

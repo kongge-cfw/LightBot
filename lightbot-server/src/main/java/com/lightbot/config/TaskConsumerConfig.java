@@ -10,6 +10,7 @@ import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
 import com.lightbot.service.port.TaskInterruptPort;
 import com.lightbot.task.TaskExecutor;
+import com.lightbot.util.ModelErrorClassifier;
 import com.lightbot.util.RedisUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -246,6 +247,9 @@ public class TaskConsumerConfig implements TaskInterruptPort {
      * 构建详细的错误信息（对NPE等getMessage为null的异常做特殊处理）
      */
     private String buildErrorMessage(Exception e) {
+        if (ModelErrorClassifier.isFatal(e)) {
+            return ModelErrorClassifier.formatDetail(e);
+        }
         String msg = e.getMessage();
         if (msg != null && !msg.isBlank()) {
             return msg;

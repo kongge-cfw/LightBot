@@ -448,6 +448,9 @@ public class RagEvaluationEngine {
             return response.getResult().getOutput();
         } catch (Exception e) {
             log.error("[RagEval] 文本向量化失败: {}", e.getMessage());
+            if (ModelErrorClassifier.isFatal(e)) {
+                throw ModelErrorClassifier.toRuntimeException(e);
+            }
             return null;
         }
     }
