@@ -6,7 +6,6 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
 import com.lightbot.dto.ToolRequestDTO;
-import com.lightbot.entity.Agent;
 import com.lightbot.entity.Tool;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.constant.ToolResultPrefixes;
@@ -14,9 +13,9 @@ import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.ToolType;
 import org.springframework.util.StringUtils;
 import com.lightbot.mapper.ToolMapper;
-import com.lightbot.service.AgentService;
 import com.lightbot.service.ToolService;
-import com.lightbot.workflow.ToolIoSchemaUtil;
+import com.lightbot.service.port.DefaultAgentIdProvider;
+import com.lightbot.util.ToolIoSchemaUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.metadata.ToolMetadata;
@@ -24,11 +23,10 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.tool.method.MethodToolCallback;
 import org.springframework.ai.tool.support.ToolDefinitions;
 import org.springframework.aop.framework.Advised;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 
 import java.io.Serializable;
@@ -54,22 +52,21 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
     private final com.lightbot.util.ToolArgsSanitizer toolArgsSanitizer;
     private final ApiToolExecutionService apiToolExecutionService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+    private final ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider;
 
     /** 启动时扫描缓存的内置 ToolCallback 列表 */
     private volatile List<ToolCallback> cachedBuiltinCallbacks;
 
-    @Autowired
-    @Lazy
-    private AgentService agentService;
-
     public ToolServiceImpl(ApplicationContext applicationContext,
                            com.lightbot.util.ToolArgsSanitizer toolArgsSanitizer,
                            ApiToolExecutionService apiToolExecutionService,
-                           com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
+                           com.fasterxml.jackson.databind.ObjectMapper objectMapper,
+                           ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider) {
         this.applicationContext = applicationContext;
         this.toolArgsSanitizer = toolArgsSanitizer;
         this.apiToolExecutionService = apiToolExecutionService;
         this.objectMapper = objectMapper;
+        this.defaultAgentIdProvider = defaultAgentIdProvider;
     }
 
     @Override
@@ -376,9 +373,10 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
             if (agentId == 0) {
                 try {
                     long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-                    Agent defaultAgent = agentService.getDefaultAgent(userId);
-                    if (defaultAgent != null) {
-                        agentId = defaultAgent.getId();
+                    DefaultAgentIdProvider provider = defaultAgentIdProvider.getIfAvailable();
+                    Long defaultAgentId = provider != null ? provider.getDefaultAgentId(userId) : null;
+                    if (defaultAgentId != null) {
+                        agentId = defaultAgentId;
                         log.info("[ToolService] 测试工具自动使用默认Agent: agentId={}", agentId);
                     }
                 } catch (cn.dev33.satoken.exception.NotWebContextException ignored) {

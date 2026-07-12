@@ -1,4 +1,4 @@
-package com.lightbot.workflow;
+package com.lightbot.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
