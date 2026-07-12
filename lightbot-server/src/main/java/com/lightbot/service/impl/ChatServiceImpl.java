@@ -5,6 +5,7 @@ import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.RagResultType;
 import com.lightbot.constant.ToolResultPrefixes;
 import com.lightbot.dto.ChatRequestDTO;
+import com.lightbot.dto.MemoryExtractDTO;
 import com.lightbot.vo.RagReferenceVO;
 import com.lightbot.util.ChatDocumentMessageUtil;
 import com.lightbot.util.ChatMessageContextUtil;
@@ -22,6 +23,7 @@ import com.lightbot.subagent.DelegateSubAgentTool;
 import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.builtin.AskUserTool;
 import com.lightbot.tool.builtin.QueryKnowledgeTool;
+import com.lightbot.tool.builtin.UserMemoryToolCallbackFactory;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.enums.MessageRole;
@@ -458,7 +460,7 @@ public class ChatServiceImpl implements ChatService {
 
             // 1.3 助手消息已落库后再异步抽取长期记忆，避免影响主回复完成事件
             try {
-                userMemoryService.extractAsync(ctx);
+                userMemoryService.extractAsync(buildMemoryExtractRequest(ctx));
             } catch (Exception e) {
                 log.warn("[Chat] 调度长期记忆抽取失败: {}", e.getMessage());
             }
@@ -469,6 +471,38 @@ public class ChatServiceImpl implements ChatService {
             log.error("[Chat] 构建[DONE]事件异常: {}", e.getMessage(), e);
             return DONE_PREFIX;
         }
+    }
+
+    /**
+     * 构建长期记忆抽取入参：从对话上下文提取纯数据字段，并在编排层判定本轮是否已主动保存记忆。
+     *
+     * @param ctx 对话上下文
+     * @return 记忆抽取入参
+     */
+    private MemoryExtractDTO buildMemoryExtractRequest(ChatContext ctx) {
+        MemoryExtractDTO request = new MemoryExtractDTO();
+        request.setUserId(ctx.getUserId());
+        request.setSessionId(ctx.getSessionId());
+        request.setAgentId(ctx.getAgent() != null ? ctx.getAgent().getId() : null);
+        request.setSourceMessageId(ctx.getUserMessageId());
+        request.setUserMessage(ctx.getRequest() != null ? ctx.getRequest().getMessage() : null);
+        request.setAssistantReply(ctx.getFullReply() != null ? ctx.getFullReply().toString() : "");
+        request.setMemorySaved(hasMemorySaveToolCall(ctx));
+        return request;
+    }
+
+    /**
+     * 判定本轮对话是否已通过 memory_save 工具主动保存记忆。
+     *
+     * @param ctx 对话上下文
+     * @return 已保存返回 true
+     */
+    private boolean hasMemorySaveToolCall(ChatContext ctx) {
+        if (ctx.getToolEventsList() == null || ctx.getToolEventsList().isEmpty()) {
+            return false;
+        }
+        return ctx.getToolEventsList().stream()
+                .anyMatch(event -> UserMemoryToolCallbackFactory.SAVE_TOOL_NAME.equals(String.valueOf(event.get("toolName"))));
     }
 
     private String buildStreamFailureMetadata(ChatContext ctx) {

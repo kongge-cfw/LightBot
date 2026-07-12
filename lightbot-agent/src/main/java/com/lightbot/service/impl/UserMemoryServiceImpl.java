@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
+import com.lightbot.dto.MemoryExtractDTO;
 import com.lightbot.dto.UserMemoryRequestDTO;
 import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.vo.UserPreferenceVO;
@@ -15,8 +16,6 @@ import com.lightbot.enums.UserMemoryType;
 import com.lightbot.mapper.UserMemoryMapper;
 import com.lightbot.service.UserMemoryService;
 import com.lightbot.service.UserPreferenceService;
-import com.lightbot.service.chat.ChatContext;
-import com.lightbot.tool.builtin.UserMemoryToolCallbackFactory;
 import com.lightbot.util.TextNormalizeUtil;
 import com.lightbot.util.VectorUtil;
 import lombok.RequiredArgsConstructor;
@@ -201,34 +200,34 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
     }
 
     @Override
-    public void extractAsync(ChatContext ctx) {
-        if (ctx == null || ctx.getUserId() == null || ctx.getRequest() == null) {
+    public void extractAsync(MemoryExtractDTO request) {
+        if (request == null || request.getUserId() == null || request.getUserMessage() == null) {
             return;
         }
-        UserPreferenceVO preferences = userPreferenceService.getPreferences(ctx.getUserId());
+        UserPreferenceVO preferences = userPreferenceService.getPreferences(request.getUserId());
         if (!Boolean.TRUE.equals(preferences.getLongMemoryEnabled())
                 || !Boolean.TRUE.equals(preferences.getLongMemoryAutoExtract())) {
             return;
         }
-        if (hasMemorySaveToolCall(ctx)) {
-            log.debug("[UserMemory] 本轮已调用 memory_save，跳过自动记忆兜底: userId={}", ctx.getUserId());
+        if (Boolean.TRUE.equals(request.getMemorySaved())) {
+            log.debug("[UserMemory] 本轮已调用 memory_save，跳过自动记忆兜底: userId={}", request.getUserId());
             return;
         }
-        String userMessage = ctx.getRequest().getMessage();
-        String assistantReply = ctx.getFullReply() != null ? ctx.getFullReply().toString() : "";
-        Long memoryAgentId = "agent".equalsIgnoreCase(preferences.getLongMemoryScope()) ? resolveAgentId(ctx) : null;
-        lightBotExecutor.execute(() -> autoExtract(ctx, memoryAgentId, userMessage, assistantReply));
+        String userMessage = request.getUserMessage();
+        String assistantReply = request.getAssistantReply() != null ? request.getAssistantReply() : "";
+        Long memoryAgentId = "agent".equalsIgnoreCase(preferences.getLongMemoryScope()) ? request.getAgentId() : null;
+        lightBotExecutor.execute(() -> autoExtract(request, memoryAgentId, userMessage, assistantReply));
     }
 
-    private void autoExtract(ChatContext ctx, Long memoryAgentId, String userMessage, String assistantReply) {
+    private void autoExtract(MemoryExtractDTO request, Long memoryAgentId, String userMessage, String assistantReply) {
         try {
             ExtractedMemory extracted = heuristicExtract(userMessage, assistantReply);
             if (extracted == null || extracted.confidence().compareTo(AUTO_MIN_CONFIDENCE) < 0) {
                 return;
             }
-            saveFromTool(ctx.getUserId(), memoryAgentId, ctx.getSessionId(), ctx.getUserMessageId(),
+            saveFromTool(request.getUserId(), memoryAgentId, request.getSessionId(), request.getSourceMessageId(),
                     extracted.memoryType().getCode(), extracted.content(), extracted.keywords(), extracted.confidence());
-            log.info("[UserMemory] 自动记忆已保存: userId={}, type={}", ctx.getUserId(), extracted.memoryType());
+            log.info("[UserMemory] 自动记忆已保存: userId={}, type={}", request.getUserId(), extracted.memoryType());
         } catch (Exception e) {
             log.warn("[UserMemory] 自动记忆抽取失败: {}", e.getMessage());
         }
@@ -256,14 +255,6 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
             return null;
         }
         return new ExtractedMemory(type, content, extractKeywords(content), BigDecimal.valueOf(explicitRemember ? 0.95 : 0.8));
-    }
-
-    private boolean hasMemorySaveToolCall(ChatContext ctx) {
-        if (ctx.getToolEventsList() == null || ctx.getToolEventsList().isEmpty()) {
-            return false;
-        }
-        return ctx.getToolEventsList().stream()
-                .anyMatch(event -> UserMemoryToolCallbackFactory.SAVE_TOOL_NAME.equals(String.valueOf(event.get("toolName"))));
     }
 
     private UserMemory buildMemory(Long userId, Long agentId, Long sessionId, Long sourceMessageId,
@@ -452,10 +443,6 @@ public class UserMemoryServiceImpl extends ServiceImpl<UserMemoryMapper, UserMem
         return lower.contains("password") || lower.contains("api key") || lower.contains("apikey")
                 || lower.contains("token") || text.contains("密码") || text.contains("密钥")
                 || text.matches(".*\\b1[3-9]\\d{9}\\b.*");
-    }
-
-    private Long resolveAgentId(ChatContext ctx) {
-        return ctx.getAgent() != null ? ctx.getAgent().getId() : null;
     }
 
     private String labelOf(UserMemoryType type) {

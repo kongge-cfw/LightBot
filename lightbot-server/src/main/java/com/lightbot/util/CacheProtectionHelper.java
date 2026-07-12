@@ -1,27 +1,26 @@
-package com.lightbot.service;
+package com.lightbot.util;
 
-import com.lightbot.util.BloomFilterHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
 
 /**
- * 缓存防护服务
+ * 缓存防护工具
  * <p>封装布隆过滤器防穿透 + 分布式锁防击穿 + 随机TTL防雪崩的三层防护逻辑</p>
  *
  * @author finch
  * @since 2026-06-21
  */
 @Slf4j
-@Service
+@Component
 @RequiredArgsConstructor
-public class CacheProtectiveService {
+public class CacheProtectionHelper {
 
     private final CacheManager cacheManager;
     private final BloomFilterHelper bloomFilterHelper;

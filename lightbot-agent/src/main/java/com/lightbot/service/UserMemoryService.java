@@ -1,10 +1,10 @@
 package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.lightbot.dto.MemoryExtractDTO;
 import com.lightbot.dto.UserMemoryRequestDTO;
 import com.lightbot.vo.UserMemoryVO;
 import com.lightbot.entity.UserMemory;
-import com.lightbot.service.chat.ChatContext;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -34,5 +34,5 @@ public interface UserMemoryService extends IService<UserMemory> {
 
     String buildMemoryPrompt(Long userId, Long agentId, String query, int limit);
 
-    void extractAsync(ChatContext ctx);
+    void extractAsync(MemoryExtractDTO request);
 }
