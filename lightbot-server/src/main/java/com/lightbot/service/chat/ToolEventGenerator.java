@@ -87,16 +87,20 @@ public class ToolEventGenerator {
      *
      * @param toolName    工具标识
      * @param displayName 工具显示名称（中文），可为 null
+     * @param icon        工具图标（Ant Design 图标组件名），可为 null
      * @param args        调用参数
      * @param contentOffset 内容偏移
      */
-    public String toolCallEvent(String toolName, String displayName, String args, int contentOffset) {
+    public String toolCallEvent(String toolName, String displayName, String icon, String args, int contentOffset) {
         try {
             Map<String, Object> evt = new java.util.LinkedHashMap<>();
             evt.put("type", "tool_call");
             evt.put("toolName", toolName);
             if (displayName != null && !displayName.isEmpty()) {
                 evt.put("displayName", displayName);
+            }
+            if (icon != null && !icon.isEmpty()) {
+                evt.put("icon", icon);
             }
             evt.put("args", args != null ? args : "");
             evt.put("contentOffset", contentOffset);
@@ -111,10 +115,11 @@ public class ToolEventGenerator {
      *
      * @param toolName    工具标识
      * @param displayName 工具显示名称（中文），可为 null
+     * @param icon        工具图标（Ant Design 图标组件名），可为 null
      * @param result      执行结果
      * @param contentOffset 内容偏移
      */
-    public String toolResultEvent(String toolName, String displayName, String result, int contentOffset) {
+    public String toolResultEvent(String toolName, String displayName, String icon, String result, int contentOffset) {
         try {
             String truncated = truncateForSse(result);
             Map<String, Object> evt = new java.util.LinkedHashMap<>();
@@ -122,6 +127,9 @@ public class ToolEventGenerator {
             evt.put("toolName", toolName);
             if (displayName != null && !displayName.isEmpty()) {
                 evt.put("displayName", displayName);
+            }
+            if (icon != null && !icon.isEmpty()) {
+                evt.put("icon", icon);
             }
             evt.put("result", truncated);
             evt.put("contentOffset", contentOffset);

@@ -203,7 +203,7 @@
               <a-tooltip v-for="t in depTools" :key="t.id" :title="t.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="openToolDetail(t)">
                   <span class="dep-icon" style="background: linear-gradient(135deg, #10b981, #059669)">
-                    {{ (t.displayName || t.name || '?')[0].toUpperCase() }}
+                    <DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" />
                   </span>
                   <div class="dep-info">
                     <span class="dep-name">{{ t.displayName || t.name }}</span>
@@ -220,7 +220,7 @@
               <a-tooltip v-for="m in depMcps" :key="m.id" :title="m.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="openMcpDetail(m)">
                   <span class="dep-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)">
-                    {{ (m.name || 'M')[0].toUpperCase() }}
+                    <DynamicIcon :name="m.icon" :fallback="m.name" />
                   </span>
                   <div class="dep-info">
                     <span class="dep-name">{{ m.name }}</span>
@@ -237,7 +237,7 @@
               <a-tooltip v-for="s in depSkills" :key="s.id" :title="s.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="router.push('/app/skills/' + s.id)">
                   <span class="dep-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706)">
-                    {{ (s.displayName || s.name || 'S')[0].toUpperCase() }}
+                    <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
                   </span>
                   <div class="dep-info">
                     <span class="dep-name">{{ s.displayName || s.name }}</span>
@@ -394,6 +394,7 @@ import { getMcpServers } from '../api/mcp'
 import { getEnabledSkills } from '../api/skill'
 import { truncateText } from '../utils/format'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
+import DynamicIcon from '../components/DynamicIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1139,6 +1140,9 @@ onUnmounted(() => {
   font-weight: 600;
   font-size: 16px;
   flex-shrink: 0;
+}
+.dep-icon :deep(.anticon) {
+  font-size: 18px;
 }
 .dep-info {
   display: flex;

@@ -112,6 +112,9 @@ public class SkillPrepMiddleware implements ChatMiddleware {
             detail.put("name", skill.getName());
             detail.put("displayName", skill.getDisplayName() != null ? skill.getDisplayName() : skill.getName());
             detail.put("slug", skill.getSlug());
+            if (skill.getIcon() != null && !skill.getIcon().isEmpty()) {
+                detail.put("icon", skill.getIcon());
+            }
             detail.put("builtin", Integer.valueOf(1).equals(skill.getIsBuiltin()));
             detail.put("version", skill.getVersion());
             activeDetails.add(detail);

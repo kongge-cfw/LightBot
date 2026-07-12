@@ -8,7 +8,7 @@
     }"
   >
     <button type="button" class="subagent-header" @click="toggle($event)">
-      <RobotOutlined class="subagent-icon" />
+      <component :is="headerIcon" class="subagent-icon" />
       <span class="subagent-title">
         委派 SubAgent：<strong>{{ subagentTitle }}</strong>
         <span v-if="attemptViews.length > 1" class="subagent-attempt-count">（{{ attemptViews.length }} 次委派）</span>
@@ -51,6 +51,7 @@
           }"
         >
         <div v-if="attemptViews.length > 1" class="subagent-attempt-header">
+          <component :is="attemptIcon(attempt)" class="subagent-attempt-icon" />
           <span class="subagent-attempt-label">{{ attemptLabel(attempt, ai) }}</span>
           <span v-if="attempt.isDone && attempt.error" class="subagent-attempt-status error">失败</span>
           <span v-else-if="attempt.isDone && attempt.success" class="subagent-attempt-status success">完成</span>
@@ -151,6 +152,7 @@ import {
   RobotOutlined, LoadingOutlined, RightOutlined, CloseCircleOutlined,
   CodeOutlined, CopyOutlined, CheckOutlined, CheckCircleOutlined,
 } from '@ant-design/icons-vue'
+import * as AntIcons from '@ant-design/icons-vue'
 import ToolCallsGroupComponent from '../ToolCallsGroupComponent.vue'
 import MarkdownPreview from '../MarkdownPreview.vue'
 import CollapseTransition from '../common/CollapseTransition.vue'
@@ -218,6 +220,7 @@ const callList = computed(() => {
         taskIndex: task.task_index ?? taskIndex,
         subagentName: task.subagent_name,
         displayName: streamEvent?.displayName || task.subagent_name,
+        icon: streamEvent?.icon || task.icon,
         task: task.task,
         contentOffset: props.event.contentOffset,
         delegationIndex: props.event.delegationIndex,
@@ -273,6 +276,21 @@ const attemptViews = computed(() => {
 const subagentTitle = computed(() => isBatchEvent.value
   ? `${modeLabel(props.event.mode)} · ${callList.value.length} 个任务`
   : (props.event.displayName || props.event.subagentName))
+
+/** 头部图标：单任务委派用该 SubAgent 配置图标；多任务批次用默认机器人图标 */
+const headerIcon = computed(() => {
+  if (isBatchEvent.value) {
+    // 单任务批次直接展示该 SubAgent 图标；多任务保留机器人图标
+    const calls = callList.value
+    if (calls.length === 1) {
+      const iconName = calls[0]?.icon
+      return (iconName && AntIcons[iconName]) || RobotOutlined
+    }
+    return RobotOutlined
+  }
+  const iconName = props.event.icon
+  return (iconName && AntIcons[iconName]) || RobotOutlined
+})
 
 const activeAttempt = computed(() =>
   attemptViews.value.find(a => a.isActive) || attemptViews.value[attemptViews.value.length - 1]
@@ -337,6 +355,12 @@ function modeLabel(mode) {
 function attemptLabel(attempt, index) {
   if (!isBatchEvent.value) return `第 ${index + 1} 次委派`
   return `任务 ${index + 1} · ${attempt.call.displayName || attempt.call.subagentName || 'SubAgent'}`
+}
+
+/** 单个委派任务的图标：优先用 SubAgent 配置图标，回退机器人图标 */
+function attemptIcon(attempt) {
+  const iconName = attempt?.call?.icon
+  return (iconName && AntIcons[iconName]) || RobotOutlined
 }
 
 watch(() => props.defaultExpanded, (val) => {
@@ -583,6 +607,11 @@ async function copyText(text) {
   font-size: 12px;
   font-weight: 600;
   color: var(--color-warning-deep);
+}
+.subagent-attempt-icon {
+  font-size: 13px;
+  color: var(--color-warning);
+  flex-shrink: 0;
 }
 .subagent-attempt-status {
   font-size: 11px;

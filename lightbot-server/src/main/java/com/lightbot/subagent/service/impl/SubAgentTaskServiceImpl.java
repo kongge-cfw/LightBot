@@ -265,7 +265,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         String taskId = taskId(context.requestId(), task, taskIndex);
         SubAgentDefinition definition = definitions.get(task.subagentName());
         String displayName = definition != null ? definition.displayName() : task.subagentName();
-        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, displayName, "running", null);
+        String icon = definition != null ? definition.icon() : null;
+        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, displayName, icon, "running", null);
         try {
             SubAgentExecutor.ExecutionResult result = executor.execute(definition, task.task(), taskId, task.threadId(),
                     context.parentThreadId(), context.taskContext(batchId, taskId, taskIndex));
@@ -276,7 +277,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             output.put("continued", result.continued());
             output.put("display_name", displayName);
             publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, displayName,
-                    output.get("status").toString(), output);
+                    icon, output.get("status").toString(), output);
             return output;
         } catch (Exception e) {
             SubAgentRun run = repository.findTask(taskId);
@@ -296,7 +297,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             output.put("status_label", statusLabel("failed"));
             output.put("error", e.getMessage());
             publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, displayName,
-                    "failed", output);
+                    icon, "failed", output);
             return output;
         }
     }
@@ -366,9 +367,17 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         for (int index = 0; index < input.tasks().size(); index++) {
             DelegatedTask task = input.tasks().get(index);
             SubAgentDefinition definition = definitions.get(task.subagentName());
-            tasks.add(Map.of("task_id", taskId(context.requestId(), task, index), "subagent_name", task.subagentName(),
-                    "display_name", definition != null ? definition.displayName() : task.subagentName(),
-                    "task", task.task(), "task_index", index));
+            Map<String, Object> taskMap = new LinkedHashMap<>();
+            taskMap.put("task_id", taskId(context.requestId(), task, index));
+            taskMap.put("subagent_name", task.subagentName());
+            taskMap.put("display_name", definition != null ? definition.displayName() : task.subagentName());
+            String icon = definition != null ? definition.icon() : null;
+            if (icon != null && !icon.isEmpty()) {
+                taskMap.put("icon", icon);
+            }
+            taskMap.put("task", task.task());
+            taskMap.put("task_index", index);
+            tasks.add(taskMap);
         }
         eventPublisher.publish(context.chatContext(), "subagent_batch_start", Map.of("batch_id", batchId, "mode", input.mode(),
                 "aggregation", input.aggregation(), "tasks", tasks, "contentOffset", context.contentOffset(),
@@ -376,13 +385,16 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     private void publishTask(RuntimeContext context, String type, String batchId, String taskId, DelegatedTask task,
-                             int taskIndex, String displayName, String status, Map<String, Object> result) {
+                             int taskIndex, String displayName, String icon, String status, Map<String, Object> result) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("batch_id", batchId);
         payload.put("task_id", taskId);
         payload.put("task_index", taskIndex);
         payload.put("subagentName", task.subagentName());
         payload.put("displayName", displayName);
+        if (icon != null && !icon.isEmpty()) {
+            payload.put("icon", icon);
+        }
         payload.put("task", task.task());
         payload.put("status", status);
         payload.put("status_label", statusLabel(status));

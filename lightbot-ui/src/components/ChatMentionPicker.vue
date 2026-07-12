@@ -29,6 +29,7 @@
               <EntitySelectOption
                 :type="group.type"
                 :name="item.name"
+                :icon="item.icon"
                 :tag="!item.enabled ? (item.disabledReason || '不可用') : ''"
                 :tag-muted="!item.enabled ? '已禁用' : ''"
                 :desc="item.description"

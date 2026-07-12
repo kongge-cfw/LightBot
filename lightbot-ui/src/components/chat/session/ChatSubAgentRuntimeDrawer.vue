@@ -27,7 +27,15 @@
     </div>
     <a-empty v-else-if="!loading" description="当前会话暂无子智能体任务" />
 
-    <a-modal v-model:open="detailOpen" :title="detailTitle" width="760px" :footer="null" destroy-on-close>
+    <a-modal v-model:open="detailOpen" width="760px" :footer="null" destroy-on-close>
+      <template #title>
+        <span class="detail-modal-title">{{ detailTitle }}</span>
+        <a-tooltip title="刷新详情">
+          <button type="button" class="detail-refresh" :disabled="detailLoading || detailRefreshing" @click="refreshDetail">
+            <ReloadOutlined :class="{ 'is-spinning': detailRefreshing }" />
+          </button>
+        </a-tooltip>
+      </template>
       <a-spin :spinning="detailLoading">
         <div class="task-detail-scroll">
           <div v-if="selectedDisplayTask" class="task-detail-summary">
@@ -104,6 +112,7 @@ const runs = ref([])
 const loading = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
+const detailRefreshing = ref(false)
 const selectedTask = ref(null)
 const events = ref([])
 const eventCursor = ref('')
@@ -259,6 +268,18 @@ async function refreshActiveTask() {
   }
 }
 
+/** 手动刷新当前任务详情：保证刷新动画至少展示 600ms，避免闪烁 */
+async function refreshDetail() {
+  if (detailRefreshing.value || !selectedTask.value?.task_id) return
+  detailRefreshing.value = true
+  const minDelay = new Promise(resolve => setTimeout(resolve, 600))
+  try {
+    await Promise.all([refreshActiveTask(), minDelay])
+  } finally {
+    detailRefreshing.value = false
+  }
+}
+
 function startPolling() {
   stopPolling()
   if (!props.open || !props.sessionId) return
@@ -350,6 +371,9 @@ onBeforeUnmount(stopPolling)
 <style scoped>
 .runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-body); cursor: pointer; }
 .runtime-refresh:hover { background: var(--color-canvas-soft); color: var(--color-ink); }.runtime-refresh:disabled { cursor: default; opacity: .6; }.is-spinning { animation: runtimeSpin .8s linear infinite; }
+.detail-modal-title { margin-right: 8px; }
+.detail-refresh { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-body); cursor: pointer; vertical-align: middle; }
+.detail-refresh:hover { background: var(--color-canvas-soft); color: var(--color-ink); }.detail-refresh:disabled { cursor: default; opacity: .6; }
 .runtime-list { display: flex; flex-direction: column; gap: 8px; }
 .runtime-item { display: flex; gap: 10px; width: 100%; padding: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas); text-align: left; cursor: pointer; }
 .runtime-item:hover { background: var(--color-canvas-soft); border-color: var(--color-hairline-strong); }

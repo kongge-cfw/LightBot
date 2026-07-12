@@ -913,7 +913,8 @@ public class ChatServiceImpl implements ChatService {
                     for (org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse tr : toolResponses) {
                         if (!DelegateSubAgentTool.TOOL_NAME.equals(tr.name())) {
                             String dn = getToolDisplayName(ctx, tr.name());
-                            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dn, tr.responseData(), resultContentOffset)));
+                            String icon = getToolIcon(ctx, tr.name());
+                            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dn, icon, tr.responseData(), resultContentOffset)));
                         }
                     }
                     Flux<String> toolEventFlux = Flux.concat(statusFluxes)
@@ -1231,7 +1232,8 @@ public class ChatServiceImpl implements ChatService {
         final int resultContentOffset = toolContentOffset;
         for (org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse tr : toolResponses) {
             String dnRes = getToolDisplayName(ctx, tr.name());
-            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dnRes, tr.responseData(), resultContentOffset)));
+            String iconRes = getToolIcon(ctx, tr.name());
+            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dnRes, iconRes, tr.responseData(), resultContentOffset)));
         }
         Flux<String> toolEventFlux = Flux.concat(statusFluxes)
                 .concatWith(Flux.concat(toolResultEvents))
@@ -1676,16 +1678,18 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         String dn = getToolDisplayName(ctx, toolName);
+        String icon = getToolIcon(ctx, toolName);
         Map<String, Object> callEvt = new java.util.LinkedHashMap<>();
         callEvt.put("type", "tool_call");
         callEvt.put("toolName", toolName);
         if (dn != null) callEvt.put("displayName", dn);
+        if (icon != null) callEvt.put("icon", icon);
         callEvt.put("args", args);
         callEvt.put("contentOffset", contentOffset);
         putContentPrefixAnchor(ctx, callEvt, contentOffset);
         int normalizedOffset = callEvt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
         toolEventsList.add(callEvt);
-        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, args, normalizedOffset);
+        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, icon, args, normalizedOffset);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(callJson);
         } else if (statusFluxes != null) {
@@ -1720,10 +1724,12 @@ public class ChatServiceImpl implements ChatService {
             return;
         }
         String dn = getToolDisplayName(ctx, toolName);
+        String icon = getToolIcon(ctx, toolName);
         Map<String, Object> resultEvt = new java.util.LinkedHashMap<>();
         resultEvt.put("type", "tool_result");
         resultEvt.put("toolName", toolName);
         if (dn != null) resultEvt.put("displayName", dn);
+        if (icon != null) resultEvt.put("icon", icon);
         resultEvt.put("result", truncated);
         resultEvt.put("contentOffset", contentOffset);
         toolEventsList.add(resultEvt);
@@ -1732,6 +1738,11 @@ public class ChatServiceImpl implements ChatService {
     private String getToolDisplayName(ChatContext ctx, String toolName) {
         if (ctx == null || ctx.getToolDisplayNameMap() == null) return null;
         return ctx.getToolDisplayNameMap().get(toolName);
+    }
+
+    private String getToolIcon(ChatContext ctx, String toolName) {
+        if (ctx == null || ctx.getToolIconMap() == null) return null;
+        return ctx.getToolIconMap().get(toolName);
     }
 
     /**
@@ -1783,9 +1794,11 @@ public class ChatServiceImpl implements ChatService {
             }
             case "tool_call" -> {
                 String toolName = se.content();
+                String subIcon = resolveSubAgentIcon(se.subagentName());
                 evt.put("type", "subagent_tool_call");
                 evt.put("subagentName", se.subagentName());
                 evt.put("displayName", resolveSubAgentDisplayName(se.subagentName()));
+                if (subIcon != null) evt.put("icon", subIcon);
                 evt.put("toolName", toolName);
                 evt.put("args", "{}");
                 evt.put("contentOffset", contentOffset);
@@ -1797,9 +1810,11 @@ public class ChatServiceImpl implements ChatService {
                         delegationIndex);
             }
             case "tool_result" -> {
+                String subIcon = resolveSubAgentIcon(se.subagentName());
                 evt.put("type", "subagent_tool_result");
                 evt.put("subagentName", se.subagentName());
                 evt.put("displayName", resolveSubAgentDisplayName(se.subagentName()));
+                if (subIcon != null) evt.put("icon", subIcon);
                 evt.put("toolName", "");
                 evt.put("result", se.content());
                 evt.put("contentOffset", contentOffset);
@@ -1831,6 +1846,17 @@ public class ChatServiceImpl implements ChatService {
             return subAgent.getDisplayName();
         }
         return subagentName;
+    }
+
+    private String resolveSubAgentIcon(String subagentName) {
+        if (subagentName == null || subagentName.isBlank()) {
+            return null;
+        }
+        com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subagentName);
+        if (subAgent != null && subAgent.getIcon() != null && !subAgent.getIcon().isBlank()) {
+            return subAgent.getIcon();
+        }
+        return null;
     }
 
     private Map<String, String> parseSubagentArgs(String args) {

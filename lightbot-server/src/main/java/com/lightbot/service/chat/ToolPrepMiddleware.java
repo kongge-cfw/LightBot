@@ -70,6 +70,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
     /** displayName 缓存：toolName → displayName，TTL 5 分钟 */
     private volatile Map<String, String> displayNameCache;
+    /** icon 缓存：toolName → icon，与 displayName 同批构建 */
+    private volatile Map<String, String> iconCache;
     private volatile long displayNameCacheTime;
     private static final long DISPLAY_NAME_CACHE_TTL_MS = 5 * 60 * 1000L;
     private final Object cacheLock = new Object();
@@ -103,6 +105,9 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
         // 4. 构建 displayName 映射（前端展示中文名）
         ctx.setToolDisplayNameMap(buildDisplayNameMap(toolCallbackMap));
+
+        // 5. 构建 icon 映射（前端头像图标）
+        ctx.setToolIconMap(buildIconMap(toolCallbackMap));
 
         log.info("[Chat] 工具准备完成: providerId={}, 工具数={}, 工具名={}",
                 providerId, toolCallbackMap.size(), toolCallbackMap.keySet());
@@ -358,6 +363,28 @@ public class ToolPrepMiddleware implements ChatMiddleware {
         return result;
     }
 
+    /**
+     * 构建 toolName → icon 映射
+     * <p>从数据库 Tool 表查询图标（Ant Design 图标组件名），
+     * MCP 工具及无图标工具不进入映射，前端回退到内置注册表图标或首字母。</p>
+     */
+    private Map<String, String> buildIconMap(Map<String, ToolCallback> toolCallbackMap) {
+        if (toolCallbackMap == null || toolCallbackMap.isEmpty()) {
+            return Map.of();
+        }
+        // 复用缓存构建逻辑（getDisplayNameCache 内同批刷新 iconCache）
+        getDisplayNameCache();
+        Map<String, String> allIcons = iconCache != null ? iconCache : Map.of();
+        Map<String, String> result = new HashMap<>();
+        for (String name : toolCallbackMap.keySet()) {
+            String icon = allIcons.get(name);
+            if (icon != null && !icon.isEmpty()) {
+                result.put(name, icon);
+            }
+        }
+        return result;
+    }
+
     private String getBuiltInToolDisplayName(String name) {
         return switch (name) {
             case UserMemoryToolCallbackFactory.SAVE_TOOL_NAME -> "保存长期记忆";
@@ -384,12 +411,17 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             List<Tool> tools = toolService.list(
                     new LambdaQueryWrapper<Tool>().eq(Tool::getStatus, CommonStatus.ACTIVE));
             Map<String, String> map = new HashMap<>();
+            Map<String, String> icons = new HashMap<>();
             for (Tool tool : tools) {
                 if (tool.getDisplayName() != null && !tool.getDisplayName().isEmpty()) {
                     map.put(tool.getName(), tool.getDisplayName());
                 }
+                if (tool.getIcon() != null && !tool.getIcon().isEmpty()) {
+                    icons.put(tool.getName(), tool.getIcon());
+                }
             }
             displayNameCache = map;
+            iconCache = icons;
             displayNameCacheTime = System.currentTimeMillis();
             return map;
         }

@@ -79,6 +79,8 @@ public class ChatContext {
     private Map<String, ToolCallback> toolCallbackMap;
     /** toolName → displayName 映射（前端展示用） */
     private Map<String, String> toolDisplayNameMap;
+    /** toolName → icon 映射（前端头像图标用，Ant Design 图标组件名） */
+    private Map<String, String> toolIconMap;
 
     // ===== 消息ID =====
     /** 用户消息ID（MessageMiddleware 保存后写入） */

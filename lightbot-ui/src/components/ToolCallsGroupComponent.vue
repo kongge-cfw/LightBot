@@ -22,10 +22,11 @@
         <!-- tool_call: 工具调用发起 -->
         <div v-if="evt.type === 'tool_call'" class="event-call-wrap">
           <div class="event-row event-call">
-            <SearchOutlined v-if="evt.toolName === 'query_knowledge'" class="event-icon" />
-            <LoadingOutlined v-else-if="!isDone" class="event-icon icon-spinning" />
+            <LoadingOutlined v-if="!isDone" class="event-icon icon-spinning" />
             <CheckCircleOutlined v-else class="event-icon icon-success" />
-            <span class="event-label">调用 <strong>{{ resolveDisplayName(evt) }}</strong> 工具</span>
+            <span class="event-label">
+              调用 <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 工具
+            </span>
             <a-tooltip v-if="hasArgs(evt)" title="查看参数详情">
               <button class="args-detail-btn" @click.stop="openArgs(ti)">
                 <FileSearchOutlined />
@@ -48,7 +49,9 @@
         <!-- tool_result: 执行结果 -->
         <div v-else-if="evt.type === 'tool_result'" class="event-row event-result">
           <CheckCircleOutlined class="event-icon icon-success" />
-          <span class="event-label"><strong>{{ resolveDisplayName(evt) }}</strong> 执行完成</span>
+          <span class="event-label">
+            <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 执行完成
+          </span>
           <button class="result-toggle" @click="toggleResult(ti, $event)" v-if="evt.result">
             <RightOutlined :class="{ expanded: expandedResults.has(ti) }" class="expand-icon-sm" />
             <span>查看结果</span>
@@ -84,10 +87,11 @@
 
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
-import { CheckCircleOutlined, LoadingOutlined, RightOutlined, SearchOutlined, FileSearchOutlined } from '@ant-design/icons-vue'
+import { CheckCircleOutlined, LoadingOutlined, RightOutlined, FileSearchOutlined } from '@ant-design/icons-vue'
+import * as AntIcons from '@ant-design/icons-vue'
 import ToolCallRenderer from './ToolCallRenderer.vue'
 import CollapseTransition from './common/CollapseTransition.vue'
-import { getToolDisplayName } from './toolRegistry'
+import { getToolDisplayName, getToolIcon } from './toolRegistry'
 
 const props = defineProps({
   toolEvents: { type: Array, default: () => [] },
@@ -131,6 +135,17 @@ const uniqueToolNames = computed(() => {
 
 function resolveDisplayName(evt) {
   return evt.displayName || getToolDisplayName(evt.toolName)
+}
+
+/**
+ * 解析事件的图标组件：优先用后端配置的 evt.icon（Ant Design 图标名），
+ * 回退到内置工具注册表图标
+ */
+function resolveEventIcon(evt) {
+  if (evt.icon && AntIcons[evt.icon]) {
+    return AntIcons[evt.icon]
+  }
+  return getToolIcon(evt.toolName)
 }
 
 // ── 参数展示 ──
@@ -330,6 +345,12 @@ function toggleResult(index, event) {
     flex: 1;
     min-width: 0;
     strong { color: var(--main-700); font-weight: 600; }
+  }
+
+  .event-tool-icon {
+    color: var(--main-600);
+    font-size: 13px;
+    vertical-align: -1px;
   }
 
   .event-text {

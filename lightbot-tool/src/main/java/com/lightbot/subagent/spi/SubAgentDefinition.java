@@ -17,4 +17,8 @@ public record SubAgentDefinition(SubAgent source) {
         return source.getDisplayName() != null && !source.getDisplayName().isBlank()
                 ? source.getDisplayName() : source.getName();
     }
+
+    public String icon() {
+        return source.getIcon();
+    }
 }

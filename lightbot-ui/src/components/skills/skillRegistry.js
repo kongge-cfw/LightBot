@@ -11,6 +11,7 @@ import {
   TableOutlined,
   FileTextOutlined,
 } from '@ant-design/icons-vue'
+import * as AntIcons from '@ant-design/icons-vue'
 import { defineAsyncComponent } from 'vue'
 
 /** skill_active SSE 事件类型 */
@@ -121,13 +122,22 @@ export function resolveSkillSlug(skill) {
   return String(raw).trim().toLowerCase()
 }
 
+/** 从后端 icon 字符串（Ant Design 图标名）解析图标组件，无法解析返回 null */
+function resolveIconComponent(iconName) {
+  return iconName && AntIcons[iconName] ? AntIcons[iconName] : null
+}
+
 /** 获取 Skill 元数据（未知 slug 回退默认） */
 export function getSkillMeta(skillOrSlug) {
   const slug = typeof skillOrSlug === 'string'
     ? skillOrSlug.trim().toLowerCase()
     : resolveSkillSlug(skillOrSlug)
+  // 后端配置的图标（Ant Design 图标名）优先于内置注册表图标
+  const backendIcon = typeof skillOrSlug === 'object' && skillOrSlug
+    ? resolveIconComponent(skillOrSlug.icon)
+    : null
   if (slug && SKILL_META[slug]) {
-    return SKILL_META[slug]
+    return backendIcon ? { ...SKILL_META[slug], icon: backendIcon } : SKILL_META[slug]
   }
   if (typeof skillOrSlug === 'object' && skillOrSlug) {
     return {
@@ -136,6 +146,7 @@ export function getSkillMeta(skillOrSlug) {
       displayName: skillOrSlug.displayName || skillOrSlug.name || slug || 'Skill',
       description: skillOrSlug.description || '',
       hint: skillOrSlug.hint || '',
+      icon: backendIcon || DEFAULT_SKILL_META.icon,
       builtin: !!skillOrSlug.builtin,
     }
   }
