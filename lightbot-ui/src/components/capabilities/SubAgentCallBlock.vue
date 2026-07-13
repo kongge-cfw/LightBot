@@ -50,7 +50,7 @@
             'is-failed': attempt.error && attempt.isDone,
           }"
         >
-        <div v-if="attemptViews.length > 1" class="subagent-attempt-header">
+        <div v-if="attemptViews.length > 1" class="subagent-attempt-header" @click="toggleAttempt(attempt, $event)">
           <component :is="attemptIcon(attempt)" class="subagent-attempt-icon" />
           <span class="subagent-attempt-label">{{ attemptLabel(attempt, ai) }}</span>
           <span v-if="attempt.isDone && attempt.error" class="subagent-attempt-status error">失败</span>
@@ -62,8 +62,11 @@
           <span v-else class="subagent-attempt-status running">
             <LoadingOutlined v-if="!attempt.isDone" spin /> 进行中
           </span>
+          <RightOutlined :class="{ expanded: isAttemptExpanded(attempt) }" class="subagent-attempt-toggle" />
         </div>
 
+        <CollapseTransition :open="isAttemptExpanded(attempt)">
+          <div class="subagent-attempt-body">
         <div v-if="visibleAttemptTimeline(attempt).length" class="subagent-timeline">
           <div
             v-for="item in visibleAttemptTimeline(attempt)"
@@ -119,6 +122,8 @@
             />
           </div>
         </div>
+          </div>
+        </CollapseTransition>
       </div>
       </div>
     </CollapseTransition>
@@ -189,6 +194,23 @@ const bodyRef = ref(null)
 const userReadingInnerHistory = ref(false)
 let userToggled = false
 
+// 多任务时每个任务独立展开/收起，默认收起（key -> boolean）
+const attemptExpandedMap = ref({})
+
+function isAttemptExpanded(attempt) {
+  // 单任务：内容随外层块展开；多任务：按 key 记录，默认收起
+  if (attemptViews.value.length <= 1) return true
+  return attemptExpandedMap.value[attempt.key] === true
+}
+
+function toggleAttempt(attempt, event) {
+  attemptExpandedMap.value = {
+    ...attemptExpandedMap.value,
+    [attempt.key]: !isAttemptExpanded(attempt),
+  }
+  emitLayoutChange(event, true)
+}
+
 const jsonModalOpen = ref(false)
 const jsonModalContent = ref('')
 const jsonCopied = ref(false)
@@ -240,7 +262,10 @@ const attemptViews = computed(() => {
   const lastActiveIndex = normalized.findIndex(({ call, delegationIndex }) =>
     !isSubagentAttemptDone(scopedEvents.value, call, delegationIndex, streaming, callList.value)
   )
-  const activeIndex = lastActiveIndex >= 0 ? lastActiveIndex : normalized.length - 1
+  // 批次多任务全部完成后无「当前任务」概念，不再兜底高亮最后一个；重试模型仍兜底到最后一次尝试。
+  const activeIndex = lastActiveIndex >= 0
+    ? lastActiveIndex
+    : (isBatchEvent.value ? -1 : normalized.length - 1)
 
   return normalized.map(({ call, delegationIndex }, index) => {
     const blockCalls = callList.value
@@ -602,7 +627,25 @@ async function copyText(text) {
   align-items: center;
   gap: 8px;
   margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+  border-radius: 6px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  margin-right: -6px;
+  transition: background 0.15s ease;
 }
+.subagent-attempt-header:hover {
+  background: color-mix(in srgb, var(--color-warning) 8%, transparent);
+}
+.subagent-attempt-toggle {
+  font-size: 11px;
+  color: var(--color-mute);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.subagent-attempt-toggle.expanded { transform: rotate(90deg); }
 .subagent-attempt-label {
   font-size: 12px;
   font-weight: 600;

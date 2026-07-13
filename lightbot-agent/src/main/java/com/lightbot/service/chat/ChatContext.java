@@ -150,6 +150,9 @@ public class ChatContext {
     /** 当前 SubAgent 委派对应的 contentOffset（主 Agent 回复中的插入位置） */
     private Integer subAgentContentOffset;
 
+    /** 当前 SubAgent 委派对应的正文前缀锚点，入库/前端据此精确切分正文，避免截断 */
+    private String subAgentContentPrefixAnchor;
+
     /** 当前 assistant 消息内 SubAgent 委派序号（同 offset 多次委派时递增） */
     private Integer subAgentDelegationIndex;
 

@@ -782,6 +782,8 @@ async function loadPromptsData() {
   border-radius: 8px;
   padding: 12px;
   margin-bottom: 12px;
+  /* 禁用滚动锚定，能力块统一从上往下展开 */
+  overflow-anchor: none;
 }
 .chat-empty {
   display: flex;

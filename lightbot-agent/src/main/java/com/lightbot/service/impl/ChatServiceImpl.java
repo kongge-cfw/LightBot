@@ -1672,7 +1672,11 @@ public class ChatServiceImpl implements ChatService {
             int delegationIndex = ctx != null ? ctx.assignSubAgentDelegationIndex() : 0;
             if (ctx != null) {
                 // 批次事件由 SubAgentTaskService 统一发布；这里只提供本轮插入位置和委派序号。
-                ctx.setSubAgentContentOffset(contentOffset);
+                // 与普通 tool_call 一致：记录句末对齐后的切分点与正文前缀锚点，避免前端按滞后 offset 截断正文。
+                String reply = ctx.getFullReply().toString();
+                int splitAt = ToolEventCompactUtil.resolveToolBlockSplitOffset(reply, null, contentOffset);
+                ctx.setSubAgentContentOffset(splitAt);
+                ctx.setSubAgentContentPrefixAnchor(splitAt > 0 ? reply.substring(0, splitAt) : null);
                 ctx.setSubAgentDelegationIndex(delegationIndex);
             }
             return;

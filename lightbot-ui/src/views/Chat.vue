@@ -97,10 +97,11 @@
         </div>
       </div>
 
-      <ChatStreamingPlaceholder v-if="loading && !streaming" :status-text="currentStatus" />
+      <ChatStreamingPlaceholder v-if="loading && !streaming" :status-text="currentStatus" :status-badges="streamingSubagentBadges" />
       <ChatStreamingPlaceholder
         v-if="loading && streaming && !hasStreamContent && !hasStreamingAssistantMessage"
         :status-text="currentStatus"
+        :status-badges="streamingSubagentBadges"
       />
     </div>
 
@@ -225,6 +226,7 @@ import ChatFeedbackDislikeModal from '../components/chat/modals/ChatFeedbackDisl
 import ChatSessionFilesDrawer from '../components/chat/session/ChatSessionFilesDrawer.vue'
 import ChatSubAgentRuntimeDrawer from '../components/chat/session/ChatSubAgentRuntimeDrawer.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
+import { buildSubagentLiveStatusBadges } from '../components/capabilities/subagentEventUtils.js'
 import { useChatAgents } from '../composables/useChatAgents'
 import { useChatAttachments } from '../composables/useChatAttachments'
 import { useVoiceIO } from '../composables/useVoiceIO'
@@ -290,6 +292,11 @@ const runningSubagentCount = computed(() => {
     if (event.type === 'subagent_error') taskStates.set(event.task_id, 'failed')
   }
   return [...taskStates.values()].filter(status => status === 'running').length
+})
+
+const streamingSubagentBadges = computed(() => {
+  if (!loading.value && !streaming.value) return []
+  return buildSubagentLiveStatusBadges(liveSubagentEvents.value)
 })
 
 function autoResize() {}
@@ -601,6 +608,9 @@ watch(sessionId, (newVal, oldVal) => {
   flex: 1;
   overflow-y: auto;
   padding: 24px 0;
+  /* 禁用滚动锚定：能力块展开时浏览器会为保持锚点不动而调整 scrollTop，
+     导致块在视口上半时向上展开、下半时向下展开。关闭后统一从上往下展开 */
+  overflow-anchor: none;
 }
 
 .chat-messages::-webkit-scrollbar {

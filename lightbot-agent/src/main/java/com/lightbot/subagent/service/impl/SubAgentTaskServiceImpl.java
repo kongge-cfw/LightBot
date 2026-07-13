@@ -379,9 +379,18 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             taskMap.put("task_index", index);
             tasks.add(taskMap);
         }
-        eventPublisher.publish(context.chatContext(), "subagent_batch_start", Map.of("batch_id", batchId, "mode", input.mode(),
-                "aggregation", input.aggregation(), "tasks", tasks, "contentOffset", context.contentOffset(),
-                "delegationIndex", context.delegationIndex()));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("batch_id", batchId);
+        payload.put("mode", input.mode());
+        payload.put("aggregation", input.aggregation());
+        payload.put("tasks", tasks);
+        payload.put("contentOffset", context.contentOffset());
+        payload.put("delegationIndex", context.delegationIndex());
+        // 与普通 tool_call 一致：携带正文前缀锚点，前端据此精确定位组件插入点，避免截断 AI 正文。
+        if (context.contentPrefixAnchor() != null && !context.contentPrefixAnchor().isEmpty()) {
+            payload.put("contentPrefixAnchor", context.contentPrefixAnchor());
+        }
+        eventPublisher.publish(context.chatContext(), "subagent_batch_start", payload);
     }
 
     private void publishTask(RuntimeContext context, String type, String batchId, String taskId, DelegatedTask task,
@@ -543,8 +552,9 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         ChatContext chatContext = values.get("chatContext") instanceof ChatContext ctx ? ctx : null;
         int offset = chatContext != null && chatContext.getSubAgentContentOffset() != null ? chatContext.getSubAgentContentOffset() : 0;
         Integer delegationIndex = chatContext != null ? chatContext.getSubAgentDelegationIndex() : null;
+        String prefixAnchor = chatContext != null ? chatContext.getSubAgentContentPrefixAnchor() : null;
         return new RuntimeContext(requestId == null || requestId.isBlank() ? "subagent_" + System.currentTimeMillis() : requestId,
-                parentThreadId != null ? parentThreadId : "", sessionId, chatContext, offset, delegationIndex);
+                parentThreadId != null ? parentThreadId : "", sessionId, chatContext, offset, delegationIndex, prefixAnchor);
     }
 
     private Map<String, Object> args(String input) throws Exception {
@@ -565,17 +575,17 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private record DelegationInput(String mode, List<DelegatedTask> tasks, int maxConcurrency, String aggregation) {}
     private record DelegatedTask(String subagentName, String task, String threadId) {}
     private record RuntimeContext(String requestId, String parentThreadId, Long parentSessionId, ChatContext chatContext,
-                                  int contentOffset, Integer delegationIndex) {
+                                  int contentOffset, Integer delegationIndex, String contentPrefixAnchor) {
         RuntimeContext background() {
             if (chatContext == null) {
-                return new RuntimeContext(requestId, parentThreadId, parentSessionId, null, contentOffset, delegationIndex);
+                return new RuntimeContext(requestId, parentThreadId, parentSessionId, null, contentOffset, delegationIndex, contentPrefixAnchor);
             }
             ChatContext backgroundContext = new ChatContext();
             backgroundContext.setProviderId(chatContext.getProviderId());
             backgroundContext.setConfigMap(chatContext.getConfigMap());
             backgroundContext.setAborted(chatContext.isAborted());
             return new RuntimeContext(requestId, parentThreadId, parentSessionId,
-                    backgroundContext, contentOffset, delegationIndex);
+                    backgroundContext, contentOffset, delegationIndex, contentPrefixAnchor);
         }
         ChatContext taskContext(String batchId, String taskId, int taskIndex) {
             if (chatContext == null) return null;

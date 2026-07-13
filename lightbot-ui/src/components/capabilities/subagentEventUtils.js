@@ -351,3 +351,52 @@ export function formatSubagentErrorLabel(code) {
   if (code === 'READ_TIMEOUT') return '响应超时'
   return null
 }
+
+/**
+ * 从实时 SSE 事件构建并行 SubAgent 任务状态徽标（用于流式占位条）
+ * @param {Array} events
+ * @returns {Array<{ key: string, label: string, status: string }>}
+ */
+export function buildSubagentLiveStatusBadges(events) {
+  const states = new Map()
+
+  for (const event of events || []) {
+    if (event?.type === 'subagent_batch_start') {
+      for (const task of event.tasks || []) {
+        states.set(task.task_id, {
+          key: task.task_id,
+          label: task.display_name || task.displayName || task.subagent_name || `任务 ${Number(task.task_index ?? 0) + 1}`,
+          status: 'pending',
+        })
+      }
+      continue
+    }
+    if (!event?.task_id) continue
+
+    const state = states.get(event.task_id) || {
+      key: event.task_id,
+      label: event.display_name || event.displayName || event.subagentName || 'SubAgent',
+      status: 'pending',
+    }
+
+    if (event.type === 'subagent_task_start' || event.type === 'subagent_token') {
+      state.status = 'running'
+    } else if (event.type === 'subagent_tool_call') {
+      state.status = 'running'
+      state.label = event.displayName || event.subagentName || state.label
+    } else if (event.type === 'subagent_error') {
+      state.status = 'failed'
+    } else if (event.type === 'subagent_task_done') {
+      state.status = event.status === 'failed' ? 'failed' : 'completed'
+    }
+
+    if (event.display_name || event.displayName) {
+      state.label = event.display_name || event.displayName
+    }
+    states.set(event.task_id, state)
+  }
+
+  const badges = [...states.values()]
+  if (badges.length <= 1) return []
+  return badges
+}
