@@ -163,7 +163,7 @@ public final class ToolEventCompactUtil {
         for (int i = end; i > 0; i--) {
             char prev = content.charAt(i - 1);
             if (isStrongSentenceEnd(prev)) {
-                return i;
+                return skipTrailingOrnaments(content, i);
             }
         }
         for (int i = end; i > 0; i--) {
@@ -172,7 +172,7 @@ public final class ToolEventCompactUtil {
             }
             for (int j = i - 1; j > 0; j--) {
                 if (isStrongSentenceEnd(content.charAt(j - 1))) {
-                    return j;
+                    return skipTrailingOrnaments(content, j);
                 }
             }
             if (isTrivialFragment(content, i, end)) {
@@ -180,6 +180,38 @@ public final class ToolEventCompactUtil {
             }
         }
         return end;
+    }
+
+    /** 跳过句末标点后紧跟的装饰性尾随字符（emoji、空白、换行），使其归属上一句 */
+    private static int skipTrailingOrnaments(String content, int pos) {
+        if (pos <= 0 || pos >= content.length() || !isStrongSentenceEnd(content.charAt(pos - 1))) {
+            return pos;
+        }
+        int i = pos;
+        while (i < content.length()) {
+            int cp = content.codePointAt(i);
+            if (!isOrnamentCodePoint(cp)) {
+                break;
+            }
+            i += Character.charCount(cp);
+        }
+        return i;
+    }
+
+    /** 装饰性尾随字符：空白/换行、emoji 主体、ZWJ、变体选择符、keycap、肤色修饰符 */
+    private static boolean isOrnamentCodePoint(int cp) {
+        if (Character.isWhitespace(cp)) {
+            return true;
+        }
+        if (cp == 0x200D || cp == 0x20E3 || (cp >= 0xFE00 && cp <= 0xFE0F)) {
+            return true;
+        }
+        if (cp >= 0x1F3FB && cp <= 0x1F3FF) {
+            return true;
+        }
+        return (cp >= 0x1F300 && cp <= 0x1FAFF) || (cp >= 0x2600 && cp <= 0x27BF)
+                || (cp >= 0x1F000 && cp <= 0x1F02F) || (cp >= 0x2190 && cp <= 0x21FF)
+                || (cp >= 0x2B00 && cp <= 0x2BFF);
     }
 
     private static boolean isStrongSentenceEnd(char c) {
