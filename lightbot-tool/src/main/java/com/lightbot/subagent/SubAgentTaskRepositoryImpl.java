@@ -68,6 +68,11 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
     }
 
     @Override
+    public int requestCancelByParentRequestId(String parentRequestId) {
+        return subAgentRunMapper.requestCancelByParentRequestId(parentRequestId);
+    }
+
+    @Override
     public Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize) {
         return subAgentRunMapper.selectPage(new Page<>(pageNum, pageSize), new LambdaQueryWrapper<SubAgentRun>()
                 .eq(SubAgentRun::getParentSessionId, parentSessionId)

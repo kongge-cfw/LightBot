@@ -30,6 +30,12 @@ public interface SubAgentTaskService {
     /** 取消会话内的一个批次。 */
     java.util.Map<String, Object> cancelBatch(String batchId, Long sessionId);
 
+    /** 取消会话内的一个单任务。 */
+    java.util.Map<String, Object> cancelTask(String taskId, Long sessionId);
+
+    /** 连带取消一个父请求下所有运行中的子任务（对话停止时调用）。 */
+    int cancelByParentRequestId(String requestId);
+
     /** 获取任务对应子线程消息快照。 */
     java.util.Map<String, Object> getTaskThreadDetail(String taskId, Long sessionId);
 

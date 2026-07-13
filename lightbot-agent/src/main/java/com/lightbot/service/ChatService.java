@@ -31,6 +31,15 @@ public interface ChatService {
     Flux<String> chatStream(ChatRequestDTO request);
 
     /**
+     * 停止进行中的流式对话
+     * <p>置中断标记使 in-flight LLM 轮次立即停止，并连带取消该请求下运行中的 SubAgent 子任务。</p>
+     *
+     * @param requestId 对话请求 ID
+     * @param userId    发起停止的用户 ID（用于归属校验）
+     */
+    void stopStream(String requestId, Long userId);
+
+    /**
      * 获取会话的RAG引用信息
      * <p>用于在对话完成后获取检索到的文献引用</p>
      *

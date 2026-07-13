@@ -114,6 +114,13 @@ public class SubAgentController {
         return Result.ok(subAgentTaskService.cancelBatch(batchId, sessionId));
     }
 
+    @Operation(summary = "取消SubAgent单任务")
+    @PostMapping("/runs/{taskId}/cancel")
+    public Result<java.util.Map<String, Object>> cancelRun(@PathVariable String taskId, @RequestParam Long sessionId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(subAgentTaskService.cancelTask(taskId, sessionId));
+    }
+
     @Operation(summary = "获取SubAgent单任务详情")
     @GetMapping("/runs/{taskId}")
     public Result<java.util.Map<String, Object>> getRun(@PathVariable String taskId, @RequestParam Long sessionId) {

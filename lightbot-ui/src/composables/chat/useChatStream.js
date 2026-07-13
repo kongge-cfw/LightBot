@@ -1,7 +1,7 @@
 import { ref, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
-import { chatStream } from '../../api/chat'
+import { chatStream, stopChatStream } from '../../api/chat'
 import { createSession, getSessionMessages } from '../../api/chatSession'
 import { validatePendingAttachmentMix } from '../../utils/chatAttachment'
 import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
@@ -608,6 +608,11 @@ export function useChatStream(deps) {
   }
 
   function stopGenerating() {
+    // 通知后端停止：置中断标记使 in-flight LLM 立即停，并连带取消子任务（fire-and-forget）
+    const requestId = getCurrentStreamingMsg()?._requestId
+    if (requestId) {
+      stopChatStream(requestId).catch(() => {})
+    }
     if (abortController.value) {
       userStoppedStream.value = true
       abortController.value.abort()

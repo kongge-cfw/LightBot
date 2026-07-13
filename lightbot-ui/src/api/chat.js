@@ -242,6 +242,11 @@ export function getRagReferences(sessionId, agentId, question) {
   })
 }
 
+/** 停止进行中的流式对话（服务端置中断标记并连带取消子任务） */
+export function stopChatStream(requestId) {
+  return request.post('/chat/stream/stop', null, { params: { requestId } })
+}
+
 export function submitMessageFeedback(messageId, data) {
   return request.post(`/chat/messages/${messageId}/feedback`, data)
 }

@@ -24,6 +24,9 @@ public interface SubAgentTaskRepository {
 
     int requestCancelBatch(String batchId);
 
+    /** 请求取消一个父请求下所有运行中的任务（对话停止时连带取消子任务）。 */
+    int requestCancelByParentRequestId(String parentRequestId);
+
     /** 分页查询一个会话下的任务运行记录。 */
     Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize);
 

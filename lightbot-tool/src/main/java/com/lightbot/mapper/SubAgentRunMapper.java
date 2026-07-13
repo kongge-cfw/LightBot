@@ -41,4 +41,14 @@ public interface SubAgentRunMapper extends BaseMapper<SubAgentRun> {
             WHERE batch_id = #{batchId}
             """)
     int requestCancelByBatchId(@Param("batchId") String batchId);
+
+    @Update("""
+            UPDATE subagent_run
+            SET cancel_requested = 1,
+                status = CASE WHEN status = 'pending' THEN 'cancelled' ELSE status END,
+                update_time = CURRENT_TIMESTAMP
+            WHERE parent_request_id = #{parentRequestId}
+              AND status IN ('pending', 'running')
+            """)
+    int requestCancelByParentRequestId(@Param("parentRequestId") String parentRequestId);
 }

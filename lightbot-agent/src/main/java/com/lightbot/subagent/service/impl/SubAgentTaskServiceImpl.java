@@ -181,6 +181,24 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     @Override
+    public Map<String, Object> cancelTask(String taskId, Long sessionId) {
+        SubAgentRun task = repository.findTask(taskId);
+        if (!ownedBy(task, sessionId)) {
+            throw new BizException("SubAgent 任务不存在或无权访问");
+        }
+        int affected = repository.requestCancelTask(taskId);
+        return Map.of("task_id", taskId, "status", affected > 0 ? "cancel_requested" : "not_found", "affected", affected);
+    }
+
+    @Override
+    public int cancelByParentRequestId(String requestId) {
+        if (requestId == null || requestId.isBlank()) {
+            return 0;
+        }
+        return repository.requestCancelByParentRequestId(requestId);
+    }
+
+    @Override
     public Map<String, Object> getTaskThreadDetail(String taskId, Long sessionId) {
         SubAgentRun task = repository.findTask(taskId);
         if (!ownedBy(task, sessionId)) {

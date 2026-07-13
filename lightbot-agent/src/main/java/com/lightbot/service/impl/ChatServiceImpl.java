@@ -106,6 +106,8 @@ public class ChatServiceImpl implements ChatService {
     private final SessionAttachmentRegistrar sessionAttachmentRegistrar;
     private final SubAgentService subAgentService;
     private final UserMemoryService userMemoryService;
+    private final ChatAbortRegistry chatAbortRegistry;
+    private final com.lightbot.subagent.service.SubAgentTaskService subAgentTaskService;
 
     /** SSE 心跳注释行（SSE 协议：以冒号开头的行是注释，客户端应忽略） */
     private static final String HEARTBEAT_PREFIX = ":heartbeat";
@@ -383,6 +385,7 @@ public class ChatServiceImpl implements ChatService {
     public Flux<String> chatStream(ChatRequestDTO request) {
         ChatContext ctx = ChatContext.of(request);
         ctx.setRequestId(String.valueOf(System.nanoTime()));
+        chatAbortRegistry.register(ctx.getRequestId(), ctx);
 
         // Init → Mention → 用户敏感词 → Workflow → SkillPrep → Message → ToolPrep → Trace → [core]
         List<ChatMiddleware> middlewares = List.of(
@@ -395,12 +398,27 @@ public class ChatServiceImpl implements ChatService {
                 .concatWith(Mono.fromCallable(() -> buildDoneEvent(ctx)))
                 .doOnCancel(() -> ctx.requestAbort("CLIENT_DISCONNECT"))
                 .doFinally(signal -> {
+                    chatAbortRegistry.remove(ctx.getRequestId());
                     if (signal == reactor.core.publisher.SignalType.CANCEL) {
                         ctx.requestAbort("CLIENT_DISCONNECT");
                         log.info("[Chat] stream cancelled: requestId={}, sessionId={}",
                                 ctx.getRequestId(), ctx.getSessionId());
                     }
                 });
+    }
+
+    @Override
+    public void stopStream(String requestId, Long userId) {
+        // 1. 中断主对话：置 aborted，in-flight LLM 轮次下一拍即停
+        boolean aborted = chatAbortRegistry.abort(requestId, userId);
+        if (!aborted) {
+            log.info("[Chat] 停止对话未命中活跃流: requestId=[{}], userId=[{}]", requestId, userId);
+        }
+        // 2. 连带取消该请求下运行中的 SubAgent 子任务（taskContext.aborted 仅为快照，需显式置取消）
+        int cancelled = subAgentTaskService.cancelByParentRequestId(requestId);
+        if (cancelled > 0) {
+            log.info("[Chat] 停止对话连带取消子任务: requestId=[{}], affected=[{}]", requestId, cancelled);
+        }
     }
 
     /**
@@ -960,6 +978,10 @@ public class ChatServiceImpl implements ChatService {
         int fullReplyLengthBefore = ctx.getFullReply().length();
         boolean[] receivedResponse = {false};
         return chatModel.stream(prompt)
+                .takeUntilOther(Mono.delay(Duration.ofMillis(200))
+                        .repeat()
+                        .filter(tick -> ctx.isAborted())
+                        .next())
                 .doOnSubscribe(sub -> ctx.resetStreamTextTracking())
                 .doOnNext(response -> receivedResponse[0] = true)
                 .onErrorResume(e -> {

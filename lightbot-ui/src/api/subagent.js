@@ -47,6 +47,10 @@ export function cancelSubAgentBatch(batchId, sessionId) {
   return request.post(`/subagents/batches/${batchId}/cancel`, null, { params: { sessionId } })
 }
 
+export function cancelSubAgentTask(taskId, sessionId) {
+  return request.post(`/subagents/runs/${taskId}/cancel`, null, { params: { sessionId } })
+}
+
 export function getSubAgentRun(taskId, sessionId) {
   return request.get(`/subagents/runs/${taskId}`, { params: { sessionId } })
 }

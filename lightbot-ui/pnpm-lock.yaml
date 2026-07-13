@@ -50,6 +50,9 @@ importers:
       katex:
         specifier: ^0.17.0
         version: 0.17.0
+      lucide-vue-next:
+        specifier: ^0.577.0
+        version: 0.577.0(vue@3.5.34)
       markdown-it:
         specifier: ^14.2.0
         version: 14.2.0
@@ -1352,6 +1355,11 @@ packages:
   loose-envify@1.4.0:
     resolution: {integrity: sha512-lyuxPGr/Wfhrlem2CL/UcnUc1zcqKAImBDzukY7Y5F/yQiNdko6+fRLevlw1HgMySw7f611UIY408EtxRSoK3Q==}
     hasBin: true
+
+  lucide-vue-next@0.577.0:
+    resolution: {integrity: sha512-py05bAfv9SHVJqscbiOnjcnLlEmOffA58a+7XhZuFxrs6txe1E8VoR1ngWGTYO+9aVKABAz8l3ee3PqiQN9QPA==}
+    peerDependencies:
+      vue: '>=3.0.1'
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -3236,6 +3244,10 @@ snapshots:
   loose-envify@1.4.0:
     dependencies:
       js-tokens: 4.0.0
+
+  lucide-vue-next@0.577.0(vue@3.5.34):
+    dependencies:
+      vue: 3.5.34
 
   magic-string@0.30.21:
     dependencies:

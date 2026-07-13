@@ -22,7 +22,20 @@
           <span class="runtime-task">{{ run.task || '未提供任务描述' }}</span>
           <span class="runtime-progress">{{ run.progress_summary || run.status_label || statusLabel(run.status) }}</span>
         </span>
-        <span class="runtime-status-label" :class="`is-${run.status}`">{{ run.status_label || statusLabel(run.status) }}</span>
+        <span v-if="canCancel(run)" class="runtime-cancel-slot">
+          <a-tooltip :title="isCancelling(run) ? '取消中…' : '停止子智能体'">
+            <button
+              type="button"
+              class="runtime-cancel"
+              :disabled="isCancelling(run)"
+              @click.stop="cancelRun(run)"
+            >
+              <a-spin v-if="isCancelling(run)" size="small" />
+              <CircleStop v-else :size="16" />
+            </button>
+          </a-tooltip>
+        </span>
+        <span v-else class="runtime-status-label" :class="`is-${run.status}`">{{ run.status_label || statusLabel(run.status) }}</span>
       </button>
     </div>
     <a-empty v-else-if="!loading" description="当前会话暂无子智能体任务" />
@@ -88,8 +101,9 @@
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { Empty } from 'ant-design-vue'
+import { Empty, message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
+import { CircleStop } from 'lucide-vue-next'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import { formatTime } from '@/utils/format'
 import {
@@ -97,6 +111,7 @@ import {
   getSubAgentRunEvents,
   getSubAgentRunThread,
   getSubAgentRuntimeSummaries,
+  cancelSubAgentTask,
 } from '@/api/subagent'
 
 const props = defineProps({
@@ -188,17 +203,41 @@ const liveTaskStates = computed(() => {
   return states
 })
 
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled'])
+const STATUS_WEIGHT = { pending: 0, cancel_requested: 1, running: 2, completed: 3, failed: 3, cancelled: 3 }
+
+/**
+ * 合并 DB run 与 live 状态：以状态进度更靠后的一方为准。
+ * background 任务无实时 emitter，主 SSE 早关，live 会冻结在 pending/等待调度；
+ * 此时 DB 轮询到的终态应覆盖陈旧 live，避免侧栏永远停在「等待调度」。
+ * running 中的实时输出（liveOutput/progress_summary）仍取 live。
+ */
+function pickFresher(dbRun, live) {
+  if (!dbRun) return { ...live }
+  if (!live) return { ...dbRun }
+  const dbTerminal = TERMINAL_STATUSES.has(dbRun.status)
+  const liveTerminal = TERMINAL_STATUSES.has(live.status)
+  // DB 已终态而 live 未终态：以 DB 状态为准，保留 live 的实时输出
+  if (dbTerminal && !liveTerminal) {
+    return { ...live, ...dbRun, liveOutput: live.liveOutput }
+  }
+  // 两者都终态或都非终态：按进度权重取靠后的一方
+  const dbWeight = STATUS_WEIGHT[dbRun.status] ?? 0
+  const liveWeight = STATUS_WEIGHT[live.status] ?? 0
+  return dbWeight > liveWeight ? { ...live, ...dbRun, liveOutput: live.liveOutput } : { ...dbRun, ...live }
+}
+
 const runtimeRuns = computed(() => {
   const merged = new Map(runs.value.map(run => [run.task_id, { ...run }]))
   for (const [taskId, live] of liveTaskStates.value) {
-    merged.set(taskId, { ...(merged.get(taskId) || {}), ...live })
+    merged.set(taskId, pickFresher(merged.get(taskId), live))
   }
   return [...merged.values()].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'))
 })
 
 const selectedLiveState = computed(() => liveTaskStates.value.get(selectedTask.value?.task_id) || null)
 const selectedDisplayTask = computed(() => selectedTask.value
-  ? { ...selectedTask.value, ...(selectedLiveState.value || {}) }
+  ? pickFresher(selectedTask.value, selectedLiveState.value)
   : null)
 const liveOutput = computed(() => selectedLiveState.value?.liveOutput || '')
 const isSelectedTaskDone = computed(() => ['completed', 'failed', 'cancelled'].includes(selectedDisplayTask.value?.status))
@@ -219,6 +258,33 @@ async function loadSummaries() {
     // 侧栏轮询失败时保留上一份摘要，避免干扰主对话。
   } finally {
     loading.value = false
+  }
+}
+
+const cancellingTasks = ref(new Set())
+
+/** 侧栏可停止的状态：仅进行中/待执行/取消中允许点击停止 */
+function canCancel(run) {
+  return ['pending', 'running', 'cancel_requested'].includes(run?.status)
+}
+
+function isCancelling(run) {
+  return run?.status === 'cancel_requested' || cancellingTasks.value.has(run?.task_id)
+}
+
+/** 手动停止一个子任务：置取消中（乐观更新），依赖轮询收敛到已取消 */
+async function cancelRun(run) {
+  if (!run?.task_id || !props.sessionId || isCancelling(run)) return
+  cancellingTasks.value = new Set(cancellingTasks.value).add(run.task_id)
+  try {
+    await cancelSubAgentTask(run.task_id, props.sessionId)
+    const target = runs.value.find(r => r.task_id === run.task_id)
+    if (target) target.status = 'cancel_requested'
+  } catch {
+    message.error('停止子智能体失败，请稍后重试')
+    const next = new Set(cancellingTasks.value)
+    next.delete(run.task_id)
+    cancellingTasks.value = next
   }
 }
 
@@ -375,6 +441,10 @@ onBeforeUnmount(stopPolling)
 .detail-refresh { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-body); cursor: pointer; vertical-align: middle; }
 .detail-refresh:hover { background: var(--color-canvas-soft); color: var(--color-ink); }.detail-refresh:disabled { cursor: default; opacity: .6; }
 .runtime-list { display: flex; flex-direction: column; gap: 8px; }
+.runtime-cancel-slot { display: inline-flex; align-items: flex-start; flex: 0 0 auto; }
+.runtime-cancel { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-error); cursor: pointer; }
+.runtime-cancel:hover { background: #fee2e2; border-color: var(--color-error); }
+.runtime-cancel:disabled { cursor: default; opacity: .6; }
 .runtime-item { display: flex; gap: 10px; width: 100%; padding: 10px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas); text-align: left; cursor: pointer; }
 .runtime-item:hover { background: var(--color-canvas-soft); border-color: var(--color-hairline-strong); }
 .runtime-status { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--color-mute); }.runtime-status.is-running { background: var(--color-link); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-link) 55%, transparent); animation: runningPulse 1.5s infinite; }.runtime-status.is-pending { background: var(--color-warning); }.runtime-status.is-completed { background: var(--color-success-500); }.runtime-status.is-failed { background: var(--color-error); }.runtime-status.is-cancelled { background: var(--color-mute); }

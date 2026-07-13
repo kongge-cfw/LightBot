@@ -199,6 +199,14 @@ public class ChatController {
         };
     }
 
+    @Operation(summary = "停止流式对话")
+    @PostMapping("/stream/stop")
+    public Result<Void> stopStream(@RequestParam String requestId) {
+        long userId = StpUtil.getLoginIdAsLong();
+        chatService.stopStream(requestId, userId);
+        return Result.ok();
+    }
+
     @Operation(summary = "上传对话附件（图片/视频/文档）")
     @PostMapping(value = "/attachments", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public Result<ChatAttachmentDTO> uploadAttachment(
