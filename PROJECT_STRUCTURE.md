@@ -3,6 +3,8 @@
 > 轻量级 Java AI Agent 平台
 >
 > Tech Stack: SpringBoot + SpringAI + Vue3
+>
+> **模块边界以 `docs/architecture/module-boundaries.md` 与 `AGENTS.md` 为准。** 下文部分章节仍为早期规划描述，阅读时请以实际代码结构为准。
 
 ---
 
@@ -10,24 +12,19 @@
 
 ```
 LightBot/
-├── lightbot-backend/                  # 后端主工程
-│   ├── pom.xml                        # 父 POM
-│   ├── lightbot-common/               # 公共模块
-│   ├── lightbot-ai/                   # AI Framework
-│   ├── lightbot-agent/                # Agent 引擎
-│   ├── lightbot-workflow/             # Workflow 引擎
-│   ├── lightbot-tool/                 # Tool 体系
-│   ├── lightbot-mcp/                  # MCP 协议
-│   ├── lightbot-plugin/               # Plugin 体系
-│   ├── lightbot-rag/                  # RAG / Knowledge Base
-│   ├── lightbot-server/               # 主服务入口
-│   └── lightbot-api/                  # 对外 API 定义
-│
-├── lightbot-frontend/                 # 前端主工程
-├── lightbot-docs/                     # 项目文档
-├── lightbot-deploy/                   # 部署配置
-├── ROADMAP.md
-├── CLAUDE.md
+├── lightbot-common/                   # Result、枚举、公共类型
+├── lightbot-framework/                # Spring 配置、中间件 Util
+├── lightbot-platform/                 # 用户、任务、系统配置、Dashboard、日志
+├── lightbot-ai/                       # 模型工厂、Prompt、LLM Trace
+├── lightbot-knowledge/                # RAG、文档、图谱、评测
+├── lightbot-tool/                     # Tool / MCP / Skill / SubAgent
+├── lightbot-workflow/                 # Workflow DSL、节点处理器
+├── lightbot-agent/                    # Agent 运行时（Chat、Workflow 执行）
+├── lightbot-server/                   # HTTP 入口
+├── lightbot-ui/                       # Vue3 前端
+├── sql/                               # 数据库变更脚本
+├── docs/                              # 项目文档
+├── AGENTS.md / CLAUDE.md              # AI 编码规范
 └── PROJECT_STRUCTURE.md
 ```
 
@@ -280,9 +277,9 @@ lightbot-workflow/
 
 ---
 
-### lightbot-rag
+### lightbot-knowledge（原 lightbot-rag）
 
-**职责**：RAG 知识库、文档处理、向量检索
+**职责**：RAG 知识库、文档处理、向量检索、图谱、评测
 
 ```
 lightbot-rag/

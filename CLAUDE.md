@@ -31,13 +31,14 @@
 ❌ 禁止在业务代码中直接 new RestTemplate 调用模型
 ❌ 禁止使用拼接SQL语句操作数据库（必须使用 MyBatis-Plus）
 ❌ 禁止在 Service 中直接操作中间件客户端（必须通过 Util 类）
+❌ 禁止 lightbot-server 新增业务 Service、DTO/VO、tool/builtin、service/chat、workflow/*Executor*
 ```
 
 ### 必须遵守
 
 ```text
 ✅ 所有模型调用必须通过统一 AI Framework（SpringAI）
-✅ 所有跨模块调用必须通过 Facade 接口
+✅ 跨模块调用通过 Service 接口；跨域聚合使用 Port 模式（如 Dashboard）；禁止 import ...service.impl.*
 ✅ 所有 Prompt 必须模板化，存储于配置或数据库
 ✅ 所有外部依赖通过依赖注入，禁止静态方法调用
 ✅ 所有数据库操作必须使用 MyBatis-Plus（LambdaQueryWrapper / ServiceImpl）
@@ -47,27 +48,37 @@
 
 ### 模块结构
 
+> 架构边界详见 `docs/architecture/module-boundaries.md`
+
 ```
 lightbot/
-├── lightbot-common/           # 公共工具、常量、异常
-├── lightbot-ai/               # AI Framework 封装
-├── lightbot-agent/            # Agent 定义与运行时
-├── lightbot-tool/             # Tool 体系
-├── lightbot-workflow/         # Workflow 引擎
-├── lightbot-rag/              # RAG 知识库
-├── lightbot-server/           # 主服务入口
-└── lightbot-web/              # Vue3 前端
+├── lightbot-common/           # Result、枚举、公共类型
+├── lightbot-framework/        # Spring 配置、Redis/MinIO 等中间件 Util
+├── lightbot-platform/         # 用户、任务、系统配置、API Key、Dashboard、日志
+├── lightbot-ai/               # 模型工厂、Prompt、LLM Trace
+├── lightbot-knowledge/        # RAG、文档、图谱、评测
+├── lightbot-tool/             # Tool / MCP / Skill / SubAgent 定义与注册
+├── lightbot-workflow/         # Workflow DSL、节点处理器、图校验
+├── lightbot-agent/            # Agent 运行时（Chat、Workflow 执行、SubAgent）
+├── lightbot-server/           # HTTP 入口（Controller、Config、拦截器）
+└── lightbot-ui/               # Vue3 前端（独立目录，非 Maven 模块）
 ```
 
 ### 依赖规则
 
 ```text
-lightbot-server → lightbot-agent, lightbot-workflow, lightbot-rag
-lightbot-agent  → lightbot-ai, lightbot-tool
-lightbot-workflow → lightbot-ai, lightbot-tool
-lightbot-rag    → lightbot-ai
-lightbot-ai     → lightbot-common
-lightbot-tool   → lightbot-common
+common ← framework ← platform ← ai ← knowledge ← tool ← workflow ← agent ← server
+```
+
+```text
+lightbot-server    → platform, ai, knowledge, tool, workflow, agent
+lightbot-agent     → platform, workflow, knowledge
+lightbot-workflow  → tool
+lightbot-tool      → knowledge
+lightbot-knowledge → ai
+lightbot-ai        → framework, platform
+lightbot-platform  → framework
+lightbot-framework → common
 ```
 
 **下层禁止依赖上层，同层禁止循环依赖。**
@@ -112,6 +123,7 @@ public class AgentCreateDTO {
 ```
 
 - DTO 只用于服务间传输，不暴露给前端
+- DTO/VO 归属各业务模块，**server 不持有业务 DTO/VO**（详见 `docs/architecture/module-boundaries.md`）
 - 使用 Jakarta Validation 注解做校验
 - 字段类型使用包装类（Long / Integer / Boolean），不用基本类型
 
@@ -642,7 +654,8 @@ class AgentServiceTest {
 4. 所有表必须包含 id、create_time、update_time、deleted 字段（关联表可省略 deleted）
 5. type/status 字段使用 VARCHAR 存储 Java 枚举的 code 值
 6. 禁止使用数据库枚举类型
-7. 数据库变更 SQL 文件统一放在项目 `docs/sql/` 目录，命名格式：`YYYY-MM-DD-NNN.sql`（如 `2026-05-19-001.sql`）
+7. 数据库变更 SQL 文件统一放在项目根目录 `sql/` 下，命名格式：`YYYY-MM-DD-NNN.sql`（如 `2026-05-19-001.sql`）
+   - **不是** `docs/sql/`
    - 同一天多个变更：001、002、003 依次递增
    - 写入前先检查目录中是否已有当天文件，序号顺延
 8. SQL 文件中必须用注释说明变更内容（CREATE TABLE / ALTER TABLE / 新增索引等）
@@ -711,8 +724,8 @@ jdbcTemplate.queryForList(sql);
 2. 创建 pom.xml，声明 parent 和依赖
 3. 在父 pom.xml 中添加 module 声明
 4. 按包结构规范创建目录
-5. 编写模块的 Facade 接口
-6. 在 lightbot-server 中引入新模块
+5. 如需跨模块暴露能力，在消费方定义 Port 接口、提供方实现（参考 Dashboard Port）
+6. 在 lightbot-server 中引入新模块（若需对外 HTTP 暴露）
 ```
 
 ---
