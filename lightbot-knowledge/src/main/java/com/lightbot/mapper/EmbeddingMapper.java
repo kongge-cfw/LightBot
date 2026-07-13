@@ -127,8 +127,9 @@ public interface EmbeddingMapper extends BaseMapper<Embedding> {
     @Select("SELECT c.id AS chunk_id, c.content, c.knowledge_id, c.document_id, " +
             "d.name AS document_name, " +
             "ts_rank(c.content_tsv, query) AS score " +
-            "FROM chunk c, plainto_tsquery('simple', #{query}) query " +
+            "FROM chunk c " +
             "JOIN document d ON c.document_id = d.id " +
+            "CROSS JOIN plainto_tsquery('simple', #{query}) query " +
             "WHERE c.knowledge_id = #{knowledgeId} AND d.deleted = 0 " +
             "AND c.content_tsv @@ query " +
             "ORDER BY score DESC LIMIT #{topK}")

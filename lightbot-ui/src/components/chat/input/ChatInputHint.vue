@@ -4,7 +4,7 @@
     <div class="input-hint-carousel-row">
       <span class="input-question-label">你可以问我</span>
       <div class="input-question-rotate">
-        <transition name="fade" mode="out-in">
+        <transition name="hint-slide" mode="out-in">
           <span
             :key="questionRotateIndex"
             class="input-question-text"
@@ -90,12 +90,18 @@ function onApplyQuestion(q) {
 .input-question-text:hover {
   color: var(--color-link);
 }
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.4s ease;
+.hint-slide-enter-active {
+  transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
-.fade-enter-from,
-.fade-leave-to {
+.hint-slide-leave-active {
+  transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.hint-slide-enter-from {
   opacity: 0;
+  transform: translateY(8px);
+}
+.hint-slide-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>

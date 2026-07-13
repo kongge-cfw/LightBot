@@ -194,21 +194,22 @@
                 </button>
               </div>
               <!-- 示例问题轮播 / 空状态引导 -->
-              <div v-if="ragHistory.length === 0" class="example-questions">
-                <template v-if="exampleQuestions.length > 0">
-                  <transition name="fade" mode="out-in">
-                    <a-tooltip :title="exampleQuestions[questionRotateIndex]" :overlay-style="{ maxWidth: '400px' }">
-                      <span
-                        :key="questionRotateIndex"
-                        class="example-question-text"
-                        @click="ragQuestion = exampleQuestions[questionRotateIndex]"
-                      >
-                        {{ exampleQuestions[questionRotateIndex] }}
-                      </span>
-                    </a-tooltip>
-                  </transition>
-                </template>
-                <div v-else class="example-questions-hint">
+              <div v-if="exampleQuestions.length > 0" class="example-questions">
+                <span class="example-question-label">试试问</span>
+                <transition name="fade" mode="out-in">
+                  <a-tooltip :title="exampleQuestions[questionRotateIndex]" :overlay-style="{ maxWidth: '400px' }">
+                    <span
+                      :key="questionRotateIndex"
+                      class="example-question-text"
+                      @click="ragQuestion = exampleQuestions[questionRotateIndex]"
+                    >
+                      {{ exampleQuestions[questionRotateIndex] }}
+                    </span>
+                  </a-tooltip>
+                </transition>
+              </div>
+              <div v-else-if="ragHistory.length === 0" class="example-questions">
+                <div class="example-questions-hint">
                   暂无示例问题，<a @click="handleGenerateQuestions" :disabled="editQuestionLoading">点击生成示例问题</a>
                 </div>
               </div>
@@ -2307,12 +2308,12 @@ onMounted(async () => {
     router.replace({ query: {} })
   }
 
-  // 示例问题轮播：每 3 秒随机切换，不重复
+  // 示例问题轮播：每 5 秒随机切换，不重复
   questionRotateTimer = setInterval(() => {
     if (exampleQuestions.value.length > 0) {
       questionRotateIndex.value = pickRandomQuestionIndex()
     }
-  }, 3000)
+  }, 5000)
 })
 
 onUnmounted(() => {
@@ -2737,9 +2738,24 @@ onUnmounted(() => {
 
 /* 示例问题 */
 .example-questions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   padding-top: 10px;
   overflow: hidden;
   max-width: 100%;
+}
+.example-question-label {
+  flex-shrink: 0;
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+  color: var(--color-link);
+  background: var(--color-info-bg);
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
 }
 .example-question-text {
   font-size: 13px;
@@ -2747,7 +2763,8 @@ onUnmounted(() => {
   cursor: pointer;
   transition: color 0.15s;
   display: inline-block;
-  max-width: 100%;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

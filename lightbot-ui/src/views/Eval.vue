@@ -909,6 +909,7 @@ function progressStatus(s) {
 .tab-content {
   flex: 1;
   min-height: 0;
+  overflow-x: hidden;
 }
 
 /* 按钮 */

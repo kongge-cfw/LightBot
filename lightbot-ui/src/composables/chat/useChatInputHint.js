@@ -47,7 +47,7 @@ export function useChatInputHint({
       if (len > 1) {
         questionRotateIndex.value = (questionRotateIndex.value + 1) % len
       }
-    }, 2000)
+    }, 5000)
   }
 
   watch(showInputQuestionCarousel, (show) => {
