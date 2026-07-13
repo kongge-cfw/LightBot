@@ -152,6 +152,7 @@ public class ApiKeyServiceImpl extends ServiceImpl<ApiKeyMapper, ApiKey>
      * @param agentId 目标 Agent ID
      * @return true=允许访问（agentIds 为空或包含目标 ID）
      */
+    @Override
     public boolean checkAgentScope(ApiKey apiKey, String agentId) {
         if (agentId == null || agentId.isBlank()) return true;
         List<String> allowed = apiKey.getAgentIds();
@@ -165,6 +166,7 @@ public class ApiKeyServiceImpl extends ServiceImpl<ApiKeyMapper, ApiKey>
      * @param rateLimit 每分钟最大请求数
      * @return true=允许，false=超限
      */
+    @Override
     public boolean checkRateLimit(Long apiKeyId, int rateLimit) {
         String key = RATE_LIMIT_KEY_PREFIX + apiKeyId + ":" + (System.currentTimeMillis() / 60000);
         try {

@@ -36,7 +36,9 @@ public class ToolRegistrar {
 
     private static final List<String> SCAN_PACKAGES = List.of(
             "com.lightbot.tool.builtin",
-            "com.lightbot.tool.systemtool"
+            "com.lightbot.tool.systemtool",
+            "com.lightbot.agent.tool.knowledge",
+            "com.lightbot.agent.tool.memory"
     );
 
     private final ToolService toolService;

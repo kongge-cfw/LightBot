@@ -14,7 +14,7 @@
     <name>LightBot Server</name>
 
     <dependencies>
-        <!-- 业务模块：当前仅建立构建边界，后续阶段逐步迁移实现代码 -->
+        <!-- 业务模块：server 仅保留 HTTP 入口、全局配置与装配 -->
         <dependency>
             <groupId>com.lightbot</groupId>
             <artifactId>lightbot-platform</artifactId>

@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.Result;
 import com.lightbot.entity.ApiKey;
 import com.lightbot.service.ApiKeyService;
-import com.lightbot.service.impl.ApiKeyServiceImpl;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +28,6 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
     public static final String ATTR_API_KEY_ENTITY = "apiKeyEntity";
 
     private final ApiKeyService apiKeyService;
-    private final ApiKeyServiceImpl apiKeyServiceImpl;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -52,7 +50,7 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
         }
 
         // 2. 请求频率限制
-        if (!apiKeyServiceImpl.checkRateLimit(apiKey.getId(), apiKey.getRateLimit())) {
+        if (!apiKeyService.checkRateLimit(apiKey.getId(), apiKey.getRateLimit())) {
             writeError(response, HttpStatus.TOO_MANY_REQUESTS.value(),
                     "请求过于频繁，限制 " + apiKey.getRateLimit() + " 次/分钟");
             return false;
@@ -63,7 +61,7 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
         if (uri.startsWith("/api/chat")) {
             String agentId = request.getParameter("agentId");
             if (agentId != null && !agentId.isBlank()) {
-                if (!apiKeyServiceImpl.checkAgentScope(apiKey, agentId)) {
+                if (!apiKeyService.checkAgentScope(apiKey, agentId)) {
                     writeError(response, HttpServletResponse.SC_FORBIDDEN, "该 API Key 无权访问此 Agent");
                     return false;
                 }

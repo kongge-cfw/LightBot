@@ -1,6 +1,4 @@
 package com.lightbot.vo;
-import com.lightbot.dto.*;
-import com.lightbot.vo.*;
 
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;

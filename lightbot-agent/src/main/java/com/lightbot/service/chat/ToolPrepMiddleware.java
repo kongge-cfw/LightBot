@@ -18,7 +18,7 @@ import com.lightbot.service.SkillService;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.UserPreferenceService;
 import com.lightbot.subagent.DelegateSubAgentTool;
-import com.lightbot.tool.builtin.UserMemoryToolCallbackFactory;
+import com.lightbot.agent.tool.memory.UserMemoryToolCallbackFactory;
 import com.lightbot.util.JsonIdParser;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

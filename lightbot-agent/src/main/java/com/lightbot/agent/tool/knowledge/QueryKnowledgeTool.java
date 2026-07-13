@@ -1,10 +1,10 @@
-package com.lightbot.tool.builtin;
+package com.lightbot.agent.tool.knowledge;
 
 import com.lightbot.constant.RagResultType;
 import com.lightbot.vo.QaPairSearchResultVO;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.service.AgentService;
-import com.lightbot.service.impl.EmbeddingServiceImpl;
+import com.lightbot.service.EmbeddingService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.service.QaPairService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,7 +53,7 @@ public class QueryKnowledgeTool {
 
     private final AgentService agentService;
     private final KnowledgeService knowledgeService;
-    private final EmbeddingServiceImpl embeddingService;
+    private final EmbeddingService embeddingService;
     private final QaPairService qaPairService;
     private final EmbeddingModel embeddingModel;
     private final RagParamResolver ragParamResolver;

@@ -76,4 +76,14 @@ public interface ApiKeyService extends IService<ApiKey> {
      * @return true=配额充足，false=超配额
      */
     boolean checkAndConsumeQuota(Long apiKeyId, long tokenUsage);
+
+    /**
+     * 校验 API Key 是否允许访问指定 Agent
+     */
+    boolean checkAgentScope(ApiKey apiKey, String agentId);
+
+    /**
+     * 请求频率限制（每分钟）
+     */
+    boolean checkRateLimit(Long apiKeyId, int rateLimit);
 }

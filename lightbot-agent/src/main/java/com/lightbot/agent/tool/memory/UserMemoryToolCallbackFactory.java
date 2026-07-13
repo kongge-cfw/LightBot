@@ -1,4 +1,4 @@
-package com.lightbot.tool.builtin;
+package com.lightbot.agent.tool.memory;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;

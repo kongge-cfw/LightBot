@@ -3,7 +3,7 @@ package com.lightbot.workflow.processor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.enums.NodeType;
-import com.lightbot.service.impl.EmbeddingServiceImpl;
+import com.lightbot.service.EmbeddingService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
@@ -36,7 +36,7 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
     private static final double DEFAULT_THRESHOLD = 0.5;
 
     private final KnowledgeService knowledgeService;
-    private final EmbeddingServiceImpl embeddingService;
+    private final EmbeddingService embeddingService;
     private final ObjectMapper objectMapper;
 
     @Autowired(required = false)

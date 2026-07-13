@@ -11,6 +11,7 @@
     </appender>
 
     <!-- 内存日志收集器（用于实时日志监控） -->
+    <!-- 内存日志收集器（实现在 lightbot-platform） -->
     <appender name="MEMORY" class="com.lightbot.log.MemoryLogAppender"/>
 
     <root level="INFO">

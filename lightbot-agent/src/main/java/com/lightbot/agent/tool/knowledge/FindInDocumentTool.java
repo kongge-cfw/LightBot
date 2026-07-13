@@ -1,4 +1,4 @@
-package com.lightbot.tool.builtin;
+package com.lightbot.agent.tool.knowledge;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.Document;
