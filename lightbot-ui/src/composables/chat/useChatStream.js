@@ -60,6 +60,7 @@ export function useChatStream(deps) {
     isAskUserUnanswered,
     showAskUserModal,
     askUserModal,
+    recordAskUserAnswers,
     cancelReply,
     autoResize,
     canRegenerate,
@@ -71,15 +72,23 @@ export function useChatStream(deps) {
 
   let sendStartTime = 0
 
-  async function submitAskUserResponse(answer) {
-    if (!answer?.trim()) return
+  async function submitAskUserResponse(payload) {
+    if (!payload?.answers || !payload?.text || askUserModal.messageIndex < 0) {
+      message.warning('提问状态已失效，请重新打开提问组件')
+      return
+    }
+    recordAskUserAnswers?.(askUserModal.messageIndex, payload.answers)
     askUserModal.visible = false
-    const text = answer.trim()
+    const text = payload.text.trim()
     messages.value.push({ role: 'user', content: text, _attachments: [] })
     isNearBottom.value = true
     userScrolledUp.value = false
     scrollToBottom()
-    await runChatStream({ message: text, attachments: [], regenerate: false })
+    await runChatStream({
+      message: text,
+      attachments: [],
+      regenerate: false,
+    })
   }
 
   /** 流被用户终止后，仅在本次请求确实落库时同步消息 ID（禁止借用历史助手消息 ID） */

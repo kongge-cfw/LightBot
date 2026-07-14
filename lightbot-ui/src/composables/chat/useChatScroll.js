@@ -39,6 +39,10 @@ export function useChatScroll({ messages, messagesRef, streaming, getMsgRagRefs,
     overscan: 5,
   })
 
+  // TanStack Virtual 默认会为视口上方的行高变化补偿 scrollTop，视觉上像内容向上展开。
+  // 聊天中的折叠区统一保留标题位置，让内容自然向下撑开。
+  virtualizer.value.shouldAdjustScrollPositionOnItemSizeChange = () => false
+
   watch(() => messages.value.length, (newLen) => {
     virtualizer.value.setOptions({
       ...virtualizer.value.options,

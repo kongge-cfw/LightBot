@@ -161,7 +161,8 @@ public class McpClientServiceImpl implements McpClientService {
             }
 
             McpSyncClient client = getOrCreateClient(server);
-            List<McpSchema.Tool> mcpTools = client.listTools().tools();
+            // 工具定义优先复用 Redis 缓存；仅缓存失效或管理员刷新后才调用 listTools()。
+            List<McpSchema.Tool> mcpTools = getToolsWithCache(id);
 
             // 解析 disabled_tools
             Set<String> disabledTools = parseDisabledTools(server.getDisabledTools());

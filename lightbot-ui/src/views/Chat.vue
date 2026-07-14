@@ -111,6 +111,7 @@
       :loading="loading"
       :can-send="canSend"
       :workflow-confirm-blocked="workflowConfirmBlocked"
+      :ask-user-blocked="askUserModal.visible"
       :switching-session="inputMaskLoading"
       :agents="agents"
       :selected-agent-id="selectedAgentId"
@@ -167,9 +168,7 @@
 
     <ChatAskUserModal
       v-model:open="askUserModal.visible"
-      :question="askUserModal.question"
-      :options="askUserModal.options"
-      v-model:free-text="askUserModal.freeText"
+      :questions="askUserModal.questions"
       @submit="submitAskUserResponse"
     />
 
@@ -377,7 +376,7 @@ const {
 
 scrollAfterExpandBridge.impl = scrollAfterExpand
 
-const { askUserModal, isAskUserUnanswered, showAskUserModal } = useAskUser({ messages })
+const { askUserModal, isAskUserUnanswered, showAskUserModal, recordAskUserAnswers } = useAskUser({ messages })
 
 let currentStreamingMsg = null
 const streamSmoother = useStreamSmoother({
@@ -471,7 +470,7 @@ const {
   getCurrentStreamingMsg: () => currentStreamingMsg,
   setCurrentStreamingMsg: (msg) => { currentStreamingMsg = msg },
   scrollToBottom, scrollReasoningToBottom, applyStreamDoneMetadata, loadBatchFeedbacks,
-  pollSessionTitle, isAskUserUnanswered, showAskUserModal, askUserModal, cancelReply,
+  pollSessionTitle, isAskUserUnanswered, showAskUserModal, askUserModal, recordAskUserAnswers, cancelReply,
   autoResize, canRegenerate, getMsgMentions,
   handleChatWorkflowStreamEvent, handleChatCapabilityStreamEvent, applyToolMetadata,
 })

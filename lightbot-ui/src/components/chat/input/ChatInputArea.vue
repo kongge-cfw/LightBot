@@ -24,6 +24,10 @@
         <PauseCircleOutlined class="workflow-confirm-send-icon" />
         <span>等待人工确认中，请先完成上方表单后再发送新消息</span>
       </div>
+      <div v-if="askUserBlocked && !workflowConfirmBlocked" class="workflow-confirm-send-block">
+        <PauseCircleOutlined class="workflow-confirm-send-icon" />
+        <span>AI 正等待您完成上方提问，请提交回答后再继续对话</span>
+      </div>
       <div class="chat-input">
         <input
           ref="imageInputRef"
@@ -78,7 +82,7 @@
             type="button"
             class="btn-attach"
             :class="{ 'btn-attach--uploading': uploading }"
-            :disabled="loading || uploading || workflowConfirmBlocked"
+            :disabled="loading || uploading || workflowConfirmBlocked || askUserBlocked"
           >
             <LoadingOutlined v-if="uploading" spin />
             <PaperClipOutlined v-else />
@@ -89,8 +93,8 @@
           :model-value="input"
           :agent-id="selectedAgentId"
           :agent-version-id="selectedAgentVersionId"
-          :disabled="loading || workflowConfirmBlocked"
-          :placeholder="workflowConfirmBlocked ? '请先完成工作流人工确认表单…' : '输入消息... (Enter 发送, Shift+Enter 换行, @ 提及资源)'"
+          :disabled="loading || workflowConfirmBlocked || askUserBlocked"
+          :placeholder="inputPlaceholder"
           @update:model-value="$emit('update:input', $event)"
           @send="$emit('send')"
         />
@@ -121,7 +125,7 @@
           <button
             v-else
             class="btn-send"
-            :disabled="!canSend"
+            :disabled="!canSend || askUserBlocked"
             @click="$emit('send')"
           >
             <SendOutlined />
@@ -167,6 +171,7 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   canSend: { type: Boolean, default: false },
   workflowConfirmBlocked: { type: Boolean, default: false },
+  askUserBlocked: { type: Boolean, default: false },
   switchingSession: { type: Boolean, default: false },
   agents: { type: Array, default: () => [] },
   selectedAgentId: { type: [String, Number], default: null },
@@ -221,6 +226,12 @@ const documentOptionDesc = computed(() => props.fileUploadHint || '上传文档�
 const imageOptionDesc = computed(() => {
   const limit = props.imageUploadHint ? `（${props.imageUploadHint}）` : ''
   return `上传图片${limit}`
+})
+
+const inputPlaceholder = computed(() => {
+  if (props.workflowConfirmBlocked) return '请先完成工作流人工确认表单…'
+  if (props.askUserBlocked) return '请先完成 AI 提问'
+  return '输入消息... (Enter 发送, Shift+Enter 换行, @ 提及资源)'
 })
 
 function onPickImage() {

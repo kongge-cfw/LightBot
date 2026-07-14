@@ -1,54 +1,29 @@
 <template>
-  <div>
-    <div v-if="isPlainText" style="margin:0;padding:8px 10px;background:#fafafa;border-radius:6px;font-size:12px;line-height:1.5;color:#374151;white-space:pre-wrap;word-break:break-word;">
-      <pre style="margin:0;">{{ displayText }}</pre>
+  <div v-if="isPlainText" class="plain-result"><pre>{{ displayText }}</pre></div>
+  <div v-else>
+    <section v-for="(question, index) in questions" :key="question.questionId" class="ask-question">
+      <div class="ask-question-title">
+        <QuestionCircleOutlined />
+        <span>{{ index + 1 }}. {{ question.question }}</span>
+      </div>
+      <div v-if="question.options.length" class="ask-options">
+        <div v-for="option in question.options" :key="option" :class="['ask-option', { selected: isSelectedOption(question, option) }]">
+          <span>{{ option }}</span>
+          <CheckCircleOutlined v-if="isSelectedOption(question, option)" />
+        </div>
+      </div>
+      <div v-if="answerText(question)" class="ask-answer">
+        <CheckCircleOutlined />
+        <span>用户回答：{{ answerText(question) }}</span>
+      </div>
+    </section>
+    <div v-if="!answered" class="ask-pending">
+      <ClockCircleOutlined />
+      <span>{{ isWorkflowMode ? '等待您在下方表单中回答…' : '等待用户回答...' }}</span>
     </div>
-
-    <template v-else>
-      <!-- 问题 -->
-      <div v-if="displayQuestion" style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#dbeafe;border:1px solid #93c5fd;border-radius:8px;font-size:13px;line-height:1.6;color:#1e40af;margin-bottom:8px;">
-        <QuestionCircleOutlined style="color:#2563eb;font-size:15px;margin-top:2px;flex-shrink:0;" />
-        <span style="font-weight:500;">{{ displayQuestion }}</span>
-      </div>
-
-      <!-- 选项列表（提问阶段展示可选项） -->
-      <div v-if="data.options?.length" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;">
-        <div v-for="(opt, i) in data.options" :key="i"
-          :style="optionItemStyle(opt)"
-          style="display:flex;align-items:center;gap:8px;padding:8px 12px;border-radius:8px;font-size:12px;color:#1f2937;cursor:default;transition:all 0.2s;">
-          <span style="display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;border-radius:50%;font-size:11px;font-weight:600;flex-shrink:0;"
-            :style="optionBadgeStyle(opt)">{{ i + 1 }}</span>
-          <span style="flex:1;line-height:1.5;">{{ opt }}</span>
-          <CheckCircleOutlined v-if="isSelectedOption(opt)" style="color:#16a34a;font-size:14px;flex-shrink:0;" />
-        </div>
-      </div>
-
-      <!-- 用户回答（工作流 resume 后 / 对话已回复） -->
-      <div v-if="userAnswer" style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#f0fdf4;border:1px solid #86efac;border-radius:8px;font-size:13px;line-height:1.6;color:#166534;margin-bottom:8px;">
-        <CheckCircleOutlined style="color:#22c55e;font-size:15px;margin-top:2px;flex-shrink:0;" />
-        <div style="min-width:0;">
-          <div style="font-size:11px;font-weight:600;margin-bottom:4px;opacity:0.85;">用户回答</div>
-          <div style="white-space:pre-wrap;word-break:break-word;">{{ userAnswer }}</div>
-        </div>
-      </div>
-
-      <!-- 状态提示（无回答内容时） -->
-      <div v-else-if="data.is_open_ended || !answered" style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:8px;font-size:12px;background:#fefce8;border:1px solid #fde68a;color:#92400e;">
-        <ClockCircleOutlined style="color:#f59e0b;font-size:13px;flex-shrink:0;" />
-        <span>{{ isWorkflowMode ? '等待您在下方表单中回答…' : '等待用户回答...' }}</span>
-      </div>
-
-      <!-- 对话 Agent：未回答时可弹窗 -->
-      <div v-if="!answered && !isWorkflowMode" style="margin-top:8px;">
-        <button @click="handleAnswer"
-          style="display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:#0070f3;color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;transition:background 0.15s;"
-          onmouseover="this.style.background='#005bc4'"
-          onmouseout="this.style.background='#0070f3'">
-          <QuestionCircleOutlined style="font-size:14px;" />
-          回答
-        </button>
-      </div>
-    </template>
+    <div v-if="!answered && !isWorkflowMode" class="ask-action">
+      <button type="button" @click="handleAnswer"><QuestionCircleOutlined /> 回答</button>
+    </div>
   </div>
 </template>
 
@@ -58,58 +33,72 @@ import { QuestionCircleOutlined, CheckCircleOutlined, ClockCircleOutlined } from
 
 const props = defineProps({
   event: { type: Object, required: true },
-  messageIndex: { type: Number, default: -1 }
+  messageIndex: { type: Number, default: -1 },
 })
 
 const showAskUserModal = inject('showAskUserModal', null)
 const isAskUserUnanswered = inject('isAskUserUnanswered', null)
-
+const getAskUserAnswers = inject('getAskUserAnswers', null)
 const isWorkflowMode = computed(() => props.messageIndex < 0)
-
 const rawResult = computed(() => props.event.result || '')
 const data = computed(() => { try { return JSON.parse(rawResult.value) } catch { return null } })
 const isPlainText = computed(() => !data.value || typeof data.value !== 'object')
 const displayText = computed(() => typeof data.value === 'string' ? data.value : rawResult.value)
 
-const displayQuestion = computed(() => {
-  const q = data.value?.question
-  return q != null && String(q).trim() ? String(q).trim() : ''
+const questions = computed(() => {
+  const source = Array.isArray(data.value?.questions) && data.value.questions.length
+    ? data.value.questions
+    : [{ questionId: 'question_1', question: data.value?.question, options: data.value?.options || [] }]
+  return source.map((item, index) => ({
+    questionId: String(item?.questionId || `question_${index + 1}`),
+    question: String(item?.question || '').trim(),
+    options: Array.isArray(item?.options) ? item.options : [],
+  })).filter(item => item.question)
 })
 
-const userAnswer = computed(() => {
-  const ans = data.value?.user_answer
-  return ans != null && String(ans).trim() ? String(ans).trim() : ''
-})
-
+const answers = computed(() => props.event.userAnswers
+  || getAskUserAnswers?.(props.messageIndex)
+  || data.value?.user_answer
+  || null)
 const answered = computed(() => {
-  if (userAnswer.value) return true
+  if (answers.value) return true
   if (isWorkflowMode.value) return false
-  if (!isAskUserUnanswered || props.messageIndex < 0) return true
-  return !isAskUserUnanswered(props.messageIndex)
+  return !isAskUserUnanswered || props.messageIndex < 0 || !isAskUserUnanswered(props.messageIndex)
 })
 
-function isSelectedOption(opt) {
-  if (!userAnswer.value || !opt) return false
-  return String(opt).trim() === userAnswer.value
+function answerValue(question) {
+  const value = answers.value
+  if (value == null) return null
+  if (typeof value === 'object' && !Array.isArray(value)) return value[question.questionId]
+  return questions.value.length === 1 ? value : null
 }
 
-function optionItemStyle(opt) {
-  if (isSelectedOption(opt)) {
-    return { background: '#f0fdf4', border: '1px solid #86efac' }
-  }
-  return { background: '#eff6ff', border: '1px solid #93c5fd' }
+function answerText(question) {
+  const value = answerValue(question)
+  return Array.isArray(value) ? value.join('、') : value == null ? '' : String(value)
 }
 
-function optionBadgeStyle(opt) {
-  if (isSelectedOption(opt)) {
-    return { background: '#16a34a', color: '#fff' }
-  }
-  return { background: '#3b82f6', color: '#fff' }
+function isSelectedOption(question, option) {
+  const value = answerValue(question)
+  return Array.isArray(value) ? value.includes(option) : value === option
 }
 
 function handleAnswer() {
-  if (showAskUserModal && props.messageIndex >= 0) {
-    showAskUserModal(props.messageIndex)
-  }
+  if (showAskUserModal && props.messageIndex >= 0) showAskUserModal(props.messageIndex)
 }
 </script>
+
+<style scoped>
+.plain-result { margin: 0; padding: 8px 10px; color: #374151; background: #fafafa; border-radius: 6px; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.plain-result pre { margin: 0; font: inherit; }
+.ask-question { margin-bottom: 10px; padding: 10px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; }
+.ask-question-title, .ask-answer, .ask-pending { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; line-height: 1.6; }
+.ask-question-title { color: #1e40af; font-weight: 500; }
+.ask-options { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ask-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; color: #1f2937; background: rgba(255,255,255,.68); border: 1px solid #93c5fd; border-radius: 6px; font-size: 12px; }
+.ask-option.selected { color: #166534; background: #f0fdf4; border-color: #86efac; }
+.ask-answer { margin-top: 8px; padding-top: 8px; color: #166534; border-top: 1px solid #bfdbfe; }
+.ask-pending { padding: 8px 12px; color: #92400e; background: #fefce8; border: 1px solid #fde68a; border-radius: 8px; font-size: 12px; }
+.ask-action { margin-top: 8px; }
+.ask-action button { display: inline-flex; align-items: center; gap: 6px; padding: 8px 18px; color: #fff; background: #0070f3; border: none; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; }
+</style>

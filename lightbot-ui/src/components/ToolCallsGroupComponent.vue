@@ -27,18 +27,21 @@
             <span class="event-label">
               调用 <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 工具
             </span>
-            <a-tooltip v-if="hasArgs(evt)" title="查看参数详情">
-              <button class="args-detail-btn" @click.stop="openArgs(ti)">
-                <FileSearchOutlined />
+            <div v-if="hasArgs(evt)" class="args-actions">
+              <button class="args-toggle-btn" @click.stop="toggleArgs(ti, $event)">
+                <RightOutlined :class="{ expanded: expandedArgs.has(ti) }" class="expand-icon-sm" />
+                <span>{{ expandedArgs.has(ti) ? '收起参数' : '展开参数' }}</span>
               </button>
-            </a-tooltip>
-          </div>
-          <div v-if="hasArgs(evt)" class="event-args-block">
-            <div v-for="(arg, ai) in parseArgsPreview(evt.args)" :key="ai" class="event-arg-line">
-              <span class="arg-key">{{ arg.key }}</span>
-              <span class="arg-val">{{ arg.value }}</span>
+              <a-tooltip title="查看参数详情">
+                <button class="args-detail-btn" @click.stop="openArgs(ti)">
+                  <FileSearchOutlined />
+                </button>
+              </a-tooltip>
             </div>
           </div>
+          <CollapseTransition v-if="hasArgs(evt)" :open="expandedArgs.has(ti)">
+            <pre class="event-args-raw">{{ evt.args }}</pre>
+          </CollapseTransition>
         </div>
         <!-- tool_status: 执行中间状态 -->
         <div v-else-if="evt.type === 'tool_status'" class="event-row event-status">
@@ -66,21 +69,8 @@
       </div>
       </div>
     </CollapseTransition>
-
-    <!-- 参数详情弹窗 -->
-    <a-modal
-      v-model:open="argsModalOpen"
-      title="参数详情"
-      :footer="null"
-      :width="520"
-      destroyOnClose
-    >
-      <div class="args-modal-body">
-        <div v-for="(entry, ei) in argsEntries" :key="ei" class="args-entry">
-          <span class="args-key">{{ entry.key }}</span>
-          <span class="args-val" :class="entry.type">{{ entry.value }}</span>
-        </div>
-      </div>
+    <a-modal v-model:open="argsModalOpen" title="参数详情" :footer="null" :width="520" destroyOnClose>
+      <pre class="args-modal-raw">{{ argsModalContent }}</pre>
     </a-modal>
   </div>
 </template>
@@ -110,6 +100,10 @@ function toggleExpand(event) {
 }
 const expandedResults = ref(new Set())
 const manualToggled = ref(new Set())
+const expandedArgs = ref(new Set())
+const manualArgToggled = ref(new Set())
+const argsModalOpen = ref(false)
+const argsModalContent = ref('')
 
 function syncExpandedResults() {
   const s = new Set(expandedResults.value)
@@ -121,9 +115,22 @@ function syncExpandedResults() {
   expandedResults.value = s
 }
 
+function syncExpandedArgs() {
+  const next = new Set(expandedArgs.value)
+  props.toolEvents.forEach((event, index) => {
+    if (event.type === 'tool_call' && hasArgs(event) && !manualArgToggled.value.has(index)) {
+      next.add(index)
+    }
+  })
+  expandedArgs.value = next
+}
+
 watch(
   () => props.toolEvents,
-  () => syncExpandedResults(),
+  () => {
+    syncExpandedResults()
+    syncExpandedArgs()
+  },
   { immediate: true, deep: true }
 )
 
@@ -148,84 +155,21 @@ function resolveEventIcon(evt) {
   return getToolIcon(evt.toolName)
 }
 
-// ── 参数展示 ──
-const MAX_INLINE_ARGS = 3
-const MAX_DISPLAY_WIDTH = 60
-
 function hasArgs(evt) {
-  if (!evt.args) return false
-  try {
-    return Object.keys(JSON.parse(evt.args)).length > 0
-  } catch {
-    return false
-  }
+  return typeof evt?.args === 'string' && evt.args.trim().length > 0
 }
 
-/** 计算字符串显示宽度：中文算2，英文/其他算1 */
-function displayWidth(s) {
-  let w = 0
-  for (const ch of s) {
-    w += ch.charCodeAt(0) > 0x7f ? 2 : 1
-  }
-  return w
-}
-
-/** 按显示宽度截断字符串 */
-function truncateByWidth(s, maxW) {
-  let w = 0
-  for (let i = 0; i < s.length; i++) {
-    w += s.charCodeAt(i) > 0x7f ? 2 : 1
-    if (w > maxW) return s.substring(0, i) + '...'
-  }
-  return s
-}
-
-function parseArgsPreview(args) {
-  if (!args) return []
-  try {
-    const obj = JSON.parse(args)
-    const entries = Object.entries(obj)
-    const shown = entries.slice(0, MAX_INLINE_ARGS)
-    const result = shown.map(([k, v]) => {
-      let val = v === null || v === undefined ? 'null' : String(v)
-      if (displayWidth(val) > MAX_DISPLAY_WIDTH) val = truncateByWidth(val, MAX_DISPLAY_WIDTH)
-      return { key: k, value: val }
-    })
-    if (entries.length > MAX_INLINE_ARGS) {
-      result.push({ key: '...', value: `还有${entries.length - MAX_INLINE_ARGS}个参数` })
-    }
-    return result
-  } catch {
-    const s = args.length > 80 ? args.substring(0, 80) + '...' : args
-    return [{ key: 'raw', value: s }]
-  }
-}
-
-// ── 参数详情弹窗 ──
-const argsModalOpen = ref(false)
-const argsEntries = ref([])
-
-function formatValue(v) {
-  if (v === null || v === undefined) return { value: 'null', type: 'null' }
-  if (typeof v === 'boolean') return { value: String(v), type: 'bool' }
-  if (typeof v === 'number') return { value: String(v), type: 'number' }
-  if (Array.isArray(v)) return { value: JSON.stringify(v, null, 2), type: 'string' }
-  if (typeof v === 'object') return { value: JSON.stringify(v, null, 2), type: 'string' }
-  return { value: String(v), type: 'string' }
+function toggleArgs(index, event) {
+  manualArgToggled.value.add(index)
+  const next = new Set(expandedArgs.value)
+  if (next.has(index)) next.delete(index)
+  else next.add(index)
+  expandedArgs.value = next
+  nextTick(() => emit('heightChange', { target: event?.target, preserveViewport: true }))
 }
 
 function openArgs(index) {
-  const evt = props.toolEvents[index]
-  if (!evt?.args) return
-  try {
-    const obj = JSON.parse(evt.args)
-    argsEntries.value = Object.entries(obj).map(([k, v]) => ({
-      key: k,
-      ...formatValue(v),
-    }))
-  } catch {
-    argsEntries.value = [{ key: 'raw', value: evt.args, type: 'string' }]
-  }
+  argsModalContent.value = props.toolEvents[index]?.args || ''
   argsModalOpen.value = true
 }
 
@@ -382,57 +326,61 @@ function toggleResult(index, event) {
   }
 }
 
-.event-args-block {
-  margin-left: auto;
-  margin-top: 2px;
-  margin-bottom: 4px;
-  padding: 4px 10px;
+.event-args-raw {
+  margin: 2px 0 5px 21px;
+  padding: 4px 8px;
+  color: var(--gray-600);
   background: var(--gray-25);
-  border: 1px solid var(--gray-100);
-  border-radius: 6px;
-  max-width: 80%;
-  margin-right: 0;
-}
-
-.event-arg-line {
-  display: flex;
-  align-items: baseline;
-  justify-content: flex-end;
-  gap: 6px;
+  border-radius: 4px;
+  font-family: var(--font-mono, 'Menlo', 'Monaco', monospace);
   font-size: 12px;
-  line-height: 1.6;
-
-  .arg-val {
-    color: var(--gray-700);
-    word-break: break-all;
-    text-align: right;
-  }
-
-  .arg-key {
-    flex-shrink: 0;
-    color: var(--gray-500);
-    font-weight: 500;
-    &::after { content: ':'; }
-  }
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
+.args-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.args-toggle-btn,
 .args-detail-btn {
   appearance: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
+  gap: 3px;
+  padding: 0 4px;
   border: none;
   border-radius: 4px;
-  background: none;
+  background: transparent;
   color: var(--gray-400);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   transition: all 0.15s ease;
-  flex-shrink: 0;
-  &:hover { color: var(--main-600); background: var(--gray-100); }
+}
+
+.args-toggle-btn:hover,
+.args-detail-btn:hover { color: var(--gray-600); background: var(--gray-50); }
+.args-detail-btn { width: 20px; height: 20px; font-size: 13px; }
+
+.args-modal-raw {
+  max-height: 480px;
+  margin: 0;
+  padding: 10px;
+  overflow: auto;
+  color: var(--gray-700);
+  background: var(--gray-25);
+  border-radius: 6px;
+  font-family: var(--font-mono, 'Menlo', 'Monaco', monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .result-detail {
@@ -450,48 +398,6 @@ function toggleResult(index, event) {
     max-height: 300px;
     overflow-y: auto;
   }
-}
-
-.args-modal-body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 480px;
-  overflow-y: auto;
-}
-
-.args-entry {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: var(--gray-25);
-  border: 1px solid var(--gray-100);
-}
-
-.args-key {
-  flex-shrink: 0;
-  min-width: 80px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--gray-500);
-  text-align: right;
-}
-
-.args-val {
-  flex: 1;
-  font-size: 13px;
-  color: var(--gray-800);
-  word-break: break-all;
-  white-space: pre-wrap;
-
-  &.string { color: var(--gray-800); }
-  &.number { color: #2563eb; }
-  &.bool { color: #7c3aed; }
-  &.null { color: var(--gray-400); font-style: italic; }
-  &.array { color: #059669; }
-  &.object { color: #d97706; }
 }
 
 @keyframes spin {

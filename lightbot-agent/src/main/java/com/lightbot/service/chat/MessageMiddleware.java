@@ -27,10 +27,8 @@ import com.lightbot.enums.MessageType;
 import com.lightbot.mapper.MessageMapper;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.model.ProviderResolver;
-import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.ChatSessionService;
-import com.lightbot.service.ToolService;
 import com.lightbot.service.UserMemoryService;
 import com.lightbot.service.UserPreferenceService;
 import lombok.RequiredArgsConstructor;
@@ -64,8 +62,6 @@ import java.util.Map;
 public class MessageMiddleware implements ChatMiddleware {
 
     private final MessageMapper messageMapper;
-    private final AgentService agentService;
-    private final ToolService toolService;
     private final ChatSessionService chatSessionService;
     private final ModelFactory modelFactory;
     private final InitMiddleware initMiddleware;
@@ -393,23 +389,7 @@ public class MessageMiddleware implements ChatMiddleware {
 
         // 3. 若当前模型支持 API 工具调用，追加工具使用引导
         if (agent != null && apiToolsEnabled) {
-            // 3.1 工具引导：合并 Agent 自身绑定的工具 + Skill 引入的额外工具
-            // 优先使用版本快照中的绑定 ID，避免暂存/发布混淆
-            List<Long> baseToolIds = ctx != null && ctx.getVersionToolIds() != null
-                    ? ctx.getVersionToolIds() : agentService.getToolIds(agent.getId());
-            List<Long> toolIds = new java.util.ArrayList<>(baseToolIds);
-            if (ctx != null && ctx.getSkillExtraToolIds() != null) {
-                for (Long id : ctx.getSkillExtraToolIds()) {
-                    if (id != null && !toolIds.contains(id)) toolIds.add(id);
-                }
-            }
-            if (!toolIds.isEmpty()) {
-                List<ToolCallback> toolCallbacks = toolService.resolveToolCallbacksByIds(toolIds);
-                if (!toolCallbacks.isEmpty()) {
-                    // Agent 系统提示词保持在最前面（最高优先级），工具引导追加在后
-                    systemPrompt = systemPrompt + "\n\n" + buildToolGuide(toolCallbacks, agentConfigMap);
-                }
-            }
+            // 3.1 ToolCallback 会由 ToolPrepMiddleware 原生传给模型；禁止重复把工具说明和 schema 拼入 Prompt。
 
             // 3.2 Skill 提示词追加块
             if (ctx != null && ctx.getSkillSystemAppendix() != null
