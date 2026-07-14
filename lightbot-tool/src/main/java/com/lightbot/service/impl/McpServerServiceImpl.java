@@ -72,6 +72,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
         server.setTransport(request.getTransport());
         server.setHeaders(request.getHeaders());
         server.setDisabledTools(request.getDisabledTools());
+        server.setIsBuiltin(0);
         server.setStatus(CommonStatus.ACTIVE);
         save(server);
         return server;

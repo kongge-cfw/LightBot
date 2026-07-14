@@ -1291,7 +1291,9 @@ public class ChatServiceImpl implements ChatService {
                 ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
                 ctxMap.put("requestId", requestId);
                 ctxMap.put("parentThreadId", sessionId != null ? sessionId.toString() : "default");
-                if (chatContext != null) {
+                boolean mcpTool = chatContext != null && chatContext.getMcpToolNames() != null
+                        && chatContext.getMcpToolNames().contains(toolName);
+                if (chatContext != null && !mcpTool) {
                     ctxMap.put("chatContext", chatContext);
                 }
                 String result = CompletableFuture.supplyAsync(() -> {

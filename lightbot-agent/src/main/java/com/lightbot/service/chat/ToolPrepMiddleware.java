@@ -3,6 +3,7 @@ package com.lightbot.service.chat;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.entity.Agent;
+import com.lightbot.entity.McpServer;
 import com.lightbot.entity.Skill;
 import com.lightbot.entity.Tool;
 import com.lightbot.enums.CommonStatus;
@@ -14,6 +15,7 @@ import com.lightbot.entity.ModelProvider;
 import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.McpClientService;
+import com.lightbot.service.McpServerService;
 import com.lightbot.service.SkillService;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.UserPreferenceService;
@@ -58,6 +60,7 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     private final AgentService agentService;
     private final ToolService toolService;
     private final McpClientService mcpClientService;
+    private final McpServerService mcpServerService;
     private final ModelProviderService modelProviderService;
     private final DelegateSubAgentTool delegateSubAgentTool;
     private final SkillService skillService;
@@ -107,7 +110,7 @@ public class ToolPrepMiddleware implements ChatMiddleware {
         ctx.setToolDisplayNameMap(buildDisplayNameMap(toolCallbackMap));
 
         // 5. 构建 icon 映射（前端头像图标）
-        ctx.setToolIconMap(buildIconMap(toolCallbackMap));
+        ctx.setToolIconMap(buildIconMap(toolCallbackMap, ctx.getMcpToolIconMap()));
 
         log.info("[Chat] 工具准备完成: providerId={}, 工具数={}, 工具名={}",
                 providerId, toolCallbackMap.size(), toolCallbackMap.keySet());
@@ -141,6 +144,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
         if (agent != null && !mimoWebSearch) {
             List<ToolCallback> allCallbacks = new java.util.ArrayList<>();
+            List<ToolCallback> mcpCallbacks = new java.util.ArrayList<>();
+            Map<String, String> mcpToolIconMap = new HashMap<>();
 
             // 1. 加载内置/自定义工具（合并：Agent 自身绑定 + Skill 引入的额外工具）
             // 优先使用版本快照中的绑定 ID，避免暂存/发布混淆
@@ -224,7 +229,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             // 并行加载所有 MCP Server 的工具
             if (!mergedMcpIds.isEmpty()) {
-                List<CompletableFuture<List<ToolCallback>>> futures = mergedMcpIds.stream()
+                List<Long> mcpServerIds = new ArrayList<>(mergedMcpIds);
+                List<CompletableFuture<List<ToolCallback>>> futures = mcpServerIds.stream()
                         .map(serverId -> CompletableFuture.supplyAsync(() -> {
                             try {
                                 return mcpClientService.getToolCallbacks(serverId);
@@ -235,8 +241,16 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                         }, lightBotExecutor))
                         .toList();
                 CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-                for (CompletableFuture<List<ToolCallback>> f : futures) {
-                    allCallbacks.addAll(f.join());
+                for (int index = 0; index < futures.size(); index++) {
+                    List<ToolCallback> callbacks = futures.get(index).join();
+                    allCallbacks.addAll(callbacks);
+                    mcpCallbacks.addAll(callbacks);
+
+                    McpServer server = mcpServerService.getById(mcpServerIds.get(index));
+                    if (server != null && server.getIcon() != null && !server.getIcon().isBlank()) {
+                        callbacks.forEach(callback -> mcpToolIconMap.putIfAbsent(
+                                callback.getToolDefinition().name(), server.getIcon()));
+                    }
                 }
             }
 
@@ -253,6 +267,16 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）
             List<ToolCallback> dedupedCallbacks = dedupCallbacks(allCallbacks);
+            if (ctx != null) {
+                Set<String> activeMcpToolNames = dedupedCallbacks.stream()
+                        .filter(mcpCallbacks::contains)
+                        .map(callback -> callback.getToolDefinition().name())
+                        .collect(Collectors.toCollection(LinkedHashSet::new));
+                ctx.setMcpToolNames(activeMcpToolNames);
+                ctx.setMcpToolIconMap(activeMcpToolNames.stream()
+                        .filter(mcpToolIconMap::containsKey)
+                        .collect(Collectors.toMap(name -> name, mcpToolIconMap::get)));
+            }
 
             if (!dedupedCallbacks.isEmpty()) {
                 toolBuilder.toolCallbacks(dedupedCallbacks);
@@ -266,10 +290,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 if (requestId != null) {
                     toolCtxMap.put("requestId", requestId);
                 }
-                if (ctx != null) {
-                    toolCtxMap.put("userId", ctx.getUserId());
-                    toolCtxMap.put("chatContext", ctx);
-                }
+                if (ctx != null) toolCtxMap.put("userId", ctx.getUserId());
+                // MCP serializes ToolContext as JSON-RPC _meta; ChatContext is injected only for non-MCP execution.
                 toolBuilder.toolContext(toolCtxMap);
                 log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}, MemoryTools={}",
                         agent.getId(), mergedToolIds.size(), mergedMcpIds.size(),
@@ -368,7 +390,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
      * <p>从数据库 Tool 表查询图标（Ant Design 图标组件名），
      * MCP 工具及无图标工具不进入映射，前端回退到内置注册表图标或首字母。</p>
      */
-    private Map<String, String> buildIconMap(Map<String, ToolCallback> toolCallbackMap) {
+    private Map<String, String> buildIconMap(Map<String, ToolCallback> toolCallbackMap,
+                                              Map<String, String> mcpToolIconMap) {
         if (toolCallbackMap == null || toolCallbackMap.isEmpty()) {
             return Map.of();
         }
@@ -381,6 +404,13 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             if (icon != null && !icon.isEmpty()) {
                 result.put(name, icon);
             }
+        }
+        if (mcpToolIconMap != null) {
+            mcpToolIconMap.forEach((toolName, icon) -> {
+                if (toolCallbackMap.containsKey(toolName) && icon != null && !icon.isBlank()) {
+                    result.put(toolName, icon);
+                }
+            });
         }
         return result;
     }

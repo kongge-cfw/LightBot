@@ -39,6 +39,10 @@ public class McpServer {
     @Schema(description = "图标标识（Ant Design 图标组件名，如 ApiOutlined），为空时前端降级首字母")
     private String icon;
 
+    @TableField("is_builtin")
+    @Schema(description = "是否平台内置：1=是，0=否")
+    private Integer isBuiltin;
+
     @TableField("description")
     @Size(max = 200, message = "服务描述不超过200字")
     @Schema(description = "服务描述")

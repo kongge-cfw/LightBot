@@ -33,6 +33,7 @@
         @click="openDetail(s)"
       >
         <template #icon>
+          <span v-if="isBuiltin(s)" class="builtin-badge">内置</span>
           <span class="status-dot" :class="isDisabled(s) ? 'status-disabled' : 'status-active'"></span>
           <DynamicIcon :name="s.icon" :fallback="s.name" />
         </template>
@@ -228,7 +229,10 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
       <div class="detail-scroll-body">
         <template v-if="detailRow">
           <a-descriptions bordered :column="1" size="small">
-            <a-descriptions-item label="名称">{{ detailRow.name }}</a-descriptions-item>
+            <a-descriptions-item label="名称">
+              {{ detailRow.name }}
+              <a-tag v-if="isBuiltin(detailRow)" color="blue" style="margin-left: 8px">内置</a-tag>
+            </a-descriptions-item>
             <a-descriptions-item label="描述">{{ detailRow.description || '—' }}</a-descriptions-item>
             <a-descriptions-item label="安装类型">
               <a-tag :color="installTypeColor(detailRow.installType?.code || detailRow.installType)">
@@ -392,6 +396,10 @@ const detailRow = ref(null)
 // 工具详情弹窗
 const toolDetailVisible = ref(false)
 const toolDetail = ref(null)
+
+function isBuiltin(server) {
+  return Number(server?.isBuiltin) === 1
+}
 
 // 解析 inputSchema 为表格数据
 const parsedSchema = computed(() => {
@@ -719,6 +727,17 @@ defineExpose({ openDialog, search, refresh })
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+}
+.builtin-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  font-size: 10px;
+  padding: 1px 4px;
+  background: #0070f3;
+  color: #fff;
+  border-radius: 4px;
+  z-index: 1;
 }
 .status-dot {
   position: absolute;

@@ -5,7 +5,7 @@
 
 <script setup>
 import { computed, h, defineComponent } from 'vue'
-import { TOOL_RENDERERS, getToolIcon, getToolDisplayName } from './toolRegistry'
+import { TOOL_RENDERERS, ChartResult, getToolIcon, getToolDisplayName, isChartToolResult } from './toolRegistry'
 import BaseToolCall from './tools/BaseToolCall.vue'
 import ErrorToolResult from './tools/ErrorToolResult.vue'
 
@@ -50,6 +50,7 @@ const FallbackRenderer = defineComponent({
 
 const renderer = computed(() => {
   const r = TOOL_RENDERERS[props.event.toolName]
-  return r || FallbackRenderer
+  if (r) return r
+  return isChartToolResult(props.event.toolName, props.event.result) ? ChartResult : FallbackRenderer
 })
 </script>

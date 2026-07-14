@@ -697,7 +697,7 @@
           >
             <div class="resource-option">
               <div class="resource-option-header">
-                <EntitySelectOption type="mcp" :name="s.name" :icon="s.icon" :tag="mcpInstallTypeLabel(s)" />
+                <EntitySelectOption type="mcp" :name="s.name" :icon="s.icon" :builtin="s.isBuiltin === 1" :tag="mcpInstallTypeLabel(s)" />
               </div>
               <div v-if="s.description" class="resource-option-desc">{{ s.description }}</div>
             </div>

@@ -72,6 +72,7 @@ public class BuiltinMcpRegistrar {
                     server.setInstallType(def.installType);
                     server.setTransport(def.transport);
                     server.setHost(def.host);
+                    server.setIsBuiltin(1);
                     server.setDeployConfig(def.deployConfig != null
                             ? objectMapper.writeValueAsString(def.deployConfig) : null);
                     server.setStatus(CommonStatus.DISABLED);
@@ -79,7 +80,12 @@ public class BuiltinMcpRegistrar {
                     imported++;
                     log.info("[BuiltinMcpRegistrar] 导入内置 MCP Server: name={}, id={}", def.name, server.getId());
                 } else {
-                    log.debug("[BuiltinMcpRegistrar] 内置 MCP Server 已存在，跳过: name={}", def.name);
+                    // 历史版本已注册的内置 MCP 没有 is_builtin 字段，启动时补齐身份以便前端统一展示。
+                    if (!Integer.valueOf(1).equals(existing.getIsBuiltin())) {
+                        existing.setIsBuiltin(1);
+                        mcpServerService.updateById(existing);
+                        log.info("[BuiltinMcpRegistrar] 补齐内置 MCP 标识: name={}, id={}", def.name, existing.getId());
+                    }
                 }
             } catch (Exception e) {
                 log.warn("[BuiltinMcpRegistrar] 处理内置 MCP Server 失败: name={}, error={}", def.name, e.getMessage());

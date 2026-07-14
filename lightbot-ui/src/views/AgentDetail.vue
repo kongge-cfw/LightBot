@@ -1148,7 +1148,10 @@
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
                 <span class="tag-avatar" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)"><DynamicIcon :name="s.icon" :fallback="s.name" /></span>
-                <span>{{ s.name }}</span>
+                <span class="tag-name-wrap">
+                  <span>{{ s.name }}</span>
+                  <span v-if="s.isBuiltin === 1" class="binding-inline-badge">内置</span>
+                </span>
                 <span v-if="s._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="s._disabled" class="binding-disabled-tag">已禁用</span>
                 <button v-if="!isVersionPreview" class="tag-remove" @click="removeMcpServer(s.id)">
@@ -1179,6 +1182,7 @@
                 @click="!isVersionPreview && toggleMcpServer(s)"
               >
                 <div class="item-icon mcp-icon-bg">
+                  <span v-if="s.isBuiltin === 1" class="builtin-badge">内置</span>
                   <DynamicIcon :name="s.icon" :fallback="s.name" />
                 </div>
                 <div class="item-info">

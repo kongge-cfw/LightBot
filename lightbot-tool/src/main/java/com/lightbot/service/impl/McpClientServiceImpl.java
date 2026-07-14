@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.entity.McpServer;
+import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.McpTransportType;
 import com.lightbot.service.McpClientService;
@@ -152,6 +153,10 @@ public class McpClientServiceImpl implements McpClientService {
         return callbackCache.computeIfAbsent(mcpServerId, id -> {
             McpServer server = mcpServerService.getById(id);
             if (server == null) {
+                return List.of();
+            }
+            if (server.getStatus() != CommonStatus.ACTIVE) {
+                log.info("[MCP] 跳过未启用的 MCP Server: serverId={}, name={}", id, server.getName());
                 return List.of();
             }
 

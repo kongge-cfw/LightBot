@@ -44,6 +44,7 @@ const OcrParseFileResult = defineAsyncComponent(() => import('./tools/OcrParseFi
 const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFileResult.vue'))
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
 const UserMemoryResult = defineAsyncComponent(() => import('./tools/UserMemoryResult.vue'))
+const ChartResult = defineAsyncComponent(() => import('./tools/ChartResult.vue'))
 
 // 工具渲染组件映射
 export const TOOL_RENDERERS = {
@@ -194,3 +195,24 @@ export function hasToolRenderer(toolName) {
   if (!toolName) return false
   return Object.prototype.hasOwnProperty.call(TOOL_RENDERERS, String(toolName).trim())
 }
+
+/**
+ * Yuxi 的 @antv/mcp-server-chart 返回 content block 数组，首项通常为图片 URL。
+ * MCP 工具名并非平台契约，因此同时按图表语义和返回结构识别，避免把服务器名写死在前端。
+ */
+export function isChartToolResult(toolName, result) {
+  const normalizedName = String(toolName || '').toLowerCase()
+  if (/(chart|graph|visual)/.test(normalizedName)) return true
+
+  if (typeof result !== 'string' || !result.trim()) return false
+  try {
+    const parsed = JSON.parse(result)
+    return Array.isArray(parsed) && parsed.some(item =>
+      item?.type === 'image' || (item?.type === 'text' && /^https?:\/\//i.test(String(item.text || '')))
+    )
+  } catch {
+    return false
+  }
+}
+
+export { ChartResult }

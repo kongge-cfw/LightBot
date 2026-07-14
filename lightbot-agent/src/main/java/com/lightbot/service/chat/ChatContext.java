@@ -81,6 +81,10 @@ public class ChatContext {
     private Map<String, String> toolDisplayNameMap;
     /** toolName → icon 映射（前端头像图标用，Ant Design 图标组件名） */
     private Map<String, String> toolIconMap;
+    /** MCP toolName to MCP Server icon for this request. */
+    private Map<String, String> mcpToolIconMap;
+    /** Effective MCP callback names after callback de-duplication. */
+    private Set<String> mcpToolNames;
 
     // ===== 消息ID =====
     /** 用户消息ID（MessageMiddleware 保存后写入） */

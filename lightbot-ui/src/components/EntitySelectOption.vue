@@ -7,6 +7,7 @@
       <img :src="avatarUrl" :alt="name" @error="avatarBroken = true" />
     </span>
     <span v-else class="entity-select-avatar" :style="{ background: gradient }">
+      <span v-if="builtin" class="entity-select-builtin-badge">内置</span>
       <DynamicIcon v-if="icon" :name="icon" :fallback="name" />
       <template v-else>{{ letter }}</template>
     </span>
@@ -33,6 +34,7 @@ const props = defineProps({
   avatarUrl: { type: String, default: '' },
   tag: { type: String, default: '' },
   tagMuted: { type: String, default: '' },
+  builtin: { type: Boolean, default: false },
   desc: { type: String, default: '' },
 })
 
@@ -54,6 +56,7 @@ const letter = computed(() => (props.name || '?')[0].toUpperCase())
   min-width: 0;
 }
 .entity-select-avatar {
+  position: relative;
   width: 22px;
   height: 22px;
   border-radius: 5px;
@@ -65,6 +68,19 @@ const letter = computed(() => (props.name || '?')[0].toUpperCase())
   font-weight: 700;
   flex-shrink: 0;
   overflow: hidden;
+}
+.entity-select-builtin-badge {
+  position: absolute;
+  top: -7px;
+  right: -11px;
+  z-index: 1;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 9px;
+  line-height: 14px;
+  font-weight: 600;
 }
 .entity-select-avatar--img img {
   width: 100%;

@@ -123,7 +123,7 @@
         <a-form-item label="依赖 MCP Server">
           <a-select v-model:value="form.mcpServerIds" mode="multiple" placeholder="选择该 Skill 启用时附带的 MCP Server" style="width: 100%" option-label-prop="label">
             <a-select-option v-for="m in mcpList" :key="m.id" :value="String(m.id)" :label="m.name">
-              <EntitySelectOption type="mcp" :name="m.name" :icon="m.icon" :tag="({ npx: 'NPX', uvx: 'UVX', sse: 'SSE' })[m.installType?.code || m.installType] || m.installType?.code || m.installType || ''" :desc="m.description" />
+              <EntitySelectOption type="mcp" :name="m.name" :icon="m.icon" :builtin="m.isBuiltin === 1" :tag="({ npx: 'NPX', uvx: 'UVX', sse: 'SSE' })[m.installType?.code || m.installType] || m.installType?.code || m.installType || ''" :desc="m.description" />
             </a-select-option>
             <a-select-option v-for="s in staleMcpOptions" :key="s.value" :value="s.value" :label="s.label" disabled>
               <span style="color: #ef4444;">{{ s.label }}</span>
