@@ -33,6 +33,11 @@
       </div>
     </div>
     <div class="chat-topbar-right">
+      <a-tooltip v-if="showRuntimePanel" :title="runtimePanelOpen ? '关闭协作状态' : '打开协作状态'">
+        <button class="btn-topbar-file" :class="{ 'is-active': runtimePanelOpen }" @click="$emit('toggle-runtime-panel')">
+          <DashboardOutlined />
+        </button>
+      </a-tooltip>
       <a-tooltip v-if="showSubagentDrawer" title="子智能体状态">
         <a-badge :count="subagentRunningCount" :offset="[-2, 2]" :overflow-count="9">
           <button class="btn-topbar-file" @click="$emit('open-subagent-drawer')">
@@ -51,13 +56,15 @@
 
 <script setup>
 import { ref } from 'vue'
-import { EditOutlined, CloseOutlined, FolderOpenOutlined, RobotOutlined } from '@ant-design/icons-vue'
+import { EditOutlined, CloseOutlined, DashboardOutlined, FolderOpenOutlined, RobotOutlined } from '@ant-design/icons-vue'
 
 defineProps({
   sessionTitle: { type: String, default: '' },
   titleEditing: { type: Boolean, default: false },
   titleEditValue: { type: String, default: '' },
   showFileDrawer: { type: Boolean, default: true },
+  showRuntimePanel: { type: Boolean, default: false },
+  runtimePanelOpen: { type: Boolean, default: false },
   showSubagentDrawer: { type: Boolean, default: false },
   subagentRunningCount: { type: Number, default: 0 },
   titleEditable: { type: Boolean, default: true },
@@ -69,6 +76,7 @@ defineEmits([
   'cancel-title-edit',
   'update:title-edit-value',
   'open-file-drawer',
+  'toggle-runtime-panel',
   'open-subagent-drawer',
 ])
 
@@ -199,6 +207,11 @@ defineExpose({
 .btn-topbar-file:hover {
   background: var(--color-hairline);
   color: var(--color-ink);
+}
+
+.btn-topbar-file.is-active {
+  background: var(--color-link-bg-soft);
+  color: var(--color-link-deep);
 }
 
 .btn-topbar-debug {

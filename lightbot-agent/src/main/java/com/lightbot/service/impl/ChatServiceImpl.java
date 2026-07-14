@@ -1761,6 +1761,12 @@ public class ChatServiceImpl implements ChatService {
         resultEvt.put("result", truncated);
         resultEvt.put("contentOffset", contentOffset);
         toolEventsList.add(resultEvt);
+        String resultJson = toolEventGenerator.toolResultEvent(toolName, dn, icon, truncated, contentOffset);
+        if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
+            ctx.emitRealtimeStatus(resultJson);
+        } else if (statusFluxes != null) {
+            statusFluxes.add(Flux.just(STATUS_PREFIX + resultJson));
+        }
     }
 
     private String getToolDisplayName(ChatContext ctx, String toolName) {

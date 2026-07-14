@@ -2089,6 +2089,7 @@ const toolSearchText = tools.searchText
 const toolTypeFilter = ref('')
 const toolTypeList = ref([])
 const toolTypeLabels = { builtin: '内置', knowledge: '知识库', api: 'API调用' }
+const automaticSessionToolNames = new Set(['write_todos', 'present_artifacts'])
 const toolTypeOptions = computed(() => {
   const options = [{ value: '', label: '全部' }]
   for (const t of toolTypeList.value) {
@@ -2429,7 +2430,8 @@ const selectedSkills = skill.selected
 
 // filteredToolList 需要额外处理 toolTypeFilter，单独定义
 const filteredToolList = computed(() => {
-  let list = tools.filteredList.value
+  // 会话待办和文件交付由运行时自动注入，避免用户重复绑定并额外占用工具配额。
+  let list = tools.filteredList.value.filter(t => !automaticSessionToolNames.has(t.name))
   if (toolTypeFilter.value) {
     list = list.filter(t => {
       const type = t.toolType?.code || t.toolType

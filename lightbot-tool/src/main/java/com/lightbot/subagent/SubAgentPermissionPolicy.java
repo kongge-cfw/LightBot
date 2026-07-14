@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * SubAgent 工具权限策略。
@@ -28,6 +29,9 @@ import java.util.Map;
 @Component
 @RequiredArgsConstructor
 public class SubAgentPermissionPolicy {
+
+    /** 父会话专属工具：产物只能由主 Agent 汇总后向用户交付。 */
+    private static final Set<String> PARENT_SESSION_TOOL_NAMES = Set.of("present_artifacts");
 
     private final ObjectMapper objectMapper;
 
@@ -49,6 +53,11 @@ public class SubAgentPermissionPolicy {
             }
             if (tool.getStatus() != null && tool.getStatus() != CommonStatus.ACTIVE) {
                 log.warn("[SubAgentPolicy] 拦截禁用工具: subAgent={}, tool={}", subAgent.getName(), tool.getName());
+                continue;
+            }
+            if (PARENT_SESSION_TOOL_NAMES.contains(tool.getName())) {
+                log.warn("[SubAgentPolicy] parent-session tool denied: subAgent={}, tool={}",
+                        subAgent.getName(), tool.getName());
                 continue;
             }
             Map<String, Object> config = parseConfig(tool.getConfig());

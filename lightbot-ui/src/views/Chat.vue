@@ -6,6 +6,8 @@
       :title-editing="titleEditing"
       :title-edit-value="titleEditValue"
       :show-file-drawer="!!sessionId"
+      :show-runtime-panel="!!sessionId"
+      :runtime-panel-open="sessionRuntimePanelOpen"
       :show-subagent-drawer="!!sessionId"
       :subagent-running-count="runningSubagentCount"
       :title-editable="!!sessionId"
@@ -14,9 +16,12 @@
       @cancel-title-edit="cancelTitleEdit"
       @update:title-edit-value="titleEditValue = $event"
       @open-file-drawer="openFileDrawer"
+      @toggle-runtime-panel="sessionRuntimePanelOpen = !sessionRuntimePanelOpen"
       @open-subagent-drawer="subagentRuntimeOpen = true"
     />
 
+    <div class="chat-workspace">
+    <div class="chat-primary">
     <div ref="messagesRef" class="chat-messages">
       <ChatWelcomeState
         v-if="!sessionId && messages.length === 0 && !loadingHistory"
@@ -146,6 +151,17 @@
       @cancel-reply="cancelReply"
       @apply-question="applyRecommendedQuestion"
     />
+    </div>
+
+    <ChatSessionRuntimePanel
+      v-if="sessionId && sessionRuntimePanelOpen"
+      :session-id="sessionId"
+      :messages="messages"
+      :live-events="liveSubagentEvents"
+      @open-files="openFileDrawer"
+      @open-subagent="subagentRuntimeOpen = true"
+    />
+    </div>
 
     <ChatAttachmentPreview
       v-model:open="attachmentPreviewOpen"
@@ -224,6 +240,7 @@ import ChatAskUserModal from '../components/chat/modals/ChatAskUserModal.vue'
 import ChatFeedbackDislikeModal from '../components/chat/modals/ChatFeedbackDislikeModal.vue'
 import ChatSessionFilesDrawer from '../components/chat/session/ChatSessionFilesDrawer.vue'
 import ChatSubAgentRuntimeDrawer from '../components/chat/session/ChatSubAgentRuntimeDrawer.vue'
+import ChatSessionRuntimePanel from '../components/chat/session/ChatSessionRuntimePanel.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
 import { buildSubagentLiveStatusBadges } from '../components/capabilities/subagentEventUtils.js'
 import { useChatAgents } from '../composables/useChatAgents'
@@ -281,6 +298,7 @@ const voiceListening = ref(false)
 const speakingMsgKey = ref(null)
 const subagentRuntimeOpen = ref(false)
 const liveSubagentEvents = ref([])
+const sessionRuntimePanelOpen = ref(false)
 
 const runningSubagentCount = computed(() => {
   const taskStates = new Map()
@@ -601,6 +619,20 @@ watch(sessionId, (newVal, oldVal) => {
   flex-direction: column;
   height: 100vh;
   background: var(--color-canvas);
+}
+
+.chat-workspace {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+}
+
+.chat-primary {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
 }
 
 .chat-messages {

@@ -147,6 +147,10 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             List<ToolCallback> mcpCallbacks = new java.util.ArrayList<>();
             Map<String, String> mcpToolIconMap = new HashMap<>();
 
+            // 0. 会话协作工具由父 Agent 自动获得：维护待办并显式交付 outputs/ 文件。
+            // SubAgent 运行时不经过该中间件，不能获得这些父会话能力。
+            allCallbacks.addAll(toolService.resolveToolCallbacks(List.of("write_todos", "present_artifacts")));
+
             // 1. 加载内置/自定义工具（合并：Agent 自身绑定 + Skill 引入的额外工具）
             // 优先使用版本快照中的绑定 ID，避免暂存/发布混淆
             List<Long> baseToolIds = ctx != null && ctx.getVersionToolIds() != null

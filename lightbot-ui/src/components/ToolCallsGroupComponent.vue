@@ -101,7 +101,6 @@ function toggleExpand(event) {
 const expandedResults = ref(new Set())
 const manualToggled = ref(new Set())
 const expandedArgs = ref(new Set())
-const manualArgToggled = ref(new Set())
 const argsModalOpen = ref(false)
 const argsModalContent = ref('')
 
@@ -115,21 +114,10 @@ function syncExpandedResults() {
   expandedResults.value = s
 }
 
-function syncExpandedArgs() {
-  const next = new Set(expandedArgs.value)
-  props.toolEvents.forEach((event, index) => {
-    if (event.type === 'tool_call' && hasArgs(event) && !manualArgToggled.value.has(index)) {
-      next.add(index)
-    }
-  })
-  expandedArgs.value = next
-}
-
 watch(
   () => props.toolEvents,
   () => {
     syncExpandedResults()
-    syncExpandedArgs()
   },
   { immediate: true, deep: true }
 )
@@ -156,11 +144,19 @@ function resolveEventIcon(evt) {
 }
 
 function hasArgs(evt) {
-  return typeof evt?.args === 'string' && evt.args.trim().length > 0
+  const rawArgs = typeof evt?.args === 'string' ? evt.args.trim() : ''
+  if (!rawArgs) return false
+  try {
+    const parsed = JSON.parse(rawArgs)
+    if (Array.isArray(parsed)) return parsed.length > 0
+    if (parsed && typeof parsed === 'object') return Object.keys(parsed).length > 0
+  } catch {
+    return true
+  }
+  return true
 }
 
 function toggleArgs(index, event) {
-  manualArgToggled.value.add(index)
   const next = new Set(expandedArgs.value)
   if (next.has(index)) next.delete(index)
   else next.add(index)

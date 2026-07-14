@@ -15,7 +15,7 @@
       </a-tabs>
       <div class="toolbar-actions">
         <!-- 工具Tab时显示自动启用工具按钮和类型筛选 -->
-        <DynamicToolDrawer v-if="activeTab === 'tools'" placement="bottomRight" />
+        <DynamicToolDrawer v-if="activeTab === 'tools'" placement="bottomRight" :show-status="false" :show-count="false" />
         <a-select
           v-if="activeTab === 'tools'"
           v-model:value="toolTypeFilter"

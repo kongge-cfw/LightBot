@@ -1,15 +1,15 @@
 <template>
   <slot name="trigger">
-    <a-tooltip title="查看由 Agent 配置自动启用的工具" :placement="placement">
+    <a-tooltip title="查看运行时自动注入的工具" :placement="placement">
       <button type="button" class="btn-dynamic-tool" @click="open">
-        <SettingOutlined /> 自动启用工具
+        <SettingOutlined /> 自动注入工具
       </button>
     </a-tooltip>
   </slot>
 
   <a-drawer
     v-model:open="drawerVisible"
-      title="运行时自动注入能力"
+      title="自动注入工具"
     :width="560"
     :bodyStyle="{ padding: '16px' }"
   >
@@ -18,7 +18,7 @@
     </div>
     <a-spin :spinning="loading">
       <div class="group-list">
-        <section v-for="group in groups" :key="group.key" class="tool-group" :class="{ disabled: !group.enabled }">
+        <section v-for="group in groups" :key="group.key" class="tool-group" :class="{ disabled: showStatus && !group.enabled }">
           <div class="group-head">
             <div>
               <h4>{{ group.title }}</h4>
@@ -35,7 +35,7 @@
               {{ group.enabled ? '已启用' : '未启用' }}
             </span>
           </div>
-          <div v-if="group.reason" class="group-reason">{{ group.reason }}</div>
+          <div v-if="showStatus && group.reason" class="group-reason">{{ group.reason }}</div>
           <div v-if="group.tools.length" class="tool-list">
             <div v-for="tool in group.tools" :key="`${group.key}-${tool.name}`" class="tool-item">
               <span class="tool-name">{{ tool.displayName }}</span>
@@ -99,6 +99,18 @@ const groups = computed(() => {
   const webSearchEnabled = !!props.agentConfig.enableWebSearch
 
   return [
+    {
+      key: 'session-collaboration',
+      title: '会话协作工具',
+      enabled: true,
+      triggerText: '触发条件：主 Agent 会话运行时自动注入',
+      triggerCount: 2,
+      reason: '无需手动绑定，不占用 Agent 工具配额；文件交付仅允许主 Agent 执行。',
+      tools: [
+        { name: 'write_todos', displayName: '更新待办' },
+        { name: 'present_artifacts', displayName: '文件交付' },
+      ],
+    },
     {
       key: 'knowledge',
       title: '知识库工具',
