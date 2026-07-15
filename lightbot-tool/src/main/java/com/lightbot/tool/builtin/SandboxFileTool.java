@@ -20,6 +20,8 @@ import java.util.Map;
  * 内置工具 — 沙盒文件操作
  * <p>提供 Skill 只读访问和工作区读写能力。</p>
  * <p>工作区路径自动注入当前会话 ID，AI 只需传相对路径。</p>
+ * <p>写入内容不设长度上限（对标 Yuxi：write 仅做路径/权限校验，正文原样透传）；
+ * 需要续写时可用 {@code sandbox_append_file} 向同一路径追加。</p>
  *
  * @author finch
  * @since 2026-06-24
@@ -86,19 +88,39 @@ public class SandboxFileTool {
     }
 
     @Tool(name = "sandbox_write_file",
-          description = "写入文件到当前会话。两种写入区域：" +
-                  "1) 工作区（默认，临时/中间文件）: 直接传相对路径如 output.txt 或 data/result.json。" +
-                  "2) AI 产出区（用于交付给用户的最终文件）: 路径以 outputs/ 开头，如 outputs/files/report.pdf，" +
-                  "可配合 present_artifacts 工具交付。" +
-                  "禁止写入 skills/ 路径（只读）。如需创建子目录，直接在路径中包含即可。")
+          description = "写入（覆盖）文件到当前会话。路径含义：" +
+                  "1) 工作区临时/中间文件：相对路径如 notes/draft.md；" +
+                  "2) 交付给用户的最终产物：以 outputs/ 开头，如 outputs/reports/report.md，可再配合 present_artifacts。" +
+                  "禁止写入 skills/。" +
+                  "【大文件必须分段】正文很长（如完整 HTML 页面、长报告）时，单次调用会因模型输出上限被截断导致 content 不完整。" +
+                  "请务必：本次只写开头一段（几百行以内），随后用 sandbox_append_file 向同一路径分多次追加剩余内容，切勿一次性塞入整篇。")
     @SystemTool(displayName = "写入沙盒文件", tags = {"file", "sandbox", "write"})
     public String writeFile(
-            @ToolParam(description = "相对路径。工作区文件如 output.txt；交付文件以 outputs/ 开头如 outputs/files/report.pdf。不要传 skills/ 开头的路径")
-            @ToolParamMeta(example = "output.txt") String path,
-            @ToolParam(description = "文件内容")
-            @ToolParamMeta(example = "Hello World") String content,
+            @ToolParam(description = "相对路径。工作区如 notes/draft.md；交付文件如 outputs/reports/report.md。不要传 skills/")
+            @ToolParamMeta(example = "outputs/reports/report.md") String path,
+            @ToolParam(description = "文件内容（覆盖写入）")
+            @ToolParamMeta(example = "# 标题\\n\\n摘要……") String content,
             ToolContext toolContext) {
-        log.info("[Tool:sandbox_write_file] path={}, contentLen={}", path, content != null ? content.length() : 0);
+        return doWrite(path, content, false, toolContext);
+    }
+
+    @Tool(name = "sandbox_append_file",
+          description = "向已有文件追加内容（不存在则创建）。用于分次写入：" +
+                  "先 sandbox_write_file 写开头，再多次 sandbox_append_file 追加后续章节。" +
+                  "路径规则与 sandbox_write_file 相同。")
+    @SystemTool(displayName = "追加沙盒文件", tags = {"file", "sandbox", "write", "append"})
+    public String appendFile(
+            @ToolParam(description = "相对路径，须与先前 write 使用同一路径")
+            @ToolParamMeta(example = "outputs/reports/report.md") String path,
+            @ToolParam(description = "追加内容")
+            @ToolParamMeta(example = "\\n\\n## 第二节\\n……") String content,
+            ToolContext toolContext) {
+        return doWrite(path, content, true, toolContext);
+    }
+
+    private String doWrite(String path, String content, boolean append, ToolContext toolContext) {
+        log.info("[Tool:sandbox_{}] path={}, contentLen={}",
+                append ? "append_file" : "write_file", path, content != null ? content.length() : 0);
         if (path == null || path.isBlank()) {
             return errorJson("路径不能为空");
         }
@@ -107,14 +129,25 @@ public class SandboxFileTool {
         }
         try {
             SandboxPath sandboxPath = resolvePath(path.trim(), toolContext);
-            sandboxFs.writeFile(sandboxPath, content);
+            if (append) {
+                String existing = "";
+                try {
+                    existing = sandboxFs.readFile(sandboxPath);
+                } catch (Exception ignored) {
+                    // 文件不存在则当作空文件追加
+                }
+                sandboxFs.writeFile(sandboxPath, existing + content);
+            } else {
+                sandboxFs.writeFile(sandboxPath, content);
+            }
             Map<String, Object> output = new LinkedHashMap<>();
             output.put("path", path.trim());
             output.put("size", content.length());
             output.put("success", true);
+            output.put("mode", append ? "append" : "overwrite");
             return toJson(output);
         } catch (Exception e) {
-            return errorJson("写入文件失败: " + e.getMessage());
+            return errorJson((append ? "追加" : "写入") + "文件失败: " + e.getMessage());
         }
     }
 
@@ -144,9 +177,6 @@ public class SandboxFileTool {
         return SandboxPath.workspace(sessionId, normalized);
     }
 
-    /**
-     * 从 ToolContext 提取 sessionId
-     */
     private String extractSessionId(ToolContext toolContext) {
         if (toolContext != null) {
             Object sid = toolContext.getContext().get("sessionId");

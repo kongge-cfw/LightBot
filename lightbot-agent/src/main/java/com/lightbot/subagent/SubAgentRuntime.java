@@ -21,6 +21,7 @@ import com.lightbot.subagent.spi.SubAgentExecutor;
 import com.lightbot.subagent.service.SubAgentTaskEventService;
 import com.lightbot.util.ChatMessageContextUtil;
 import com.lightbot.util.TextNormalizeUtil;
+import com.lightbot.util.ToolArgsSanitizer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -75,6 +76,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
     private final ToolEventGenerator toolEventGenerator;
     private final SubAgentTaskEventService taskEventService;
     private final SubAgentPermissionPolicy permissionPolicy;
+    private final ToolArgsSanitizer toolArgsSanitizer;
 
     /**
      * 子代理执行结果
@@ -282,7 +284,16 @@ public class SubAgentRuntime implements SubAgentExecutor {
                         result = ToolResultPrefixes.failureJson(ToolResultPrefixes.NOT_FOUND + ": " + tc.name());
                     } else {
                         try {
-                            result = cb.call(tc.arguments() != null ? tc.arguments() : "{}",
+                            String rawArgs = tc.arguments() != null ? tc.arguments() : "{}";
+                            String callArgs = rawArgs;
+                            String repaired = toolArgsSanitizer.tryRepairTruncatedWriteArgs(tc.name(), rawArgs);
+                            if (repaired != null) {
+                                callArgs = repaired.replaceAll(",\\s*\"_repairedFromTruncation\"\\s*:\\s*true", "")
+                                        .replaceAll("\"_repairedFromTruncation\"\\s*:\\s*true\\s*,?", "");
+                            } else {
+                                callArgs = toolArgsSanitizer.forChatCall(rawArgs);
+                            }
+                            result = cb.call(callArgs,
                                     new ToolContext(Map.of(
                                             "subAgentId", subAgent.getId(),
                                             "subAgentName", subAgent.getName(),

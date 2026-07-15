@@ -53,6 +53,25 @@ public final class ChatMessageContextUtil {
             }
             return total;
         }
+        if (msg instanceof AssistantMessage am) {
+            int total = 0;
+            String text = am.getText();
+            if (text != null) {
+                total += text.length();
+            }
+            // write_file 等大参数在 toolCalls.arguments 中，必须计入（对标 Yuxi）
+            if (am.hasToolCalls()) {
+                for (AssistantMessage.ToolCall tc : am.getToolCalls()) {
+                    if (tc.arguments() != null) {
+                        total += tc.arguments().length();
+                    }
+                    if (tc.name() != null) {
+                        total += tc.name().length();
+                    }
+                }
+            }
+            return total;
+        }
         String text = msg.getText();
         return text != null ? text.length() : 0;
     }
@@ -91,10 +110,12 @@ public final class ChatMessageContextUtil {
                 }
             } else if (msg instanceof AssistantMessage am) {
                 String text = am.getText();
-                if ((text == null || text.isBlank()) && am.hasToolCalls()) {
+                boolean needBlankFix = (text == null || text.isBlank()) && am.hasToolCalls();
+                List<AssistantMessage.ToolCall> compacted = compactLargeToolCallArgs(am);
+                if (needBlankFix || compacted != null) {
                     messages.set(i, AssistantMessage.builder()
-                            .content(TOOL_CALL_PLACEHOLDER)
-                            .toolCalls(am.getToolCalls())
+                            .content(needBlankFix ? TOOL_CALL_PLACEHOLDER : text)
+                            .toolCalls(compacted != null ? compacted : am.getToolCalls())
                             .build());
                 }
             } else if (msg instanceof ToolResponseMessage trm) {
@@ -201,6 +222,94 @@ public final class ChatMessageContextUtil {
 
         if (estimateTotalChars(messages) > maxChars) {
             shrinkToolResponsePayloads(messages, maxChars);
+        }
+    }
+
+    /**
+     * 压缩 AssistantMessage 中 write/append 类大参数（对标 Yuxi L1）。
+     *
+     * @param am 助手消息
+     * @return 压缩后的 toolCalls；无需压缩时返回 null
+     */
+    public static List<AssistantMessage.ToolCall> compactLargeToolCallArgs(AssistantMessage am) {
+        if (am == null || !am.hasToolCalls()) {
+            return null;
+        }
+        List<AssistantMessage.ToolCall> original = am.getToolCalls();
+        List<AssistantMessage.ToolCall> compacted = new ArrayList<>(original.size());
+        boolean changed = false;
+        for (AssistantMessage.ToolCall tc : original) {
+            String name = tc.name();
+            String args = tc.arguments();
+            String nextArgs = compactWriteStyleArgs(name, args);
+            if (nextArgs != null && !nextArgs.equals(args)) {
+                changed = true;
+                compacted.add(new AssistantMessage.ToolCall(tc.id(), tc.type(), name, nextArgs));
+            } else {
+                compacted.add(tc);
+            }
+        }
+        return changed ? compacted : null;
+    }
+
+    /**
+     * 将含超长字符串的写文件参数替换为短摘要。
+     * <p>不依赖 Spring Bean：用轻量启发式识别 sandbox_write_file / sandbox_append_file。</p>
+     */
+    static String compactWriteStyleArgs(String toolName, String args) {
+        if (toolName == null || args == null || args.isBlank()) {
+            return args;
+        }
+        if (!"sandbox_write_file".equals(toolName) && !"sandbox_append_file".equals(toolName)) {
+            return args;
+        }
+        // 合法 JSON：压缩超长字符串字段
+        if (args.length() <= ToolArgsSanitizer.HISTORY_ARG_MAX_LENGTH * 2
+                && !args.contains("\"content\"")) {
+            return args;
+        }
+        try {
+            // 避免 agent→tool 循环依赖 ObjectMapper 业务逻辑：简单截断 content 值
+            int key = args.indexOf("\"content\"");
+            if (key < 0) {
+                if (args.length() > ToolArgsSanitizer.HISTORY_ARG_MAX_LENGTH) {
+                    return args.substring(0, 20) + "...(argument truncated for context view)";
+                }
+                return args;
+            }
+            int colon = args.indexOf(':', key);
+            int quoteStart = args.indexOf('"', colon + 1);
+            if (quoteStart < 0) {
+                return args.substring(0, Math.min(20, args.length()))
+                        + "...(argument truncated for context view)";
+            }
+            int valueStart = quoteStart + 1;
+            // 找 content 字符串结束（考虑转义）；找不到则整段截断
+            int valueEnd = -1;
+            boolean escaped = false;
+            for (int i = valueStart; i < args.length(); i++) {
+                char c = args.charAt(i);
+                if (escaped) {
+                    escaped = false;
+                    continue;
+                }
+                if (c == '\\') {
+                    escaped = true;
+                    continue;
+                }
+                if (c == '"') {
+                    valueEnd = i;
+                    break;
+                }
+            }
+            String prefix = args.substring(0, valueStart);
+            String suffix = valueEnd >= 0 ? args.substring(valueEnd) : "\"}";
+            String preview = args.substring(valueStart, Math.min(valueStart + 20,
+                    valueEnd >= 0 ? valueEnd : args.length()));
+            return prefix + preview + "...(argument truncated for context view)" + suffix;
+        } catch (Exception e) {
+            return args.substring(0, Math.min(20, args.length()))
+                    + "...(argument truncated for context view)";
         }
     }
 

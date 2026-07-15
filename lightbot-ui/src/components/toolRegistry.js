@@ -79,6 +79,7 @@ export const TOOL_RENDERERS = {
   sandbox_read_file: SandboxFileResult,
   sandbox_list_files: SandboxFileResult,
   sandbox_write_file: SandboxFileResult,
+  sandbox_append_file: SandboxFileResult,
   ocr_parse_file: OcrParseFileResult,
   // 交付 / 安装
   present_artifacts: DeliverFileResult,
@@ -110,6 +111,7 @@ export const TOOL_ICON_MAP = {
   sandbox_read_file: FileTextOutlined,
   sandbox_list_files: FolderOpenOutlined,
   sandbox_write_file: FileTextOutlined,
+  sandbox_append_file: FileTextOutlined,
   ocr_parse_file: ScanOutlined,
   present_artifacts: FolderOpenOutlined,
   install_skill: ThunderboltOutlined,
@@ -149,6 +151,7 @@ export const TOOL_DISPLAY_NAMES = {
   sandbox_read_file: '读取文件',
   sandbox_list_files: '文件列表',
   sandbox_write_file: '写入文件',
+  sandbox_append_file: '追加文件',
   ocr_parse_file: 'OCR 解析文件',
   present_artifacts: '文件交付',
   install_skill: '技能安装',

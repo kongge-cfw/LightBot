@@ -102,10 +102,10 @@
         </div>
       </div>
 
-      <ChatStreamingPlaceholder v-if="loading && !streaming" :status-text="currentStatus" :status-badges="streamingSubagentBadges" />
+      <!-- 回复未终止（loading 为 true）时持续展示回复动画，位于 AI 回复内容下方 -->
       <ChatStreamingPlaceholder
-        v-if="loading && streaming && !hasStreamContent && !hasStreamingAssistantMessage"
-        :status-text="currentStatus"
+        v-if="loading"
+        :status-text="streamingIndicatorText"
         :status-badges="streamingSubagentBadges"
       />
     </div>
@@ -578,9 +578,8 @@ const {
   onSessionMissing: () => router.replace({ path: '/app/chat' }),
 })
 
-const hasStreamingAssistantMessage = computed(() =>
-  messages.value.some(m => m.role === 'assistant' && m._streaming)
-)
+/** 回复动画文案：优先展示具体状态（思考/工具/工作流等），无状态时回退为通用生成提示 */
+const streamingIndicatorText = computed(() => currentStatus.value || '正在生成回复...')
 
 /** 输入框加载遮罩：首次加载 Agent 列表 或 切换会话期间 */
 const inputMaskLoading = computed(() => agentsLoading.value || switchingSession.value)

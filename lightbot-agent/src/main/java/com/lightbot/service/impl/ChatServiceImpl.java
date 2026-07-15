@@ -1272,6 +1272,8 @@ public class ChatServiceImpl implements ChatService {
      * @param messages 消息列表（会被原地修改）
      */
     private void trimToolCallContext(List<org.springframework.ai.chat.messages.Message> messages) {
+        // 1. 压缩历史中的 write_file 大参数（对标 Yuxi L1），再按字符上限裁剪轮次
+        ChatMessageContextUtil.normalizeMessagesForLlm(messages);
         ChatMessageContextUtil.trimToolCallContext(messages, MAX_TOOL_CONTEXT_CHARS, TOOL_ROUNDS_TO_KEEP);
     }
 
@@ -1284,8 +1286,20 @@ public class ChatServiceImpl implements ChatService {
                 if (chatContext != null && chatContext.isAborted()) {
                     return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
                 }
+                // 参数可能因 maxTokens 在字符串中途被截断：写文件场景先尝试修复再执行
+                String effectiveArgs = callArgs;
+                boolean repairedTruncation = false;
+                if (isLikelyTruncatedJson(effectiveArgs)) {
+                    String repaired = toolArgsSanitizer.tryRepairTruncatedWriteArgs(toolName, effectiveArgs);
+                    if (repaired != null) {
+                        effectiveArgs = stripInternalRepairFlags(repaired);
+                        repairedTruncation = true;
+                        log.warn("[Chat] 工具参数疑似截断，已修复后执行: name={}, rawLen={}, repairedLen={}",
+                                toolName, callArgs != null ? callArgs.length() : 0, effectiveArgs.length());
+                    }
+                }
                 // 2.1 工具执行超时保护：CompletableFuture 包装 + get(timeout)，防止 MCP 工具卡死
-                long timeoutSeconds = resolveToolExecutionTimeoutSeconds(toolName, callArgs);
+                long timeoutSeconds = resolveToolExecutionTimeoutSeconds(toolName, effectiveArgs);
                 Map<String, Object> ctxMap = new java.util.HashMap<>();
                 ctxMap.put("agentId", agentId);
                 ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
@@ -1296,6 +1310,7 @@ public class ChatServiceImpl implements ChatService {
                 if (chatContext != null && !mcpTool) {
                     ctxMap.put("chatContext", chatContext);
                 }
+                final String argsForCall = effectiveArgs != null ? effectiveArgs : "{}";
                 String result = CompletableFuture.supplyAsync(() -> {
                     try {
                         if (chatContext != null && chatContext.isAborted()) {
@@ -1305,7 +1320,7 @@ public class ChatServiceImpl implements ChatService {
                         if (eventSink != null) {
                             ToolEventEmitter.setupSink(eventSink);
                         }
-                        return callback.call(callArgs, new ToolContext(ctxMap));
+                        return callback.call(argsForCall, new ToolContext(ctxMap));
                     } finally {
                         if (eventSink != null) {
                             ToolEventEmitter.teardownSink();
@@ -1314,6 +1329,9 @@ public class ChatServiceImpl implements ChatService {
                 }, lightBotExecutor).get(timeoutSeconds, TimeUnit.SECONDS);
                 if (chatContext != null && chatContext.isAborted()) {
                     return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
+                }
+                if (repairedTruncation && !ToolResultPrefixes.isError(result)) {
+                    result = appendTruncationContinueHint(result, toolName);
                 }
                 if (!ToolResultPrefixes.isError(result)) {
                     sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, result);
@@ -1324,12 +1342,92 @@ public class ChatServiceImpl implements ChatService {
                 log.error("[Chat] 工具执行超时: name={}, timeout={}s", toolName, timeoutSeconds);
                 return ToolResultPrefixes.failureJson("工具执行超时（" + timeoutSeconds + "秒），请稍后重试");
             } catch (Exception e) {
+                // 工具参数 JSON 不完整（多为模型输出被 maxTokens 截断，字符串未闭合）
+                if (isToolArgsParseError(e)) {
+                    String repaired = toolArgsSanitizer.tryRepairTruncatedWriteArgs(toolName, callArgs);
+                    if (repaired != null) {
+                        try {
+                            String retryArgs = stripInternalRepairFlags(repaired);
+                            log.warn("[Chat] 工具参数解析失败后二次修复重试: name={}", toolName);
+                            // 避免递归死循环：直接再调一次 callback（同步）
+                            Map<String, Object> ctxMap = new java.util.HashMap<>();
+                            ctxMap.put("agentId", agentId);
+                            ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
+                            ctxMap.put("requestId", requestId);
+                            String retryResult = callback.call(retryArgs, new ToolContext(ctxMap));
+                            if (!ToolResultPrefixes.isError(retryResult)) {
+                                sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, retryResult);
+                                return appendTruncationContinueHint(retryResult, toolName);
+                            }
+                            return retryResult;
+                        } catch (Exception retryEx) {
+                            log.error("[Chat] 截断参数修复后仍失败: name={}, error={}", toolName, retryEx.getMessage());
+                        }
+                    }
+                    log.error("[Chat] 工具参数解析失败(疑似模型输出被截断): name={}, argsLen={}, error={}",
+                            toolName, callArgs != null ? callArgs.length() : 0, e.getMessage());
+                    return ToolResultPrefixes.failureJson("工具参数不完整，可能因单次输出超过模型 maxTokens 被截断。"
+                            + "请改用「分段写入」：先 sandbox_write_file 写开头，再用 sandbox_append_file 追加剩余内容，"
+                            + "每段控制在模型单次输出能容纳的长度内。");
+                }
                 log.error("[Chat] 工具执行异常: name={}, error={}", toolName, e.getMessage(), e);
                 return ToolResultPrefixes.failureJson(ToolResultPrefixes.FAILURE + ": " + e.getMessage());
             }
         }
         log.warn("[Chat][Trace] 工具不存在: name={}, 可用工具={}", toolName, toolCallbackMap.keySet());
         return ToolResultPrefixes.failureJson(ToolResultPrefixes.NOT_FOUND + ": " + toolName);
+    }
+
+    /** 粗判 JSON 是否因截断而不完整（无法 parse 或括号/引号不平衡） */
+    private static boolean isLikelyTruncatedJson(String args) {
+        if (args == null || args.isBlank()) {
+            return false;
+        }
+        String trimmed = args.trim();
+        if (!trimmed.startsWith("{")) {
+            return true;
+        }
+        try {
+            new com.fasterxml.jackson.databind.ObjectMapper().readTree(trimmed);
+            return false;
+        } catch (Exception e) {
+            return true;
+        }
+    }
+
+    private static String stripInternalRepairFlags(String json) {
+        if (json == null) {
+            return "{}";
+        }
+        // 去掉内部标记字段，避免 MethodToolCallback 因未知参数失败
+        return json.replaceAll(",\\s*\"_repairedFromTruncation\"\\s*:\\s*true", "")
+                .replaceAll("\"_repairedFromTruncation\"\\s*:\\s*true\\s*,?", "");
+    }
+
+    private static String appendTruncationContinueHint(String result, String toolName) {
+        if (result == null || result.isBlank()) {
+            return result;
+        }
+        if (!"sandbox_write_file".equals(toolName) && !"sandbox_append_file".equals(toolName)) {
+            return result;
+        }
+        if (result.contains("continueWithAppend") || result.contains("sandbox_append_file")) {
+            return result;
+        }
+        try {
+            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(result);
+            if (!(node instanceof com.fasterxml.jackson.databind.node.ObjectNode obj)) {
+                return result;
+            }
+            obj.put("truncatedRecovered", true);
+            obj.put("continueWithAppend", true);
+            obj.put("hint", "本段因模型输出长度限制被截断，已尽量写入可读前缀。"
+                    + "请立刻对同一 path 调用 sandbox_append_file 追加剩余正文，勿再次整篇 write。");
+            return mapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            return result;
+        }
     }
 
     private long resolveToolExecutionTimeoutSeconds(String toolName, String callArgs) {
@@ -1683,6 +1781,11 @@ public class ChatServiceImpl implements ChatService {
         }
     }
 
+    /** SSE/落库展示用：写文件大参数改为短摘要，避免前端与 metadata 膨胀 */
+    private String compactArgsForEvent(String toolName, String args) {
+        return toolArgsSanitizer.compactForHistory(toolName, args);
+    }
+
     private void appendToolCallStart(ChatContext ctx, List<Map<String, Object>> toolEventsList,
                                      List<Flux<String>> statusFluxes,
                                      String toolName, String args, int contentOffset) {
@@ -1712,12 +1815,12 @@ public class ChatServiceImpl implements ChatService {
         callEvt.put("toolName", toolName);
         if (dn != null) callEvt.put("displayName", dn);
         if (icon != null) callEvt.put("icon", icon);
-        callEvt.put("args", args);
+        callEvt.put("args", compactArgsForEvent(toolName, args));
         callEvt.put("contentOffset", contentOffset);
         putContentPrefixAnchor(ctx, callEvt, contentOffset);
         int normalizedOffset = callEvt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
         toolEventsList.add(callEvt);
-        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, icon, args, normalizedOffset);
+        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, icon, compactArgsForEvent(toolName, args), normalizedOffset);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(callJson);
         } else if (statusFluxes != null) {
@@ -2092,5 +2195,23 @@ public class ChatServiceImpl implements ChatService {
         if (value == null) return null;
         if (value instanceof Number n) return n.longValue();
         try { return Long.parseLong(value.toString()); } catch (NumberFormatException e) { return null; }
+    }
+
+    /**
+     * 判断异常是否为工具参数 JSON 解析失败（多因模型输出被 maxTokens 截断导致 JSON 未闭合）。
+     * 遍历 cause 链，命中 Jackson 的 JSON 解析异常即认定。
+     *
+     * @param e 工具执行捕获到的异常
+     * @return true 表示为参数解析失败，应返回可读提示而非底层报错
+     */
+    private static boolean isToolArgsParseError(Throwable e) {
+        Throwable cause = e;
+        while (cause != null) {
+            if (cause instanceof com.fasterxml.jackson.core.JsonProcessingException) {
+                return true;
+            }
+            cause = cause.getCause();
+        }
+        return false;
     }
 }

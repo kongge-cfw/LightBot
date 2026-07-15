@@ -43,7 +43,7 @@ public class SessionAttachmentRegistrar {
         try {
             List<SessionAttachmentVO> toRegister = switch (toolName) {
                 case "image_generation" -> parseImageGeneration(sessionId, toolResult);
-                case "sandbox_write_file" -> parseSandboxWrite(sessionId, toolResult);
+                case "sandbox_write_file", "sandbox_append_file" -> parseSandboxWrite(sessionId, toolResult);
                 case "present_artifacts" -> parsePresentArtifacts(sessionId, toolResult);
                 default -> List.of();
             };
