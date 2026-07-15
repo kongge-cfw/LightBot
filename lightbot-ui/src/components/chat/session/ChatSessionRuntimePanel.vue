@@ -118,7 +118,7 @@
             <transition-group v-if="runtimeRuns.length" name="subagent-card" tag="div" class="subagent-list">
               <div v-for="run in runtimeRuns" :key="run.task_id" class="subagent-run">
                 <a-button type="text" class="subagent-card" block :class="`is-${run.status}`"
-                  :aria-expanded="isTaskExpanded(run.task_id)" @click="toggleTaskDetail(run.task_id)">
+                  @click="openDetail(run)">
                   <span class="subagent-avatar"><RobotOutlined /></span>
                   <span class="subagent-main">
                     <span class="subagent-name-row"><strong>{{ displayNameOf(run) }}</strong><a-tag class="subagent-status" :class="`is-${run.status}`">{{ statusLabel(run.status) }}</a-tag></span>
@@ -126,17 +126,8 @@
                     <span class="subagent-output">{{ run.liveOutput || run.progress_summary || run.status_label || '等待调度' }}</span>
                   </span>
                   <LoadingOutlined v-if="isRunning(run.status)" spin class="subagent-spinner" />
-                  <RightOutlined class="subagent-expand-arrow" :class="{ expanded: isTaskExpanded(run.task_id) }" />
+                  <RightOutlined class="subagent-expand-arrow" />
                 </a-button>
-                <transition name="subagent-process">
-                  <div v-if="isTaskExpanded(run.task_id)" class="subagent-process" aria-label="子智能体执行过程">
-                    <div v-for="step in executionSteps(run)" :key="step.key" class="subagent-process-step" :class="`is-${step.kind}`">
-                      <span class="subagent-process-dot"></span>
-                      <span class="subagent-process-main"><strong>{{ step.title }}</strong><small v-if="step.detail">{{ step.detail }}</small></span>
-                    </div>
-                    <div v-if="!executionSteps(run).length" class="subagent-process-empty">执行过程将在子智能体开始工作后实时展示。</div>
-                  </div>
-                </transition>
               </div>
             </transition-group>
             <a-empty v-else :image="emptyImage" description="本次任务暂无子智能体" class="runtime-empty" />
@@ -144,6 +135,13 @@
         </transition>
       </section>
     </div>
+
+    <SubAgentTaskDetailModal
+      v-model:open="detailOpen"
+      :session-id="sessionId"
+      :task="selectedTask"
+      :live-events="liveEvents"
+    />
   </aside>
 </template>
 
@@ -156,7 +154,9 @@ import {
   ReloadOutlined, RightOutlined, RobotOutlined,
 } from '@ant-design/icons-vue'
 import { getSessionAttachments } from '../../../api/chatSession'
-import { getResearchTaskProjection, getSubAgentRunEvents, getSubAgentRuntimeSummaries } from '../../../api/subagent'
+import { getResearchTaskProjection, getSubAgentRuntimeSummaries } from '../../../api/subagent'
+import { pickFresher } from '../../../utils/subagentRuntime'
+import SubAgentTaskDetailModal from './SubAgentTaskDetailModal.vue'
 
 const props = defineProps({
   sessionId: { type: [String, Number], default: null },
@@ -174,9 +174,8 @@ const attachments = ref([])
 const dbRuns = ref([])
 const projection = ref(null)
 const expandedSections = ref(new Set())
-const expandedTaskIds = ref(new Set())
-const persistedTaskEvents = ref(new Map())
-const persistedTaskEventCursors = ref(new Map())
+const detailOpen = ref(false)
+const selectedTask = ref(null)
 const refreshing = ref(false)
 let refreshTimer = null
 
@@ -191,55 +190,10 @@ function toggleSection(key) {
   expandedSections.value = next
 }
 
-function isTaskExpanded(taskId) { return expandedTaskIds.value.has(String(taskId)) }
-function toggleTaskDetail(taskId) {
-  const next = new Set(expandedTaskIds.value)
-  const key = String(taskId)
-  if (next.has(key)) {
-    next.delete(key)
-  } else {
-    next.add(key)
-    loadTaskEvents(key)
-  }
-  expandedTaskIds.value = next
-}
-
-/** 刷新或重进页面后，按任务补齐已持久化的执行过程。 */
-async function loadTaskEvents(taskId, incremental = false) {
-  if (!props.sessionId || !taskId) return
-  try {
-    const key = String(taskId)
-    const cursor = incremental ? persistedTaskEventCursors.value.get(key) : null
-    const response = await getSubAgentRunEvents(taskId, props.sessionId, cursor, 100)
-    const records = response.data?.events || []
-    const events = records.map(record => {
-      let payload = record.payload
-      if (typeof payload === 'string') {
-        try { payload = JSON.parse(payload) } catch { payload = {} }
-      }
-      return {
-        ...(payload && typeof payload === 'object' ? payload : {}),
-        type: payload?.type || record.type,
-        task_id: payload?.task_id || taskId,
-        create_time: record.create_time,
-        cursor: record.cursor,
-      }
-    })
-    const current = incremental ? (persistedTaskEvents.value.get(key) || []) : []
-    const unique = new Map(current.map(event => [String(event.cursor || `${event.type}-${event.create_time}`), event]))
-    events.forEach(event => unique.set(String(event.cursor || `${event.type}-${event.create_time}`), event))
-    const next = new Map(persistedTaskEvents.value)
-    next.set(key, [...unique.values()])
-    persistedTaskEvents.value = next
-    const nextCursor = response.data?.next_cursor
-    if (nextCursor) {
-      const cursors = new Map(persistedTaskEventCursors.value)
-      cursors.set(key, nextCursor)
-      persistedTaskEventCursors.value = cursors
-    }
-  } catch {
-    // 事件补齐失败时仍可通过 SSE 继续展示实时过程。
-  }
+/** 打开子智能体详情弹窗：完整详情（实时/最终输出、工具、事件、子线程）由共享组件加载 */
+function openDetail(run) {
+  selectedTask.value = run
+  detailOpen.value = true
 }
 
 function parseResult(event) {
@@ -321,16 +275,10 @@ const liveTaskStates = computed(() => {
   return states
 })
 
-const terminalStatuses = new Set(['completed', 'failed', 'cancelled', 'timeout'])
 const runtimeRuns = computed(() => {
   const merged = new Map(dbRuns.value.map(run => [String(run.task_id), { ...run }]))
   for (const [taskId, live] of liveTaskStates.value) {
-    const persisted = merged.get(taskId)
-    if (persisted && terminalStatuses.has(persisted.status) && !terminalStatuses.has(live.status)) {
-      merged.set(taskId, { ...live, ...persisted, liveOutput: live.liveOutput })
-    } else {
-      merged.set(taskId, { ...persisted, ...live })
-    }
+    merged.set(taskId, pickFresher(merged.get(taskId), live))
   }
   return [...merged.values()].sort((a, b) => Number(isRunning(b.status)) - Number(isRunning(a.status)))
 })
@@ -350,49 +298,6 @@ function statusLabel(status) {
   return ({ pending: '待调度', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消', timeout: '超时' })[status] || '处理中'
 }
 function displayNameOf(run) { return run.display_name || run.displayName || run.subagent_name || run.subagentName || '子智能体' }
-
-/**
- * 协作侧栏只渲染当前任务的 SSE 过程；会话级历史由独立的子智能体状态抽屉承载。
- */
-function executionSteps(run) {
-  const taskId = String(run?.task_id || '')
-  if (!taskId) return []
-  const steps = []
-  let outputStep = null
-  const realtimeEvents = props.liveEvents.filter(event => String(event?.task_id || '') === taskId)
-  const sourceEvents = realtimeEvents.length ? realtimeEvents : (persistedTaskEvents.value.get(taskId) || [])
-  for (const event of sourceEvents) {
-    const key = `${event.type}-${event.timestamp || event.create_time || steps.length}`
-    if (event.type === 'subagent_task_start') {
-      steps.push({ key, kind: 'running', title: '开始执行' })
-    } else if (event.type === 'subagent_tool_call') {
-      steps.push({ key, kind: 'running', title: `调用工具：${event.toolDisplayName || event.toolName || '工具'}` })
-    } else if (event.type === 'subagent_tool_result') {
-      steps.push({ key, kind: 'running', title: `工具完成：${event.toolDisplayName || event.toolName || '工具'}` })
-    } else if (event.type === 'subagent_token') {
-      const content = String(event.content || '')
-      if (!outputStep) {
-        outputStep = { key: 'live-output', kind: 'running', title: '实时输出', detail: '' }
-        steps.push(outputStep)
-      }
-      outputStep.detail = `${outputStep.detail}${content}`.slice(-280)
-    } else if (event.type === 'subagent_error') {
-      steps.push({ key, kind: 'failed', title: '执行异常', detail: event.message || '子智能体执行失败' })
-    } else if (event.type === 'subagent_task_done') {
-      const reply = event.result?.reply || ''
-      steps.push({
-        key,
-        kind: event.status === 'completed' ? 'completed' : 'failed',
-        title: event.status === 'completed' ? '任务已完成' : '任务已结束',
-        detail: reply ? String(reply).slice(-280) : '',
-      })
-    }
-  }
-  if (!steps.length && (run.liveOutput || run.progress_summary)) {
-    steps.push({ key: 'summary', kind: run.status || 'running', title: run.progress_summary || '执行中', detail: run.liveOutput || '' })
-  }
-  return steps
-}
 
 async function refreshAttachments() {
   if (props.parentRequestId) return
@@ -447,7 +352,6 @@ async function refreshRuntimeState() {
   const minDelay = new Promise(resolve => setTimeout(resolve, 500))
   try {
     await Promise.all([refreshProjection(), refreshAttachments(), refreshRuns(), minDelay])
-    await Promise.all([...expandedTaskIds.value].map(taskId => loadTaskEvents(taskId, true)))
   } finally {
     refreshing.value = false
   }
@@ -477,9 +381,8 @@ watch(() => [props.taskIds, props.parentRequestId], () => {
   refreshRuns()
 }, { deep: true })
 watch(() => props.parentRequestId, () => {
-  expandedTaskIds.value = new Set()
-  persistedTaskEvents.value = new Map()
-  persistedTaskEventCursors.value = new Map()
+  detailOpen.value = false
+  selectedTask.value = null
   projection.value = null
 })
 watch(() => artifacts.value.length, refreshAttachments)
@@ -499,8 +402,7 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 .usage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.usage-grid span { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: var(--color-canvas); }.usage-grid small { color: var(--color-mute); font-size: 11px; }.usage-grid strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
 .file-item, .artifact-card, .subagent-card { display: flex !important; width: 100%; height: auto !important; align-items: flex-start; justify-content: flex-start; gap: 8px; padding: 7px 8px !important; border-radius: 8px !important; color: var(--color-body) !important; text-align: left; white-space: normal !important; }.file-item:hover, .artifact-card:hover, .subagent-card:hover { background: var(--color-canvas-soft-2) !important; color: var(--color-ink) !important; }.file-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.runtime-more { align-self: flex-start; padding: 0 !important; }
 .artifact-card > :first-child { margin-top: 3px; color: #9333ea; }.artifact-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.artifact-main strong, .artifact-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.artifact-main strong { color: var(--color-ink); font-size: 12px; }.artifact-main small { color: var(--color-mute); font-size: 11px; }
-.subagent-run { display: flex; flex-direction: column; gap: 6px; }.subagent-card { position: relative; min-width: 0; border: 1px solid var(--color-hairline) !important; background: var(--color-canvas) !important; }.subagent-card.is-running { border-color: color-mix(in srgb, var(--color-link) 35%, var(--color-hairline)) !important; }.subagent-avatar { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 28px; border-radius: 8px; background: #ffedd5; color: #c2410c; }.subagent-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.subagent-name-row { display: flex; min-width: 0; align-items: center; gap: 5px; }.subagent-name-row strong { overflow: hidden; flex: 1; color: var(--color-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.subagent-status { margin: 0; border: 0; border-radius: 4px; font-size: 10px; line-height: 18px; }.subagent-status.is-running, .subagent-status.is-pending { color: #1d4ed8; background: #dbeafe; }.subagent-status.is-completed { color: #15803d; background: #dcfce7; }.subagent-status.is-failed, .subagent-status.is-timeout, .subagent-status.is-cancelled { color: #b91c1c; background: #fee2e2; }.subagent-task, .subagent-output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.subagent-task { color: var(--color-body); font-size: 11px; }.subagent-output { color: var(--color-mute); font-size: 11px; }.subagent-spinner { align-self: center; color: var(--color-link); }.subagent-expand-arrow { align-self: center; flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.subagent-expand-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.subagent-process { position: relative; margin: -1px 4px 2px 16px; padding: 8px 8px 4px 16px; border-left: 1px solid var(--color-hairline-strong); background: color-mix(in srgb, var(--color-canvas-soft) 82%, transparent); }.subagent-process-step { position: relative; display: flex; gap: 7px; padding: 0 0 8px; color: var(--color-body); font-size: 11px; line-height: 1.45; }.subagent-process-dot { position: absolute; top: 5px; left: -21px; width: 8px; height: 8px; border: 2px solid var(--color-canvas); border-radius: 50%; background: var(--color-mute); box-shadow: 0 0 0 1px var(--color-hairline-strong); }.subagent-process-step.is-running .subagent-process-dot, .subagent-process-step.is-pending .subagent-process-dot { background: var(--color-link); animation: subagent-process-pulse 1.3s ease-in-out infinite; }.subagent-process-step.is-completed .subagent-process-dot { background: var(--color-success); }.subagent-process-step.is-failed .subagent-process-dot { background: var(--color-error); }.subagent-process-main { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.subagent-process-main strong { color: var(--color-body); font-weight: 500; }.subagent-process-main small { max-height: 64px; overflow: hidden; color: var(--color-mute); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }.subagent-process-empty { padding-bottom: 5px; color: var(--color-mute); font-size: 11px; }.subagent-process-enter-active, .subagent-process-leave-active { transition: opacity .18s ease, transform .18s ease; }.subagent-process-enter-from, .subagent-process-leave-to { opacity: 0; transform: translateY(-4px); }.subagent-card-enter-active, .subagent-card-leave-active { transition: opacity .22s ease, transform .22s ease; }.subagent-card-enter-from, .subagent-card-leave-to { opacity: 0; transform: translateY(8px); }
-@keyframes subagent-process-pulse { 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-link) 18%, transparent); } }
+.subagent-run { display: flex; flex-direction: column; gap: 6px; }.subagent-card { position: relative; min-width: 0; border: 1px solid var(--color-hairline) !important; background: var(--color-canvas) !important; }.subagent-card.is-running { border-color: color-mix(in srgb, var(--color-link) 35%, var(--color-hairline)) !important; }.subagent-avatar { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 28px; border-radius: 8px; background: #ffedd5; color: #c2410c; }.subagent-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.subagent-name-row { display: flex; min-width: 0; align-items: center; gap: 5px; }.subagent-name-row strong { overflow: hidden; flex: 1; color: var(--color-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.subagent-status { margin: 0; border: 0; border-radius: 4px; font-size: 10px; line-height: 18px; }.subagent-status.is-running, .subagent-status.is-pending { color: #1d4ed8; background: #dbeafe; }.subagent-status.is-completed { color: #15803d; background: #dcfce7; }.subagent-status.is-failed, .subagent-status.is-timeout, .subagent-status.is-cancelled { color: #b91c1c; background: #fee2e2; }.subagent-task, .subagent-output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.subagent-task { color: var(--color-body); font-size: 11px; }.subagent-output { color: var(--color-mute); font-size: 11px; }.subagent-spinner { align-self: center; color: var(--color-link); }.subagent-expand-arrow { align-self: center; flex: 0 0 auto; color: var(--color-mute); font-size: 11px; }.subagent-card-enter-active, .subagent-card-leave-active { transition: opacity .22s ease, transform .22s ease; }.subagent-card-enter-from, .subagent-card-leave-to { opacity: 0; transform: translateY(8px); }
 @keyframes runtime-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1100px) { .runtime-panel { display: none; } }
 </style>

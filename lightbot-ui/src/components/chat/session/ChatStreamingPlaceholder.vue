@@ -2,9 +2,9 @@
   <div class="message assistant">
     <div class="message-body">
       <div class="message-content status-content">
-        <div class="status-loading">
+        <div v-if="statusBadges.length" class="status-loading">
           <span class="status-spinner"></span>
-          <div v-if="statusBadges.length" class="status-badges">
+          <div class="status-badges">
             <span
               v-for="badge in statusBadges"
               :key="badge.key"
@@ -15,8 +15,8 @@
               {{ badge.label }}
             </span>
           </div>
-          <span v-else class="status-text">{{ statusText || '正在思考...' }}</span>
         </div>
+        <span v-else class="status-shimmer">{{ statusText || '正在思考...' }}</span>
       </div>
     </div>
   </div>
@@ -76,9 +76,27 @@ defineProps({
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
-.status-text {
-  font-size: 13px;
-  color: var(--color-body);
+/* 无子智能体徽章时：不包裹气泡，纯文字 + 流光呼吸动画 */
+.status-shimmer {
+  font-size: 15px;
+  font-weight: 500;
+  background: linear-gradient(
+    90deg,
+    var(--color-mute) 0%,
+    var(--color-mute) 35%,
+    var(--color-ink) 50%,
+    var(--color-mute) 65%,
+    var(--color-mute) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: shimmerText 1.8s linear infinite;
+}
+@keyframes shimmerText {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
 }
 .status-badges {
   display: flex;
