@@ -133,7 +133,7 @@ public class ResearchTaskProjectionServiceImpl implements ResearchTaskProjection
                 }
                 String toolName = event.path("toolName").asText();
                 JsonNode result = readJson(event.path("result").asText(null));
-                if (("write_todos".equals(toolName) || "write_todo".equals(toolName))
+                if ("write_todos".equals(toolName)
                         && result.path("success").asBoolean(false) && result.path("todos").isArray()) {
                     todos.clear();
                     result.path("todos").forEach(item -> todos.add(objectMapper.convertValue(item, Map.class)));

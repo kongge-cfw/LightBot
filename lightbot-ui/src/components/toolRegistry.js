@@ -19,6 +19,7 @@ import {
   BranchesOutlined,
   FolderOpenOutlined,
   ScanOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons-vue'
 import { defineAsyncComponent } from 'vue'
 
@@ -45,6 +46,7 @@ const DeliverFileResult = defineAsyncComponent(() => import('./tools/DeliverFile
 const InstallSkillResult = defineAsyncComponent(() => import('./tools/InstallSkillResult.vue'))
 const UserMemoryResult = defineAsyncComponent(() => import('./tools/UserMemoryResult.vue'))
 const ChartResult = defineAsyncComponent(() => import('./tools/ChartResult.vue'))
+const WriteTodosResult = defineAsyncComponent(() => import('./tools/WriteTodosResult.vue'))
 
 // 工具渲染组件映射
 export const TOOL_RENDERERS = {
@@ -65,6 +67,8 @@ export const TOOL_RENDERERS = {
   pg_query: PgSqlQueryResult,
   // 交互
   ask_user: AskUserResult,
+  // 协作待办：避免在对话中直接回显工具 JSON
+  write_todos: WriteTodosResult,
   // 图片
   image_generation: ImageGenResult,
   // 技能
@@ -98,6 +102,7 @@ export const TOOL_ICON_MAP = {
   pg_describe_table: TableOutlined,
   pg_query: CodeOutlined,
   ask_user: QuestionCircleOutlined,
+  write_todos: CheckSquareOutlined,
   image_generation: PictureOutlined,
   read_skill: ThunderboltOutlined,
   list_skill_files: FolderOpenOutlined,
@@ -136,6 +141,7 @@ export const TOOL_DISPLAY_NAMES = {
   pg_describe_table: '表结构',
   pg_query: 'SQL查询',
   ask_user: '向用户提问',
+  write_todos: '更新待办',
   image_generation: '图片生成',
   read_skill: '读取技能',
   list_skill_files: '技能文件列表',

@@ -1553,7 +1553,7 @@ COMMENT ON TABLE subagent_run IS 'SubAgent 运行记录表';
 COMMENT ON COLUMN subagent_run.batch_id IS 'SubAgent 委派批次ID';
 COMMENT ON COLUMN subagent_run.parent_request_id IS '父 Agent 请求ID';
 COMMENT ON COLUMN subagent_run.parent_session_id IS '父 Agent 会话ID';
-COMMENT ON COLUMN subagent_run.mode IS '委派模式：sync/parallel/background';
+COMMENT ON COLUMN subagent_run.mode IS '委派模式：sync/parallel';
 COMMENT ON COLUMN subagent_run.cancel_requested IS '是否请求取消：0否 1是';
 
 -- ============================================================================
@@ -1628,4 +1628,3 @@ COMMENT ON COLUMN api_key.rate_limit IS '每分钟调用上限，默认60';
 COMMENT ON COLUMN api_key.daily_quota IS '每日Token配额，默认100000';
 COMMENT ON COLUMN api_key.used_tokens IS '当日已用Token数';
 COMMENT ON COLUMN api_key.quota_reset_at IS '配额重置日期（每日重置时比较）';
-

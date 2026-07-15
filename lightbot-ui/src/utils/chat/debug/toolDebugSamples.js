@@ -181,6 +181,15 @@ export const TOOL_DEBUG_SAMPLES = {
     break_loop: true,
   }),
 
+  write_todos: sample('write_todos', {
+    success: true,
+    todos: [
+      { id: 'scope', content: '确认调研范围与交付形式', status: 'completed' },
+      { id: 'research', content: '并行收集并核验资料', status: 'in_progress' },
+      { id: 'report', content: '整理结论并输出报告', status: 'pending' },
+    ],
+  }),
+
   image_generation: sample('image_generation', {
     image_url: 'https://picsum.photos/seed/lightbot-debug/512/512',
     prompt: 'A minimalist robot assistant icon, flat design, soft blue background',
@@ -358,6 +367,11 @@ export const TOOL_DEBUG_ERROR_SAMPLES = {
   pg_describe_table: { _error: true, message: '工具执行失败: 表 agent_backup 不存在' },
   pg_query: { _error: true, message: '工具执行失败: SQL 语法错误' },
   ask_user: { _error: true, message: '工具执行失败: 问题内容不能为空' },
+  write_todos: {
+    success: false,
+    message: '更新待办失败：待办 id 不能为空',
+    todos: [],
+  },
   image_generation: '图片生成过程中发生错误: 模型未配置或 API Key 无效',
   read_skill: '读取技能失败: 技能 code-review 不存在',
   list_skill_files: '技能不存在: unknown-skill',

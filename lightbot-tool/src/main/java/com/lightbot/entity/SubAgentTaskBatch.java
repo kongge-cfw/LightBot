@@ -46,7 +46,7 @@ public class SubAgentTaskBatch {
     private Long parentSessionId;
 
     @TableField("mode")
-    @Schema(description = "委派模式：sync/parallel/background")
+    @Schema(description = "委派模式：sync/parallel")
     private String mode;
 
     @TableField("aggregation")

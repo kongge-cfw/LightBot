@@ -16,7 +16,6 @@ import com.lightbot.subagent.spi.SubAgentDefinition;
 import com.lightbot.subagent.spi.SubAgentDefinitionResolver;
 import com.lightbot.subagent.spi.SubAgentExecutor;
 import com.lightbot.subagent.spi.SubAgentTaskRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -40,7 +39,6 @@ import java.util.concurrent.Executor;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class SubAgentTaskServiceImpl implements SubAgentTaskService {
 
     private static final int MAX_TASKS = 5;
@@ -54,8 +52,41 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private final SubAgentTaskEventService taskEventService;
     private final SubAgentThreadManager threadManager;
     private final SubAgentService subAgentService;
-    @Qualifier("lightBotExecutor")
-    private final Executor lightBotExecutor;
+    private final Executor subAgentExecutor;
+
+    /**
+     * 显式构造器确保子智能体执行器按 Bean 名称注入；不能依赖 Lombok
+     * 将字段上的 {@link Qualifier} 复制到构造器参数。
+     *
+     * @param objectMapper JSON 序列化器
+     * @param definitionResolver 子智能体定义解析器
+     * @param executor 子智能体运行执行器
+     * @param repository 子智能体任务仓储
+     * @param eventPublisher 子智能体事件发布器
+     * @param taskEventService 子智能体任务事件服务
+     * @param threadManager 子智能体线程管理器
+     * @param subAgentService 子智能体服务
+     * @param subAgentExecutor 子智能体并行执行线程池
+     */
+    public SubAgentTaskServiceImpl(ObjectMapper objectMapper,
+                                   SubAgentDefinitionResolver definitionResolver,
+                                   SubAgentExecutor executor,
+                                   SubAgentTaskRepository repository,
+                                   SubAgentEventPublisher eventPublisher,
+                                   SubAgentTaskEventService taskEventService,
+                                   SubAgentThreadManager threadManager,
+                                   SubAgentService subAgentService,
+                                   @Qualifier("subAgentExecutor") Executor subAgentExecutor) {
+        this.objectMapper = objectMapper;
+        this.definitionResolver = definitionResolver;
+        this.executor = executor;
+        this.repository = repository;
+        this.eventPublisher = eventPublisher;
+        this.taskEventService = taskEventService;
+        this.threadManager = threadManager;
+        this.subAgentService = subAgentService;
+        this.subAgentExecutor = subAgentExecutor;
+    }
 
     @Override
     public String delegate(String toolInput, ToolContext toolContext, List<Long> boundSubAgentIds) {
@@ -72,16 +103,13 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             ensureRecords(batchId, input, context);
             publishBatchStart(context, batchId, input, definitions);
 
-            if ("background".equals(input.mode())) {
-                submitBackground(batchId, input, context, definitions);
-                return json(result(batchId, input, true, submitted(batchId, input, context)));
-            }
             List<Map<String, Object>> results = "parallel".equals(input.mode()) && input.tasks().size() > 1
                     ? runParallel(batchId, input, context, definitions)
                     : runSequential(batchId, input, context, definitions);
             refreshBatch(batchId);
             publishBatchDone(context, batchId);
-            return json(result(batchId, input, false, results));
+            // 返回时各任务已终态，reply 会作为 ToolResponse 进入主 Agent 的下一轮推理。
+            return json(result(batchId, input, results));
         } catch (Exception e) {
             log.warn("[SubAgent] 批次委派失败: {}", e.getMessage());
             return json(Map.of("status", "failed", "error", "SubAgent 委派失败: " + e.getMessage()));
@@ -262,23 +290,12 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             for (int index = start; index < end; index++) {
                 int taskIndex = index;
                 futures.add(CompletableFuture.supplyAsync(
-                        () -> runTask(batchId, input.tasks().get(taskIndex), context, definitions, taskIndex), lightBotExecutor));
+                        () -> runTask(batchId, input.tasks().get(taskIndex), context, definitions, taskIndex), subAgentExecutor));
             }
             for (CompletableFuture<Map<String, Object>> future : futures) results.add(future.join());
             refreshBatch(batchId);
         }
         return results;
-    }
-
-    private void submitBackground(String batchId, DelegationInput input, RuntimeContext context,
-                                  Map<String, SubAgentDefinition> definitions) {
-        for (int index = 0; index < input.tasks().size(); index++) {
-            int taskIndex = index;
-            lightBotExecutor.execute(() -> {
-                runTask(batchId, input.tasks().get(taskIndex), context.background(), definitions, taskIndex);
-                refreshBatch(batchId);
-            });
-        }
     }
 
     private Map<String, Object> runTask(String batchId, DelegatedTask task, RuntimeContext context,
@@ -295,7 +312,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         try {
             SubAgentExecutor.ExecutionResult result = executor.execute(definition, task.task(), taskId, task.threadId(),
                     context.parentThreadId(), context.taskContext(batchId, taskId, taskIndex));
-            SubAgentRun run = repository.findTask(taskId);
+            SubAgentRun run = ensureTerminalTaskResult(taskId, result);
             Map<String, Object> output = taskResult(run);
             output.put("reply", result.reply());
             output.put("thread_id", result.threadId());
@@ -342,6 +359,26 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         }
         repository.saveTask(run);
         return "running";
+    }
+
+    /**
+     * SPI 的正常实现会自行写入 completed/failed/cancelled；编排层仍兜底，
+     * 防止替换执行器后把 running 状态返回给主 Agent 工具循环。
+     */
+    private SubAgentRun ensureTerminalTaskResult(String taskId, SubAgentExecutor.ExecutionResult executionResult) {
+        SubAgentRun run = repository.findTask(taskId);
+        if (run == null || isTerminal(run.getStatus())) {
+            return run;
+        }
+        if (Integer.valueOf(1).equals(run.getCancelRequested())) {
+            run.setStatus("cancelled");
+        } else {
+            run.setStatus("completed");
+            run.setReply(executionResult != null && executionResult.reply() != null ? executionResult.reply() : "");
+        }
+        run.setEndTime(LocalDateTime.now());
+        repository.saveTask(run);
+        return run;
     }
 
     private void ensureRecords(String batchId, DelegationInput input, RuntimeContext context) {
@@ -471,25 +508,16 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         eventPublisher.publish(context.chatContext(), "subagent_batch_done", payload);
     }
 
-    private Map<String, Object> result(String batchId, DelegationInput input, boolean background, List<Map<String, Object>> results) {
+    private Map<String, Object> result(String batchId, DelegationInput input, List<Map<String, Object>> results) {
         Map<String, Object> output = new LinkedHashMap<>();
         output.put("batch_id", batchId);
         output.put("mode", input.mode());
         output.put("aggregation", input.aggregation());
-        output.put("background", background);
+        SubAgentTaskBatch batch = repository.findBatch(batchId);
+        output.put("status", batch != null ? batch.getStatus() : "completed");
         output.put("results", results);
         if (results.size() == 1) output.putAll(results.get(0));
         return output;
-    }
-
-    private List<Map<String, Object>> submitted(String batchId, DelegationInput input, RuntimeContext context) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (int index = 0; index < input.tasks().size(); index++) {
-            DelegatedTask task = input.tasks().get(index);
-            result.add(Map.of("batch_id", batchId, "task_id", taskId(context.requestId(), task, index),
-                    "subagent_name", task.subagentName(), "status", "submitted"));
-        }
-        return result;
     }
 
     private Map<String, Object> batchResult(SubAgentTaskBatch batch) {
@@ -586,7 +614,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     private String validate(DelegationInput input, Map<String, SubAgentDefinition> definitions) {
-        if (!List.of("sync", "parallel", "background").contains(input.mode())) return "mode 仅支持 sync、parallel、background";
+        if (!List.of("sync", "parallel").contains(input.mode())) return "mode 仅支持 sync、parallel；子智能体必须等待任务完成后返回结果";
         if (!List.of("return_all", "summarize").contains(input.aggregation())) return "aggregation 仅支持 return_all、summarize";
         for (DelegatedTask task : input.tasks()) {
             if (task.subagentName() == null || task.subagentName().isBlank()) return "缺少 subagent_name 参数";
@@ -620,6 +648,9 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private String batchId(String requestId, DelegationInput input) { return "subagent_batch_" + hash(requestId + ":" + input.mode() + ":" + input.aggregation() + ":" + input.tasks()); }
     private String taskId(String requestId, DelegatedTask task, int index) { return "subagent_task_" + hash(requestId + ":" + index + ":" + task); }
     private String hash(String value) { return DigestUtils.md5DigestAsHex(value.getBytes(StandardCharsets.UTF_8)); }
+    private boolean isTerminal(String status) {
+        return "completed".equals(status) || "failed".equals(status) || "cancelled".equals(status);
+    }
     private String string(Object value) { return value != null && !value.toString().isBlank() ? value.toString() : null; }
     private int number(Object value, int fallback) { try { return value instanceof Number n ? n.intValue() : Integer.parseInt(String.valueOf(value)); } catch (Exception e) { return fallback; } }
     private Long longValue(Object value) { try { return value != null ? Long.parseLong(value.toString()) : null; } catch (Exception e) { return null; } }
@@ -628,17 +659,6 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private record DelegatedTask(String subagentName, String task, String threadId) {}
     private record RuntimeContext(String requestId, String parentThreadId, Long parentSessionId, ChatContext chatContext,
                                   int contentOffset, Integer delegationIndex, String contentPrefixAnchor) {
-        RuntimeContext background() {
-            if (chatContext == null) {
-                return new RuntimeContext(requestId, parentThreadId, parentSessionId, null, contentOffset, delegationIndex, contentPrefixAnchor);
-            }
-            ChatContext backgroundContext = new ChatContext();
-            backgroundContext.setProviderId(chatContext.getProviderId());
-            backgroundContext.setConfigMap(chatContext.getConfigMap());
-            backgroundContext.setAborted(chatContext.isAborted());
-            return new RuntimeContext(requestId, parentThreadId, parentSessionId,
-                    backgroundContext, contentOffset, delegationIndex, contentPrefixAnchor);
-        }
         ChatContext taskContext(String batchId, String taskId, int taskIndex) {
             if (chatContext == null) return null;
             ChatContext taskContext = new ChatContext();

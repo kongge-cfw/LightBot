@@ -252,7 +252,7 @@ const allToolEvents = computed(() => props.messages.flatMap(message => message?.
 const todosFromMessages = computed(() => {
   let snapshot = []
   for (const event of allToolEvents.value) {
-    if (event?.type !== 'tool_result' || !['write_todos', 'write_todo'].includes(event.toolName)) continue
+    if (event?.type !== 'tool_result' || event.toolName !== 'write_todos') continue
     const payload = parseResult(event)
     if (payload?.success && Array.isArray(payload.todos)) snapshot = payload.todos
   }

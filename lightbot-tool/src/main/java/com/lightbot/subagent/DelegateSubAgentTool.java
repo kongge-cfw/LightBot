@@ -40,14 +40,15 @@ public class DelegateSubAgentTool {
         return callbacks.isEmpty() ? null : callbacks.get(0);
     }
 
-    /** 构造当前 Agent 的统一委派门面及其后台控制工具。 */
+    /**
+     * 构造当前 Agent 的同步委派门面。
+     * <p>委派调用会等待任务终态并把结果直接回填给主 Agent，因此不再暴露查询/取消
+     * 工具给模型，避免结果已可用时仍主动轮询。历史事件和管理端接口仍保持兼容。</p>
+     */
     public List<ToolCallback> buildCallbacks(List<Long> boundSubAgentIds) {
         Map<String, SubAgentDefinition> definitions = definitionResolver.resolve(boundSubAgentIds);
         if (definitions.isEmpty()) return List.of();
-        return List.of(
-                new TaskCallback(delegateDefinition(definitions.values()), boundSubAgentIds, Operation.DELEGATE),
-                new TaskCallback(resultDefinition(), boundSubAgentIds, Operation.QUERY),
-                new TaskCallback(cancelDefinition(), boundSubAgentIds, Operation.CANCEL));
+        return List.of(new TaskCallback(delegateDefinition(definitions.values()), boundSubAgentIds, Operation.DELEGATE));
     }
 
     private ToolDefinition delegateDefinition(Iterable<SubAgentDefinition> definitions) {
@@ -56,12 +57,12 @@ public class DelegateSubAgentTool {
         String catalog = items.stream().map(item -> "- " + item.name() + "（" + item.displayName() + "）")
                 .collect(Collectors.joining("\\n"));
         return DefaultToolDefinition.builder().name(TOOL_NAME).description("""
-                将自包含任务委派给一个或多个 SubAgent。多任务使用 tasks，parallel 并行等待，
-                background 立即返回批次 ID；查询与取消会更新同一个委派批次，而非创建新工具结果。
+                将自包含任务委派给一个或多个 SubAgent。mode=sync 按顺序等待；mode=parallel 并行等待。
+                仅支持 sync、parallel；父 Agent 会等待每项任务到达终态，并拿到最终 reply 后继续本轮生成。
                 可用 SubAgent：
                 """ + catalog).inputSchema("""
                 {"type":"object","properties":{
-                  "mode":{"type":"string","enum":["sync","parallel","background"]},
+                  "mode":{"type":"string","enum":["sync","parallel"],"default":"sync"},
                   "subagent_name":{"type":"string","enum":[%s]},"task":{"type":"string"},"thread_id":{"type":"string"},
                   "tasks":{"type":"array","items":{"type":"object","properties":{"subagent_name":{"type":"string","enum":[%s]},"task":{"type":"string"},"thread_id":{"type":"string"}},"required":["subagent_name","task"]}},
                   "max_concurrency":{"type":"integer","minimum":1,"maximum":5},
