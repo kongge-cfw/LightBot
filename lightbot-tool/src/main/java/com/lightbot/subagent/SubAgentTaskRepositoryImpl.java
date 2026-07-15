@@ -73,10 +73,13 @@ public class SubAgentTaskRepositoryImpl implements SubAgentTaskRepository {
     }
 
     @Override
-    public Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize) {
+    public Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, String parentRequestId,
+                                       int pageNum, int pageSize) {
         return subAgentRunMapper.selectPage(new Page<>(pageNum, pageSize), new LambdaQueryWrapper<SubAgentRun>()
                 .eq(SubAgentRun::getParentSessionId, parentSessionId)
                 .eq(batchId != null && !batchId.isBlank(), SubAgentRun::getBatchId, batchId)
+                .eq(parentRequestId != null && !parentRequestId.isBlank(),
+                        SubAgentRun::getParentRequestId, parentRequestId)
                 .orderByDesc(SubAgentRun::getCreateTime));
     }
 

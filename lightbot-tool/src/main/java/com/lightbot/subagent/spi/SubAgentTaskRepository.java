@@ -28,7 +28,15 @@ public interface SubAgentTaskRepository {
     int requestCancelByParentRequestId(String parentRequestId);
 
     /** 分页查询一个会话下的任务运行记录。 */
-    Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, int pageNum, int pageSize);
+    /**
+     * 查询会话内的运行任务。
+     *
+     * <p>{@code parentRequestId} 对应一次用户消息触发的主 Agent 请求；传入时用于
+     * 协作面板，仅返回该次任务产生的全部委派批次。未传入时保留会话级查询语义，
+     * 供“子智能体状态”侧栏查看本会话的全部调研任务。</p>
+     */
+    Page<SubAgentRun> pageTasks(Long parentSessionId, String batchId, String parentRequestId,
+                                int pageNum, int pageSize);
 
     void saveTaskEvent(SubAgentTaskEvent event);
 

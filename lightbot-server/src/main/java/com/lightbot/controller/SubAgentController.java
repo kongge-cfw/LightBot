@@ -85,19 +85,21 @@ public class SubAgentController {
     public Result<Page<com.lightbot.entity.SubAgentRun>> listRuns(
             @RequestParam Long sessionId,
             @RequestParam(required = false) String batchId,
+            @RequestParam(required = false) String parentRequestId,
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "20") int pageSize) {
         chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
-        return Result.ok(subAgentTaskService.pageRuns(sessionId, batchId, pageNum, pageSize));
+        return Result.ok(subAgentTaskService.pageRuns(sessionId, batchId, parentRequestId, pageNum, pageSize));
     }
 
     @Operation(summary = "获取会话侧栏的SubAgent运行态摘要")
     @GetMapping("/runs/summary")
     public Result<List<java.util.Map<String, Object>>> listRunSummaries(
             @RequestParam Long sessionId,
+            @RequestParam(required = false) String parentRequestId,
             @RequestParam(defaultValue = "20") int limit) {
         chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
-        return Result.ok(subAgentTaskService.listRuntimeSummaries(sessionId, limit));
+        return Result.ok(subAgentTaskService.listRuntimeSummaries(sessionId, parentRequestId, limit));
     }
 
     @Operation(summary = "获取SubAgent批次详情")

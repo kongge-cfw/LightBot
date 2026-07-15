@@ -7,10 +7,10 @@
     @update:open="$emit('update:open', $event)"
   >
     <template #extra>
-      <a-tooltip title="刷新子智能体状态">
-        <button type="button" class="runtime-refresh" :disabled="loading" @click="loadSummaries">
-          <ReloadOutlined :class="{ 'is-spinning': loading }" />
-        </button>
+      <a-tooltip title="刷新">
+        <a-button type="text" size="small" class="runtime-refresh" :disabled="loading || summaryRefreshing" @click="refreshSummaries">
+          <ReloadOutlined :class="{ 'is-spinning': summaryRefreshing }" />
+        </a-button>
       </a-tooltip>
     </template>
 
@@ -44,9 +44,9 @@
       <template #title>
         <span class="detail-modal-title">{{ detailTitle }}</span>
         <a-tooltip title="刷新详情">
-          <button type="button" class="detail-refresh" :disabled="detailLoading || detailRefreshing" @click="refreshDetail">
+          <a-button type="text" size="small" class="detail-refresh" :disabled="detailLoading || detailRefreshing" @click="refreshDetail">
             <ReloadOutlined :class="{ 'is-spinning': detailRefreshing }" />
-          </button>
+          </a-button>
         </a-tooltip>
       </template>
       <a-spin :spinning="detailLoading">
@@ -125,6 +125,7 @@ defineEmits(['update:open'])
 const aEmptyImage = Empty.PRESENTED_IMAGE_SIMPLE
 const runs = ref([])
 const loading = ref(false)
+const summaryRefreshing = ref(false)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const detailRefreshing = ref(false)
@@ -144,7 +145,7 @@ const liveTaskStates = computed(() => {
   for (const event of props.liveEvents) {
     if (event?.type === 'subagent_batch_start') {
       for (const task of event.tasks || []) {
-        states.set(task.task_id, {
+        states.set(String(task.task_id), {
           task_id: task.task_id,
           batch_id: event.batch_id,
           subagent_name: task.subagent_name,
@@ -159,7 +160,8 @@ const liveTaskStates = computed(() => {
       continue
     }
     if (!event?.task_id) continue
-    const state = states.get(event.task_id) || {
+    const taskKey = String(event.task_id)
+    const state = states.get(taskKey) || {
       task_id: event.task_id,
       batch_id: event.batch_id,
       subagent_name: event.subagentName,
@@ -198,13 +200,13 @@ const liveTaskStates = computed(() => {
     }
     if (event.task) state.task = event.task
     if (event.status_label) state.status_label = event.status_label
-    states.set(event.task_id, state)
+    states.set(taskKey, state)
   }
   return states
 })
 
-const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled'])
-const STATUS_WEIGHT = { pending: 0, cancel_requested: 1, running: 2, completed: 3, failed: 3, cancelled: 3 }
+const TERMINAL_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timeout'])
+const STATUS_WEIGHT = { pending: 0, cancel_requested: 1, running: 2, completed: 3, failed: 3, cancelled: 3, timeout: 3 }
 
 /**
  * 合并 DB run 与 live 状态：以状态进度更靠后的一方为准。
@@ -228,19 +230,19 @@ function pickFresher(dbRun, live) {
 }
 
 const runtimeRuns = computed(() => {
-  const merged = new Map(runs.value.map(run => [run.task_id, { ...run }]))
+  const merged = new Map(runs.value.map(run => [String(run.task_id), { ...run }]))
   for (const [taskId, live] of liveTaskStates.value) {
     merged.set(taskId, pickFresher(merged.get(taskId), live))
   }
   return [...merged.values()].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'))
 })
 
-const selectedLiveState = computed(() => liveTaskStates.value.get(selectedTask.value?.task_id) || null)
+const selectedLiveState = computed(() => liveTaskStates.value.get(String(selectedTask.value?.task_id)) || null)
 const selectedDisplayTask = computed(() => selectedTask.value
   ? pickFresher(selectedTask.value, selectedLiveState.value)
   : null)
 const liveOutput = computed(() => selectedLiveState.value?.liveOutput || '')
-const isSelectedTaskDone = computed(() => ['completed', 'failed', 'cancelled'].includes(selectedDisplayTask.value?.status))
+const isSelectedTaskDone = computed(() => ['completed', 'failed', 'cancelled', 'timeout'].includes(selectedDisplayTask.value?.status))
 const displayOutput = computed(() => {
   const task = selectedDisplayTask.value
   if (!task) return ''
@@ -249,15 +251,31 @@ const displayOutput = computed(() => {
 })
 
 async function loadSummaries() {
-  if (!props.sessionId) return
+  if (!props.sessionId) {
+    runs.value = []
+    return
+  }
   loading.value = true
   try {
-    const res = await getSubAgentRuntimeSummaries(props.sessionId)
+    // 子智能体状态抽屉是会话级视图，不能被当前一轮协作任务的 taskIds 限制。
+    const res = await getSubAgentRuntimeSummaries(props.sessionId, 100)
     runs.value = res.data || []
   } catch {
     // 侧栏轮询失败时保留上一份摘要，避免干扰主对话。
   } finally {
     loading.value = false
+  }
+}
+
+/** 手动刷新保证图标至少旋转 500ms，避免请求过快时用户没有操作反馈。 */
+async function refreshSummaries() {
+  if (summaryRefreshing.value) return
+  summaryRefreshing.value = true
+  const minDelay = new Promise(resolve => setTimeout(resolve, 500))
+  try {
+    await Promise.all([loadSummaries(), minDelay])
+  } finally {
+    summaryRefreshing.value = false
   }
 }
 
@@ -361,7 +379,7 @@ function stopPolling() {
 }
 
 function statusLabel(status) {
-  return ({ pending: '待执行', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消', cancel_requested: '取消中' })[status] || '未知'
+  return ({ pending: '待执行', running: '运行中', completed: '已完成', failed: '失败', cancelled: '已取消', timeout: '超时', cancel_requested: '取消中' })[status] || '未知'
 }
 
 function displayNameOf(task) {
@@ -435,11 +453,11 @@ onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
-.runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-body); cursor: pointer; }
-.runtime-refresh:hover { background: var(--color-canvas-soft); color: var(--color-ink); }.runtime-refresh:disabled { cursor: default; opacity: .6; }.is-spinning { animation: runtimeSpin .8s linear infinite; }
+.runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; border: 0 !important; color: var(--color-body); }
+.runtime-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.runtime-refresh:disabled { cursor: default; opacity: .6; }.is-spinning { animation: runtimeSpin .8s linear infinite; }
 .detail-modal-title { margin-right: 8px; }
-.detail-refresh { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-body); cursor: pointer; vertical-align: middle; }
-.detail-refresh:hover { background: var(--color-canvas-soft); color: var(--color-ink); }.detail-refresh:disabled { cursor: default; opacity: .6; }
+.detail-refresh { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 0 !important; color: var(--color-body); vertical-align: middle; }
+.detail-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.detail-refresh:disabled { cursor: default; opacity: .6; }
 .runtime-list { display: flex; flex-direction: column; gap: 8px; }
 .runtime-cancel-slot { display: inline-flex; align-items: flex-start; flex: 0 0 auto; }
 .runtime-cancel { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 1px solid var(--color-hairline); border-radius: 6px; background: var(--color-canvas); color: var(--color-error); cursor: pointer; }

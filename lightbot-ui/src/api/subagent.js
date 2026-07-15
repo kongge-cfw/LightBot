@@ -35,8 +35,10 @@ export function getSubAgentRuns(params) {
   return request.get('/subagents/runs', { params })
 }
 
-export function getSubAgentRuntimeSummaries(sessionId, limit = 20) {
-  return request.get('/subagents/runs/summary', { params: { sessionId, limit } })
+export function getSubAgentRuntimeSummaries(sessionId, limit = 20, parentRequestId) {
+  const params = { sessionId, limit }
+  if (parentRequestId) params.parentRequestId = parentRequestId
+  return request.get('/subagents/runs/summary', { params })
 }
 
 export function getSubAgentBatch(batchId, sessionId) {

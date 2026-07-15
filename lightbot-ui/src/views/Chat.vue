@@ -156,10 +156,13 @@
     <ChatSessionRuntimePanel
       v-if="sessionId && sessionRuntimePanelOpen"
       :session-id="sessionId"
-      :messages="messages"
+      :messages="currentRequestMessages"
       :live-events="liveSubagentEvents"
+      :task-ids="currentRequestSubagentTaskIds"
+      :parent-request-id="currentRequestId"
+      :width="sessionRuntimePanelWidth"
       @open-files="openFileDrawer"
-      @open-subagent="subagentRuntimeOpen = true"
+      @resize-start="startRuntimePanelResize"
     />
     </div>
 
@@ -299,6 +302,69 @@ const speakingMsgKey = ref(null)
 const subagentRuntimeOpen = ref(false)
 const liveSubagentEvents = ref([])
 const sessionRuntimePanelOpen = ref(false)
+const sessionRuntimePanelWidth = ref(336)
+const currentRequestStartIndex = ref(null)
+let stopRuntimePanelResize = null
+
+/** 协作状态的待办/产物属于一轮用户任务，历史轮次只由各自消息与会话级抽屉承载。 */
+const currentRequestMessages = computed(() => {
+  if (currentRequestStartIndex.value !== null) {
+    return messages.value.slice(currentRequestStartIndex.value)
+  }
+  const latestUserIndex = messages.value.map(item => item?.role).lastIndexOf('user')
+  return latestUserIndex >= 0 ? messages.value.slice(latestUserIndex + 1) : []
+})
+
+/** 已落库的 assistant metadata 保存 requestId，用于刷新/重进时恢复该轮协作任务。 */
+const currentRequestId = computed(() => {
+  for (let index = currentRequestMessages.value.length - 1; index >= 0; index--) {
+    const requestId = currentRequestMessages.value[index]?._requestId
+    if (requestId) return String(requestId)
+  }
+  return null
+})
+
+/** 当前请求由 SSE 产生的任务 ID 是协作状态栏唯一允许展示的子智能体范围。 */
+const currentRequestSubagentTaskIds = computed(() => {
+  const taskIds = new Set()
+  for (const event of liveSubagentEvents.value) {
+    if (event?.task_id) taskIds.add(String(event.task_id))
+    if (event?.type === 'subagent_batch_start') {
+      for (const task of event.tasks || []) {
+        if (task?.task_id) taskIds.add(String(task.task_id))
+      }
+    }
+  }
+  return [...taskIds]
+})
+
+function startRuntimePanelResize(event) {
+  if (event.button !== undefined && event.button !== 0) return
+  event.preventDefault()
+  stopRuntimePanelResize?.()
+
+  const startX = event.clientX
+  const startWidth = sessionRuntimePanelWidth.value
+  const minWidth = 280
+  const maxWidth = Math.max(minWidth, Math.min(560, window.innerWidth - 440))
+  const onPointerMove = (moveEvent) => {
+    const nextWidth = startWidth + startX - moveEvent.clientX
+    sessionRuntimePanelWidth.value = Math.min(maxWidth, Math.max(minWidth, nextWidth))
+  }
+  const stop = () => {
+    window.removeEventListener('pointermove', onPointerMove)
+    window.removeEventListener('pointerup', stop)
+    document.body.style.userSelect = ''
+    document.body.style.cursor = ''
+    stopRuntimePanelResize = null
+  }
+
+  document.body.style.userSelect = 'none'
+  document.body.style.cursor = 'col-resize'
+  window.addEventListener('pointermove', onPointerMove)
+  window.addEventListener('pointerup', stop, { once: true })
+  stopRuntimePanelResize = stop
+}
 
 const runningSubagentCount = computed(() => {
   const taskStates = new Map()
@@ -570,6 +636,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopRuntimePanelResize?.()
   abortActiveStreamOnUnload()
   voiceCleanup()
   cleanupPollTitleTimer()
@@ -594,11 +661,20 @@ watch(() => route.params.sessionId, () => {
   expandedRefsMap.value = new Map()
   refsSectionExpandedMap.value = new Map()
   liveSubagentEvents.value = []
+  currentRequestStartIndex.value = null
   messageRowComponentRefs.clear()
   loadHistory()
 })
 
 watch(streaming, onStreamingEnded)
+
+watch(loading, (isLoading, wasLoading) => {
+  if (isLoading && !wasLoading) {
+    // 每次发起新请求都丢弃本会话上一轮的任务事件，防止协作状态混入历史子智能体。
+    currentRequestStartIndex.value = messages.value.length
+    liveSubagentEvents.value = []
+  }
+}, { flush: 'sync' })
 
 watch(selectedAgentId, (newId) => {
   if (newId && !sessionId.value) {

@@ -148,8 +148,10 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     @Override
-    public Page<SubAgentRun> pageRuns(Long sessionId, String batchId, int pageNum, int pageSize) {
-        return repository.pageTasks(sessionId, batchId, Math.max(pageNum, 1), Math.min(Math.max(pageSize, 1), 100));
+    public Page<SubAgentRun> pageRuns(Long sessionId, String batchId, String parentRequestId,
+                                      int pageNum, int pageSize) {
+        return repository.pageTasks(sessionId, batchId, parentRequestId,
+                Math.max(pageNum, 1), Math.min(Math.max(pageSize, 1), 100));
     }
 
     @Override
@@ -233,9 +235,10 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     }
 
     @Override
-    public List<Map<String, Object>> listRuntimeSummaries(Long sessionId, int limit) {
+    public List<Map<String, Object>> listRuntimeSummaries(Long sessionId, String parentRequestId, int limit) {
         Map<String, String> displayNames = displayNames();
-        return repository.pageTasks(sessionId, null, 1, Math.min(Math.max(limit, 1), 100)).getRecords().stream()
+        return repository.pageTasks(sessionId, null, parentRequestId, 1,
+                        Math.min(Math.max(limit, 1), 100)).getRecords().stream()
                 .map(task -> taskResult(task, displayNames))
                 .toList();
     }
@@ -284,7 +287,11 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         SubAgentDefinition definition = definitions.get(task.subagentName());
         String displayName = definition != null ? definition.displayName() : task.subagentName();
         String icon = definition != null ? definition.icon() : null;
-        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, displayName, icon, "running", null);
+        // 先持久化 running，再发布开始事件。并行编排时，轮询批次详情可以立刻看到
+        // 每个子任务的真实进度，而不是等整批 future 都结束后才从 pending 跳到 completed。
+        String initialStatus = markTaskRunning(taskId);
+        refreshBatch(batchId);
+        publishTask(context, "subagent_task_start", batchId, taskId, task, taskIndex, displayName, icon, initialStatus, null);
         try {
             SubAgentExecutor.ExecutionResult result = executor.execute(definition, task.task(), taskId, task.threadId(),
                     context.parentThreadId(), context.taskContext(batchId, taskId, taskIndex));
@@ -317,7 +324,24 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             publishTask(context, "subagent_task_done", batchId, taskId, task, taskIndex, displayName,
                     icon, "failed", output);
             return output;
+        } finally {
+            // 每个并行任务结束后即时刷新批次计数与状态；外部刷新接口据此获得实时进度。
+            refreshBatch(batchId);
         }
+    }
+
+    private String markTaskRunning(String taskId) {
+        SubAgentRun run = repository.findTask(taskId);
+        if (run == null || Integer.valueOf(1).equals(run.getCancelRequested())
+                || "cancelled".equals(run.getStatus())) {
+            return "cancelled";
+        }
+        run.setStatus("running");
+        if (run.getStartTime() == null) {
+            run.setStartTime(LocalDateTime.now());
+        }
+        repository.saveTask(run);
+        return "running";
     }
 
     private void ensureRecords(String batchId, DelegationInput input, RuntimeContext context) {

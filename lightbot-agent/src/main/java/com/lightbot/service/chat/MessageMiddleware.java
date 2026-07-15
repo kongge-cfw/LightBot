@@ -28,6 +28,7 @@ import com.lightbot.mapper.MessageMapper;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.model.ProviderResolver;
 import com.lightbot.service.ChatAttachmentParsedService;
+import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatSessionService;
 import com.lightbot.service.UserMemoryService;
 import com.lightbot.service.UserPreferenceService;
@@ -62,6 +63,7 @@ import java.util.Map;
 public class MessageMiddleware implements ChatMiddleware {
 
     private final MessageMapper messageMapper;
+    private final AgentService agentService;
     private final ChatSessionService chatSessionService;
     private final ModelFactory modelFactory;
     private final InitMiddleware initMiddleware;
@@ -100,6 +102,19 @@ public class MessageMiddleware implements ChatMiddleware {
             - 只提炼与**当前用户问题**直接相关的要点；可简要说明来源，无需粘贴全文
             - 检索内容较多时：先给 1–2 句结论，再用 3–5 条短列表列要点
             - 可在文末补充：「如需了解【某主题】的更多细节，可以继续问我」
+            """;
+
+    /**
+     * 仅在当前 Agent 实际绑定了 SubAgent 时附加。它描述编排顺序而不重复工具 schema，
+     * 因此不会重新引入“将全部工具拼到提示词”的性能问题。
+     */
+    private static final String SUBAGENT_COLLABORATION_PROTOCOL = """
+
+            ## 多智能体协作
+            - 仅当问题确实需要拆分为多个相互独立的调研/分析子任务时，才使用子智能体；简单问题请直接完成，避免为了协作而协作。
+            - 需要协作时，先调用 `write_todos` 写入完整待办快照，将一个待办标为 `in_progress`；随后使用一次 `delegate_to_subagent`，把互不依赖的子任务放入 `tasks` 并指定 `mode="parallel"`。不要用 `background` 代替本轮需要展示实时过程的调研。
+            - 收到各子智能体结果后，基于结果更新同一份完整待办快照；只有确有依赖关系时才在前一批完成后继续委派。最终由主 Agent 综合结论并回复用户。
+            - 每个子任务必须目标明确、可独立验收；不要把同一问题重复委派给多个子智能体，也不要把主 Agent 的最终汇总工作交给子智能体。
             """;
 
     private static final String DEFAULT_SYSTEM_PROMPT = """
@@ -405,6 +420,12 @@ public class MessageMiddleware implements ChatMiddleware {
                     systemPrompt = systemPrompt + mentionAppendix;
                 }
             }
+
+            // 子智能体属于 Agent 绑定能力，需在消息构建阶段给出轻量编排规则；
+            // ToolPrep 仍负责实际注入原生 ToolCallback 与参数 schema。
+            if (hasBoundSubAgents(ctx, agent)) {
+                systemPrompt = systemPrompt + SUBAGENT_COLLABORATION_PROTOCOL;
+            }
         }
 
         // 3.1 替换提示词中的 {{变量}}：默认值 + biz_params 入参
@@ -506,6 +527,24 @@ public class MessageMiddleware implements ChatMiddleware {
             log.warn("[MessageMiddleware] 加载用户长期记忆失败: userId={}, error={}",
                     ctx.getUserId(), e.getMessage());
             return systemPrompt;
+        }
+    }
+
+    /**
+     * 版本快照优先，避免草稿/已发布版本的绑定范围混用；未使用版本时回退到 Agent 当前绑定。
+     */
+    private boolean hasBoundSubAgents(ChatContext ctx, Agent agent) {
+        if (ctx != null && ctx.getVersionSubAgentIds() != null) {
+            return !ctx.getVersionSubAgentIds().isEmpty();
+        }
+        if (agent == null || agent.getId() == null) {
+            return false;
+        }
+        try {
+            return !agentService.getSubAgentIds(agent.getId()).isEmpty();
+        } catch (Exception e) {
+            log.warn("[Chat] 读取 Agent 子智能体绑定失败: agentId={}, error={}", agent.getId(), e.getMessage());
+            return false;
         }
     }
 

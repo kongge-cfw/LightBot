@@ -19,7 +19,10 @@ public interface SubAgentTaskService {
     String cancel(String toolInput, ToolContext toolContext);
 
     /** 查询会话内的 SubAgent 任务列表。 */
-    Page<SubAgentRun> pageRuns(Long sessionId, String batchId, int pageNum, int pageSize);
+    /**
+     * 会话级运行列表；传入 parentRequestId 时收敛为当前用户消息对应的协作任务。
+     */
+    Page<SubAgentRun> pageRuns(Long sessionId, String batchId, String parentRequestId, int pageNum, int pageSize);
 
     /** 查询会话内的批次详情及其全部任务。 */
     java.util.Map<String, Object> getBatchDetail(String batchId, Long sessionId);
@@ -43,5 +46,9 @@ public interface SubAgentTaskService {
     java.util.Map<String, Object> getTaskEvents(String taskId, Long sessionId, Long cursor, int limit);
 
     /** 获取会话侧栏所需的任务运行态摘要。 */
-    List<java.util.Map<String, Object>> listRuntimeSummaries(Long sessionId, int limit);
+    /**
+     * 会话级运行态摘要；parentRequestId 为空时返回会话内全部调研子智能体，
+     * 非空时仅返回该轮任务的子智能体。
+     */
+    List<java.util.Map<String, Object>> listRuntimeSummaries(Long sessionId, String parentRequestId, int limit);
 }
