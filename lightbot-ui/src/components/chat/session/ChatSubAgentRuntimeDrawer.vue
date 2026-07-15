@@ -72,6 +72,15 @@
             <div class="detail-section-title">{{ isSelectedTaskDone ? '最终输出' : '实时输出' }}</div>
             <MarkdownPreview :content="displayOutput" :finalized="isSelectedTaskDone" :image-preview="false" />
           </div>
+          <div v-if="detailToolEvents.length" class="detail-section tool-calls-section">
+            <div class="detail-section-title">工具调用明细</div>
+            <ToolCallsGroupComponent
+              :tool-events="detailToolEvents"
+              :is-done="isSelectedTaskDone"
+              :default-expanded="true"
+              :message-index="-1"
+            />
+          </div>
           <div class="detail-section">
           <div class="detail-section-title">运行事件</div>
           <a-timeline v-if="events.length" class="event-timeline">
@@ -105,6 +114,7 @@ import { Empty, message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import { CircleStop } from 'lucide-vue-next'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
+import ToolCallsGroupComponent from '@/components/ToolCallsGroupComponent.vue'
 import { formatTime } from '@/utils/format'
 import {
   getSubAgentRun,
@@ -249,6 +259,35 @@ const displayOutput = computed(() => {
   if (isSelectedTaskDone.value && task.reply) return task.reply
   return liveOutput.value || task.reply || ''
 })
+
+/** 将子智能体持久化事件适配为会话工具组件的数据结构，沿用参数展开与详情弹窗。 */
+const detailToolEvents = computed(() => events.value.flatMap(event => {
+  const payload = eventPayload(event)
+  const toolName = payload.toolName || payload.tool_name
+  const displayName = payload.toolDisplayName || payload.tool_display_name || toolName
+  if (event.type === 'subagent_tool_call' && toolName) {
+    return [{
+      type: 'tool_call',
+      toolName,
+      displayName,
+      args: stringifyToolPayload(payload.args ?? payload.arguments ?? payload.params),
+    }]
+  }
+  if (event.type === 'subagent_tool_result' && toolName) {
+    return [{
+      type: 'tool_result',
+      toolName,
+      displayName,
+      result: stringifyToolPayload(payload.result ?? payload.content ?? payload.message),
+    }]
+  }
+  return []
+}))
+
+function stringifyToolPayload(value) {
+  if (value == null) return ''
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
 
 async function loadSummaries() {
   if (!props.sessionId) {
@@ -467,6 +506,6 @@ onBeforeUnmount(stopPolling)
 .runtime-item:hover { background: var(--color-canvas-soft); border-color: var(--color-hairline-strong); }
 .runtime-status { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; flex: 0 0 auto; background: var(--color-mute); }.runtime-status.is-running { background: var(--color-link); box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-link) 55%, transparent); animation: runningPulse 1.5s infinite; }.runtime-status.is-pending { background: var(--color-warning); }.runtime-status.is-completed { background: var(--color-success-500); }.runtime-status.is-failed { background: var(--color-error); }.runtime-status.is-cancelled { background: var(--color-mute); }
 .runtime-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.runtime-title { color: var(--color-ink); font-size: 14px; font-weight: 600; }.runtime-task, .runtime-progress { overflow: hidden; color: var(--color-body); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.runtime-progress { color: var(--color-mute); }.runtime-status-label, .task-detail-status { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }.runtime-status-label.is-running, .task-detail-status.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.runtime-status-label.is-pending, .task-detail-status.is-pending { color: #a16207; background: #fef3c7; }.runtime-status-label.is-completed, .task-detail-status.is-completed { color: #15803d; background: #dcfce7; }.runtime-status-label.is-failed, .task-detail-status.is-failed { color: #b91c1c; background: #fee2e2; }.runtime-status-label.is-cancelled, .task-detail-status.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }
-.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; }.task-detail-progress.is-pending { color: #a16207; background: #fef3c7; }.task-detail-progress.is-completed { color: #15803d; background: #dcfce7; }.task-detail-progress.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-progress.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-progress.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.task-context-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-label { color: var(--color-mute); font-size: 12px; font-weight: 600; }.task-context-content { margin-top: 4px; color: var(--color-body); font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }.task-time-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--color-mute); font-size: 12px; }.task-error { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }.task-error .task-context-label { color: #b91c1c; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.event-title.is-error, .event-text.is-error { color: #b91c1c; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; }.task-detail-progress.is-pending { color: #a16207; background: #fef3c7; }.task-detail-progress.is-completed { color: #15803d; background: #dcfce7; }.task-detail-progress.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-progress.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-progress.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.tool-calls-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-label { color: var(--color-mute); font-size: 12px; font-weight: 600; }.task-context-content { margin-top: 4px; color: var(--color-body); font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }.task-time-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--color-mute); font-size: 12px; }.task-error { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }.task-error .task-context-label { color: #b91c1c; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.event-title.is-error, .event-text.is-error { color: #b91c1c; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
 @keyframes runtimeSpin { to { transform: rotate(360deg); } } @keyframes runningPulse { 70% { box-shadow: 0 0 0 7px transparent; } 100% { box-shadow: 0 0 0 0 transparent; } } @keyframes runningTagPulse { 50% { opacity: .68; } }
 </style>

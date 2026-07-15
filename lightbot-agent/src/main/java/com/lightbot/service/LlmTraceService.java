@@ -56,6 +56,15 @@ public interface LlmTraceService extends IService<LlmTrace> {
     LlmTrace findByRequestId(String requestId);
 
     /**
+     * 查询指定请求最近一次已持久化的调用链。
+     * <p>用于会话协作状态展示，包含普通对话与工作流来源。</p>
+     *
+     * @param requestId 请求 ID
+     * @return 最近一条调用链记录，不存在时返回 null
+     */
+    LlmTrace findLatestByRequestId(String requestId);
+
+    /**
      * 按 requestId 插入或更新工作流 trace（防止 resume 后异步旧快照覆盖）
      *
      * @param trace 调用链数据

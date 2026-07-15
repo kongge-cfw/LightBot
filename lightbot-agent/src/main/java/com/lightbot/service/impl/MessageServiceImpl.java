@@ -59,6 +59,30 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     }
 
     @Override
+    public List<Message> listAssistantByRequestId(Long sessionId, String requestId) {
+        if (sessionId == null || requestId == null || requestId.isBlank()) {
+            return List.of();
+        }
+        return baseMapper.selectAssistantByRequestId(sessionId, requestId);
+    }
+
+    @Override
+    public Message getUserByRequestId(Long sessionId, String requestId) {
+        if (sessionId == null || requestId == null || requestId.isBlank()) {
+            return null;
+        }
+        return baseMapper.selectUserByRequestId(sessionId, requestId);
+    }
+
+    @Override
+    public Message getPreviousUserMessage(Long sessionId, Long beforeMessageId) {
+        if (sessionId == null || beforeMessageId == null) {
+            return null;
+        }
+        return baseMapper.selectPreviousUserMessage(sessionId, beforeMessageId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteBySessionId(Long sessionId) {
         // 1. 加载会话下所有消息，清理关联的 MinIO 资源

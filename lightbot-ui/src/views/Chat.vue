@@ -162,6 +162,7 @@
       :parent-request-id="currentRequestId"
       :width="sessionRuntimePanelWidth"
       @open-files="openFileDrawer"
+      @preview-attachment="onAttachmentPreview"
       @resize-start="startRuntimePanelResize"
     />
     </div>

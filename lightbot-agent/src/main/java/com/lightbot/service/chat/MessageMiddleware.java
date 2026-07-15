@@ -112,8 +112,10 @@ public class MessageMiddleware implements ChatMiddleware {
 
             ## 多智能体协作
             - 仅当问题确实需要拆分为多个相互独立的调研/分析子任务时，才使用子智能体；简单问题请直接完成，避免为了协作而协作。
-            - 需要协作时，先调用 `write_todos` 写入完整待办快照，将一个待办标为 `in_progress`；随后使用一次 `delegate_to_subagent`，把互不依赖的子任务放入 `tasks` 并指定 `mode="parallel"`。不要用 `background` 代替本轮需要展示实时过程的调研。
-            - 收到各子智能体结果后，基于结果更新同一份完整待办快照；只有确有依赖关系时才在前一批完成后继续委派。最终由主 Agent 综合结论并回复用户。
+            - 若范围、时间、地区、交付形式等缺失会实质改变调研结论，且 `ask_user` 可用，先一次性用 1~3 个问题澄清；问题应具体、可选，不要追问可合理假定的细节。调用后必须等待用户回复，不能继续委派或调用其他工具。
+            - 需要协作时，先调用 `write_todos` 写入 2~8 项可验收的**完整**待办快照，将一个待办标为 `in_progress`；随后使用一次 `delegate_to_subagent`，把互不依赖的子任务放入 `tasks` 并指定 `mode="parallel"`。不要用 `background` 代替本轮需要展示实时过程的调研。
+            - 子任务描述必须包含研究目标、必要上下文、期望交付和证据要求；不要重复委派同一问题，也不要把最终汇总交给子智能体。关键数字、核心结论或冲突来源应由独立来源或合适的核验子智能体复核。
+            - 收到各子智能体结果后，基于结果更新同一份完整待办快照；只有确有依赖关系时才在前一批完成后继续委派。全部待办进入终态后，由主 Agent 综合结论、说明未核验/失败项，并回复用户。
             - 每个子任务必须目标明确、可独立验收；不要把同一问题重复委派给多个子智能体，也不要把主 Agent 的最终汇总工作交给子智能体。
             """;
 
@@ -176,7 +178,7 @@ public class MessageMiddleware implements ChatMiddleware {
                 validateReplyToMessage(replyToId, ctx.getSessionId());
             }
             Long userMsgId = saveUserMessage(ctx.getSessionId(), userText, ctx.getRequest().getAttachments(), askUserParentId, replyToId,
-                    ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap());
+                    ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap(), ctx.getRequestId());
             ctx.setUserMessageId(userMsgId);
             if (askUserParentId != null) {
                 ctx.setUserMessageParentId(askUserParentId);
@@ -197,7 +199,7 @@ public class MessageMiddleware implements ChatMiddleware {
         validateAttachments(ctx.getRequest().getAttachments(), ctx.getConfigMap(), ctx.getSessionId());
         String userText = resolveUserText(ctx.getRequest());
         saveUserMessage(ctx.getSessionId(), userText, ctx.getRequest().getAttachments(), null, null,
-                ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap());
+                ctx.getRequest().getMentions(), ctx.getRequest().getAgentVersionId(), ctx.getConfigMap(), ctx.getRequestId());
         List<org.springframework.ai.chat.messages.Message> messages = buildMessages(
                 ctx.getSessionId(), userText, ctx.getAgent(), ctx.getRequest(), ctx.getConfigMap(), ctx);
         ctx.setMessages(messages);
@@ -255,7 +257,7 @@ public class MessageMiddleware implements ChatMiddleware {
     private Long saveUserMessage(Long sessionId, String content, List<ChatAttachmentDTO> attachments,
                                  Long parentId, Long replyToMessageId,
                                  List<ChatMentionDTO> mentions, Long agentVersionId,
-                                 Map<String, Object> configMap) {
+                                 Map<String, Object> configMap, String requestId) {
         // 图片附件仅在多模态图像输入开启时标记为 MULTIMODAL_IMAGE；OCR 兜底图片按 TEXT 处理
         boolean enableImageInput = Boolean.TRUE.equals(
                 AgentChatCapabilitiesUtil.fromConfigMap(configMap).getEnableImageInput());
@@ -266,8 +268,8 @@ public class MessageMiddleware implements ChatMiddleware {
         boolean hasAttachments = attachments != null && !attachments.isEmpty();
         boolean hasMentions = mentions != null && !mentions.isEmpty();
 
-        // 无附件无 mention：metadata 为 null
-        if (!hasAttachments && !hasMentions) {
+        // requestId 使输入、助手消息和子任务统一归属于同一轮请求。
+        if (!hasAttachments && !hasMentions && (requestId == null || requestId.isBlank())) {
             return saveMessage(sessionId, MessageRole.USER, content, null, 0, messageType, parentId, replyToMessageId);
         }
         try {
@@ -281,6 +283,9 @@ public class MessageMiddleware implements ChatMiddleware {
             }
             if (hasMentions) {
                 metaMap.put("mentions", buildMentionSnapshots(mentions, agentVersionId));
+            }
+            if (requestId != null && !requestId.isBlank()) {
+                metaMap.put("requestId", requestId);
             }
             String metadata = objectMapper.writeValueAsString(metaMap);
             Long msgId = saveMessage(sessionId, MessageRole.USER, content, metadata, 0, messageType, parentId, replyToMessageId);

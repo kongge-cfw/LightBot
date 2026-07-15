@@ -40,4 +40,39 @@ public interface MessageMapper extends BaseMapper<Message> {
             """)
     List<Map<String, Object>> countMessagesPerDayRange(@Param("startDate") String startDate,
                                                        @Param("endDate") String endDate);
+
+    /** 按 metadata.requestId 查询本轮助手消息，避免把会话历史投影到当前调研任务。 */
+    @Select("""
+            SELECT * FROM message
+            WHERE session_id = #{sessionId}
+              AND role = 'assistant'
+              AND metadata ->> 'requestId' = #{requestId}
+            ORDER BY create_time ASC, id ASC
+            """)
+    List<Message> selectAssistantByRequestId(@Param("sessionId") Long sessionId,
+                                             @Param("requestId") String requestId);
+
+    /** 按 metadata.requestId 查询本轮用户输入，保证流式运行中也能定位请求级附件。 */
+    @Select("""
+            SELECT * FROM message
+            WHERE session_id = #{sessionId}
+              AND role = 'user'
+              AND metadata ->> 'requestId' = #{requestId}
+            ORDER BY create_time DESC, id DESC
+            LIMIT 1
+            """)
+    Message selectUserByRequestId(@Param("sessionId") Long sessionId,
+                                  @Param("requestId") String requestId);
+
+    /** 查询某轮助手消息前最近的用户输入，用于返回请求级附件。 */
+    @Select("""
+            SELECT * FROM message
+            WHERE session_id = #{sessionId}
+              AND role = 'user'
+              AND id < #{beforeMessageId}
+            ORDER BY id DESC
+            LIMIT 1
+            """)
+    Message selectPreviousUserMessage(@Param("sessionId") Long sessionId,
+                                      @Param("beforeMessageId") Long beforeMessageId);
 }

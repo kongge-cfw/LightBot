@@ -22,6 +22,10 @@ public class SubAgentEventPublisher {
         try {
             Map<String, Object> event = new LinkedHashMap<>();
             event.put("type", type);
+            event.put("schema_version", 1);
+            if (context != null && context.getRequestId() != null && !context.getRequestId().isBlank()) {
+                event.put("parent_request_id", context.getRequestId());
+            }
             event.putAll(payload);
             taskEventService.record(String.valueOf(payload.getOrDefault("task_id", "")),
                     String.valueOf(payload.getOrDefault("batch_id", "")), type, event);

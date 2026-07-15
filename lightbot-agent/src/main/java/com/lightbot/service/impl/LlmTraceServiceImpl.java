@@ -195,6 +195,17 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
     }
 
     @Override
+    public LlmTrace findLatestByRequestId(String requestId) {
+        if (!StringUtils.hasText(requestId)) {
+            return null;
+        }
+        return getOne(new LambdaQueryWrapper<LlmTrace>()
+                .eq(LlmTrace::getRequestId, requestId)
+                .orderByDesc(LlmTrace::getCreateTime)
+                .last("LIMIT 1"));
+    }
+
+    @Override
     public void upsertWorkflowTrace(LlmTrace trace) {
         if (LlmTraceContext.isSuppressed()) {
             return;

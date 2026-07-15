@@ -796,6 +796,10 @@ public class SubAgentRuntime implements SubAgentExecutor {
     }
 
     private void emitSubAgentStreamEvent(ChatContext chatContext, Map<String, Object> evt, String json) {
+        evt.put("schema_version", 1);
+        if (chatContext.getRequestId() != null && !chatContext.getRequestId().isBlank()) {
+            evt.put("parent_request_id", chatContext.getRequestId());
+        }
         // SSE 已有任务关联字段；metadata 也必须保留，历史消息才能按任务归属工具步骤。
         if (chatContext.getSubAgentBatchId() != null) {
             evt.put("batch_id", chatContext.getSubAgentBatchId());
@@ -814,7 +818,12 @@ public class SubAgentRuntime implements SubAgentExecutor {
                     chatContext.getToolEventsList().add(new java.util.LinkedHashMap<>(evt));
                 }
             }
-            chatContext.emitRealtimeStatus(json);
+            // 实时 SSE 与持久化事件使用同一契约，避免刷新前后丢失请求归属或版本字段。
+            try {
+                chatContext.emitRealtimeStatus(objectMapper.writeValueAsString(evt));
+            } catch (Exception ignored) {
+                chatContext.emitRealtimeStatus(json);
+            }
         } else {
             Object payload = evt.get("result") != null ? evt.get("result")
                     : (evt.get("content") != null ? evt.get("content") : evt.get("args"));

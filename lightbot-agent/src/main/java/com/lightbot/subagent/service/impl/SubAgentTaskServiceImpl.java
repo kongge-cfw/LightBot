@@ -422,6 +422,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             tasks.add(taskMap);
         }
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schema_version", 1);
+        payload.put("parent_request_id", context.requestId());
         payload.put("batch_id", batchId);
         payload.put("mode", input.mode());
         payload.put("aggregation", input.aggregation());
@@ -438,6 +440,8 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
     private void publishTask(RuntimeContext context, String type, String batchId, String taskId, DelegatedTask task,
                              int taskIndex, String displayName, String icon, String status, Map<String, Object> result) {
         Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schema_version", 1);
+        payload.put("parent_request_id", context.requestId());
         payload.put("batch_id", batchId);
         payload.put("task_id", taskId);
         payload.put("task_index", taskIndex);
@@ -457,9 +461,14 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
 
     private void publishBatchDone(RuntimeContext context, String batchId) {
         SubAgentTaskBatch batch = repository.findBatch(batchId);
-        eventPublisher.publish(context.chatContext(), "subagent_batch_done", Map.of("batch_id", batchId,
-                "status", batch != null ? batch.getStatus() : "completed", "contentOffset", context.contentOffset(),
-                "delegationIndex", context.delegationIndex()));
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("schema_version", 1);
+        payload.put("parent_request_id", context.requestId());
+        payload.put("batch_id", batchId);
+        payload.put("status", batch != null ? batch.getStatus() : "completed");
+        payload.put("contentOffset", context.contentOffset());
+        payload.put("delegationIndex", context.delegationIndex());
+        eventPublisher.publish(context.chatContext(), "subagent_batch_done", payload);
     }
 
     private Map<String, Object> result(String batchId, DelegationInput input, boolean background, List<Map<String, Object>> results) {
@@ -522,6 +531,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
         output.put("cancel_requested", Integer.valueOf(1).equals(task.getCancelRequested()));
         output.put("start_time", task.getStartTime());
         output.put("end_time", task.getEndTime());
+        output.put("update_time", task.getUpdateTime());
         output.put("progress_summary", progressSummary(task));
         return output;
     }
@@ -634,6 +644,7 @@ public class SubAgentTaskServiceImpl implements SubAgentTaskService {
             ChatContext taskContext = new ChatContext();
             taskContext.setProviderId(chatContext.getProviderId());
             taskContext.setConfigMap(chatContext.getConfigMap());
+            taskContext.setRequestId(requestId);
             taskContext.setAborted(chatContext.isAborted());
             taskContext.setRealtimeStatusEmitter(chatContext.getRealtimeStatusEmitter());
             // 子任务工具事件写回父会话，确保最终 assistant message 的 metadata 可完整回显。

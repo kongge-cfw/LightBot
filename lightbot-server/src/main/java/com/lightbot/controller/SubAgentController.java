@@ -6,7 +6,9 @@ import com.lightbot.dto.SubAgentRequestDTO;
 import com.lightbot.entity.SubAgent;
 import com.lightbot.service.SubAgentService;
 import com.lightbot.service.ChatSessionService;
+import com.lightbot.service.ResearchTaskProjectionService;
 import com.lightbot.subagent.service.SubAgentTaskService;
+import com.lightbot.vo.ResearchTaskProjectionVO;
 import cn.dev33.satoken.stp.StpUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,6 +33,7 @@ public class SubAgentController {
     private final SubAgentService subAgentService;
     private final ChatSessionService chatSessionService;
     private final SubAgentTaskService subAgentTaskService;
+    private final ResearchTaskProjectionService researchTaskProjectionService;
 
     @Operation(summary = "新增SubAgent")
     @PostMapping
@@ -100,6 +103,15 @@ public class SubAgentController {
             @RequestParam(defaultValue = "20") int limit) {
         chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
         return Result.ok(subAgentTaskService.listRuntimeSummaries(sessionId, parentRequestId, limit));
+    }
+
+    @Operation(summary = "获取当前请求的调研协作状态投影")
+    @GetMapping("/runs/projection")
+    public Result<ResearchTaskProjectionVO> getResearchProjection(
+            @RequestParam Long sessionId,
+            @RequestParam String parentRequestId) {
+        chatSessionService.ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        return Result.ok(researchTaskProjectionService.getProjection(sessionId, parentRequestId));
     }
 
     @Operation(summary = "获取SubAgent批次详情")

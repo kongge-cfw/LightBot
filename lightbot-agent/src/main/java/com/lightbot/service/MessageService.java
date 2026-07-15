@@ -33,6 +33,33 @@ public interface MessageService extends IService<Message> {
     List<Message> listBySessionId(Long sessionId);
 
     /**
+     * 查询某次请求对应的助手消息。
+     *
+     * @param sessionId 会话 ID
+     * @param requestId 请求 ID
+     * @return 按创建时间正序排列的助手消息
+     */
+    List<Message> listAssistantByRequestId(Long sessionId, String requestId);
+
+    /**
+     * 查询本轮请求对应的用户输入消息。
+     *
+     * @param sessionId 会话ID
+     * @param requestId 请求ID
+     * @return 用户消息，不存在时返回 {@code null}
+     */
+    Message getUserByRequestId(Long sessionId, String requestId);
+
+    /**
+     * 查询指定消息前最近的一条用户消息，用于关联本轮输入附件。
+     *
+     * @param sessionId 会话 ID
+     * @param beforeMessageId 助手消息 ID
+     * @return 最近用户消息，不存在时返回 {@code null}
+     */
+    Message getPreviousUserMessage(Long sessionId, Long beforeMessageId);
+
+    /**
      * 删除会话下的所有消息
      *
      * @param sessionId 会话ID

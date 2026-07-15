@@ -4,7 +4,7 @@
 
     <header class="runtime-panel-header">
       <div>
-        <strong>协作状态</strong>
+        <span class="runtime-panel-title-row"><strong>状态</strong><em>{{ statusItemCount }} 项</em></span>
         <span>本次任务的待办、文件与执行进展</span>
       </div>
       <a-tooltip title="刷新">
@@ -15,6 +15,25 @@
     </header>
 
     <div class="runtime-status-list" aria-label="会话状态分类">
+      <section v-if="usage.available" class="runtime-status-section">
+        <a-button type="default" class="runtime-status-button" :class="{ active: isExpanded('usage') }" block
+          :aria-expanded="isExpanded('usage')" @click="toggleSection('usage')">
+          <span class="runtime-status-icon is-usage"><DashboardOutlined /></span>
+          <span class="runtime-status-copy"><strong>本轮用量</strong><small>来自已持久化的模型调用记录</small></span>
+          <span class="runtime-status-meta">{{ usage.totalTokens || 0 }} tokens</span>
+          <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('usage') }" />
+        </a-button>
+        <transition name="runtime-detail">
+          <a-card v-if="isExpanded('usage')" size="small" class="runtime-detail-card" :bordered="false">
+            <div class="usage-grid">
+              <span><small>输入</small><strong>{{ usage.inputTokens || 0 }}</strong></span>
+              <span><small>输出</small><strong>{{ usage.outputTokens || 0 }}</strong></span>
+              <span><small>合计</small><strong>{{ usage.totalTokens || 0 }}</strong></span>
+            </div>
+          </a-card>
+        </transition>
+      </section>
+
       <section class="runtime-status-section">
         <a-button type="default" class="runtime-status-button" :class="{ active: isExpanded('todos') }" block
           :aria-expanded="isExpanded('todos')" @click="toggleSection('todos')">
@@ -52,7 +71,7 @@
           <a-card v-if="isExpanded('files')" size="small" class="runtime-detail-card" :bordered="false">
             <div v-if="attachments.length" class="file-list">
               <a-button v-for="file in attachments.slice(0, 4)" :key="file.id || file.objectKey || file.fileName" type="text"
-                class="file-item" block @click="$emit('open-files')">
+                class="file-item" block @click="$emit('preview-attachment', file)">
                 <FileOutlined /><span>{{ file.fileName || file.name || '未命名文件' }}</span>
               </a-button>
               <a-button v-if="attachments.length > 4" type="link" class="runtime-more" @click="$emit('open-files')">
@@ -132,12 +151,12 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Empty } from 'ant-design-vue'
 import {
-  BorderOutlined, CheckCircleFilled, CheckSquareOutlined, CloseCircleFilled,
+  BorderOutlined, CheckCircleFilled, CheckSquareOutlined, CloseCircleFilled, DashboardOutlined,
   FileDoneOutlined, FileOutlined, InboxOutlined, LoadingOutlined, PaperClipOutlined,
   ReloadOutlined, RightOutlined, RobotOutlined,
 } from '@ant-design/icons-vue'
 import { getSessionAttachments } from '../../../api/chatSession'
-import { getSubAgentRunEvents, getSubAgentRuntimeSummaries } from '../../../api/subagent'
+import { getResearchTaskProjection, getSubAgentRunEvents, getSubAgentRuntimeSummaries } from '../../../api/subagent'
 
 const props = defineProps({
   sessionId: { type: [String, Number], default: null },
@@ -148,14 +167,16 @@ const props = defineProps({
   width: { type: Number, default: 336 },
 })
 
-defineEmits(['open-files', 'resize-start'])
+defineEmits(['open-files', 'preview-attachment', 'resize-start'])
 
 const emptyImage = Empty.PRESENTED_IMAGE_SIMPLE
 const attachments = ref([])
 const dbRuns = ref([])
+const projection = ref(null)
 const expandedSections = ref(new Set())
 const expandedTaskIds = ref(new Set())
 const persistedTaskEvents = ref(new Map())
+const persistedTaskEventCursors = ref(new Map())
 const refreshing = ref(false)
 let refreshTimer = null
 
@@ -184,10 +205,12 @@ function toggleTaskDetail(taskId) {
 }
 
 /** 刷新或重进页面后，按任务补齐已持久化的执行过程。 */
-async function loadTaskEvents(taskId) {
+async function loadTaskEvents(taskId, incremental = false) {
   if (!props.sessionId || !taskId) return
   try {
-    const response = await getSubAgentRunEvents(taskId, props.sessionId, null, 100)
+    const key = String(taskId)
+    const cursor = incremental ? persistedTaskEventCursors.value.get(key) : null
+    const response = await getSubAgentRunEvents(taskId, props.sessionId, cursor, 100)
     const records = response.data?.events || []
     const events = records.map(record => {
       let payload = record.payload
@@ -202,9 +225,18 @@ async function loadTaskEvents(taskId) {
         cursor: record.cursor,
       }
     })
+    const current = incremental ? (persistedTaskEvents.value.get(key) || []) : []
+    const unique = new Map(current.map(event => [String(event.cursor || `${event.type}-${event.create_time}`), event]))
+    events.forEach(event => unique.set(String(event.cursor || `${event.type}-${event.create_time}`), event))
     const next = new Map(persistedTaskEvents.value)
-    next.set(String(taskId), events)
+    next.set(key, [...unique.values()])
     persistedTaskEvents.value = next
+    const nextCursor = response.data?.next_cursor
+    if (nextCursor) {
+      const cursors = new Map(persistedTaskEventCursors.value)
+      cursors.set(key, nextCursor)
+      persistedTaskEventCursors.value = cursors
+    }
   } catch {
     // 事件补齐失败时仍可通过 SSE 继续展示实时过程。
   }
@@ -217,7 +249,7 @@ function parseResult(event) {
 }
 
 const allToolEvents = computed(() => props.messages.flatMap(message => message?._toolEvents || []))
-const todos = computed(() => {
+const todosFromMessages = computed(() => {
   let snapshot = []
   for (const event of allToolEvents.value) {
     if (event?.type !== 'tool_result' || !['write_todos', 'write_todo'].includes(event.toolName)) continue
@@ -226,10 +258,11 @@ const todos = computed(() => {
   }
   return snapshot
 })
+const todos = computed(() => projection.value?.todos?.length ? projection.value.todos : todosFromMessages.value)
 const completedTodoCount = computed(() => todos.value.filter(todo => todo.status === 'completed').length)
 const todoProgress = computed(() => todos.value.length ? Math.round(completedTodoCount.value * 100 / todos.value.length) : 0)
 
-const artifacts = computed(() => {
+const artifactsFromMessages = computed(() => {
   const byPath = new Map()
   for (const event of allToolEvents.value) {
     if (event?.type !== 'tool_result' || event.toolName !== 'present_artifacts') continue
@@ -241,6 +274,8 @@ const artifacts = computed(() => {
   }
   return [...byPath.values()]
 })
+const artifacts = computed(() => projection.value?.artifacts?.length ? projection.value.artifacts : artifactsFromMessages.value)
+const usage = computed(() => projection.value?.usage?.available ? projection.value.usage : { available: false })
 
 const liveTaskStates = computed(() => {
   const states = new Map()
@@ -300,10 +335,15 @@ const runtimeRuns = computed(() => {
   return [...merged.values()].sort((a, b) => Number(isRunning(b.status)) - Number(isRunning(a.status)))
 })
 
+const shouldPoll = computed(() => projection.value?.status === 'running'
+  || runtimeRuns.value.some(run => isRunning(run.status)))
+
 const runningSubagentCount = computed(() => runtimeRuns.value.filter(run => isRunning(run.status)).length)
 const subagentMeta = computed(() => runtimeRuns.value.length
   ? (runningSubagentCount.value ? `${runningSubagentCount.value}/${runtimeRuns.value.length} 运行中` : runtimeRuns.value.length)
   : '0')
+const statusItemCount = computed(() => [usage.value.available, todos.value.length, attachments.value.length,
+  artifacts.value.length, runtimeRuns.value.length].filter(Boolean).length)
 
 function isRunning(status) { return ['pending', 'running', 'cancel_requested'].includes(status) }
 function statusLabel(status) {
@@ -355,6 +395,7 @@ function executionSteps(run) {
 }
 
 async function refreshAttachments() {
+  if (props.parentRequestId) return
   if (!props.sessionId) { attachments.value = []; return }
   try {
     const response = await getSessionAttachments(props.sessionId)
@@ -365,6 +406,7 @@ async function refreshAttachments() {
 }
 
 async function refreshRuns() {
+  if (props.parentRequestId) return
   if (!props.sessionId || (!currentTaskIds.value.size && !props.parentRequestId)) { dbRuns.value = []; return }
   try {
     const response = await getSubAgentRuntimeSummaries(props.sessionId, 30, props.parentRequestId)
@@ -376,13 +418,36 @@ async function refreshRuns() {
   }
 }
 
+/**
+ * 以 parentRequestId 获取任务级事实快照。运行中的 SSE 仅补充增量，重进/刷新时不再从整个会话猜测待办和附件。
+ */
+async function refreshProjection() {
+  if (!props.sessionId || !props.parentRequestId) {
+    projection.value = null
+    return
+  }
+  try {
+    const response = await getResearchTaskProjection(props.sessionId, props.parentRequestId)
+    const next = response.data
+    if (!next) return
+    const currentVersion = Number(projection.value?.version || 0)
+    const nextVersion = Number(next.version || 0)
+    if (nextVersion && currentVersion && nextVersion < currentVersion) return
+    projection.value = next
+    attachments.value = next.attachments || []
+    dbRuns.value = next.subagents || []
+  } catch {
+    // 快照接口短暂失败时保留现有状态，并由当前 SSE 或旧轮询兜底继续展示。
+  }
+}
+
 async function refreshRuntimeState() {
   if (refreshing.value) return
   refreshing.value = true
   const minDelay = new Promise(resolve => setTimeout(resolve, 500))
   try {
-    await Promise.all([refreshAttachments(), refreshRuns(), minDelay])
-    await Promise.all([...expandedTaskIds.value].map(loadTaskEvents))
+    await Promise.all([refreshProjection(), refreshAttachments(), refreshRuns(), minDelay])
+    await Promise.all([...expandedTaskIds.value].map(taskId => loadTaskEvents(taskId, true)))
   } finally {
     refreshing.value = false
   }
@@ -390,25 +455,35 @@ async function refreshRuntimeState() {
 
 function startPolling() {
   clearInterval(refreshTimer)
+  if (!shouldPoll.value) return
   refreshTimer = setInterval(() => {
+    refreshProjection()
     refreshAttachments()
     refreshRuns()
-  }, 2000)
+  }, 5000)
 }
 
 watch(() => props.sessionId, () => {
   dbRuns.value = []
+  projection.value = null
+  refreshProjection()
   refreshAttachments()
   refreshRuns()
   startPolling()
 }, { immediate: true })
 
-watch(() => [props.taskIds, props.parentRequestId], () => refreshRuns(), { deep: true })
+watch(() => [props.taskIds, props.parentRequestId], () => {
+  refreshProjection()
+  refreshRuns()
+}, { deep: true })
 watch(() => props.parentRequestId, () => {
   expandedTaskIds.value = new Set()
   persistedTaskEvents.value = new Map()
+  persistedTaskEventCursors.value = new Map()
+  projection.value = null
 })
 watch(() => artifacts.value.length, refreshAttachments)
+watch(shouldPoll, startPolling, { immediate: true })
 
 onBeforeUnmount(() => clearInterval(refreshTimer))
 </script>
@@ -416,11 +491,12 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 <style scoped>
 .runtime-panel { position: relative; width: 336px; min-height: 100%; flex: 0 0 336px; overflow-y: auto; border-left: 1px solid var(--color-hairline); background: var(--color-canvas); box-shadow: -10px 0 28px rgba(15, 23, 42, .04); padding: 20px 16px 28px; }
 .runtime-resize-handle { position: absolute; z-index: 2; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }.runtime-resize-handle::after { position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 2px; background: var(--color-link); content: ''; opacity: 0; transition: opacity .16s ease; }.runtime-resize-handle:hover::after { opacity: .55; }
-.runtime-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }.runtime-panel-header > div { display: flex; flex-direction: column; gap: 3px; }.runtime-panel-header strong { color: var(--color-ink); font-size: 15px; line-height: 1.35; }.runtime-panel-header span { color: var(--color-mute); font-size: 12px; }.runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--color-body); }.runtime-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.is-spinning { animation: runtime-spin .8s linear infinite; }
+.runtime-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }.runtime-panel-header > div { display: flex; flex-direction: column; gap: 3px; }.runtime-panel-title-row { display: inline-flex; align-items: baseline; gap: 8px; }.runtime-panel-header strong { color: var(--color-ink); font-size: 15px; line-height: 1.35; }.runtime-panel-header .runtime-panel-title-row em { color: var(--color-mute); font-size: 12px; font-style: normal; }.runtime-panel-header > div > span:last-child { color: var(--color-mute); font-size: 12px; }.runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--color-body); }.runtime-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.is-spinning { animation: runtime-spin .8s linear infinite; }
 .runtime-status-list { display: flex; flex-direction: column; gap: 8px; }.runtime-status-section { display: flex; flex-direction: column; gap: 8px; }.runtime-status-button { display: flex !important; width: 100%; height: auto !important; align-items: center; min-height: 66px; gap: 10px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-md) !important; background: var(--color-canvas) !important; padding: 10px !important; color: var(--color-ink) !important; text-align: left; white-space: normal !important; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }.runtime-status-button:hover { border-color: var(--color-hairline-strong) !important; background: var(--color-canvas-soft) !important; transform: translateY(-1px); }.runtime-status-button.active { border-color: var(--color-link) !important; background: var(--color-link-bg-soft) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--color-link) 14%, transparent); }
-.runtime-status-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 34px; border-radius: 9px; background: var(--color-canvas-soft-2); color: var(--color-mute); font-size: 16px; }.runtime-status-icon.is-todo { color: #15803d; background: #dcfce7; }.runtime-status-icon.is-files { color: #1d4ed8; background: #dbeafe; }.runtime-status-icon.is-artifacts { color: #9333ea; background: #f3e8ff; }.runtime-status-icon.is-subagents { color: #c2410c; background: #ffedd5; }.runtime-status-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.runtime-status-copy strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-copy small { overflow: hidden; color: var(--color-mute); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-meta { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; font-variant-numeric: tabular-nums; }.runtime-status-arrow { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.runtime-status-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.runtime-status-button.active .runtime-status-copy strong, .runtime-status-button.active .runtime-status-meta { color: var(--color-link-deep); }
+.runtime-status-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 34px; border-radius: 9px; background: var(--color-canvas-soft-2); color: var(--color-mute); font-size: 16px; }.runtime-status-icon.is-usage { color: #0f766e; background: #ccfbf1; }.runtime-status-icon.is-todo { color: #15803d; background: #dcfce7; }.runtime-status-icon.is-files { color: #1d4ed8; background: #dbeafe; }.runtime-status-icon.is-artifacts { color: #9333ea; background: #f3e8ff; }.runtime-status-icon.is-subagents { color: #c2410c; background: #ffedd5; }.runtime-status-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.runtime-status-copy strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-copy small { overflow: hidden; color: var(--color-mute); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-meta { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; font-variant-numeric: tabular-nums; }.runtime-status-arrow { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.runtime-status-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.runtime-status-button.active .runtime-status-copy strong, .runtime-status-button.active .runtime-status-meta { color: var(--color-link-deep); }
 .runtime-detail-card { border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-lg) !important; background: var(--color-canvas-soft) !important; }.runtime-detail-card :deep(.ant-card-body) { padding: 14px; }.runtime-detail-enter-active, .runtime-detail-leave-active { transition: opacity .18s ease, transform .18s ease; }.runtime-detail-enter-from, .runtime-detail-leave-to { opacity: 0; transform: translateY(-5px); }.runtime-empty { margin: 0; padding: 8px 0 2px; }
 .todo-list, .file-list, .artifact-list, .subagent-list { display: flex; flex-direction: column; gap: 8px; }.todo-item { display: flex; align-items: flex-start; gap: 8px; color: var(--color-body); font-size: 12px; line-height: 1.55; }.todo-item > :first-child { margin-top: 2px; color: var(--color-mute); }.todo-item.is-completed { color: var(--color-mute); text-decoration: line-through; }.todo-item.is-completed > :first-child { color: var(--color-success); text-decoration: none; }.todo-item.is-cancelled > :first-child { color: var(--color-error); }.todo-progress-track { height: 5px; overflow: hidden; border-radius: 999px; background: var(--color-hairline); }.todo-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-success); transition: width .25s ease; }
+.usage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.usage-grid span { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: var(--color-canvas); }.usage-grid small { color: var(--color-mute); font-size: 11px; }.usage-grid strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
 .file-item, .artifact-card, .subagent-card { display: flex !important; width: 100%; height: auto !important; align-items: flex-start; justify-content: flex-start; gap: 8px; padding: 7px 8px !important; border-radius: 8px !important; color: var(--color-body) !important; text-align: left; white-space: normal !important; }.file-item:hover, .artifact-card:hover, .subagent-card:hover { background: var(--color-canvas-soft-2) !important; color: var(--color-ink) !important; }.file-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.runtime-more { align-self: flex-start; padding: 0 !important; }
 .artifact-card > :first-child { margin-top: 3px; color: #9333ea; }.artifact-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.artifact-main strong, .artifact-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.artifact-main strong { color: var(--color-ink); font-size: 12px; }.artifact-main small { color: var(--color-mute); font-size: 11px; }
 .subagent-run { display: flex; flex-direction: column; gap: 6px; }.subagent-card { position: relative; min-width: 0; border: 1px solid var(--color-hairline) !important; background: var(--color-canvas) !important; }.subagent-card.is-running { border-color: color-mix(in srgb, var(--color-link) 35%, var(--color-hairline)) !important; }.subagent-avatar { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 28px; border-radius: 8px; background: #ffedd5; color: #c2410c; }.subagent-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.subagent-name-row { display: flex; min-width: 0; align-items: center; gap: 5px; }.subagent-name-row strong { overflow: hidden; flex: 1; color: var(--color-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.subagent-status { margin: 0; border: 0; border-radius: 4px; font-size: 10px; line-height: 18px; }.subagent-status.is-running, .subagent-status.is-pending { color: #1d4ed8; background: #dbeafe; }.subagent-status.is-completed { color: #15803d; background: #dcfce7; }.subagent-status.is-failed, .subagent-status.is-timeout, .subagent-status.is-cancelled { color: #b91c1c; background: #fee2e2; }.subagent-task, .subagent-output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.subagent-task { color: var(--color-body); font-size: 11px; }.subagent-output { color: var(--color-mute); font-size: 11px; }.subagent-spinner { align-self: center; color: var(--color-link); }.subagent-expand-arrow { align-self: center; flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.subagent-expand-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.subagent-process { position: relative; margin: -1px 4px 2px 16px; padding: 8px 8px 4px 16px; border-left: 1px solid var(--color-hairline-strong); background: color-mix(in srgb, var(--color-canvas-soft) 82%, transparent); }.subagent-process-step { position: relative; display: flex; gap: 7px; padding: 0 0 8px; color: var(--color-body); font-size: 11px; line-height: 1.45; }.subagent-process-dot { position: absolute; top: 5px; left: -21px; width: 8px; height: 8px; border: 2px solid var(--color-canvas); border-radius: 50%; background: var(--color-mute); box-shadow: 0 0 0 1px var(--color-hairline-strong); }.subagent-process-step.is-running .subagent-process-dot, .subagent-process-step.is-pending .subagent-process-dot { background: var(--color-link); animation: subagent-process-pulse 1.3s ease-in-out infinite; }.subagent-process-step.is-completed .subagent-process-dot { background: var(--color-success); }.subagent-process-step.is-failed .subagent-process-dot { background: var(--color-error); }.subagent-process-main { display: flex; min-width: 0; flex-direction: column; gap: 2px; }.subagent-process-main strong { color: var(--color-body); font-weight: 500; }.subagent-process-main small { max-height: 64px; overflow: hidden; color: var(--color-mute); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }.subagent-process-empty { padding-bottom: 5px; color: var(--color-mute); font-size: 11px; }.subagent-process-enter-active, .subagent-process-leave-active { transition: opacity .18s ease, transform .18s ease; }.subagent-process-enter-from, .subagent-process-leave-to { opacity: 0; transform: translateY(-4px); }.subagent-card-enter-active, .subagent-card-leave-active { transition: opacity .22s ease, transform .22s ease; }.subagent-card-enter-from, .subagent-card-leave-to { opacity: 0; transform: translateY(8px); }

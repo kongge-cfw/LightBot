@@ -41,6 +41,11 @@ export function getSubAgentRuntimeSummaries(sessionId, limit = 20, parentRequest
   return request.get('/subagents/runs/summary', { params })
 }
 
+/** 获取一条用户请求对应的待办、附件、产物和子智能体状态快照。 */
+export function getResearchTaskProjection(sessionId, parentRequestId) {
+  return request.get('/subagents/runs/projection', { params: { sessionId, parentRequestId } })
+}
+
 export function getSubAgentBatch(batchId, sessionId) {
   return request.get(`/subagents/batches/${batchId}`, { params: { sessionId } })
 }
