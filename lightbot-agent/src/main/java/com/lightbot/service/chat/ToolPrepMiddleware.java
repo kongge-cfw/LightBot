@@ -269,6 +269,10 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 allCallbacks.addAll(delegateSubAgentTool.buildCallbacks(subAgentIds));
             }
 
+            // 3.1 沙盒写入配套工具补齐：write 的描述提示较长内容可分次续写，依赖 append/read，
+            // 若绑定只含 write 而缺 append/read，模型调用 append 会撞「工具不存在」。此处强制补齐。
+            ensureSandboxWriteCompanions(allCallbacks);
+
             // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）
             List<ToolCallback> dedupedCallbacks = dedupCallbacks(allCallbacks);
             if (ctx != null) {
@@ -327,6 +331,32 @@ public class ToolPrepMiddleware implements ChatMiddleware {
         } catch (Exception e) {
             log.warn("[Chat] 读取用户长期记忆配置失败: userId={}, error={}", ctx.getUserId(), e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * 沙盒写入配套工具补齐：只要工具集含 sandbox_write_file，就确保 sandbox_append_file、
+     * sandbox_read_file 同时可用。write 描述会提示较长内容可用 append 续写，
+     * 若 append 未绑定则模型撞「工具不存在」。
+     *
+     * @param callbacks 待补齐的工具回调列表（原地追加缺失项）
+     */
+    private void ensureSandboxWriteCompanions(List<ToolCallback> callbacks) {
+        Set<String> present = callbacks.stream()
+                .map(cb -> cb.getToolDefinition().name())
+                .collect(Collectors.toSet());
+        if (!present.contains("sandbox_write_file")) {
+            return;
+        }
+        List<String> missing = new ArrayList<>();
+        for (String companion : List.of("sandbox_append_file", "sandbox_read_file")) {
+            if (!present.contains(companion)) {
+                missing.add(companion);
+            }
+        }
+        if (!missing.isEmpty()) {
+            callbacks.addAll(toolService.resolveToolCallbacks(missing));
+            log.info("[Chat] 补齐沙盒写入配套工具: {}", missing);
         }
     }
 

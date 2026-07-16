@@ -91,14 +91,12 @@ public class SandboxFileTool {
           description = "写入（覆盖）文件到当前会话。路径含义：" +
                   "1) 工作区临时/中间文件：相对路径如 notes/draft.md；" +
                   "2) 交付给用户的最终产物：以 outputs/ 开头，如 outputs/reports/report.md，可再配合 present_artifacts。" +
-                  "禁止写入 skills/。" +
-                  "【大文件必须分段】正文很长（如完整 HTML 页面、长报告）时，单次调用会因模型输出上限被截断导致 content 不完整。" +
-                  "请务必：本次只写开头一段（几百行以内），随后用 sandbox_append_file 向同一路径分多次追加剩余内容，切勿一次性塞入整篇。")
+                  "禁止写入 skills/。")
     @SystemTool(displayName = "写入沙盒文件", tags = {"file", "sandbox", "write"})
     public String writeFile(
-            @ToolParam(description = "相对路径。工作区如 notes/draft.md；交付文件如 outputs/reports/report.md。不要传 skills/")
+            @ToolParam(description = "相对路径，必须最先传入。工作区如 notes/draft.md；交付文件如 outputs/reports/report.md。不要传 skills/")
             @ToolParamMeta(example = "outputs/reports/report.md") String path,
-            @ToolParam(description = "文件内容（覆盖写入）")
+            @ToolParam(description = "文件内容（覆盖写入），在 path 之后传入")
             @ToolParamMeta(example = "# 标题\\n\\n摘要……") String content,
             ToolContext toolContext) {
         return doWrite(path, content, false, toolContext);
@@ -110,9 +108,9 @@ public class SandboxFileTool {
                   "路径规则与 sandbox_write_file 相同。")
     @SystemTool(displayName = "追加沙盒文件", tags = {"file", "sandbox", "write", "append"})
     public String appendFile(
-            @ToolParam(description = "相对路径，须与先前 write 使用同一路径")
+            @ToolParam(description = "相对路径，必须最先传入，须与先前 write 使用同一路径")
             @ToolParamMeta(example = "outputs/reports/report.md") String path,
-            @ToolParam(description = "追加内容")
+            @ToolParam(description = "追加内容，在 path 之后传入")
             @ToolParamMeta(example = "\\n\\n## 第二节\\n……") String content,
             ToolContext toolContext) {
         return doWrite(path, content, true, toolContext);

@@ -50,7 +50,7 @@ public final class BuiltInSkillDefinitions {
                     - `query_knowledge` 仅在当前 Agent 已绑定知识库后由系统自动注入；它用于检索绑定知识库，不能把未命中的常识伪装成知识库结论。
                     - 遇到本轮上传的 PDF/图片且需要提取文字时，使用 `ocr_parse_file`；它返回 `ocr/...` 解析文件路径，再用 `sandbox_read_file` 读取所需片段。不要臆造附件内容。
                     - 仅在用户明确要求可下载文件时，用 `sandbox_write_file` / `sandbox_append_file` 写入 `outputs/` 下的 Markdown/文本交付物，再用 `present_artifacts` 登记。中间文件写普通工作区路径，不得交付 Skill 文件。
-                    - 长文必须分片：单次 `content` 勿超约 3500 字符；先 `sandbox_write_file` 写开头，再多次 `sandbox_append_file` 追加，禁止整篇塞进一次 tool call（会被截断失败）。
+                    - 内容分多个章节时，可先 `sandbox_write_file` 写入第一部分，再用 `sandbox_append_file` 向同一路径续写后续章节。
                     - 禁止调用或提及 Yuxi 的 `task`、`ask_user_question`、`tavily_search`、`read_file`、`write_file`、`query_kb` 等名称；也不要猜测任何未出现在当前工具列表中的 MCP 工具名。
 
                     **一、先判断是否需要澄清**：
@@ -74,7 +74,7 @@ public final class BuiltInSkillDefinitions {
                     **四、交付**：
                     - 最终报告先给 1~2 句结论摘要，再按小节说明发现、依据、风险/不确定性和建议；不要机械拼接子智能体原文。
                     - 每一条来自检索的事实、数据、时间或链接，必须在句末以「（参考：站点名或 URL）」标注出处；无出处的事实不得写入结论。
-                    - 存在失败、未完成任务或证据冲突时必须如实说明影响；只有用户要求文件交付时，主 Agent 才先用 `sandbox_write_file`（必要时 `sandbox_append_file` 分段）写入例如 `outputs/reports/research-report.md`，确认成功后再使用 `present_artifacts` 登记并告知用户。
+                    - 存在失败、未完成任务或证据冲突时必须如实说明影响；只有用户要求文件交付时，主 Agent 才先用 `sandbox_write_file`（分章节时可用 `sandbox_append_file` 续写）写入例如 `outputs/reports/research-report.md`，确认成功后再使用 `present_artifacts` 登记并告知用户。
 
                     **停止准则**：当所有待办均进入终态，且各子问题已获得可信来源、或已明确记录无法核验的原因时，停止检索并综合作答，避免无意义的反复搜索。
 

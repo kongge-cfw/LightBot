@@ -26,14 +26,15 @@
       frameborder="0"
     ></iframe>
 
-    <!-- HTML 预览 -->
+    <!-- HTML 预览：优先用已拉取的正文 srcdoc 内联渲染，绕开 MinIO 预签名 URL 的 attachment/Content-Type 头导致的空白页；无正文时才回退到 :src -->
     <iframe
-      v-else-if="isHtml && (fileUrl || resolvedContent)"
-      :src="fileUrl || undefined"
-      :srcdoc="!fileUrl && resolvedContent ? resolvedContent : undefined"
+      v-else-if="isHtml && !forceText && htmlRenderable"
+      :srcdoc="resolvedContent || undefined"
+      :src="!resolvedContent && fileUrl ? fileUrl : undefined"
       class="preview-iframe"
       frameborder="0"
       sandbox="allow-same-origin"
+      @error="htmlLoadError = true"
     ></iframe>
 
     <!-- 图片预览 -->
@@ -43,13 +44,16 @@
 
     <!-- Markdown 预览 -->
     <div
-      v-else-if="isMarkdown && resolvedContent"
+      v-else-if="isMarkdown && !forceText && resolvedContent"
       class="preview-markdown markdown-body"
       v-html="renderedMarkdown"
     ></div>
 
     <!-- 代码/文本预览 -->
     <pre v-else-if="isText && resolvedContent" class="preview-text">{{ resolvedContent }}</pre>
+
+    <!-- 渲染型（HTML/Markdown）切换为纯文本 或 HTML 解析失败降级 -->
+    <pre v-else-if="(isHtml || isMarkdown) && resolvedContent" class="preview-text">{{ resolvedContent }}</pre>
 
     <!-- 不支持预览 -->
     <div v-else class="preview-unsupported">
@@ -102,11 +106,17 @@ const props = defineProps({
   downloadUrl: {
     type: String,
     default: ''
+  },
+  /** 强制以纯文本样式预览（用于 HTML/Markdown 渲染型切换为文本） */
+  forceText: {
+    type: Boolean,
+    default: false
   }
 })
 
 const fetchedContent = ref('')
 const fetching = ref(false)
+const htmlLoadError = ref(false)
 
 const extension = computed(() => {
   if (props.fileType) return props.fileType.toLowerCase()
@@ -137,12 +147,34 @@ const renderedMarkdown = computed(() => {
   return renderMarkdownSync(resolvedContent.value)
 })
 
+// HTML 是否可渲染：有 URL 直接渲染；仅有内容时校验能否解析出有效 HTML 结构，否则降级纯文本
+const htmlRenderable = computed(() => {
+  if (htmlLoadError.value) return false
+  const content = resolvedContent.value
+  // 有内容时校验能否解析出有效 HTML 结构；无内容仅有 URL 时直接交给 iframe 渲染
+  if (content) return isParsableHtml(content)
+  return !!props.fileUrl
+})
+
+function isParsableHtml(content) {
+  try {
+    const doc = new DOMParser().parseFromString(content, 'text/html')
+    // 解析出错节点或无任何元素则视为不可渲染
+    if (doc.querySelector('parsererror')) return false
+    return !!doc.body && doc.body.children.length > 0
+  } catch {
+    return false
+  }
+}
+
 watch(
   () => [props.fileUrl, props.fileName, props.fileType, props.content],
   async () => {
     fetchedContent.value = ''
-    const needFetch = !props.content && props.fileUrl
-      && (isTextSourcePreviewable(extension.value) || ['md', 'markdown'].includes(extension.value))
+    htmlLoadError.value = false
+    const isTextLike = isTextSourcePreviewable(extension.value)
+      || ['md', 'markdown', 'html', 'htm'].includes(extension.value)
+    const needFetch = !props.content && props.fileUrl && isTextLike
     if (!needFetch) {
       fetching.value = false
       return

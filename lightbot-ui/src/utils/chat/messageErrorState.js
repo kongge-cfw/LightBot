@@ -208,7 +208,7 @@ export function normalizeAssistantMessageErrors(msg) {
     msg.content = stripToolStepLimitFromContent(msg.content)
   }
 
-  if (msg._terminated || USER_ABORT_MARKDOWN.test(msg.content || '')) {
+  if (msg._terminated || msg.metadata?.aborted || USER_ABORT_MARKDOWN.test(msg.content || '')) {
     if (!msg._error && !msg._terminated) {
       msg._terminated = true
     }

@@ -15,20 +15,37 @@
           <FileTypeIcon :name="displayName" :size="18" />
           <span class="fpm-title-text" :title="displayName">{{ displayName }}</span>
         </div>
-        <a-tooltip
-          v-if="effectiveDownloadUrl"
-          title="下载文件"
-          placement="bottom"
-          :get-popup-container="tooltipPopupContainer"
-        >
-          <button
-            type="button"
-            class="fpm-download"
-            @click.stop="handleDownload"
+        <div class="fpm-actions">
+          <a-tooltip
+            v-if="isRenderable"
+            :title="forceText ? '切换为渲染预览' : '切换为文本预览'"
+            placement="bottom"
+            :get-popup-container="tooltipPopupContainer"
           >
-            <DownloadOutlined /> 下载
-          </button>
-        </a-tooltip>
+            <button
+              type="button"
+              class="fpm-icon-btn"
+              @click.stop="forceText = !forceText"
+            >
+              <FileTextOutlined v-if="!forceText" />
+              <EyeOutlined v-else />
+            </button>
+          </a-tooltip>
+          <a-tooltip
+            v-if="effectiveDownloadUrl"
+            title="下载文件"
+            placement="bottom"
+            :get-popup-container="tooltipPopupContainer"
+          >
+            <button
+              type="button"
+              class="fpm-download"
+              @click.stop="handleDownload"
+            >
+              <DownloadOutlined /> 下载
+            </button>
+          </a-tooltip>
+        </div>
       </div>
     </template>
 
@@ -50,14 +67,15 @@
         :content="content"
         :loading="false"
         :download-url="effectiveDownloadUrl"
+        :force-text="forceText"
       />
     </div>
   </a-modal>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { DownloadOutlined, LoadingOutlined } from '@ant-design/icons-vue'
+import { computed, ref, watch } from 'vue'
+import { DownloadOutlined, LoadingOutlined, FileTextOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import FileTypeIcon from './FileTypeIcon.vue'
 import FilePreview from './FilePreview.vue'
 import { getFileExtension } from '../utils/filePreview'
@@ -99,6 +117,16 @@ const effectiveDownloadUrl = computed(() => props.downloadUrl || props.fileUrl |
 
 const combinedLoading = computed(() => props.loading)
 
+// 仅 HTML 提供「渲染 / 纯文本」切换（Markdown 纯文本效果不佳，不提供切换）
+const isRenderable = computed(() => ['html', 'htm'].includes(fileTypeExt.value))
+
+const forceText = ref(false)
+
+// 切换文件时重置为默认渲染视图
+watch(() => [props.fileUrl, props.fileName, props.content], () => {
+  forceText.value = false
+})
+
 function tooltipPopupContainer() {
   return document.body
 }
@@ -136,6 +164,30 @@ function handleDownload() {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
+}
+.fpm-actions {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.fpm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  font-size: 15px;
+  color: var(--color-mute);
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.fpm-icon-btn:hover {
+  background: var(--color-canvas-soft);
+  color: var(--color-body);
 }
 .fpm-download {
   flex-shrink: 0;

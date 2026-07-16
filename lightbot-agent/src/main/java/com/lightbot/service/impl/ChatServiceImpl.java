@@ -592,6 +592,13 @@ public class ChatServiceImpl implements ChatService {
             if (ctx.getRequestId() != null && !ctx.getRequestId().isBlank()) {
                 meta.put("requestId", ctx.getRequestId());
             }
+            // 用户主动中止：落库标记，供历史加载渲染「输出已终止」样式
+            if (ctx.isAborted()) {
+                meta.put("aborted", true);
+                if (ctx.getAbortReason() != null && !ctx.getAbortReason().isBlank()) {
+                    meta.put("abortReason", ctx.getAbortReason());
+                }
+            }
             return meta.isEmpty() ? null : objectMapper.writeValueAsString(meta);
         } catch (Exception e) {
             log.warn("[Chat] 构建持久化metadata失败: {}", e.getMessage());
@@ -1288,12 +1295,10 @@ public class ChatServiceImpl implements ChatService {
                 }
                 // 参数可能因 maxTokens 在字符串中途被截断：写文件场景先尝试修复再执行
                 String effectiveArgs = callArgs;
-                boolean repairedTruncation = false;
                 if (isLikelyTruncatedJson(effectiveArgs)) {
                     String repaired = toolArgsSanitizer.tryRepairTruncatedWriteArgs(toolName, effectiveArgs);
                     if (repaired != null) {
                         effectiveArgs = stripInternalRepairFlags(repaired);
-                        repairedTruncation = true;
                         log.warn("[Chat] 工具参数疑似截断，已修复后执行: name={}, rawLen={}, repairedLen={}",
                                 toolName, callArgs != null ? callArgs.length() : 0, effectiveArgs.length());
                     }
@@ -1330,9 +1335,6 @@ public class ChatServiceImpl implements ChatService {
                 if (chatContext != null && chatContext.isAborted()) {
                     return ToolResultPrefixes.failureJson("CLIENT_ABORTED");
                 }
-                if (repairedTruncation && !ToolResultPrefixes.isError(result)) {
-                    result = appendTruncationContinueHint(result, toolName);
-                }
                 if (!ToolResultPrefixes.isError(result)) {
                     sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, result);
                 }
@@ -1357,7 +1359,6 @@ public class ChatServiceImpl implements ChatService {
                             String retryResult = callback.call(retryArgs, new ToolContext(ctxMap));
                             if (!ToolResultPrefixes.isError(retryResult)) {
                                 sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, retryResult);
-                                return appendTruncationContinueHint(retryResult, toolName);
                             }
                             return retryResult;
                         } catch (Exception retryEx) {
@@ -1366,9 +1367,7 @@ public class ChatServiceImpl implements ChatService {
                     }
                     log.error("[Chat] 工具参数解析失败(疑似模型输出被截断): name={}, argsLen={}, error={}",
                             toolName, callArgs != null ? callArgs.length() : 0, e.getMessage());
-                    return ToolResultPrefixes.failureJson("工具参数不完整，可能因单次输出超过模型 maxTokens 被截断。"
-                            + "请改用「分段写入」：先 sandbox_write_file 写开头，再用 sandbox_append_file 追加剩余内容，"
-                            + "每段控制在模型单次输出能容纳的长度内。");
+                    return ToolResultPrefixes.failureJson("工具参数不完整，请重新调用并完整传入所需参数后重试。");
                 }
                 log.error("[Chat] 工具执行异常: name={}, error={}", toolName, e.getMessage(), e);
                 return ToolResultPrefixes.failureJson(ToolResultPrefixes.FAILURE + ": " + e.getMessage());
@@ -1402,32 +1401,6 @@ public class ChatServiceImpl implements ChatService {
         // 去掉内部标记字段，避免 MethodToolCallback 因未知参数失败
         return json.replaceAll(",\\s*\"_repairedFromTruncation\"\\s*:\\s*true", "")
                 .replaceAll("\"_repairedFromTruncation\"\\s*:\\s*true\\s*,?", "");
-    }
-
-    private static String appendTruncationContinueHint(String result, String toolName) {
-        if (result == null || result.isBlank()) {
-            return result;
-        }
-        if (!"sandbox_write_file".equals(toolName) && !"sandbox_append_file".equals(toolName)) {
-            return result;
-        }
-        if (result.contains("continueWithAppend") || result.contains("sandbox_append_file")) {
-            return result;
-        }
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(result);
-            if (!(node instanceof com.fasterxml.jackson.databind.node.ObjectNode obj)) {
-                return result;
-            }
-            obj.put("truncatedRecovered", true);
-            obj.put("continueWithAppend", true);
-            obj.put("hint", "本段因模型输出长度限制被截断，已尽量写入可读前缀。"
-                    + "请立刻对同一 path 调用 sandbox_append_file 追加剩余正文，勿再次整篇 write。");
-            return mapper.writeValueAsString(obj);
-        } catch (Exception e) {
-            return result;
-        }
     }
 
     private long resolveToolExecutionTimeoutSeconds(String toolName, String callArgs) {
