@@ -669,30 +669,6 @@
           <a-form-item>
             <template #label>
               <div style="display: flex; align-items: center; gap: 6px;">
-                <span>最大执行步数</span>
-                <a-tooltip
-                  title="单次对话中模型与工具交互的最大轮次。超出后停止工具调用并返回当前结果"
-                  overlay-class-name="no-flip-tooltip"
-                  :overlay-style="{ maxWidth: '320px' }"
-                  placement="topLeft"
-                >
-                  <QuestionCircleOutlined style="font-size: 14px; color: var(--color-mute); cursor: help;" />
-                </a-tooltip>
-              </div>
-            </template>
-            <a-input-number
-              v-model:value="agentConfig.maxExecutionSteps"
-              :min="1"
-              :max="100"
-              :step="1"
-              placeholder="默认 10"
-              style="width: 100%"
-              :disabled="isVersionPreview"
-            />
-          </a-form-item>
-          <a-form-item>
-            <template #label>
-              <div style="display: flex; align-items: center; gap: 6px;">
                 <span>模型重试次数</span>
                 <a-tooltip
                   title="模型调用失败时的最大重试次数。重试间隔递增（1s, 2s, 4s）"
@@ -926,6 +902,27 @@
             <span class="tool-option-value">{{ agentConfig.asyncToolCalls ? '已开启' : '未开启' }}</span>
             <a-tooltip
               title="默认关闭：每次只调用一个工具，等待结果后再决定是否继续调用，Token 消耗更可控；开启后：AI 可同时调用多个工具，提升多步骤任务的执行效率，但可能消耗更多 Token"
+              overlay-class-name="no-flip-tooltip"
+              :overlay-style="{ maxWidth: '320px' }"
+              placement="topLeft"
+            >
+              <QuestionCircleOutlined class="tool-option-help" />
+            </a-tooltip>
+          </div>
+          <div class="tool-option-item">
+            <span class="tool-option-label">最大工具调用轮次</span>
+            <a-input-number
+              v-model:value="agentConfig.maxExecutionSteps"
+              :min="1"
+              :max="200"
+              :step="1"
+              placeholder="默认 20"
+              size="small"
+              style="width: 96px"
+              :disabled="isVersionPreview"
+            />
+            <a-tooltip
+              title="单次对话中模型与工具交互的总轮次上限（一次工具调用或一次模型回复计 1 步）。达到上限后平台会强制停止工具调用并直接返回。深度研究、多轮检索等场景建议 30~80，一般对话保持默认 20 即可"
               overlay-class-name="no-flip-tooltip"
               :overlay-style="{ maxWidth: '320px' }"
               placement="topLeft"
@@ -1918,7 +1915,7 @@ const agentConfig = reactive({
   summaryPrompt: '',
   summaryKeepMessages: 6,
   summaryToolResultTokenLimit: 500,
-  maxExecutionSteps: 10,
+  maxExecutionSteps: 20,
   modelRetryTimes: 2,
 })
 
@@ -2123,7 +2120,7 @@ const CHAT_CONFIG_PREVIEW_DEFAULTS = {
   summaryPrompt: '',
   summaryKeepMessages: 6,
   summaryToolResultTokenLimit: 500,
-  maxExecutionSteps: 10,
+  maxExecutionSteps: 20,
   modelRetryTimes: 2,
   userSensitiveFilterEnabled: false,
   sensitiveFilterEnabled: false,

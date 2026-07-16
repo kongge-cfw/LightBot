@@ -104,6 +104,16 @@ public class MessageMiddleware implements ChatMiddleware {
             - 可在文末补充：「如需了解【某主题】的更多细节，可以继续问我」
             """;
 
+    /** 工具调用轮次预算提示（%d 为运行时 maxExecutionSteps） */
+    private static final String TOOL_STEP_BUDGET_HINT_TEMPLATE = """
+
+            ## 工具调用轮次预算（重要）
+            - 本轮对话「模型 ↔ 工具」交互总轮次上限约为 **%d 步**（一次工具调用或一次模型回复计 1 步），超出后平台会强制停止工具调用并直接返回。
+            - 达到目标即刻停止调用工具，切换为文字回复；不要反复调用同一工具、也不要为了"更完整"而无节制地检索。
+            - 若剩余预算已接近上限（约 3~5 步以内），应停止继续调用工具，基于当前已有信息直接给出结论，并明确标注证据缺口或不确定性。
+            - 每次调用前先问自己：这一步是否真的必要？能不能合并到一次调用完成？
+            """;
+
     /**
      * 仅在当前 Agent 实际绑定了 SubAgent 时附加。它描述编排顺序而不重复工具 schema，
      * 因此不会重新引入“将全部工具拼到提示词”的性能问题。
@@ -442,6 +452,7 @@ public class MessageMiddleware implements ChatMiddleware {
         systemPrompt = appendUserMemoryPrompt(systemPrompt, ctx, agent, userMessage);
         if (apiToolsEnabled) {
             systemPrompt = systemPrompt + PLATFORM_TOOL_KNOWLEDGE_HINT;
+            systemPrompt = systemPrompt + String.format(TOOL_STEP_BUDGET_HINT_TEMPLATE, resolveMaxExecutionStepsHint(agentConfigMap));
         }
         systemPrompt = systemPrompt + PLATFORM_REPLY_CONSTRAINTS;
 
@@ -886,6 +897,27 @@ public class MessageMiddleware implements ChatMiddleware {
             msg.setContent(newContent);
             messageMapper.updateById(msg);
         }
+    }
+
+    /**
+     * 读取当前 Agent 的最大执行步数用于提示词插值，与 ChatServiceImpl.resolveMaxExecutionSteps 保持一致的默认值 20。
+     * 仅用于提示语句渲染，允许配置缺失时返回默认值，不做上限裁剪（提示文案已明确"约 N 步"）。
+     */
+    private int resolveMaxExecutionStepsHint(Map<String, Object> configMap) {
+        if (configMap == null) {
+            return 20;
+        }
+        Object val = configMap.get(ConfigKeys.Agent.MAX_EXECUTION_STEPS);
+        if (val instanceof Number n) {
+            return Math.max(1, n.intValue());
+        }
+        if (val != null) {
+            try {
+                return Math.max(1, Integer.parseInt(val.toString()));
+            } catch (Exception ignored) {
+            }
+        }
+        return 20;
     }
 
     /**

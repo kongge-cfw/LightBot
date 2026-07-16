@@ -1500,13 +1500,13 @@ public class ChatServiceImpl implements ChatService {
     }
 
     private int resolveMaxExecutionSteps(Map<String, Object> configMap) {
-        if (configMap == null) return 10;
+        if (configMap == null) return 20;
         Object val = configMap.get(ConfigKeys.Agent.MAX_EXECUTION_STEPS);
-        if (val instanceof Number n) return Math.max(1, Math.min(100, n.intValue()));
+        if (val instanceof Number n) return Math.max(1, Math.min(200, n.intValue()));
         if (val != null) {
-            try { return Math.max(1, Math.min(100, Integer.parseInt(val.toString()))); } catch (Exception ignored) {}
+            try { return Math.max(1, Math.min(200, Integer.parseInt(val.toString()))); } catch (Exception ignored) {}
         }
-        return 10;
+        return 20;
     }
 
     private int resolveModelRetryTimes(Map<String, Object> configMap) {

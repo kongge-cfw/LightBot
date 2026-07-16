@@ -22,7 +22,7 @@
         <!-- tool_call: 工具调用发起 -->
         <div v-if="evt.type === 'tool_call'" class="event-call-wrap">
           <div class="event-row event-call">
-            <LoadingOutlined v-if="!isDone" class="event-icon icon-spinning" />
+            <LoadingOutlined v-if="!isCallCompleted(ti)" class="event-icon icon-spinning" />
             <CheckCircleOutlined v-else class="event-icon icon-success" />
             <span class="event-label">
               调用 <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 工具
@@ -45,7 +45,7 @@
         </div>
         <!-- tool_status: 执行中间状态 -->
         <div v-else-if="evt.type === 'tool_status'" class="event-row event-status">
-          <CheckCircleOutlined v-if="isDone" class="event-icon icon-success" />
+          <CheckCircleOutlined v-if="isStatusCompleted(ti)" class="event-icon icon-success" />
           <LoadingOutlined v-else class="event-icon icon-spinning" />
           <span class="event-text">{{ evt.message }}</span>
         </div>
@@ -127,6 +127,49 @@ const uniqueToolNames = computed(() => {
   props.toolEvents.forEach(e => { if (e.toolName) names.add(resolveDisplayName(e)) })
   return [...names]
 })
+
+/**
+ * 按事件顺序为每个 tool_call 找到最近的匹配 tool_result（同 toolName，且后于该 call）。
+ * 后端 SSE 不下发 toolCallId，同一 block 内 call/result 严格按顺序推送，故按 toolName 顺序配对。
+ * 返回：Map<callIndex, resultIndex>，未匹配到的 call 视为未完成。
+ */
+const callResultPairing = computed(() => {
+  const pairing = new Map()
+  const events = props.toolEvents || []
+  const consumed = new Set()
+  for (let i = 0; i < events.length; i++) {
+    const call = events[i]
+    if (call?.type !== 'tool_call') continue
+    for (let j = i + 1; j < events.length; j++) {
+      if (consumed.has(j)) continue
+      const r = events[j]
+      if (r?.type === 'tool_result' && r.toolName === call.toolName) {
+        pairing.set(i, j)
+        consumed.add(j)
+        break
+      }
+    }
+  }
+  return pairing
+})
+
+function isCallCompleted(index) {
+  return callResultPairing.value.has(index)
+}
+
+/**
+ * tool_status 是中间状态，取其最近的前置 tool_call：只要该 call 已匹配到 result，就视为完成。
+ * 若无前置 tool_call，退化为消息级 isDone。
+ */
+function isStatusCompleted(index) {
+  const events = props.toolEvents || []
+  for (let i = index - 1; i >= 0; i--) {
+    if (events[i]?.type === 'tool_call') {
+      return callResultPairing.value.has(i)
+    }
+  }
+  return props.isDone
+}
 
 function resolveDisplayName(evt) {
   return evt.displayName || getToolDisplayName(evt.toolName)
