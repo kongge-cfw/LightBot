@@ -225,16 +225,19 @@ function toggleResult(index, event) {
 <style lang="less" scoped>
 .tool-calls-group {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 8px;
   padding: 10px 12px;
   background: var(--color-canvas-soft);
   border: 1px solid lightgray;
   border-radius: 8px;
+  overflow: hidden;
 }
 
 .tool-calls-summary {
   appearance: none;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   padding: 4px 10px;
@@ -246,6 +249,8 @@ function toggleResult(index, event) {
   cursor: pointer;
   transition: all 0.2s ease;
   user-select: none;
+  max-width: 100%;
+  min-width: 0;
 
   &:hover { background: var(--gray-50); color: var(--gray-700); }
   &.is-expanded { color: var(--gray-700); background: var(--gray-50); border-color: var(--gray-200); }
@@ -297,6 +302,8 @@ function toggleResult(index, event) {
   margin-left: 16px;
   margin-top: 6px;
   margin-bottom: 8px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .tool-event-item {
@@ -315,6 +322,7 @@ function toggleResult(index, event) {
   font-size: 13px;
   padding: 3px 0;
   color: var(--gray-600);
+  min-width: 0;
 
   .event-icon {
     flex-shrink: 0;
@@ -327,7 +335,8 @@ function toggleResult(index, event) {
   .event-label {
     flex: 1;
     min-width: 0;
-    strong { color: var(--main-700); font-weight: 600; }
+    word-break: break-word;
+    strong { color: var(--main-700); font-weight: 600; word-break: break-word; }
   }
 
   .event-tool-icon {
@@ -339,6 +348,8 @@ function toggleResult(index, event) {
   .event-text {
     color: var(--gray-500);
     flex: 1;
+    min-width: 0;
+    word-break: break-word;
   }
 
   .result-toggle {
@@ -424,6 +435,8 @@ function toggleResult(index, event) {
 
 .result-detail {
   margin: 4px 0 4px 21px;
+  min-width: 0;
+  overflow: hidden;
   pre {
     margin: 0;
     padding: 8px 10px;

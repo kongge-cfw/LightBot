@@ -272,6 +272,8 @@ defineEmits([
 .tool-block-inline {
   margin: 8px 0;
   width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 .capability-block-inline {
   margin-top: 8px;
