@@ -23,15 +23,15 @@
           <span class="runtime-status-meta">{{ usage.totalTokens || 0 }} tokens</span>
           <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('usage') }" />
         </a-button>
-        <transition name="runtime-detail">
-          <a-card v-if="isExpanded('usage')" size="small" class="runtime-detail-card" :bordered="false">
+        <CollapseTransition :open="isExpanded('usage')">
+          <a-card size="small" class="runtime-detail-card" :bordered="false">
             <div class="usage-grid">
               <span><small>输入</small><strong>{{ usage.inputTokens || 0 }}</strong></span>
               <span><small>输出</small><strong>{{ usage.outputTokens || 0 }}</strong></span>
               <span><small>合计</small><strong>{{ usage.totalTokens || 0 }}</strong></span>
             </div>
           </a-card>
-        </transition>
+        </CollapseTransition>
       </section>
 
       <section class="runtime-status-section">
@@ -42,8 +42,8 @@
           <span class="runtime-status-meta">{{ todos.length ? `${completedTodoCount}/${todos.length} · ${todoProgress}%` : '0' }}</span>
           <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('todos') }" />
         </a-button>
-        <transition name="runtime-detail">
-          <a-card v-if="isExpanded('todos')" size="small" class="runtime-detail-card" :bordered="false">
+        <CollapseTransition :open="isExpanded('todos')">
+          <a-card size="small" class="runtime-detail-card" :bordered="false">
             <div v-if="todos.length" class="todo-list">
               <div v-for="todo in todos" :key="todo.id" class="todo-item" :class="`is-${todo.status}`">
                 <LoadingOutlined v-if="todo.status === 'in_progress'" spin />
@@ -56,7 +56,7 @@
             </div>
             <a-empty v-else :image="emptyImage" description="暂无待办" class="runtime-empty" />
           </a-card>
-        </transition>
+        </CollapseTransition>
       </section>
 
       <section class="runtime-status-section">
@@ -67,8 +67,8 @@
           <span class="runtime-status-meta">{{ attachments.length }}</span>
           <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('files') }" />
         </a-button>
-        <transition name="runtime-detail">
-          <a-card v-if="isExpanded('files')" size="small" class="runtime-detail-card" :bordered="false">
+        <CollapseTransition :open="isExpanded('files')">
+          <a-card size="small" class="runtime-detail-card" :bordered="false">
             <div v-if="attachments.length" class="file-list">
               <a-button v-for="file in attachments.slice(0, 4)" :key="file.id || file.objectKey || file.fileName" type="text"
                 class="file-item" block @click="$emit('preview-attachment', file)">
@@ -80,7 +80,7 @@
             </div>
             <a-empty v-else :image="emptyImage" description="暂无附件或文件" class="runtime-empty" />
           </a-card>
-        </transition>
+        </CollapseTransition>
       </section>
 
       <section class="runtime-status-section">
@@ -91,18 +91,18 @@
           <span class="runtime-status-meta">{{ artifacts.length }}</span>
           <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('artifacts') }" />
         </a-button>
-        <transition name="runtime-detail">
-          <a-card v-if="isExpanded('artifacts')" size="small" class="runtime-detail-card" :bordered="false">
+        <CollapseTransition :open="isExpanded('artifacts')">
+          <a-card size="small" class="runtime-detail-card" :bordered="false">
             <div v-if="artifacts.length" class="artifact-list">
               <a-button v-for="artifact in artifacts" :key="artifact.path || artifact.url || artifact.name" type="text"
-                class="artifact-card" block @click="$emit('open-files')">
+                class="artifact-card" block @click="openArtifactPreview(artifact)">
                 <FileDoneOutlined />
                 <span class="artifact-main"><strong>{{ artifact.name || '未命名产物' }}</strong><small>{{ artifact.path || artifact.contentType || '已交付' }}</small></span>
               </a-button>
             </div>
             <a-empty v-else :image="emptyImage" description="暂无交付产物" class="runtime-empty" />
           </a-card>
-        </transition>
+        </CollapseTransition>
       </section>
 
       <section class="runtime-status-section">
@@ -113,8 +113,8 @@
           <span class="runtime-status-meta">{{ subagentMeta }}</span>
           <RightOutlined class="runtime-status-arrow" :class="{ expanded: isExpanded('subagents') }" />
         </a-button>
-        <transition name="runtime-detail">
-          <a-card v-if="isExpanded('subagents')" size="small" class="runtime-detail-card" :bordered="false">
+        <CollapseTransition :open="isExpanded('subagents')">
+          <a-card size="small" class="runtime-detail-card" :bordered="false">
             <transition-group v-if="runtimeRuns.length" name="subagent-card" tag="div" class="subagent-list">
               <div v-for="run in runtimeRuns" :key="run.task_id" class="subagent-run">
                 <a-button type="text" class="subagent-card" block :class="`is-${run.status}`"
@@ -132,7 +132,7 @@
             </transition-group>
             <a-empty v-else :image="emptyImage" description="本次任务暂无子智能体" class="runtime-empty" />
           </a-card>
-        </transition>
+        </CollapseTransition>
       </section>
     </div>
 
@@ -141,6 +141,15 @@
       :session-id="sessionId"
       :task="selectedTask"
       :live-events="liveEvents"
+    />
+
+    <FilePreviewModal
+      v-model:open="artifactPreviewOpen"
+      :file-name="artifactPreviewFile?.name || ''"
+      :file-url="artifactPreviewFile?.url || ''"
+      :download-url="artifactPreviewDownloadUrl"
+      :file-type="artifactPreviewExt"
+      :is-video="artifactPreviewIsVideo"
     />
   </aside>
 </template>
@@ -156,7 +165,10 @@ import {
 import { getSessionAttachments } from '../../../api/chatSession'
 import { getResearchTaskProjection, getSubAgentRuntimeSummaries } from '../../../api/subagent'
 import { pickFresher } from '../../../utils/subagentRuntime'
+import { canOpenSourcePreview, getFileExtension, resolveSourcePreviewKind } from '../../../utils/filePreview'
 import SubAgentTaskDetailModal from './SubAgentTaskDetailModal.vue'
+import FilePreviewModal from '../../FilePreviewModal.vue'
+import CollapseTransition from '../../common/CollapseTransition.vue'
 
 const props = defineProps({
   sessionId: { type: [String, Number], default: null },
@@ -177,6 +189,8 @@ const expandedSections = ref(new Set())
 const detailOpen = ref(false)
 const selectedTask = ref(null)
 const refreshing = ref(false)
+const artifactPreviewOpen = ref(false)
+const artifactPreviewFile = ref(null)
 let refreshTimer = null
 
 const panelStyle = computed(() => ({ width: `${props.width}px`, flexBasis: `${props.width}px` }))
@@ -194,6 +208,27 @@ function toggleSection(key) {
 function openDetail(run) {
   selectedTask.value = run
   detailOpen.value = true
+}
+
+const artifactPreviewExt = computed(() => getFileExtension(artifactPreviewFile.value?.name || ''))
+const artifactPreviewIsVideo = computed(() => {
+  const file = artifactPreviewFile.value
+  return file ? resolveSourcePreviewKind(file.name, file.contentType) === 'video' : false
+})
+const artifactPreviewDownloadUrl = computed(() => {
+  const file = artifactPreviewFile.value
+  return file ? (file.downloadUrl || file.url || '') : ''
+})
+
+/** 产物点击：可预览类型直接开预览弹窗，否则新窗口打开下载链接（不再退回会话文件侧栏） */
+function openArtifactPreview(artifact) {
+  if (!artifact?.url) return
+  if (canOpenSourcePreview(artifact.name)) {
+    artifactPreviewFile.value = artifact
+    artifactPreviewOpen.value = true
+    return
+  }
+  window.open(artifact.downloadUrl || artifact.url, '_blank')
 }
 
 function parseResult(event) {
@@ -395,9 +430,9 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 .runtime-panel { position: relative; width: 336px; min-height: 100%; flex: 0 0 336px; overflow-y: auto; border-left: 1px solid var(--color-hairline); background: var(--color-canvas); box-shadow: -10px 0 28px rgba(15, 23, 42, .04); padding: 20px 16px 28px; }
 .runtime-resize-handle { position: absolute; z-index: 2; top: 0; bottom: 0; left: -5px; width: 10px; cursor: col-resize; touch-action: none; }.runtime-resize-handle::after { position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; border-radius: 2px; background: var(--color-link); content: ''; opacity: 0; transition: opacity .16s ease; }.runtime-resize-handle:hover::after { opacity: .55; }
 .runtime-panel-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 16px; }.runtime-panel-header > div { display: flex; flex-direction: column; gap: 3px; }.runtime-panel-title-row { display: inline-flex; align-items: baseline; gap: 8px; }.runtime-panel-header strong { color: var(--color-ink); font-size: 15px; line-height: 1.35; }.runtime-panel-header .runtime-panel-title-row em { color: var(--color-mute); font-size: 12px; font-style: normal; }.runtime-panel-header > div > span:last-child { color: var(--color-mute); font-size: 12px; }.runtime-refresh { display: inline-flex; width: 28px; height: 28px; align-items: center; justify-content: center; color: var(--color-body); }.runtime-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.is-spinning { animation: runtime-spin .8s linear infinite; }
-.runtime-status-list { display: flex; flex-direction: column; gap: 8px; }.runtime-status-section { display: flex; flex-direction: column; gap: 8px; }.runtime-status-button { display: flex !important; width: 100%; height: auto !important; align-items: center; min-height: 66px; gap: 10px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-md) !important; background: var(--color-canvas) !important; padding: 10px !important; color: var(--color-ink) !important; text-align: left; white-space: normal !important; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }.runtime-status-button:hover { border-color: var(--color-hairline-strong) !important; background: var(--color-canvas-soft) !important; transform: translateY(-1px); }.runtime-status-button.active { border-color: var(--color-link) !important; background: var(--color-link-bg-soft) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--color-link) 14%, transparent); }
+.runtime-status-list { display: flex; flex-direction: column; gap: 8px; }.runtime-status-section { display: flex; flex-direction: column; }.runtime-status-button { display: flex !important; width: 100%; height: auto !important; align-items: center; min-height: 66px; gap: 10px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-md) !important; background: var(--color-canvas) !important; padding: 10px !important; color: var(--color-ink) !important; text-align: left; white-space: normal !important; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }.runtime-status-button:hover { border-color: var(--color-hairline-strong) !important; background: var(--color-canvas-soft) !important; transform: translateY(-1px); }.runtime-status-button.active { border-color: var(--color-link) !important; background: var(--color-link-bg-soft) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--color-link) 14%, transparent); }
 .runtime-status-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 34px; border-radius: 9px; background: var(--color-canvas-soft-2); color: var(--color-mute); font-size: 16px; }.runtime-status-icon.is-usage { color: #0f766e; background: #ccfbf1; }.runtime-status-icon.is-todo { color: #15803d; background: #dcfce7; }.runtime-status-icon.is-files { color: #1d4ed8; background: #dbeafe; }.runtime-status-icon.is-artifacts { color: #9333ea; background: #f3e8ff; }.runtime-status-icon.is-subagents { color: #c2410c; background: #ffedd5; }.runtime-status-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.runtime-status-copy strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-copy small { overflow: hidden; color: var(--color-mute); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-meta { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; font-variant-numeric: tabular-nums; }.runtime-status-arrow { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.runtime-status-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.runtime-status-button.active .runtime-status-copy strong, .runtime-status-button.active .runtime-status-meta { color: var(--color-link-deep); }
-.runtime-detail-card { border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-lg) !important; background: var(--color-canvas-soft) !important; }.runtime-detail-card :deep(.ant-card-body) { padding: 14px; }.runtime-detail-enter-active, .runtime-detail-leave-active { transition: opacity .18s ease, transform .18s ease; }.runtime-detail-enter-from, .runtime-detail-leave-to { opacity: 0; transform: translateY(-5px); }.runtime-empty { margin: 0; padding: 8px 0 2px; }
+.runtime-detail-card { margin-top: 8px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-lg) !important; background: var(--color-canvas-soft) !important; }.runtime-detail-card :deep(.ant-card-body) { padding: 14px; }.runtime-empty { margin: 0; padding: 8px 0 2px; }
 .todo-list, .file-list, .artifact-list, .subagent-list { display: flex; flex-direction: column; gap: 8px; }.todo-item { display: flex; align-items: flex-start; gap: 8px; color: var(--color-body); font-size: 12px; line-height: 1.55; }.todo-item > :first-child { margin-top: 2px; color: var(--color-mute); }.todo-item.is-completed { color: var(--color-mute); text-decoration: line-through; }.todo-item.is-completed > :first-child { color: var(--color-success); text-decoration: none; }.todo-item.is-cancelled > :first-child { color: var(--color-error); }.todo-progress-track { height: 5px; overflow: hidden; border-radius: 999px; background: var(--color-hairline); }.todo-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-success); transition: width .25s ease; }
 .usage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.usage-grid span { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: var(--color-canvas); }.usage-grid small { color: var(--color-mute); font-size: 11px; }.usage-grid strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
 .file-item, .artifact-card, .subagent-card { display: flex !important; width: 100%; height: auto !important; align-items: flex-start; justify-content: flex-start; gap: 8px; padding: 7px 8px !important; border-radius: 8px !important; color: var(--color-body) !important; text-align: left; white-space: normal !important; }.file-item:hover, .artifact-card:hover, .subagent-card:hover { background: var(--color-canvas-soft-2) !important; color: var(--color-ink) !important; }.file-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.runtime-more { align-self: flex-start; padding: 0 !important; }
