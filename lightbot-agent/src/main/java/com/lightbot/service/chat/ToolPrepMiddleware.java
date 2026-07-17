@@ -16,6 +16,7 @@ import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.McpClientService;
 import com.lightbot.service.McpServerService;
+import com.lightbot.service.SessionTodoService;
 import com.lightbot.service.SkillService;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.UserPreferenceService;
@@ -64,6 +65,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     private final ModelProviderService modelProviderService;
     private final DelegateSubAgentTool delegateSubAgentTool;
     private final SkillService skillService;
+    /** 用于把当前会话 todos 快照塞入 ToolContext，供 WriteTodosTool 按 id 合并 */
+    private final SessionTodoService sessionTodoService;
     private final UserPreferenceService userPreferenceService;
     private final UserMemoryToolCallbackFactory userMemoryToolCallbackFactory;
 
@@ -299,6 +302,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     toolCtxMap.put("requestId", requestId);
                 }
                 if (ctx != null) toolCtxMap.put("userId", ctx.getUserId());
+                // 当前会话 todos 快照：供 WriteTodosTool 按 id 合并，避免 AI 漏传导致丢项
+                toolCtxMap.put("currentTodos", loadCurrentTodos(sessionId, requestId));
                 // MCP serializes ToolContext as JSON-RPC _meta; ChatContext is injected only for non-MCP execution.
                 toolBuilder.toolContext(toolCtxMap);
                 log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}, MemoryTools={}",
@@ -516,6 +521,35 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             }
         }
         return visited;
+    }
+
+    /**
+     * 加载当前会话/请求的 todos 快照，序列化为 List&lt;Map&lt;String,String&gt;&gt;（id/content/status），
+     * 供 WriteTodosTool 按 id 合并时读取。读取失败返回空列表，不影响主链路。
+     */
+    private List<Map<String, String>> loadCurrentTodos(Long sessionId, String requestId) {
+        if (sessionId == null || requestId == null || requestId.isBlank()) {
+            return List.of();
+        }
+        try {
+            List<com.lightbot.vo.TodoItemVO> snapshot = sessionTodoService.listByRequest(sessionId, requestId);
+            if (snapshot == null || snapshot.isEmpty()) {
+                return List.of();
+            }
+            List<Map<String, String>> result = new ArrayList<>(snapshot.size());
+            for (com.lightbot.vo.TodoItemVO item : snapshot) {
+                Map<String, String> map = new HashMap<>();
+                map.put("id", item.getId());
+                map.put("content", item.getContent());
+                map.put("status", item.getStatus());
+                result.add(map);
+            }
+            return result;
+        } catch (Exception e) {
+            log.debug("[Chat] 加载当前 todos 快照失败, sessionId={}, requestId={}, error={}",
+                    sessionId, requestId, e.getMessage());
+            return List.of();
+        }
     }
 
 }

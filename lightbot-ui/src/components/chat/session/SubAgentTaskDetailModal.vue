@@ -1,12 +1,21 @@
 <template>
-  <a-modal :open="open" width="760px" :footer="null" :mask-closable="false" destroy-on-close @update:open="$emit('update:open', $event)">
+  <a-modal :open="open" width="760px" :footer="null" :mask-closable="false" :closable="false" destroy-on-close @update:open="$emit('update:open', $event)">
     <template #title>
-      <span class="detail-modal-title">{{ detailTitle }}</span>
-      <a-tooltip title="刷新详情">
-        <a-button type="text" size="small" class="detail-refresh" :disabled="detailLoading || detailRefreshing" @click="refreshDetail">
-          <ReloadOutlined :class="{ 'is-spinning': detailRefreshing }" />
-        </a-button>
-      </a-tooltip>
+      <div class="detail-modal-header">
+        <span class="detail-modal-title">{{ detailTitle }}</span>
+        <div class="detail-modal-actions">
+          <a-tooltip title="刷新详情">
+            <a-button type="text" size="small" class="detail-icon-btn" :disabled="detailLoading || detailRefreshing" @click="refreshDetail">
+              <ReloadOutlined :class="{ 'is-spinning': detailRefreshing }" />
+            </a-button>
+          </a-tooltip>
+          <a-tooltip title="关闭">
+            <a-button type="text" size="small" class="detail-icon-btn" @click="emitClose">
+              <CloseOutlined />
+            </a-button>
+          </a-tooltip>
+        </div>
+      </div>
     </template>
     <a-spin :spinning="detailLoading">
       <div class="task-detail-scroll">
@@ -15,30 +24,51 @@
           <span :class="['task-detail-progress', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.progress_summary || selectedDisplayTask.status_label || statusLabel(selectedDisplayTask.status) }}</span>
         </div>
         <div v-if="selectedDisplayTask" class="detail-section task-context-section">
-          <div class="detail-section-title">任务信息</div>
-          <div class="task-context-label">任务提示</div>
-          <div class="task-context-content">{{ selectedDisplayTask.task || '未提供任务描述' }}</div>
-          <div class="task-time-row">
-            <span>开始：{{ formatTime(selectedDisplayTask.start_time) || '-' }}</span>
-            <span>结束：{{ formatTime(selectedDisplayTask.end_time) || '-' }}</span>
-          </div>
-          <div v-if="selectedDisplayTask.error" class="task-error">
-            <span class="task-context-label">异常信息</span>
-            <span>{{ selectedDisplayTask.error }}</span>
-          </div>
+          <button type="button" class="detail-section-title detail-section-toggle" :aria-expanded="taskInfoExpanded" @click="taskInfoExpanded = !taskInfoExpanded">
+            <span>任务信息</span>
+            <RightOutlined class="detail-section-arrow" :class="{ expanded: taskInfoExpanded }" />
+          </button>
+          <CollapseTransition :open="taskInfoExpanded">
+            <div class="detail-section-body">
+              <div class="task-context-label">任务提示</div>
+              <div class="task-context-content">{{ selectedDisplayTask.task || '未提供任务描述' }}</div>
+              <div class="task-time-row">
+                <span>开始：{{ formatTime(selectedDisplayTask.start_time) || '-' }}</span>
+                <span>结束：{{ formatTime(selectedDisplayTask.end_time) || '-' }}</span>
+              </div>
+              <div v-if="selectedDisplayTask.error" class="task-error">
+                <span class="task-context-label">异常信息</span>
+                <span>{{ selectedDisplayTask.error }}</span>
+              </div>
+            </div>
+          </CollapseTransition>
         </div>
         <div v-if="displayOutput" class="detail-section live-output-section">
-          <div class="detail-section-title">{{ isSelectedTaskDone ? '最终输出' : '实时输出' }}</div>
-          <MarkdownPreview :content="displayOutput" :finalized="isSelectedTaskDone" :image-preview="false" />
+          <button type="button" class="detail-section-title detail-section-toggle" :aria-expanded="finalOutputExpanded" @click="finalOutputExpanded = !finalOutputExpanded">
+            <span>{{ isSelectedTaskDone ? '最终输出' : '实时输出' }}</span>
+            <RightOutlined class="detail-section-arrow" :class="{ expanded: finalOutputExpanded }" />
+          </button>
+          <CollapseTransition :open="finalOutputExpanded">
+            <div class="detail-section-body">
+              <MarkdownPreview :content="displayOutput" :finalized="isSelectedTaskDone" :image-preview="false" />
+            </div>
+          </CollapseTransition>
         </div>
         <div v-if="detailToolEvents.length" class="detail-section tool-calls-section">
-          <div class="detail-section-title">工具调用明细</div>
-          <ToolCallsGroupComponent
-            :tool-events="detailToolEvents"
-            :is-done="isSelectedTaskDone"
-            :default-expanded="true"
-            :message-index="-1"
-          />
+          <button type="button" class="detail-section-title detail-section-toggle" :aria-expanded="toolCallsExpanded" @click="toolCallsExpanded = !toolCallsExpanded">
+            <span>工具调用明细</span>
+            <RightOutlined class="detail-section-arrow" :class="{ expanded: toolCallsExpanded }" />
+          </button>
+          <CollapseTransition :open="toolCallsExpanded">
+            <div class="detail-section-body">
+              <ToolCallsGroupComponent
+                :tool-events="detailToolEvents"
+                :is-done="isSelectedTaskDone"
+                :default-expanded="true"
+                :message-index="-1"
+              />
+            </div>
+          </CollapseTransition>
         </div>
         <div class="detail-section">
           <div class="detail-section-title">运行事件</div>
@@ -69,9 +99,10 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { Empty } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, RightOutlined, CloseOutlined } from '@ant-design/icons-vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
 import ToolCallsGroupComponent from '@/components/ToolCallsGroupComponent.vue'
+import CollapseTransition from '@/components/common/CollapseTransition.vue'
 import { formatTime } from '@/utils/format'
 import { pickFresher } from '@/utils/subagentRuntime'
 import { getSubAgentRun, getSubAgentRunEvents, getSubAgentRunThread } from '@/api/subagent'
@@ -83,7 +114,7 @@ const props = defineProps({
   liveEvents: { type: Array, default: () => [] },
 })
 
-defineEmits(['update:open'])
+const emit = defineEmits(['update:open'])
 
 const aEmptyImage = Empty.PRESENTED_IMAGE_SIMPLE
 const detailTask = ref(null)
@@ -93,7 +124,15 @@ const events = ref([])
 const eventCursor = ref('')
 const threadMessages = ref([])
 const threadAvailable = ref(false)
+// 三大块默认展开
+const taskInfoExpanded = ref(true)
+const finalOutputExpanded = ref(true)
+const toolCallsExpanded = ref(true)
 let refreshTimer = null
+
+function emitClose() {
+  emit('update:open', false)
+}
 
 const detailTitle = computed(() => props.task
   ? `${displayNameOf(props.task)} · 子线程详情`
@@ -352,11 +391,14 @@ onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
-.detail-modal-title { margin-right: 8px; }
-.detail-refresh { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 0 !important; color: var(--color-body); vertical-align: middle; }
-.detail-refresh:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.detail-refresh:disabled { cursor: default; opacity: .6; }
+.detail-modal-header { display: flex; width: 100%; align-items: center; gap: 8px; }
+.detail-modal-title { flex: 1; min-width: 0; overflow: hidden; color: var(--color-ink); font-size: 15px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.detail-modal-actions { display: inline-flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+.detail-icon-btn { display: inline-flex; width: 26px; height: 26px; align-items: center; justify-content: center; border: 0 !important; color: var(--color-body); }
+.detail-icon-btn:hover { background: var(--color-canvas-soft) !important; color: var(--color-ink) !important; }.detail-icon-btn:disabled { cursor: default; opacity: .6; }
 .is-spinning { animation: detailSpin .8s linear infinite; }
 .task-detail-status { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; white-space: nowrap; }.task-detail-status.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-status.is-pending { color: #a16207; background: #fef3c7; }.task-detail-status.is-completed { color: #15803d; background: #dcfce7; }.task-detail-status.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-status.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }
-.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; }.task-detail-progress.is-pending { color: #a16207; background: #fef3c7; }.task-detail-progress.is-completed { color: #15803d; background: #dcfce7; }.task-detail-progress.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-progress.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-progress.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.tool-calls-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-label { color: var(--color-mute); font-size: 12px; font-weight: 600; }.task-context-content { margin-top: 4px; color: var(--color-body); font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }.task-time-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--color-mute); font-size: 12px; }.task-error { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }.task-error .task-context-label { color: #b91c1c; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.event-title.is-error, .event-text.is-error { color: #b91c1c; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+.task-detail-scroll { display: flex; max-height: 64vh; flex-direction: column; gap: 18px; overflow-y: auto; padding: 2px 12px 8px 2px; }.task-detail-summary { display: flex; align-items: center; gap: 8px; color: var(--color-body); }.task-detail-progress { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; font-size: 12px; }.task-detail-progress.is-pending { color: #a16207; background: #fef3c7; }.task-detail-progress.is-completed { color: #15803d; background: #dcfce7; }.task-detail-progress.is-running { color: #1d4ed8; background: #dbeafe; animation: runningTagPulse 1.5s ease-in-out infinite; }.task-detail-progress.is-failed { color: #b91c1c; background: #fee2e2; }.task-detail-progress.is-cancelled { color: var(--color-body); background: var(--color-canvas-soft-2); }.detail-section { min-width: 0; }.detail-section-title { margin-bottom: 8px; color: var(--color-ink); font-weight: 600; }.detail-section-toggle { display: flex; width: 100%; align-items: center; justify-content: space-between; padding: 0; border: 0; background: transparent; cursor: pointer; font: inherit; }.detail-section-toggle:hover { color: var(--color-link); }.detail-section-arrow { color: var(--color-mute); font-size: 12px; transition: transform .2s ease; }.detail-section-arrow.expanded { transform: rotate(90deg); }.detail-section-body { padding-top: 4px; }
+.tool-calls-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.task-context-label { color: var(--color-mute); font-size: 12px; font-weight: 600; }.task-context-content { margin-top: 4px; color: var(--color-body); font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }.task-time-row { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; color: var(--color-mute); font-size: 12px; }.task-error { display: flex; flex-direction: column; gap: 4px; margin-top: 10px; padding: 8px 10px; border-radius: 6px; background: #fef2f2; color: #b91c1c; font-size: 12px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }.task-error .task-context-label { color: #b91c1c; }.live-output-section { padding: 12px; border: 1px solid var(--color-hairline); border-radius: 8px; background: var(--color-canvas-soft); }.event-timeline { padding-top: 6px; }.event-title { color: var(--color-ink); font-size: 13px; font-weight: 600; }.event-time, .event-text { margin-top: 2px; color: var(--color-mute); font-size: 12px; }.event-title.is-error, .event-text.is-error { color: #b91c1c; }.thread-messages { display: flex; max-height: 360px; flex-direction: column; gap: 8px; overflow-y: auto; padding-right: 8px; }.thread-message { padding: 8px 10px; border-radius: 8px; background: var(--color-canvas-soft); }.thread-role { color: var(--color-mute); font-size: 12px; font-weight: 600; }.thread-content { margin: 5px 0 0; color: var(--color-body); font-family: inherit; font-size: 12px; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
 @keyframes detailSpin { to { transform: rotate(360deg); } } @keyframes runningTagPulse { 50% { opacity: .68; } }
 </style>

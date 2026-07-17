@@ -30,8 +30,10 @@ import com.lightbot.model.ProviderResolver;
 import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.ChatSessionService;
+import com.lightbot.service.SessionTodoService;
 import com.lightbot.service.UserMemoryService;
 import com.lightbot.service.UserPreferenceService;
+import com.lightbot.vo.TodoItemVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
@@ -73,6 +75,8 @@ public class MessageMiddleware implements ChatMiddleware {
     private final ChatAttachmentParsedService chatAttachmentParsedService;
     private final UserPreferenceService userPreferenceService;
     private final UserMemoryService userMemoryService;
+    /** 用于把当前会话 todos 快照注入 system prompt，避免 AI 在长调研中漏传导致丢项 */
+    private final SessionTodoService sessionTodoService;
 
     /** 平台统一回复约束（不含工具相关，工具能力由 Provider 决定后按需追加） */
     private static final String PLATFORM_REPLY_CONSTRAINTS = """
@@ -454,6 +458,8 @@ public class MessageMiddleware implements ChatMiddleware {
             systemPrompt = systemPrompt + PLATFORM_TOOL_KNOWLEDGE_HINT;
             systemPrompt = systemPrompt + String.format(TOOL_STEP_BUDGET_HINT_TEMPLATE, resolveMaxExecutionStepsHint(agentConfigMap));
         }
+        // 注入当前会话 todos 快照：让 AI 调用 write_todos 前看到已有项，避免漏传导致丢项
+        systemPrompt = appendCurrentTodosPrompt(systemPrompt, ctx);
         systemPrompt = systemPrompt + PLATFORM_REPLY_CONSTRAINTS;
 
         messages.add(new org.springframework.ai.chat.messages.SystemMessage(systemPrompt));
@@ -522,6 +528,42 @@ public class MessageMiddleware implements ChatMiddleware {
             ctx.setTraceUserMentionsPerMessage(traceUserMentions);
         }
         return messages;
+    }
+
+    /**
+     * 追加当前会话的 todos 快照到 system prompt，避免 AI 在长调研中漏传导致丢项。
+     * <p>仅当存在未完结项时追加；读取失败静默返回原 prompt 不影响主链路。</p>
+     */
+    private String appendCurrentTodosPrompt(String systemPrompt, ChatContext ctx) {
+        if (ctx == null || ctx.getSessionId() == null
+                || ctx.getRequestId() == null || ctx.getRequestId().isBlank()) {
+            return systemPrompt;
+        }
+        try {
+            List<TodoItemVO> todos = sessionTodoService.listByRequest(ctx.getSessionId(), ctx.getRequestId());
+            if (todos == null || todos.isEmpty()) {
+                return systemPrompt;
+            }
+            StringBuilder sb = new StringBuilder("\n\n# 当前会话待办快照\n\n");
+            sb.append("如果调用 write_todos，必须保留以下未完结项（status=pending/in_progress）的 id；");
+            sb.append("可以新增项、更新 status，但不能丢失这些 id。\n\n");
+            sb.append("| id | content | status |\n");
+            sb.append("|----|---------|--------|\n");
+            for (TodoItemVO t : todos) {
+                sb.append("| ").append(safe(t.getId()))
+                        .append(" | ").append(safe(t.getContent()))
+                        .append(" | ").append(safe(t.getStatus())).append(" |\n");
+            }
+            return systemPrompt + sb.toString();
+        } catch (Exception e) {
+            return systemPrompt;
+        }
+    }
+
+    /** 表格单元格转义：替换换行/竖线，避免破坏 Markdown 表格结构 */
+    private String safe(String value) {
+        if (value == null) return "";
+        return value.replace("|", "\\|").replace("\n", " ").trim();
     }
 
     private String appendUserMemoryPrompt(String systemPrompt, ChatContext ctx, Agent agent, String userMessage) {

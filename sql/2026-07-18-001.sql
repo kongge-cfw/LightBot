@@ -34,3 +34,13 @@ CREATE INDEX IF NOT EXISTS idx_task_next_retry
 CREATE INDEX IF NOT EXISTS idx_task_dead_letter
     ON task (dead_letter)
     WHERE dead_letter = 1 AND deleted = 0;
+
+-- ========================================
+-- SubAgent 流式超时语义重构
+-- read_timeout_seconds 默认值 45 → 60，语义改为"流式 token 间隔超时"
+-- （长输出不超时，只在停滞时触发）
+-- 同时把内置 SubAgent 的现有数据更新为 60
+-- ========================================
+
+ALTER TABLE subagent ALTER COLUMN read_timeout_seconds SET DEFAULT 60;
+UPDATE subagent SET read_timeout_seconds = 60 WHERE is_builtin = 1 AND read_timeout_seconds = 30;

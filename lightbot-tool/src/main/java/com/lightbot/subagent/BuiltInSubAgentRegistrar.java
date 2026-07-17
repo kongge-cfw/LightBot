@@ -139,7 +139,8 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                 subAgent.setSystemPrompt((String) data.get("systemPrompt"));
                 subAgent.setToolIds(resolveToolIds((List<String>) data.get("tools")));
                 subAgent.setConnectTimeoutSeconds(10);
-                subAgent.setReadTimeoutSeconds(30);
+                // readTimeoutSeconds 在新语义下表示"流式 token 间隔超时"——长输出不会被误判，只在停滞时触发
+                subAgent.setReadTimeoutSeconds(60);
                 subAgent.setModelRetryTimes(1);
                 subAgent.setEnabled(1);
                 subAgent.setIsBuiltin(1);
@@ -169,7 +170,7 @@ public class BuiltInSubAgentRegistrar implements ApplicationRunner {
                     existing.setToolIds(newToolIds);
                     existing.setIcon(newIcon);
                     existing.setConnectTimeoutSeconds(10);
-                    existing.setReadTimeoutSeconds(30);
+                    existing.setReadTimeoutSeconds(60);
                     existing.setModelRetryTimes(1);
                     subAgentMapper.updateById(existing);
                     log.info("[BuiltInSubAgentRegistrar] 更新内置 SubAgent: name={}", name);

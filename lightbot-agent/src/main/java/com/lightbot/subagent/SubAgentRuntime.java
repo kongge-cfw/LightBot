@@ -63,7 +63,9 @@ public class SubAgentRuntime implements SubAgentExecutor {
 
     private final ModelProviderService modelProviderService;
     private static final int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
-    private static final int DEFAULT_READ_TIMEOUT_SECONDS = 120;
+    private static final int DEFAULT_READ_TIMEOUT_SECONDS = 60;
+    /** 流式输出期间两个 chunk 之间的最大间隔（秒），超过则视为"响应停滞" */
+    private static final int DEFAULT_TOKEN_INTERVAL_TIMEOUT_SECONDS = 30;
     private static final int DEFAULT_MODEL_RETRY_TIMES = 1;
     private static final int MAX_LOOP_DEPTH = 6;
 
@@ -147,8 +149,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
         int connectTimeoutSeconds = resolveConnectTimeoutSeconds(subAgent);
         int readTimeoutSeconds = resolveReadTimeoutSeconds(subAgent, chatContext);
         int modelRetryTimes = resolveModelRetryTimes(subAgent);
-        long deadlineMs = start + readTimeoutSeconds * 1000L;
-        log.info("[SubAgent] 委派开始: name={}, threadId={}, taskLen={}, connect={}s, read={}s, retry={}",
+        log.info("[SubAgent] 委派开始: name={}, threadId={}, taskLen={}, connect={}s, tokenInterval={}s, retry={}",
                 subAgent.getName(), threadId, taskDescription != null ? taskDescription.length() : 0,
                 connectTimeoutSeconds, readTimeoutSeconds, modelRetryTimes);
 
@@ -226,9 +227,10 @@ public class SubAgentRuntime implements SubAgentExecutor {
                     resolved.providerId(), resolved.configMap(), toolCallbacks, subAgent, requestId);
 
             // 8. 流式工具循环：直至模型返回不含 tool_call 的纯文本，或达到深度上限
+            // 超时语义：首字超时（connectTimeoutSeconds）+ token 间隔超时（resolveTokenIntervalTimeoutSeconds），
+            // 流式输出期间不做总时长判定——长输出不会再被误判为"响应超时"
             String reply = "";
             int toolCallCount = 0;
-            java.util.concurrent.atomic.AtomicLong streamingPausedMs = new java.util.concurrent.atomic.AtomicLong(0);
             for (int depth = 0; depth < MAX_LOOP_DEPTH; depth++) {
                 if (chatContext != null && chatContext.isAborted()) {
                     markCancelled(run, "SubAgent execution cancelled by client");
@@ -239,21 +241,14 @@ public class SubAgentRuntime implements SubAgentExecutor {
                     emitSubAgentError(chatContext, subAgent, "SubAgent 任务已取消", "CANCELLED");
                     return new SubAgentResult("", threadId, continued);
                 }
-                long remainingMs = remainingNonStreamingMs(deadlineMs, start, streamingPausedMs);
-                if (remainingMs <= 0) {
-                    String timeoutMsg = readTimeoutMessage(readTimeoutSeconds);
-                    emitSubAgentError(chatContext, subAgent, timeoutMsg, "READ_TIMEOUT");
-                    markFailed(run, timeoutMsg, start);
-                    return new SubAgentResult(timeoutMsg, threadId, continued);
-                }
                 StringBuilder replyBuilder = new StringBuilder();
                 AssistantMessage assistant;
                 try {
                     prepareMessagesForLlm(messages);
                     assistant = streamLlmWithRetry(
                             chatModel, new Prompt(new ArrayList<>(messages), options),
-                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth, deadlineMs, start,
-                            streamingPausedMs, connectTimeoutSeconds, readTimeoutSeconds);
+                            subAgent, chatContext, modelRetryTimes, replyBuilder, depth,
+                            connectTimeoutSeconds, readTimeoutSeconds);
                 } catch (Exception e) {
                     String errorMsg = classifyErrorMessage(e);
                     log.error("[SubAgent] 模型调用失败: name={}, depth={}, error={}",
@@ -430,27 +425,18 @@ public class SubAgentRuntime implements SubAgentExecutor {
      */
     private AssistantMessage streamLlmWithRetry(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
                                                  ChatContext chatContext, int retryTimes,
-                                                 StringBuilder replyBuilder, int depth, long deadlineMs, long startMs,
-                                                 java.util.concurrent.atomic.AtomicLong streamingPausedMs,
+                                                 StringBuilder replyBuilder, int depth,
                                                  int connectTimeoutSeconds, int readTimeoutSeconds) throws Exception {
         Exception lastError = null;
         for (int attempt = 0; attempt <= retryTimes; attempt++) {
-            long remainingMs = remainingNonStreamingMs(deadlineMs, startMs, streamingPausedMs);
-            if (remainingMs <= 0) {
-                throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
-            }
             try {
-                return streamLlmOnce(chatModel, prompt, subAgent, chatContext, replyBuilder, remainingMs,
-                        streamingPausedMs, connectTimeoutSeconds, readTimeoutSeconds);
+                return streamLlmOnce(chatModel, prompt, subAgent, chatContext, replyBuilder,
+                        connectTimeoutSeconds * 1000L, connectTimeoutSeconds, readTimeoutSeconds);
             } catch (Exception e) {
                 lastError = e;
                 if (attempt < retryTimes) {
                     int retryNo = attempt + 1;
-                    long delayMs = Math.min((long) Math.pow(2, attempt) * 1000,
-                            Math.max(0, remainingNonStreamingMs(deadlineMs, startMs, streamingPausedMs)));
-                    if (delayMs <= 0) {
-                        throw new RuntimeException(readTimeoutMessage(readTimeoutSeconds));
-                    }
+                    long delayMs = (long) Math.pow(2, attempt) * 1000;
                     String reason = classifyFailureReason(e);
                     log.warn("[SubAgent] 模型调用失败，第{}次重试，等待{}ms: name={}, depth={}, reason={}, error={}",
                             retryNo, delayMs, subAgent.getName(), depth, reason, e.getMessage());
@@ -464,15 +450,15 @@ public class SubAgentRuntime implements SubAgentExecutor {
         throw lastError != null ? lastError : new RuntimeException("SubAgent 模型调用失败");
     }
 
-    /** 单次流式 LLM 调用：连接阶段限时等待首 token，流式输出阶段不再截断 */
+    /** 单次流式 LLM 调用：首字超时（connectTimeoutSeconds）+ token 间隔超时（tokenIntervalTimeoutSeconds） */
     private AssistantMessage streamLlmOnce(ChatModel chatModel, Prompt prompt, SubAgent subAgent,
                                           ChatContext chatContext, StringBuilder replyBuilder, long remainingMs,
-                                          java.util.concurrent.atomic.AtomicLong streamingPausedMs,
                                           int connectTimeoutSeconds, int readTimeoutSeconds) {
         List<AssistantMessage> lastAssistant = new ArrayList<>();
         java.util.concurrent.atomic.AtomicBoolean completed = new java.util.concurrent.atomic.AtomicBoolean(false);
         java.util.concurrent.atomic.AtomicBoolean firstReceived = new java.util.concurrent.atomic.AtomicBoolean(false);
         StringBuilder streamSnapshot = new StringBuilder();
+        int tokenIntervalSec = resolveTokenIntervalTimeoutSeconds(subAgent);
 
         java.util.function.Consumer<ChatResponse> processChunk = response -> {
             firstReceived.set(true);
@@ -519,14 +505,20 @@ public class SubAgentRuntime implements SubAgentExecutor {
             throw new RuntimeException(connectTimeoutMessage(connectTimeoutSeconds));
         }
 
-        long streamStart = System.currentTimeMillis();
+        // 流式阶段：用 Flux.timeout 监督两个 chunk 之间最大间隔，超过则视为"响应停滞"
+        // 不再累加 streamingPausedMs 也不做总时长判定——流式输出多久都不算超时，只在停滞时超时
         try {
             cached.skip(1)
                     .doOnNext(processChunk)
                     .doOnComplete(() -> completed.set(true))
-                    .blockLast();
-        } finally {
-            streamingPausedMs.addAndGet(System.currentTimeMillis() - streamStart);
+                    .blockLast(Duration.ofSeconds(tokenIntervalSec));
+        } catch (Exception e) {
+            // 超时异常（TimeoutException 或包异常）单独识别，给出"响应停滞"文案
+            String msg = e.getMessage() == null ? "" : e.getMessage();
+            if (msg.contains("timeout") || msg.contains("Timeout") || e instanceof java.util.concurrent.TimeoutException) {
+                throw new RuntimeException(stalledTimeoutMessage(tokenIntervalSec));
+            }
+            throw e instanceof RuntimeException re ? re : new RuntimeException(e);
         }
 
         if (chatContext != null && chatContext.isAborted()) {
@@ -538,11 +530,12 @@ public class SubAgentRuntime implements SubAgentExecutor {
         return lastAssistant.isEmpty() ? null : lastAssistant.get(0);
     }
 
-    /** 非流式等待时间：总 deadline 扣除 LLM 流式输出阶段（首 token 之后） */
-    private long remainingNonStreamingMs(long deadlineMs, long startMs,
-                                         java.util.concurrent.atomic.AtomicLong streamingPausedMs) {
-        long elapsed = System.currentTimeMillis() - startMs - streamingPausedMs.get();
-        return deadlineMs - startMs - elapsed;
+    /** 取 token 间隔超时阈值：SubAgent 可通过 readTimeoutSeconds 配置覆盖（最小 10s），否则用默认值 */
+    private int resolveTokenIntervalTimeoutSeconds(SubAgent subAgent) {
+        if (subAgent != null && subAgent.getReadTimeoutSeconds() != null) {
+            return Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()));
+        }
+        return DEFAULT_TOKEN_INTERVAL_TIMEOUT_SECONDS;
     }
 
     private int resolveConnectTimeoutSeconds(SubAgent subAgent) {
@@ -573,6 +566,11 @@ public class SubAgentRuntime implements SubAgentExecutor {
 
     private String readTimeoutMessage(int readTimeoutSeconds) {
         return "SubAgent 响应超时（" + readTimeoutSeconds + "秒），请稍后重试";
+    }
+
+    /** 流式期间两个 chunk 间隔超时的提示文案：明确"停滞"语义而非"总时长" */
+    private String stalledTimeoutMessage(int stalledSeconds) {
+        return "SubAgent 响应停滞（" + stalledSeconds + "秒无新内容），请稍后重试";
     }
 
     private String resolveSubAgentDisplayName(SubAgent subAgent) {
@@ -745,6 +743,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
         Map<String, Object> evt = new HashMap<>();
         evt.put("type", "subagent_token");
         evt.put("subagentName", subAgent.getName());
+        evt.put("displayName", resolveSubAgentDisplayName(subAgent));
         evt.put("content", delta);
         evt.put("contentOffset", offset);
         if (delegationIndex != null) evt.put("delegationIndex", delegationIndex);
