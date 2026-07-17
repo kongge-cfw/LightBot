@@ -4,12 +4,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.lightbot.common.task.FatalTaskException;
 import com.lightbot.common.task.RetryableTaskException;
 import com.lightbot.common.task.TaskCancelledException;
-import com.lightbot.entity.Document;
 import com.lightbot.entity.Task;
-import com.lightbot.enums.DocumentStatus;
 import com.lightbot.enums.TaskStatus;
 import com.lightbot.enums.TaskType;
-import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
 import com.lightbot.service.port.TaskInterruptPort;
 import com.lightbot.task.RetryPolicy;
@@ -29,7 +26,6 @@ import org.springframework.context.annotation.Configuration;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
@@ -58,7 +54,6 @@ public class TaskConsumerConfig implements TaskInterruptPort {
 
     private final TaskQueueService taskQueueService;
     private final TaskService taskService;
-    private final DocumentService documentService;
     private final ApplicationContext applicationContext;
     private final RetryPolicyProperties retryPolicyProperties;
 
@@ -73,9 +68,6 @@ public class TaskConsumerConfig implements TaskInterruptPort {
     /** 阻塞拉取时长（秒），无消息时 BLOCK 时长 */
     private static final long BLOCK_TIMEOUT_SECONDS = 5L;
 
-    /** 孤儿任务判定阈值：updateTime 超过此时间的 RUNNING 任务视为孤儿（仅用于启动迁移） */
-    private static final int LEGACY_ORPHAN_TIMEOUT_MINUTES = 30;
-
     private ExecutorService defaultPool;
     private ExecutorService heavyPool;
     private final AtomicBoolean running = new AtomicBoolean(true);
@@ -85,11 +77,10 @@ public class TaskConsumerConfig implements TaskInterruptPort {
 
     @PostConstruct
     public void start() {
-        // 启动前清理升级前残留的孤儿任务（旧 List 引擎遗留），并将其重新入队或标记失败
-        recoverLegacyOrphanTasks();
+        // 启动时恢复所有未完结任务（PENDING/RUNNING/PENDING_RETRY），重置为 PENDING 并重新入队
+        // 必须在 worker 线程池启动前执行，避免和消费者并发处理同一任务
+        recoverUnfinishedTasks();
 
-        // 重置长时间停留在 RUNNING 的旧记录状态：迁移到新的 PENDING，等 Stream 重新投递
-        // 注意：Stream 重构后 RUNNING 任务由 PEL+XCLAIM 兜底，不再需要扫描
         defaultPool = Executors.newFixedThreadPool(defaultPoolSize);
         heavyPool = Executors.newFixedThreadPool(heavyPoolSize);
 
@@ -127,66 +118,70 @@ public class TaskConsumerConfig implements TaskInterruptPort {
     }
 
     /**
-     * 启动时迁移升级前旧 List 引擎遗留的孤儿任务
-     * <p>对状态为 PENDING 且 streamId 为空的（旧引擎未投递 Stream）重新入队；
-     * 对超时 RUNNING 且 streamId 为空的标记失败并回滚 Document
+     * 启动时恢复未完结任务
+     * <p>扫描所有 PENDING / RUNNING / PENDING_RETRY 任务，重置为 PENDING 并重新入队，
+     * 由消费者按正常流程处理（已完结、已取消等终态任务因状态校验会被自动 ACK 跳过）。
+     *
+     * <p>覆盖场景：
+     * <ul>
+     *   <li>PENDING：未投递或上次启动前未消费完</li>
+     *   <li>RUNNING：上次执行过程中进程崩溃/被 kill，状态卡死</li>
+     *   <li>PENDING_RETRY：等待退避重试中进程退出</li>
+     * </ul>
+     *
+     * <p>幂等性：每条任务独立 try-catch，入队失败则 markFailed + 记录错误，便于运维跟进。
      */
-    private void recoverLegacyOrphanTasks() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(LEGACY_ORPHAN_TIMEOUT_MINUTES);
-        List<Task> legacy = taskService.list(new LambdaQueryWrapper<Task>()
-                .in(Task::getStatus, TaskStatus.PENDING, TaskStatus.RUNNING)
-                .isNull(Task::getStreamId));
+    private void recoverUnfinishedTasks() {
+        List<Task> unfinished = taskService.list(new LambdaQueryWrapper<Task>()
+                .in(Task::getStatus,
+                        TaskStatus.PENDING,
+                        TaskStatus.RUNNING,
+                        TaskStatus.PENDING_RETRY));
 
-        if (legacy.isEmpty()) {
+        if (unfinished.isEmpty()) {
+            log.info("[任务恢复] 启动时无未完结任务");
             return;
         }
 
-        log.warn("[任务迁移] 发现 {} 个旧引擎遗留任务，开始迁移...", legacy.size());
-        Set<TaskType> documentTaskTypes = Set.of(TaskType.DOCUMENT_UPLOAD, TaskType.DOCUMENT_INGEST);
+        log.warn("[任务恢复] 发现 {} 个未完结任务，开始重新入队", unfinished.size());
 
-        int reEnqueued = 0;
+        // 计数：重新入队成功 / 失败
+        int recovered = 0;
         int failed = 0;
-        for (Task task : legacy) {
+        for (Task task : unfinished) {
+            // 记录原始状态用于失败日志，重置后丢失
+            TaskStatus prevStatus = task.getStatus();
             try {
-                if (task.getStatus() == TaskStatus.PENDING) {
-                    // 未投递的任务重新 XADD 入队
-                    String streamId = taskQueueService.enqueue(task);
-                    task.setStreamId(streamId);
-                    taskService.updateById(task);
-                    reEnqueued++;
-                } else if (task.getUpdateTime() != null && task.getUpdateTime().isBefore(threshold)) {
-                    // 超时 RUNNING 视为孤儿，标记失败并回滚 Document
-                    taskService.markFailed(task.getId(), "系统重启，旧引擎任务中断，请重新执行");
-                    if (documentTaskTypes.contains(task.getType()) && task.getRefId() != null) {
-                        recoverDocument(task.getRefId());
-                    }
-                    failed++;
-                }
-                log.info("[任务迁移] taskId={}, type={}, status={} 处理完成", task.getId(), task.getType(), task.getStatus());
+                // 重置为 PENDING：清空 streamId/error，让消费者从头执行
+                task.setStatus(TaskStatus.PENDING);
+                task.setStreamId(null);
+                task.setError(null);
+
+                // XADD 重新入队，新 streamId 落库
+                String newStreamId = taskQueueService.enqueue(task);
+                task.setStreamId(newStreamId);
+                taskService.updateById(task);
+
+                recovered++;
+                log.info("[任务恢复] taskId={} type={} prevStatus={} 重新入队成功, newStreamId={}",
+                        task.getId(), task.getType(), prevStatus, newStreamId);
             } catch (Exception e) {
-                log.error("[任务迁移] 处理失败: taskId={}", task.getId(), e);
+                log.error("[任务恢复] taskId={} type={} prevStatus={} 重新入队失败: {}",
+                        task.getId(), task.getType(), prevStatus, e.getMessage(), e);
+                // 标记 FAILED 便于运维跟进，markFailed 本身失败只记日志避免遮蔽原始异常
+                try {
+                    taskService.markFailed(task.getId(),
+                            "系统启动恢复时重新入队失败：" + e.getMessage());
+                } catch (Exception markFailedEx) {
+                    log.error("[任务恢复] taskId={} markFailed 也异常: {}",
+                            task.getId(), markFailedEx.getMessage());
+                }
+                failed++;
             }
         }
 
-        log.info("[任务迁移] 完成, reEnqueued={}, failed={}", reEnqueued, failed);
-    }
-
-    /**
-     * 回滚文档状态为 FAILED，仅当文档仍处于中间态时执行
-     */
-    private void recoverDocument(Long documentId) {
-        Document doc = documentService.getById(documentId);
-        if (doc == null) {
-            return;
-        }
-        DocumentStatus status = doc.getStatus();
-        if (status == DocumentStatus.UPLOADED || status == DocumentStatus.COMPLETED
-                || status == DocumentStatus.FAILED) {
-            return;
-        }
-        doc.setStatus(DocumentStatus.FAILED);
-        doc.setErrorMessage("系统重启，任务中断，请重新入库");
-        documentService.updateById(doc);
+        log.warn("[任务恢复] 完成, total={}, recovered={}, failed={}",
+                unfinished.size(), recovered, failed);
     }
 
     /**

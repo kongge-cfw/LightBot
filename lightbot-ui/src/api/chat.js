@@ -200,8 +200,13 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
       if (content) {
         if (content.startsWith('[STATUS]')) {
           const statusContent = content.substring(8)
+          let parsed = null
           try {
-            const parsed = JSON.parse(statusContent)
+            parsed = JSON.parse(statusContent)
+          } catch {
+            // 不是 JSON，作为普通状态消息处理
+          }
+          if (parsed && typeof parsed === 'object' && parsed.type) {
             if (parsed.type === 'tool_call' || parsed.type === 'tool_result' || parsed.type === 'tool_status' || parsed.type === 'tool_complete' || parsed.type === 'reasoning_content'
                 || parsed.type === 'workflow_node_start' || parsed.type === 'workflow_node_complete'
                 || parsed.type === 'workflow_node_retry' || parsed.type === 'workflow_node_failure'
@@ -214,13 +219,13 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
                 || parsed.type === 'subagent_batch_start' || parsed.type === 'subagent_task_start'
                 || parsed.type === 'subagent_task_done' || parsed.type === 'subagent_batch_done'
                 || parsed.type === 'subagent_batch_update'
+                || parsed.type === 'todos_updated'
                 || parsed.type === 'error' || parsed.type === 'error_retry') {
               onToolEvent?.(parsed)
-              if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }
-              continue
             }
-          } catch {
-            // 不是 JSON，作为普通状态消息处理
+            // 结构化事件但 type 未识别：丢弃，避免把原始 JSON 当状态文本飘字展示
+            if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }
+            continue
           }
           onStatus?.(statusContent)
         } else if (content.startsWith('[METADATA]')) {

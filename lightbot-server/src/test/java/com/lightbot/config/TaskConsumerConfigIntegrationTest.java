@@ -6,7 +6,6 @@ import com.lightbot.common.task.TaskCancelledException;
 import com.lightbot.entity.Task;
 import com.lightbot.enums.TaskStatus;
 import com.lightbot.enums.TaskType;
-import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
 import com.lightbot.task.RetryPolicy;
 import com.lightbot.task.RetryPolicyProperties;
@@ -56,8 +55,6 @@ class TaskConsumerConfigIntegrationTest {
     @Mock
     private TaskService taskService;
     @Mock
-    private DocumentService documentService;
-    @Mock
     private ApplicationContext applicationContext;
     @Mock
     private TaskExecutor executor;
@@ -69,7 +66,7 @@ class TaskConsumerConfigIntegrationTest {
     void setUp() {
         retryPolicyProperties = new RetryPolicyProperties();
         consumer = new TaskConsumerConfig(
-                taskQueueService, taskService, documentService, applicationContext, retryPolicyProperties);
+                taskQueueService, taskService, applicationContext, retryPolicyProperties);
     }
 
     private Task newTask(Long id, TaskStatus status, int attempts) {
