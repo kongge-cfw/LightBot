@@ -1,5 +1,6 @@
 package com.lightbot.service.impl;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.RagResultType;
@@ -1842,6 +1843,40 @@ public class ChatServiceImpl implements ChatService {
             ctx.emitRealtimeStatus(resultJson);
         } else if (statusFluxes != null) {
             statusFluxes.add(Flux.just(STATUS_PREFIX + resultJson));
+        }
+        // write_todos 落库后额外推流 todos_updated：前端状态栏据此实时刷新，无需等 5s 轮询
+        if ("write_todos".equals(toolName)) {
+            emitTodosUpdated(ctx, statusFluxes, truncated, contentOffset);
+        }
+    }
+
+    /**
+     * 解析 write_todos 工具结果，向 SSE 推送 todos_updated 事件。
+     * <p>不进 toolEventsList（避免在消息气泡里二次展示）；仅作为运行时事件给状态栏消费。</p>
+     */
+    private void emitTodosUpdated(ChatContext ctx, List<Flux<String>> statusFluxes,
+                                   String toolResult, int contentOffset) {
+        try {
+            JsonNode resultNode = objectMapper.readTree(toolResult);
+            if (!resultNode.path("success").asBoolean(false)) {
+                return;
+            }
+            JsonNode todosNode = resultNode.path("todos");
+            if (!todosNode.isArray()) {
+                return;
+            }
+            Map<String, Object> todoEvt = new LinkedHashMap<>();
+            todoEvt.put("type", "todos_updated");
+            todoEvt.put("todos", objectMapper.convertValue(todosNode, List.class));
+            todoEvt.put("contentOffset", contentOffset);
+            String json = objectMapper.writeValueAsString(todoEvt);
+            if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
+                ctx.emitRealtimeStatus(json);
+            } else if (statusFluxes != null) {
+                statusFluxes.add(Flux.just(STATUS_PREFIX + json));
+            }
+        } catch (Exception ignored) {
+            // todos_updated 推流失败不影响主流程。
         }
     }
 

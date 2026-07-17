@@ -247,7 +247,21 @@ const todosFromMessages = computed(() => {
   }
   return snapshot
 })
-const todos = computed(() => projection.value?.todos?.length ? projection.value.todos : todosFromMessages.value)
+// 实时层：取 SSE 流中最后一次 todos_updated 快照（write_todos 落库即推流，无需等 5s 轮询）
+const liveTodos = computed(() => {
+  let snapshot = null
+  for (const event of props.liveEvents) {
+    if (event?.type !== 'todos_updated') continue
+    if (Array.isArray(event.todos)) snapshot = event.todos
+  }
+  return snapshot
+})
+// 三层降级：SSE 实时快照 > projection 持久化快照 > 当前消息 toolEvents
+const todos = computed(() => {
+  if (liveTodos.value?.length) return liveTodos.value
+  if (projection.value?.todos?.length) return projection.value.todos
+  return todosFromMessages.value
+})
 const completedTodoCount = computed(() => todos.value.filter(todo => todo.status === 'completed').length)
 const todoProgress = computed(() => todos.value.length ? Math.round(completedTodoCount.value * 100 / todos.value.length) : 0)
 

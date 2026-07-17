@@ -169,6 +169,24 @@ lightbot:
           backoff-base-ms: 10000
         RAG_EVALUATION:
           max-attempts: 1
+    # ========================================
+    # 僵尸任务扫描器
+    # 周期扫描 status=RUNNING 但 update_time 已超时的任务：
+    #   streamId 仍在 PEL → worker 可能还在跑，跳过
+    #   streamId 不在 PEL → 确认孤儿，CAS markFailed + 回滚 Document
+    # ========================================
+    zombie:
+      # 扫描周期（秒）
+      interval-seconds: 60
+      # 默认超时阈值（分钟）：超过此值且 streamId 不在 PEL 才视为孤儿
+      default-timeout-minutes: 10
+      # 单次扫描上限，避免一次性处理过多任务
+      batch-size: 100
+      # 按 TaskType 覆盖的超时阈值（分钟），未配置的类型回落到 default
+      overrides:
+        GRAPH_EXTRACTION: 60
+        QA_PAIR_GENERATE: 30
+        RAG_EVALUATION: 20
   # ========================================
   # Milvus 向量数据库配置
   # enabled：是否启用 Milvus（未部署时设为 false）

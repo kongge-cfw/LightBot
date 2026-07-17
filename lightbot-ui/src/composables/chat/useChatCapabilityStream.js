@@ -73,6 +73,12 @@ export function createChatCapabilityStreamHandlers(deps) {
       return true
     }
 
+    // todos_updated：不进消息气泡的 _toolEvents（write_todos 本身的 tool_result 已展示），仅透传给运行时事件 sink 供状态栏消费
+    if (event.type === 'todos_updated') {
+      onSubagentEvent?.(event)
+      return true
+    }
+
     if (!isSubagentEvent(event)) return false
 
     const offset = event.contentOffset ?? assistantMsg.content?.length ?? 0
