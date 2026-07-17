@@ -90,9 +90,9 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         if (subAgent == null) {
             throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
         }
-        // 2. 内置不可编辑
+        // 2. 内置 SubAgent：仅允许调整模型配置（继承主 Agent / 自选模型），其余字段一律保持原值
         if (Integer.valueOf(1).equals(subAgent.getIsBuiltin())) {
-            throw new BizException("内置 SubAgent 不可编辑");
+            return updateBuiltinModelConfig(subAgent, request);
         }
         // 3. 名称变更时校验唯一性
         if (!subAgent.getName().equals(request.getName())) {
@@ -181,6 +181,31 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         }
         subAgent.setEnabled(enabled ? 1 : 0);
         updateById(subAgent);
+    }
+
+    /**
+     * 内置 SubAgent 仅更新模型配置字段（modelId/llmModel），其余字段保持原值
+     *
+     * @param subAgent 已加载的内置实体
+     * @param request  仅取其中的模型配置
+     * @return 最新快照
+     */
+    private SubAgent updateBuiltinModelConfig(SubAgent subAgent, SubAgentRequestDTO request) {
+        LambdaUpdateWrapper<SubAgent> wrapper = new LambdaUpdateWrapper<SubAgent>()
+                .eq(SubAgent::getId, subAgent.getId());
+        // providerId 为空：用户切回"继承主 Agent"，清空独立模型字段
+        Long providerId = request.resolveProviderId();
+        if (providerId != null) {
+            wrapper.set(SubAgent::getModelId, providerId)
+                    .set(SubAgent::getLlmModel, request.getLlmModel());
+        } else {
+            wrapper.set(SubAgent::getModelId, null)
+                    .set(SubAgent::getLlmModel, null);
+        }
+        if (!update(wrapper)) {
+            throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
+        }
+        return getById(subAgent.getId());
     }
 
     private String toJson(List<String> list) {

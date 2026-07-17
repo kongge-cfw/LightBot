@@ -71,20 +71,23 @@
       </template>
       <div class="dialog-scroll-body">
       <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 19 }">
+        <div v-if="editingBuiltin" class="builtin-edit-banner">
+          内置 SubAgent 仅可调整「模型配置」，其余字段保持系统默认不可修改。
+        </div>
         <a-form-item label="标识名称" required>
-          <a-input v-model:value="form.name" placeholder="英文标识，如 research-agent（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="英文标识，如 research-agent（不超过30字）" :maxlength="30" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="显示名称" required>
-          <a-input v-model:value="form.displayName" placeholder="中文显示名称（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.displayName" placeholder="中文显示名称（不超过30字）" :maxlength="30" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="图标">
-          <IconPicker v-model:value="form.icon" />
+          <IconPicker v-model:value="form.icon" :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="描述" required>
-          <a-textarea v-model:value="form.description" placeholder="SubAgent 描述（不超过50字）" :rows="2" :maxlength="50" show-count />
+          <a-textarea v-model:value="form.description" placeholder="SubAgent 描述（不超过50字）" :rows="2" :maxlength="50" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="系统提示词" required>
-          <a-textarea v-model:value="form.systemPrompt" placeholder="SubAgent 的系统提示词（不超过2000字）" :rows="6" :maxlength="2000" show-count />
+          <a-textarea v-model:value="form.systemPrompt" placeholder="SubAgent 的系统提示词（不超过2000字）" :rows="6" :maxlength="2000" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="绑定工具">
           <a-select
@@ -94,6 +97,7 @@
             :options="allToolOptions"
             allow-clear
             option-label-prop="label"
+            :disabled="editingBuiltin"
           >
             <template #option="{ value, label, toolType, description, icon }">
               <EntitySelectOption type="tool" :name="label" :icon="icon" :tag="toolType" :desc="description" />
@@ -119,6 +123,7 @@
             :step="1"
             addon-after="秒"
             style="width: 160px"
+            :disabled="editingBuiltin"
           />
           <div class="form-hint">建立模型连接的最长等待，默认 10 秒</div>
         </a-form-item>
@@ -130,6 +135,7 @@
             :step="5"
             addon-after="秒"
             style="width: 160px"
+            :disabled="editingBuiltin"
           />
           <div class="form-hint">SubAgent 整体执行上限，默认 120 秒</div>
         </a-form-item>
@@ -141,11 +147,12 @@
             :step="1"
             addon-after="次"
             style="width: 160px"
+            :disabled="editingBuiltin"
           />
           <div class="form-hint">模型连接失败时的重试次数，默认 1 次</div>
         </a-form-item>
         <a-form-item label="是否启用">
-          <a-switch v-model:checked="form.enabled" />
+          <a-switch v-model:checked="form.enabled" :disabled="editingBuiltin" />
         </a-form-item>
       </a-form>
       </div>
@@ -180,7 +187,7 @@
         </div>
         <div class="guide-section">
           <div class="guide-h3">内置 SubAgent</div>
-          <p>部分系统预置 SubAgent 仅可启用/禁用，不可删除，用于演示或通用场景。</p>
+          <p>系统预置 SubAgent 仅可调整「模型配置」（继承主 Agent 或自选模型）与启用状态；其余字段保持系统默认，不可删除。</p>
         </div>
       </div>
     </a-modal>
@@ -249,7 +256,7 @@
       </div>
       <div class="dialog-footer">
         <div class="dialog-footer-left">
-          <button v-if="currentDetail && currentDetail.isBuiltin !== 1" class="btn-cancel" @click="detailVisible = false; openEditDialog(currentDetail)">
+          <button v-if="currentDetail" class="btn-cancel" @click="detailVisible = false; openEditDialog(currentDetail)">
             <EditOutlined /> 编辑
           </button>
         </div>
@@ -307,6 +314,10 @@ const form = reactive({
 
 const detailVisible = ref(false)
 const currentDetail = ref(null)
+
+// 编辑内置 SubAgent 时，仅模型配置可改，其余字段全部禁用
+const editingBuiltin = computed(() => !!editingId.value
+  && list.value.some(s => s.id === editingId.value && s.isBuiltin === 1))
 
 const toolList = ref([])
 const staleToolOptions = ref([])
@@ -688,6 +699,16 @@ defineExpose({ openDialog, search, refresh })
   font-size: 12px;
   color: var(--color-mute);
   line-height: 1.5;
+}
+.builtin-edit-banner {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #1d4ed8;
+  background: var(--color-link-bg-soft, #eff6ff);
+  border: 1px solid color-mix(in srgb, var(--color-link) 25%, transparent);
+  border-radius: 6px;
 }
 .dialog-footer {
   display: flex;

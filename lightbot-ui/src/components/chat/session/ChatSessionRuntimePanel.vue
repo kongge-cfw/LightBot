@@ -45,14 +45,16 @@
         <CollapseTransition :open="isExpanded('todos')">
           <a-card size="small" class="runtime-detail-card" :bordered="false">
             <div v-if="todos.length" class="todo-list">
-              <div v-for="todo in todos" :key="todo.id" class="todo-item" :class="`is-${todo.status}`">
-                <LoadingOutlined v-if="todo.status === 'in_progress'" spin />
-                <CheckCircleFilled v-else-if="todo.status === 'completed'" />
-                <CloseCircleFilled v-else-if="todo.status === 'cancelled'" />
-                <ClockCircleOutlined v-else />
-                <span>{{ todo.content }}</span>
-              </div>
               <div class="todo-progress-track"><span :style="{ width: `${todoProgress}%` }"></span></div>
+              <div v-for="todo in todos" :key="todo.id" class="todo-item" :class="`is-${todo.status}`">
+                <span class="todo-status-icon">
+                  <LoadingOutlined v-if="todo.status === 'in_progress'" class="todo-spinning" />
+                  <CheckCircleFilled v-else-if="todo.status === 'completed'" />
+                  <CloseCircleFilled v-else-if="todo.status === 'cancelled'" />
+                  <ClockCircleOutlined v-else />
+                </span>
+                <span class="todo-content">{{ todo.content }}</span>
+              </div>
             </div>
             <a-empty v-else :image="emptyImage" description="暂无待办" class="runtime-empty" />
           </a-card>
@@ -162,7 +164,6 @@ import {
   FileDoneOutlined, FileOutlined, InboxOutlined, LoadingOutlined, PaperClipOutlined,
   ReloadOutlined, RightOutlined, RobotOutlined,
 } from '@ant-design/icons-vue'
-import { getSessionAttachments } from '../../../api/chatSession'
 import { getResearchTaskProjection, getSubAgentRuntimeSummaries } from '../../../api/subagent'
 import { pickFresher } from '../../../utils/subagentRuntime'
 import { canOpenSourcePreview, getFileExtension, resolveSourcePreviewKind } from '../../../utils/filePreview'
@@ -348,17 +349,6 @@ function statusLabel(status) {
 }
 function displayNameOf(run) { return run.display_name || run.displayName || run.subagent_name || run.subagentName || '子智能体' }
 
-async function refreshAttachments() {
-  if (props.parentRequestId) return
-  if (!props.sessionId) { attachments.value = []; return }
-  try {
-    const response = await getSessionAttachments(props.sessionId)
-    attachments.value = response.data || []
-  } catch {
-    // 侧栏刷新失败时保留已加载数据，不能影响主对话。
-  }
-}
-
 async function refreshRuns() {
   if (props.parentRequestId) return
   if (!props.sessionId || (!currentTaskIds.value.size && !props.parentRequestId)) { dbRuns.value = []; return }
@@ -400,7 +390,7 @@ async function refreshRuntimeState() {
   refreshing.value = true
   const minDelay = new Promise(resolve => setTimeout(resolve, 500))
   try {
-    await Promise.all([refreshProjection(), refreshAttachments(), refreshRuns(), minDelay])
+    await Promise.all([refreshProjection(), refreshRuns(), minDelay])
   } finally {
     refreshing.value = false
   }
@@ -411,7 +401,6 @@ function startPolling() {
   if (!shouldPoll.value) return
   refreshTimer = setInterval(() => {
     refreshProjection()
-    refreshAttachments()
     refreshRuns()
   }, 5000)
 }
@@ -419,8 +408,8 @@ function startPolling() {
 watch(() => props.sessionId, () => {
   dbRuns.value = []
   projection.value = null
+  attachments.value = []
   refreshProjection()
-  refreshAttachments()
   refreshRuns()
   startPolling()
 }, { immediate: true })
@@ -433,8 +422,8 @@ watch(() => props.parentRequestId, () => {
   detailOpen.value = false
   selectedTask.value = null
   projection.value = null
+  attachments.value = []
 })
-watch(() => artifacts.value.length, refreshAttachments)
 watch(shouldPoll, startPolling, { immediate: true })
 
 onBeforeUnmount(() => clearInterval(refreshTimer))
@@ -447,11 +436,11 @@ onBeforeUnmount(() => clearInterval(refreshTimer))
 .runtime-status-list { display: flex; flex-direction: column; gap: 8px; }.runtime-status-section { display: flex; flex-direction: column; }.runtime-status-button { display: flex !important; width: 100%; height: auto !important; align-items: center; min-height: 66px; gap: 10px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-md) !important; background: var(--color-canvas) !important; padding: 10px !important; color: var(--color-ink) !important; text-align: left; white-space: normal !important; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease, transform .18s ease; }.runtime-status-button:hover { border-color: var(--color-hairline-strong) !important; background: var(--color-canvas-soft) !important; transform: translateY(-1px); }.runtime-status-button.active { border-color: var(--color-link) !important; background: var(--color-link-bg-soft) !important; box-shadow: 0 4px 14px color-mix(in srgb, var(--color-link) 14%, transparent); }
 .runtime-status-icon { display: grid; width: 34px; height: 34px; place-items: center; flex: 0 0 34px; border-radius: 9px; background: var(--color-canvas-soft-2); color: var(--color-mute); font-size: 16px; }.runtime-status-icon.is-usage { color: #0f766e; background: #ccfbf1; }.runtime-status-icon.is-todo { color: #15803d; background: #dcfce7; }.runtime-status-icon.is-files { color: #1d4ed8; background: #dbeafe; }.runtime-status-icon.is-artifacts { color: #9333ea; background: #f3e8ff; }.runtime-status-icon.is-subagents { color: #c2410c; background: #ffedd5; }.runtime-status-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.runtime-status-copy strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-weight: 600; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-copy small { overflow: hidden; color: var(--color-mute); font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }.runtime-status-meta { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; font-variant-numeric: tabular-nums; }.runtime-status-arrow { flex: 0 0 auto; color: var(--color-mute); font-size: 11px; transition: transform .2s ease; }.runtime-status-arrow.expanded { color: var(--color-link); transform: rotate(90deg); }.runtime-status-button.active .runtime-status-copy strong, .runtime-status-button.active .runtime-status-meta { color: var(--color-link-deep); }
 .runtime-detail-card { margin-top: 8px; border: 1px solid var(--color-hairline) !important; border-radius: var(--radius-lg) !important; background: var(--color-canvas-soft) !important; }.runtime-detail-card :deep(.ant-card-body) { padding: 14px; }.runtime-empty { margin: 0; padding: 8px 0 2px; }
-.todo-list, .file-list, .artifact-list, .subagent-list { display: flex; flex-direction: column; gap: 8px; }.todo-item { display: flex; align-items: flex-start; gap: 8px; padding: 7px 10px; color: var(--color-body); font-size: 12px; line-height: 1.55; background: var(--color-canvas); border: 1px solid var(--color-hairline); border-left: 3px solid var(--color-mute); border-radius: 7px; transition: background .15s ease, border-color .15s ease; }.todo-item:hover { background: var(--color-canvas-soft); }.todo-item > :first-child { margin-top: 1px; flex-shrink: 0; font-size: 13px; color: var(--color-mute); }.todo-item.is-pending { border-left-color: #94a3b8; background: #f8fafc; }.todo-item.is-pending > :first-child { color: #64748b; }.todo-item.is-pending:hover { background: #f1f5f9; }.todo-item.is-in_progress { border-left-color: var(--color-link); background: var(--color-link-bg-soft, #eff6ff); }.todo-item.is-in_progress > :first-child { color: var(--color-link); }.todo-item.is-completed { color: var(--color-mute); text-decoration: line-through; background: var(--color-canvas-soft); border-left-color: var(--color-success); }.todo-item.is-completed > :first-child { color: var(--color-success); text-decoration: none; }.todo-item.is-cancelled { color: var(--color-mute); background: var(--color-canvas-soft); border-left-color: var(--color-error); }.todo-item.is-cancelled > :first-child { color: var(--color-error); }.todo-progress-track { height: 5px; overflow: hidden; border-radius: 999px; background: var(--color-hairline); }.todo-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-success); transition: width .25s ease; }
+.todo-list, .file-list, .artifact-list, .subagent-list { display: flex; flex-direction: column; gap: 8px; }.todo-list { gap: 6px; }.todo-item { display: flex; align-items: center; gap: 6px; padding: 7px 10px; color: var(--color-body); font-size: 12px; font-weight: 500; line-height: 1.55; background: var(--color-canvas); border: 1px solid var(--color-hairline); border-left: 3px solid var(--color-mute); border-radius: 7px; transition: background .15s ease, border-color .15s ease; }.todo-item:hover { background: var(--color-canvas-soft); }.todo-status-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 14px; height: 14px; font-size: 13px; line-height: 1; color: var(--color-mute); }.todo-status-icon :deep(.anticon) { display: inline-flex; font-size: 13px; line-height: 1; }.todo-status-icon :deep(svg) { display: block; width: 13px !important; height: 13px !important; }.todo-spinning { animation: runtime-spin 1s linear infinite; display: inline-block; }.todo-content { flex: 1; min-width: 0; word-break: break-word; }.todo-item.is-pending { border-left-color: #94a3b8; background: #f8fafc; }.todo-item.is-pending .todo-status-icon { color: #64748b; }.todo-item.is-pending:hover { background: #f1f5f9; }.todo-item.is-in_progress { border-left-color: var(--color-link); background: var(--color-link-bg-soft, #eff6ff); }.todo-item.is-in_progress .todo-status-icon { color: var(--color-link); }.todo-item.is-completed { color: var(--color-mute); text-decoration: line-through; background: var(--color-canvas-soft); border-left-color: var(--color-success); }.todo-item.is-completed .todo-status-icon { color: var(--color-success); }.todo-item.is-cancelled { color: var(--color-mute); background: var(--color-canvas-soft); border-left-color: var(--color-error); }.todo-item.is-cancelled .todo-status-icon { color: var(--color-error); }.todo-progress-track { height: 4px; margin-bottom: 4px; overflow: hidden; border-radius: 999px; background: var(--color-hairline); }.todo-progress-track > span { display: block; height: 100%; border-radius: inherit; background: var(--color-success); transition: width .25s ease; }
 .usage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }.usage-grid span { display: flex; min-width: 0; flex-direction: column; gap: 3px; padding: 8px; border-radius: 7px; background: var(--color-canvas); }.usage-grid small { color: var(--color-mute); font-size: 11px; }.usage-grid strong { overflow: hidden; color: var(--color-ink); font-size: 13px; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
 .file-item, .artifact-card, .subagent-card { display: flex !important; width: 100%; height: auto !important; align-items: flex-start; justify-content: flex-start; gap: 8px; padding: 7px 8px !important; border-radius: 8px !important; color: var(--color-body) !important; text-align: left; white-space: normal !important; }.file-item:hover, .artifact-card:hover, .subagent-card:hover { background: var(--color-canvas-soft-2) !important; color: var(--color-ink) !important; }.file-item span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.runtime-more { align-self: flex-start; padding: 0 !important; }
 .artifact-card > :first-child { margin-top: 3px; color: #9333ea; }.artifact-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; }.artifact-main strong, .artifact-main small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.artifact-main strong { color: var(--color-ink); font-size: 12px; }.artifact-main small { color: var(--color-mute); font-size: 11px; }
-.subagent-run { display: flex; flex-direction: column; gap: 6px; }.subagent-card { position: relative; min-width: 0; border: 1px solid var(--color-hairline) !important; background: var(--color-canvas) !important; }.subagent-card.is-running { border-color: color-mix(in srgb, var(--color-link) 35%, var(--color-hairline)) !important; }.subagent-avatar { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 28px; border-radius: 8px; background: #ffedd5; color: #c2410c; }.subagent-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.subagent-name-row { display: flex; min-width: 0; align-items: center; gap: 5px; }.subagent-name-row strong { overflow: hidden; flex: 1; color: var(--color-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.subagent-status { margin: 0; border: 0; border-radius: 4px; font-size: 10px; line-height: 18px; }.subagent-status.is-running, .subagent-status.is-pending { color: #1d4ed8; background: #dbeafe; }.subagent-status.is-completed { color: #15803d; background: #dcfce7; }.subagent-status.is-failed, .subagent-status.is-timeout, .subagent-status.is-cancelled { color: #b91c1c; background: #fee2e2; }.subagent-task, .subagent-output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.subagent-task { color: var(--color-body); font-size: 11px; }.subagent-output { color: var(--color-mute); font-size: 11px; }.subagent-spinner { align-self: center; color: var(--color-link); }.subagent-expand-arrow { align-self: center; flex: 0 0 auto; color: var(--color-mute); font-size: 11px; }.subagent-card-enter-active, .subagent-card-leave-active { transition: opacity .22s ease, transform .22s ease; }.subagent-card-enter-from, .subagent-card-leave-to { opacity: 0; transform: translateY(8px); }
+.subagent-run { display: flex; flex-direction: column; gap: 6px; }.subagent-card { position: relative; min-width: 0; border: 1px solid var(--color-hairline) !important; background: var(--color-canvas) !important; }.subagent-card.is-running { border-color: color-mix(in srgb, var(--color-link) 35%, var(--color-hairline)) !important; }.subagent-avatar { display: grid; width: 28px; height: 28px; place-items: center; flex: 0 0 28px; border-radius: 8px; background: #ffedd5; color: #c2410c; }.subagent-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.subagent-name-row { display: flex; min-width: 0; align-items: center; gap: 5px; }.subagent-name-row strong { overflow: hidden; flex: 1; color: var(--color-ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.subagent-status { margin: 0; border: 0; border-radius: 4px; font-size: 10px; line-height: 18px; }.subagent-status.is-running, .subagent-status.is-pending { color: #1d4ed8; background: #dbeafe; }.subagent-status.is-completed { color: #15803d; background: #dcfce7; }.subagent-status.is-failed, .subagent-status.is-timeout, .subagent-status.is-cancelled { color: #b91c1c; background: #fee2e2; }.subagent-task, .subagent-output { min-width: 0; }.subagent-task { color: var(--color-body); font-size: 11px; line-height: 1.45; word-break: break-word; white-space: normal; }.subagent-output { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-mute); font-size: 11px; }.subagent-spinner { align-self: center; color: var(--color-link); }.subagent-expand-arrow { align-self: center; flex: 0 0 auto; color: var(--color-mute); font-size: 11px; }.subagent-card-enter-active, .subagent-card-leave-active { transition: opacity .22s ease, transform .22s ease; }.subagent-card-enter-from, .subagent-card-leave-to { opacity: 0; transform: translateY(8px); }
 @keyframes runtime-spin { to { transform: rotate(360deg); } }
 @media (max-width: 1100px) { .runtime-panel { display: none; } }
 </style>
