@@ -251,6 +251,13 @@ export const TOOL_DEBUG_SAMPLES = {
     success: true,
   }),
 
+  sandbox_append_file: sample('sandbox_append_file', {
+    path: 'outputs/files/report.md',
+    size: 128,
+    success: true,
+    mode: 'append',
+  }),
+
   ocr_parse_file: sample('ocr_parse_file', {
     source_path: 'invoice.pdf',
     parsed_path: 'ocr/invoice.md',
@@ -386,6 +393,7 @@ export const TOOL_DEBUG_ERROR_SAMPLES = {
   sandbox_read_file: { success: false, error: '读取文件失败: 文件不存在: missing.txt' },
   sandbox_list_files: { success: false, error: '读取目录失败: 目录不存在: /missing' },
   sandbox_write_file: { success: false, error: '写入文件失败: 权限不足' },
+  sandbox_append_file: { success: false, error: '追加文件失败: 权限不足' },
   ocr_parse_file: { success: false, error: 'OCR 解析失败: 不支持的文件类型: docx' },
   present_artifacts: {
     success: false,

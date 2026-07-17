@@ -138,7 +138,37 @@ lightbot:
     auto-download: true
   task:
     consumer:
+      # 默认组（短任务）worker 数量
       pool-size: 2
+      # 重型组（图谱抽取、问答对生成）worker 数量
+      heavy-pool-size: 1
+    # 僵尸消息监控（仅告警，不主动 XCLAIM；崩溃兜底由 PEL 共享 + ID-0 双拉实现）
+    reclaim:
+      interval-seconds: 30
+      stale-threshold-minutes: 5
+      batch-size: 100
+    # 延迟队列扫描（重试退避任务到期重投主 Stream）
+    delay:
+      interval-seconds: 1
+      batch-size: 100
+    # 重试策略：按 TaskType 配置；未配置的类型回落到 default
+    retry:
+      default-policy:
+        max-attempts: 3
+        backoff-base-ms: 5000
+        backoff-multiplier: 2.0
+        backoff-max-ms: 600000
+      overrides:
+        GRAPH_EXTRACTION:
+          max-attempts: 2
+          backoff-base-ms: 30000
+          backoff-multiplier: 2.0
+          backoff-max-ms: 600000
+        QA_PAIR_GENERATE:
+          max-attempts: 2
+          backoff-base-ms: 10000
+        RAG_EVALUATION:
+          max-attempts: 1
   # ========================================
   # Milvus 向量数据库配置
   # enabled：是否启用 Milvus（未部署时设为 false）

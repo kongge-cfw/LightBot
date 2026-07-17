@@ -3,6 +3,7 @@ package com.lightbot.task;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightbot.common.task.TaskCancelledException;
 import com.lightbot.vo.GraphStatsVO;
 import com.lightbot.dto.GraphTripleDTO;
 import com.lightbot.entity.Chunk;
@@ -299,7 +300,7 @@ public class GraphExtractionExecutor implements TaskExecutor {
         for (List<Chunk> batch : batches) {
             CompletableFuture<Void> future = CompletableFuture.runAsync(() -> {
                 if (redisUtil.hasCancelSignal(task.getId())) {
-                    throw new CompletionException(new RuntimeException("任务已被用户取消"));
+                    throw new CompletionException(new TaskCancelledException());
                 }
 
                 try {
@@ -332,8 +333,9 @@ public class GraphExtractionExecutor implements TaskExecutor {
             CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
         } catch (CompletionException e) {
             Throwable cause = e.getCause();
-            if (cause instanceof RuntimeException re && "任务已被用户取消".equals(re.getMessage())) {
-                throw re;
+            // 任务取消异常向上透传（不视为失败）
+            if (cause instanceof TaskCancelledException tce) {
+                throw tce;
             }
             if (ModelErrorClassifier.isFatal(e)) {
                 throw ModelErrorClassifier.toRuntimeException(e);

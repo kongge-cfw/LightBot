@@ -70,10 +70,16 @@ public class TaskEventController implements TaskCountNotifier {
         try {
             long pending = taskService.countByStatus(userId, TaskStatus.PENDING.getCode());
             long running = taskService.countByStatus(userId, TaskStatus.RUNNING.getCode());
-            long active = pending + running;
+            long pendingRetry = taskService.countByStatus(userId, TaskStatus.PENDING_RETRY.getCode());
+            // active 涵盖所有未完结状态：等待中 + 执行中 + 等待重试
+            long active = pending + running + pendingRetry;
             // 推送分状态计数 JSON，前端同时用于导航角标和任务中心
             emitter.send(SseEmitter.event().name("count")
-                    .data(Map.of("active", active, "pending", pending, "running", running)));
+                    .data(Map.of(
+                            "active", active,
+                            "pending", pending,
+                            "running", running,
+                            "pendingRetry", pendingRetry)));
         } catch (IOException | IllegalStateException e) {
             USER_EMITTERS.remove(userId, emitter);
         } catch (Exception e) {

@@ -17,6 +17,7 @@ import lombok.Getter;
 public enum TaskStatus implements EnumDisplay {
 
     PENDING("pending", "等待中"),
+    PENDING_RETRY("pending_retry", "等待重试"),
     RUNNING("running", "执行中"),
     SUCCESS("success", "成功"),
     FAILED("failed", "失败"),

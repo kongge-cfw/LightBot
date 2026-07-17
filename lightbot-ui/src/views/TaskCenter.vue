@@ -6,6 +6,7 @@
         <a-radio-group v-model:value="statusFilter" size="small" button-style="solid">
           <a-radio-button value="running">进行中 {{ runningCount }}</a-radio-button>
           <a-radio-button value="pending">等待中 {{ pendingCount }}</a-radio-button>
+          <a-radio-button value="pending_retry">等待重试 {{ pendingRetryCount }}</a-radio-button>
           <a-radio-button value="">全部</a-radio-button>
         </a-radio-group>
       </div>
@@ -63,6 +64,13 @@
         </template>
         <template v-else-if="column.key === 'status'">
           <a-badge :status="statusBadge[record.status]" :text="statusMap[record.status] || record.status" />
+          <a-tag v-if="record.deadLetter === 1" color="red" size="small" style="margin-left: 4px">死信</a-tag>
+        </template>
+        <template v-else-if="column.key === 'attempts'">
+          <span v-if="record.attempts > 0" class="attempts-text">
+            {{ record.attempts }}/{{ record.maxAttempts || '-' }}
+          </span>
+          <span v-else class="attempts-empty">-</span>
         </template>
         <template v-else-if="column.key === 'progress'">
           <div class="progress-cell">
@@ -76,7 +84,11 @@
           </div>
         </template>
         <template v-else-if="column.key === 'action'">
-          <a-tooltip v-if="record.status === 'pending' || record.status === 'running'" title="取消任务" :getPopupContainer="t => t.parentElement">
+          <a-tooltip
+            v-if="record.status === 'pending' || record.status === 'running' || record.status === 'pending_retry'"
+            title="取消任务"
+            :getPopupContainer="t => t.parentElement"
+          >
             <a-button
               type="link"
               size="small"
@@ -119,6 +131,13 @@
           <a-descriptions-item label="任务类型">{{ detailTask.type }}</a-descriptions-item>
           <a-descriptions-item label="状态">
             <a-badge :status="statusBadge[detailTask.status]" :text="statusMap[detailTask.status] || detailTask.status" />
+            <a-tag v-if="detailTask.deadLetter === 1" color="red" size="small" style="margin-left: 8px">死信</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="detailTask.attempts > 0 || detailTask.maxAttempts" label="重试次数">
+            <span>{{ detailTask.attempts || 0 }} / {{ detailTask.maxAttempts || '-' }}</span>
+            <span v-if="detailTask.status === 'pending_retry' && detailTask.nextRetryAt" class="retry-hint">
+              · 下次重试 {{ formatTime(detailTask.nextRetryAt) }}
+            </span>
           </a-descriptions-item>
           <a-descriptions-item label="进度">
             <div class="progress-cell">
@@ -156,7 +175,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ReloadOutlined, SearchOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
-import { getTaskList, cancelTask, deleteTask, getTaskTypeCounts } from '../api/task'
+import { getTaskList, cancelTask, deleteTask, getTaskTypeCounts, getTaskProgress } from '../api/task'
 import { formatTime } from '../utils/format'
 import { useTaskStore } from '../stores/task'
 
@@ -168,10 +187,13 @@ const statusFilter = ref('')
 const typeFilter = ref('')
 const pendingCount = computed(() => taskStore.pending)
 const runningCount = computed(() => taskStore.running)
+const pendingRetryCount = computed(() => taskStore.pendingRetry)
 const typeCounts = ref({})
 
 const detailVisible = ref(false)
 const detailTask = ref(null)
+// 详情抽屉进度轮询定时器：直读 Redis Hash，毫秒级进度刷新
+let detailPollTimer = null
 const pagination = reactive({
   current: 1,
   pageSize: 10,
@@ -183,7 +205,8 @@ const pagination = reactive({
 const columns = [
   { title: '任务名称', dataIndex: 'name', key: 'name', ellipsis: true, width: 240 },
   { title: '类型', dataIndex: 'type', key: 'type', width: 110 },
-  { title: '状态', dataIndex: 'status', key: 'status', width: 100 },
+  { title: '状态', dataIndex: 'status', key: 'status', width: 120 },
+  { title: '重试', dataIndex: 'attempts', key: 'attempts', width: 80 },
   { title: '进度', dataIndex: 'progress', key: 'progress', width: 160 },
   { title: '创建时间', dataIndex: 'createTime', key: 'createTime', width: 170 },
   { title: '操作', key: 'action', width: 80 },
@@ -204,6 +227,7 @@ const typeColor = {
 const statusMap = {
   pending: '等待中',
   running: '执行中',
+  pending_retry: '等待重试',
   success: '已完成',
   failed: '失败',
   cancelled: '已取消',
@@ -212,6 +236,7 @@ const statusMap = {
 const statusBadge = {
   pending: 'processing',
   running: 'processing',
+  pending_retry: 'warning',
   success: 'success',
   failed: 'error',
   cancelled: 'default',
@@ -282,6 +307,42 @@ watch(typeFilter, () => {
 function openDetail(record) {
   detailTask.value = record
   detailVisible.value = true
+  // 命中运行中任务时启动高频进度轮询（直读 Redis Hash，1.5s 刷新一次）
+  startDetailPolling(record)
+}
+
+function startDetailPolling(record) {
+  stopDetailPolling()
+  // 仅对未完结任务轮询（pending/running/pending_retry）
+  if (!record || !['pending', 'running', 'pending_retry'].includes(record.status)) {
+    return
+  }
+  detailPollTimer = setInterval(async () => {
+    if (!detailTask.value) {
+      stopDetailPolling()
+      return
+    }
+    try {
+      const res = await getTaskProgress(detailTask.value.id)
+      const snap = res.data
+      if (snap && snap.progress != null) {
+        // 进度单调递增才覆盖（避免乱序响应回退进度）
+        if (snap.progress >= (detailTask.value.progress || 0)) {
+          detailTask.value.progress = snap.progress
+        }
+        if (snap.message) {
+          detailTask.value.message = snap.message
+        }
+      }
+    } catch { /* 忽略轮询错误，下次重试 */ }
+  }, 1500)
+}
+
+function stopDetailPolling() {
+  if (detailPollTimer) {
+    clearInterval(detailPollTimer)
+    detailPollTimer = null
+  }
 }
 
 function handleCancel(record) {
@@ -346,6 +407,7 @@ onUnmounted(() => {
     clearInterval(pollTimer)
     pollTimer = null
   }
+  stopDetailPolling()
 })
 </script>
 
@@ -488,5 +550,18 @@ onUnmounted(() => {
 .error-text {
   color: #dc2626;
   word-break: break-all;
+}
+.attempts-text {
+  font-size: 12px;
+  font-family: 'Geist Mono', 'Menlo', monospace;
+  color: #faad14;
+}
+.attempts-empty {
+  color: #8b8b8b;
+}
+.retry-hint {
+  margin-left: 6px;
+  color: #faad14;
+  font-size: 12px;
 }
 </style>

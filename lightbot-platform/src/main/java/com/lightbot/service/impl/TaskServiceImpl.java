@@ -1,12 +1,15 @@
 package com.lightbot.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.entity.Task;
 import com.lightbot.enums.ErrorCode;
+import com.lightbot.task.ProgressSnapshot;
+import com.lightbot.task.RetryPolicy;
+import com.lightbot.task.RetryPolicyProperties;
+import com.lightbot.task.TaskQueueService;
 import org.springframework.util.StringUtils;
 import com.lightbot.enums.TaskStatus;
 import com.lightbot.enums.TaskType;
@@ -14,7 +17,6 @@ import com.lightbot.mapper.TaskMapper;
 import com.lightbot.service.TaskService;
 import com.lightbot.service.port.TaskCountNotifier;
 import com.lightbot.service.port.TaskInterruptPort;
-import com.lightbot.util.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
@@ -36,12 +38,15 @@ import java.util.Map;
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
         implements TaskService {
 
-    private final RedisUtil redisUtil;
+    private final TaskQueueService taskQueueService;
+    private final RetryPolicyProperties retryPolicyProperties;
     private final ObjectProvider<TaskCountNotifier> taskCountNotifier;
     private final ObjectProvider<TaskInterruptPort> taskInterruptPort;
 
     @Override
     public Task createTask(TaskType type, String name, Long userId, Long refId, String payload) {
+        // 1. 初始化任务记录（attempts=0、max_attempts 来自重试策略、status=PENDING）
+        RetryPolicy policy = retryPolicyProperties.resolve(type);
         Task task = new Task();
         task.setName(name);
         task.setType(type);
@@ -51,25 +56,39 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
         task.setUserId(userId);
         task.setRefId(refId);
         task.setPayload(payload);
+        task.setAttempts(0);
+        task.setMaxAttempts(policy.getMaxAttempts());
+        task.setDeadLetter(0);
         save(task);
 
-        // 推入Redis队列
-        redisUtil.pushTask(task.getId().toString());
-        log.info("[任务] 创建成功, taskId={}, type={}, name={}", task.getId(), type, name);
+        // 2. XADD 投递到主 Stream（投递后回写 streamId，便于 PEL/XCLAIM 追溯）
+        String streamId = taskQueueService.enqueue(task);
+        lambdaUpdate()
+                .eq(Task::getId, task.getId())
+                .set(Task::getStreamId, streamId)
+                .update();
 
-        // 推送任务计数变更
+        log.info("[任务] 创建成功, taskId={}, type={}, name={}, streamId={}", task.getId(), type, name, streamId);
+
         broadcastTaskCount(userId);
         return task;
     }
 
     @Override
     public void updateProgress(Long taskId, int progress, String message) {
+        // 同步写 DB（持久化兜底）+ Redis Hash（前端毫秒级读取）
         lambdaUpdate()
                 .eq(Task::getId, taskId)
                 .set(Task::getProgress, progress)
                 .set(Task::getMessage, message)
                 .set(Task::getUpdateTime, LocalDateTime.now())
                 .update();
+        try {
+            taskQueueService.reportProgress(taskId, progress, message);
+        } catch (Exception e) {
+            // Hash 写失败不影响主流程，前端仍可读 DB
+            log.debug("[任务] 进度 Hash 写失败: taskId={}, err={}", taskId, e.getMessage());
+        }
     }
 
     @Override
@@ -80,6 +99,33 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
                 .set(Task::getStartedAt, LocalDateTime.now())
                 .set(Task::getUpdateTime, LocalDateTime.now())
                 .update();
+        broadcastTaskCountByTaskId(taskId);
+    }
+
+    @Override
+    public void markStart(Long taskId, int attempts, String streamId) {
+        lambdaUpdate()
+                .eq(Task::getId, taskId)
+                .set(Task::getStatus, TaskStatus.RUNNING)
+                .set(Task::getAttempts, attempts)
+                .set(Task::getStreamId, streamId)
+                .set(Task::getStartedAt, LocalDateTime.now())
+                .set(Task::getUpdateTime, LocalDateTime.now())
+                .update();
+        broadcastTaskCountByTaskId(taskId);
+    }
+
+    @Override
+    public void markPendingRetry(Long taskId, int attempts, LocalDateTime nextRetryAt, String error) {
+        lambdaUpdate()
+                .eq(Task::getId, taskId)
+                .set(Task::getStatus, TaskStatus.PENDING_RETRY)
+                .set(Task::getAttempts, attempts)
+                .set(Task::getNextRetryAt, nextRetryAt)
+                .set(Task::getError, truncate(error, 500))
+                .set(Task::getUpdateTime, LocalDateTime.now())
+                .update();
+        log.info("[任务] 等待重试, taskId={}, attempts={}, nextRetryAt={}", taskId, attempts, nextRetryAt);
         broadcastTaskCountByTaskId(taskId);
     }
 
@@ -102,12 +148,21 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
         lambdaUpdate()
                 .eq(Task::getId, taskId)
                 .set(Task::getStatus, TaskStatus.FAILED)
-                .set(Task::getError, error)
+                .set(Task::getError, truncate(error, 2000))
                 .set(Task::getCompletedAt, LocalDateTime.now())
                 .set(Task::getUpdateTime, LocalDateTime.now())
                 .update();
         log.warn("[任务] 执行失败, taskId={}, error={}", taskId, error);
         broadcastTaskCountByTaskId(taskId);
+    }
+
+    @Override
+    public void markDeadLetter(Long taskId, String error) {
+        lambdaUpdate()
+                .eq(Task::getId, taskId)
+                .set(Task::getDeadLetter, 1)
+                .set(Task::getError, truncate(error, 2000))
+                .update();
     }
 
     @Override
@@ -125,17 +180,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
 
     @Override
     public boolean requestCancel(Long taskId) {
-        // 1. DB标记
+        // 1. DB 标记
         boolean update = lambdaUpdate()
                 .eq(Task::getId, taskId)
-                .in(Task::getStatus, TaskStatus.PENDING, TaskStatus.RUNNING)
+                .in(Task::getStatus, TaskStatus.PENDING, TaskStatus.PENDING_RETRY, TaskStatus.RUNNING)
                 .set(Task::getCancelRequested, 1)
                 .set(Task::getUpdateTime, LocalDateTime.now())
                 .update();
         if (update) {
-            // 2. Redis信号（executor可O(1)快速检测，无需查DB）
-            redisUtil.setCancelSignal(taskId);
-            // 3. 中断执行线程（打断阻塞的LLM调用等IO操作）
+            // 2. Redis 信号（executor O(1) 快速检测）
+            taskQueueService.publishCancel(taskId);
+            // 3. 中断执行线程（打断阻塞的 LLM 调用等 IO）
             try {
                 taskInterruptPort.getObject().interrupt(taskId);
             } catch (Exception e) {
@@ -153,7 +208,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
                         .eq(Task::getUserId, userId)
                         .like(StringUtils.hasText(name), Task::getName, name)
                         .eq(StringUtils.hasText(status) && !"active".equals(status), Task::getStatus, status)
-                        .in(StringUtils.hasText(status) && "active".equals(status), Task::getStatus, List.of("pending", "running"))
+                        .in(StringUtils.hasText(status) && "active".equals(status), Task::getStatus,
+                                List.of("pending", "pending_retry", "running"))
                         .eq(taskType != null, Task::getType, taskType)
                         .orderByDesc(Task::getCreateTime));
     }
@@ -176,10 +232,10 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
 
     @Override
     public Map<String, Long> countByType(Long userId) {
-        // 查询所有进行中+等待中的任务，按类型分组计数
+        // 查询所有进行中+等待中+等待重试的任务，按类型分组计数
         List<Task> tasks = list(new LambdaQueryWrapper<Task>()
                 .eq(Task::getUserId, userId)
-                .in(Task::getStatus, List.of(TaskStatus.PENDING, TaskStatus.RUNNING)));
+                .in(Task::getStatus, List.of(TaskStatus.PENDING, TaskStatus.PENDING_RETRY, TaskStatus.RUNNING)));
         return tasks.stream()
                 .collect(java.util.stream.Collectors.groupingBy(
                         t -> t.getType().getDesc(),
@@ -217,5 +273,11 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
         if (task != null) {
             broadcastTaskCount(task.getUserId());
         }
+    }
+
+    /** 截断字符串到指定长度，避免 DB 字段超长 */
+    private String truncate(String s, int maxLen) {
+        if (s == null) return null;
+        return s.length() > maxLen ? s.substring(0, maxLen) : s;
     }
 }

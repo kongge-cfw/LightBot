@@ -20,42 +20,19 @@ public class RedisUtil {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    private static final String TASK_QUEUE_KEY = "lightbot:task:queue";
     private static final String CANCEL_SIGNAL_PREFIX = "lightbot:task:cancel:";
 
-    // ==================== 任务队列 ====================
-
-    /**
-     * 推送任务ID到队列右端（FIFO）
-     */
-    public void pushTask(String taskId) {
-        stringRedisTemplate.opsForList().rightPush(TASK_QUEUE_KEY, taskId);
-        log.debug("[Redis] 任务入队, taskId={}, queueSize={}", taskId, getQueueSize());
-    }
-
-    /**
-     * 阻塞弹出队列左端任务ID，超时返回null
-     */
-    public String popTask(long timeoutSeconds) {
-        return stringRedisTemplate.opsForList()
-                .leftPop(TASK_QUEUE_KEY, timeoutSeconds, TimeUnit.SECONDS);
-    }
-
-    /**
-     * 获取当前队列长度
-     */
-    public long getQueueSize() {
-        Long size = stringRedisTemplate.opsForList().size(TASK_QUEUE_KEY);
-        return size != null ? size : 0;
-    }
-
     // ==================== 任务取消信号 ====================
+    // 已迁移到 TaskQueueService.publishCancel / isCancelled / clearCancel。
+    // 以下方法保留 @Deprecated 作为过渡，便于既有 Executor 平滑迁移；新代码一律走 TaskQueueService。
 
     /**
      * 设置任务取消信号（Redis key，比DB标记更快检测）
      *
      * @param taskId 任务ID
+     * @deprecated 请改用 {@link com.lightbot.task.TaskQueueService#publishCancel}
      */
+    @Deprecated
     public void setCancelSignal(Long taskId) {
         stringRedisTemplate.opsForValue().set(CANCEL_SIGNAL_PREFIX + taskId, "1", 1, TimeUnit.HOURS);
         log.debug("[Redis] 设置取消信号, taskId={}", taskId);
@@ -66,7 +43,9 @@ public class RedisUtil {
      *
      * @param taskId 任务ID
      * @return true=已请求取消
+     * @deprecated 请改用 {@link com.lightbot.task.TaskQueueService#isCancelled}
      */
+    @Deprecated
     public boolean hasCancelSignal(Long taskId) {
         return Boolean.TRUE.equals(stringRedisTemplate.hasKey(CANCEL_SIGNAL_PREFIX + taskId));
     }
@@ -75,7 +54,9 @@ public class RedisUtil {
      * 清除任务取消信号
      *
      * @param taskId 任务ID
+     * @deprecated 请改用 {@link com.lightbot.task.TaskQueueService#clearCancel}
      */
+    @Deprecated
     public void clearCancelSignal(Long taskId) {
         stringRedisTemplate.delete(CANCEL_SIGNAL_PREFIX + taskId);
     }
@@ -133,3 +114,4 @@ public class RedisUtil {
         return val != null ? val : 1L;
     }
 }
+

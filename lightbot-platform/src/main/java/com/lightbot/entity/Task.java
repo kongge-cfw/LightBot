@@ -62,6 +62,26 @@ public class Task {
     @Schema(description = "是否请求取消(0/1)")
     private Integer cancelRequested;
 
+    @TableField("attempts")
+    @Schema(description = "已尝试次数（含首次执行）")
+    private Integer attempts;
+
+    @TableField("max_attempts")
+    @Schema(description = "最大重试次数（含首次执行）")
+    private Integer maxAttempts;
+
+    @TableField("next_retry_at")
+    @Schema(description = "下次重试时间；NULL 表示无延迟")
+    private LocalDateTime nextRetryAt;
+
+    @TableField("stream_id")
+    @Schema(description = "主 Stream 消息 ID")
+    private String streamId;
+
+    @TableField("dead_letter")
+    @Schema(description = "是否已转入死信：0否 1是")
+    private Integer deadLetter;
+
     @TableField("user_id")
     @Schema(description = "用户ID")
     @JsonSerialize(using = ToStringSerializer.class)

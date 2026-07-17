@@ -2,6 +2,7 @@ package com.lightbot.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightbot.common.task.TaskCancelledException;
 import com.lightbot.entity.Task;
 import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
@@ -38,7 +39,7 @@ public class DocumentIngestExecutor implements TaskExecutor {
             // 1. 检查取消请求（Redis信号，O(1)）
             if (redisUtil.hasCancelSignal(task.getId())) {
                 log.info("[文档入库执行器] 收到取消请求, taskId={}", task.getId());
-                throw new RuntimeException("任务已被用户取消");
+                throw new TaskCancelledException();
             }
             // 2. 更新进度
             taskService.updateProgress(task.getId(), progress, message);

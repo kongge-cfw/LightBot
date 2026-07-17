@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.entity.Task;
 import com.lightbot.service.TaskService;
+import com.lightbot.task.ProgressSnapshot;
+import com.lightbot.task.TaskQueueService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -25,6 +27,7 @@ import java.util.Map;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskQueueService taskQueueService;
 
     @Operation(summary = "分页查询当前用户的任务列表")
     @GetMapping
@@ -43,7 +46,8 @@ public class TaskController {
         long userId = StpUtil.getLoginIdAsLong();
         Long running = taskService.countByStatus(userId, "running");
         Long pending = taskService.countByStatus(userId, "pending");
-        return Result.ok(running + pending);
+        Long pendingRetry = taskService.countByStatus(userId, "pending_retry");
+        return Result.ok(running + pending + pendingRetry);
     }
 
     @Operation(summary = "按类型统计当前用户的进行中任务数")
@@ -53,11 +57,29 @@ public class TaskController {
         return Result.ok(taskService.countByType(userId));
     }
 
-    @Operation(summary = "获取任务详情")
+    @Operation(summary = "获取任务详情（进度优先读 Redis Hash，毫秒级可达）")
     @GetMapping("/{taskId}")
     public Result<Task> getById(@PathVariable Long taskId) {
         long userId = StpUtil.getLoginIdAsLong();
-        return Result.ok(taskService.getTaskById(taskId, userId));
+        Task task = taskService.getTaskById(taskId, userId);
+        // 用 Hash 缓存覆盖 progress/message，前端可秒级感知进度变化
+        ProgressSnapshot snapshot = taskQueueService.getProgress(taskId);
+        if (snapshot != null && snapshot.getProgress() > task.getProgress()) {
+            task.setProgress(snapshot.getProgress());
+            if (snapshot.getMessage() != null && !snapshot.getMessage().isEmpty()) {
+                task.setMessage(snapshot.getMessage());
+            }
+        }
+        return Result.ok(task);
+    }
+
+    @Operation(summary = "获取任务实时进度快照（Redis Hash 直读）")
+    @GetMapping("/{taskId}/progress")
+    public Result<ProgressSnapshot> getProgress(@PathVariable Long taskId) {
+        long userId = StpUtil.getLoginIdAsLong();
+        // 校验归属
+        taskService.getTaskById(taskId, userId);
+        return Result.ok(taskQueueService.getProgress(taskId));
     }
 
     @Operation(summary = "取消任务")

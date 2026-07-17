@@ -1,6 +1,9 @@
 package com.lightbot.config;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.lightbot.common.task.FatalTaskException;
+import com.lightbot.common.task.RetryableTaskException;
+import com.lightbot.common.task.TaskCancelledException;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Task;
 import com.lightbot.enums.DocumentStatus;
@@ -9,9 +12,12 @@ import com.lightbot.enums.TaskType;
 import com.lightbot.service.DocumentService;
 import com.lightbot.service.TaskService;
 import com.lightbot.service.port.TaskInterruptPort;
+import com.lightbot.task.RetryPolicy;
+import com.lightbot.task.RetryPolicyProperties;
 import com.lightbot.task.TaskExecutor;
+import com.lightbot.task.TaskMessage;
+import com.lightbot.task.TaskQueueService;
 import com.lightbot.util.ModelErrorClassifier;
-import com.lightbot.util.RedisUtil;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
@@ -20,16 +26,27 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Configuration;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
- * 任务消费者配置，启动线程池从Redis队列消费任务
+ * 任务消费者配置：基于 Redis Stream 消费者组的多 worker 拉取/路由
+ * <p>每组（cg:default / cg:heavy）独立线程池消费，对应 {@link TaskType.Group}。
+ * 替换原 BLPOP 单 List 实现，引入 PEL 自动兜底（共享 consumer name + ID-0 双拉）。
+ *
+ * <p>崩溃恢复机制：
+ * <ul>
+ *   <li>同组所有 worker 共享 consumer name（host-group），PEL 也是共享的</li>
+ *   <li>每轮先 XREADGROUP ID 0 拉自己 PEL（兜底未 ACK 的崩溃消息）</li>
+ *   <li>再 XREADGROUP &gt; BLOCK 5s 拉新消息</li>
+ * </ul>
  *
  * @author finch
  * @since 2026-05-21
@@ -39,18 +56,28 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @RequiredArgsConstructor
 public class TaskConsumerConfig implements TaskInterruptPort {
 
-    private final RedisUtil redisUtil;
+    private final TaskQueueService taskQueueService;
     private final TaskService taskService;
     private final DocumentService documentService;
     private final ApplicationContext applicationContext;
+    private final RetryPolicyProperties retryPolicyProperties;
 
+    /** 默认组（短任务）线程池大小 */
     @Value("${lightbot.task.consumer.pool-size:2}")
-    private int poolSize;
+    private int defaultPoolSize;
 
-    /** 孤儿任务判定阈值：updateTime 超过此时间的 RUNNING 任务视为孤儿 */
-    private static final int ORPHAN_TIMEOUT_MINUTES = 10;
+    /** 重型组（长任务：图谱抽取、问答对生成）线程池大小 */
+    @Value("${lightbot.task.consumer.heavy-pool-size:1}")
+    private int heavyPoolSize;
 
-    private ExecutorService executorService;
+    /** 阻塞拉取时长（秒），无消息时 BLOCK 时长 */
+    private static final long BLOCK_TIMEOUT_SECONDS = 5L;
+
+    /** 孤儿任务判定阈值：updateTime 超过此时间的 RUNNING 任务视为孤儿（仅用于启动迁移） */
+    private static final int LEGACY_ORPHAN_TIMEOUT_MINUTES = 30;
+
+    private ExecutorService defaultPool;
+    private ExecutorService heavyPool;
     private final AtomicBoolean running = new AtomicBoolean(true);
 
     /** 正在执行的任务线程映射，用于取消时中断 */
@@ -58,30 +85,37 @@ public class TaskConsumerConfig implements TaskInterruptPort {
 
     @PostConstruct
     public void start() {
-        // 启动前清理孤儿任务，防止重启后任务永久卡死
-        recoverOrphanTasks();
+        // 启动前清理升级前残留的孤儿任务（旧 List 引擎遗留），并将其重新入队或标记失败
+        recoverLegacyOrphanTasks();
 
-        executorService = Executors.newFixedThreadPool(poolSize);
-        for (int i = 0; i < poolSize; i++) {
-            final int workerId = i;
-            executorService.submit(() -> consumeLoop(workerId));
+        // 重置长时间停留在 RUNNING 的旧记录状态：迁移到新的 PENDING，等 Stream 重新投递
+        // 注意：Stream 重构后 RUNNING 任务由 PEL+XCLAIM 兜底，不再需要扫描
+        defaultPool = Executors.newFixedThreadPool(defaultPoolSize);
+        heavyPool = Executors.newFixedThreadPool(heavyPoolSize);
+
+        for (int i = 0; i < defaultPoolSize; i++) {
+            defaultPool.submit(() -> consumeLoop(TaskType.Group.DEFAULT));
         }
-        log.info("[任务消费者] 启动, poolSize={}", poolSize);
+        for (int i = 0; i < heavyPoolSize; i++) {
+            heavyPool.submit(() -> consumeLoop(TaskType.Group.HEAVY));
+        }
+        log.info("[任务消费者] 启动, defaultPoolSize={}, heavyPoolSize={}", defaultPoolSize, heavyPoolSize);
     }
 
     @PreDestroy
     public void stop() {
         running.set(false);
-        if (executorService != null) {
-            executorService.shutdownNow();
+        if (defaultPool != null) {
+            defaultPool.shutdownNow();
+        }
+        if (heavyPool != null) {
+            heavyPool.shutdownNow();
         }
         log.info("[任务消费者] 已停止");
     }
 
     /**
      * 中断正在执行的任务线程（配合取消信号，实现快速取消）
-     *
-     * @param taskId 任务ID
      */
     @Override
     public void interrupt(Long taskId) {
@@ -93,51 +127,58 @@ public class TaskConsumerConfig implements TaskInterruptPort {
     }
 
     /**
-     * 启动时恢复孤儿任务：将超时的 RUNNING 任务标记为 FAILED，
-     * 并回滚关联的 Document 状态，解除 PENDING/PROCESSING 的死锁
+     * 启动时迁移升级前旧 List 引擎遗留的孤儿任务
+     * <p>对状态为 PENDING 且 streamId 为空的（旧引擎未投递 Stream）重新入队；
+     * 对超时 RUNNING 且 streamId 为空的标记失败并回滚 Document
      */
-    private void recoverOrphanTasks() {
-        LocalDateTime threshold = LocalDateTime.now().minusMinutes(ORPHAN_TIMEOUT_MINUTES);
-        List<Task> orphans = taskService.list(new LambdaQueryWrapper<Task>()
-                .in(Task::getStatus, TaskStatus.RUNNING, TaskStatus.PENDING)
-                .lt(Task::getUpdateTime, threshold));
+    private void recoverLegacyOrphanTasks() {
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(LEGACY_ORPHAN_TIMEOUT_MINUTES);
+        List<Task> legacy = taskService.list(new LambdaQueryWrapper<Task>()
+                .in(Task::getStatus, TaskStatus.PENDING, TaskStatus.RUNNING)
+                .isNull(Task::getStreamId));
 
-        if (orphans.isEmpty()) {
+        if (legacy.isEmpty()) {
             return;
         }
 
-        log.warn("[任务恢复] 发现 {} 个孤儿任务，开始清理...", orphans.size());
-        // 需要回滚 Document 状态的任务类型
+        log.warn("[任务迁移] 发现 {} 个旧引擎遗留任务，开始迁移...", legacy.size());
         Set<TaskType> documentTaskTypes = Set.of(TaskType.DOCUMENT_UPLOAD, TaskType.DOCUMENT_INGEST);
 
-        for (Task task : orphans) {
+        int reEnqueued = 0;
+        int failed = 0;
+        for (Task task : legacy) {
             try {
-                // 1. 标记 Task 为 FAILED
-                taskService.markFailed(task.getId(), "系统重启，任务中断，请重新执行");
-
-                // 2. 回滚关联的 Document 状态
-                if (documentTaskTypes.contains(task.getType()) && task.getRefId() != null) {
-                    recoverDocument(task.getRefId());
+                if (task.getStatus() == TaskStatus.PENDING) {
+                    // 未投递的任务重新 XADD 入队
+                    String streamId = taskQueueService.enqueue(task);
+                    task.setStreamId(streamId);
+                    taskService.updateById(task);
+                    reEnqueued++;
+                } else if (task.getUpdateTime() != null && task.getUpdateTime().isBefore(threshold)) {
+                    // 超时 RUNNING 视为孤儿，标记失败并回滚 Document
+                    taskService.markFailed(task.getId(), "系统重启，旧引擎任务中断，请重新执行");
+                    if (documentTaskTypes.contains(task.getType()) && task.getRefId() != null) {
+                        recoverDocument(task.getRefId());
+                    }
+                    failed++;
                 }
-
-                log.info("[任务恢复] 已清理孤儿任务: taskId={}, type={}", task.getId(), task.getType());
+                log.info("[任务迁移] taskId={}, type={}, status={} 处理完成", task.getId(), task.getType(), task.getStatus());
             } catch (Exception e) {
-                log.error("[任务恢复] 清理孤儿任务失败: taskId={}", task.getId(), e);
+                log.error("[任务迁移] 处理失败: taskId={}", task.getId(), e);
             }
         }
 
-        log.info("[任务恢复] 孤儿任务清理完成, count={}", orphans.size());
+        log.info("[任务迁移] 完成, reEnqueued={}, failed={}", reEnqueued, failed);
     }
 
     /**
-     * 回滚文档状态为 FAILED，仅当文档仍处于中间态（UPLOADING/PENDING/PROCESSING）时执行
+     * 回滚文档状态为 FAILED，仅当文档仍处于中间态时执行
      */
     private void recoverDocument(Long documentId) {
         Document doc = documentService.getById(documentId);
         if (doc == null) {
             return;
         }
-        // 仅回滚中间态文档，已终态（UPLOADED/COMPLETED/FAILED）不动
         DocumentStatus status = doc.getStatus();
         if (status == DocumentStatus.UPLOADED || status == DocumentStatus.COMPLETED
                 || status == DocumentStatus.FAILED) {
@@ -148,79 +189,205 @@ public class TaskConsumerConfig implements TaskInterruptPort {
         documentService.updateById(doc);
     }
 
-    private void consumeLoop(int workerId) {
+    /**
+     * 消费循环：每轮先拉本组 PEL（兜底崩溃消息），再拉新消息
+     * <p>同组所有 worker 共享固定 consumer name（host-group），因此 PEL 是共享的：
+     * 某个 worker 拉到消息但未 ACK 就崩溃，下个 worker 的 ID-0 拉取会重新拿到。
+     */
+    private void consumeLoop(TaskType.Group group) {
+        String consumerName = sharedConsumerName(group);
         boolean redisWarned = false;
+        log.info("[任务消费者] worker 启动, group={}, consumer={}", group, consumerName);
+
         while (running.get()) {
             try {
-                // 1. 阻塞弹出任务ID，超时5秒后重试
-                String taskIdStr = redisUtil.popTask(5);
-                if (taskIdStr == null) {
+                // 1. 先尝试拉本组 PEL（XREADGROUP ID 0）：兜底崩溃前未 ACK 的消息
+                List<TaskMessage> messages = taskQueueService.readPending(group, consumerName, 1);
+                if (messages.isEmpty()) {
+                    // 2. PEL 空则拉新消息（XREADGROUP > BLOCK 5000）
+                    messages = taskQueueService.readMessages(
+                            group, consumerName, 1, Duration.ofSeconds(BLOCK_TIMEOUT_SECONDS));
+                }
+                if (messages.isEmpty()) {
                     continue;
                 }
                 redisWarned = false;
 
-                Long taskId = Long.parseLong(taskIdStr);
-                Task task = taskService.getById(taskId);
-                if (task == null) {
-                    log.warn("[任务消费者] 任务不存在, taskId={}", taskId);
-                    continue;
+                for (TaskMessage msg : messages) {
+                    handleMessage(msg, group);
                 }
-
-                // 2. 检查任务状态（只处理PENDING状态）
-                if (task.getStatus() != TaskStatus.PENDING) {
-                    log.info("[任务消费者] 跳过非PENDING任务, taskId={}, status={}", taskId, task.getStatus());
-                    continue;
-                }
-
-                // 3. 标记为执行中
-                taskService.markRunning(taskId);
-                log.info("[任务消费者] 开始执行, workerId={}, taskId={}, type={}", workerId, taskId, task.getType());
-
-                // 4. 根据任务类型路由到对应执行器
-                TaskType taskType = task.getType();
-                TaskExecutor executor = getExecutor(taskType);
-                if (executor == null) {
-                    taskService.markFailed(taskId, "不支持的任务类型: " + taskType);
-                    continue;
-                }
-
-                // 记录执行线程（用于取消时中断）
-                runningTasks.put(taskId, Thread.currentThread());
-                try {
-                    String result = executor.execute(task);
-                    taskService.markSuccess(taskId, result);
-                } catch (Exception e) {
-                    String error = buildErrorMessage(e);
-                    log.error("[任务消费者] 执行失败, taskId={}, error={}", taskId, error, e);
-                    if ("任务已被用户取消".equals(e.getMessage())) {
-                        taskService.markCancelled(taskId, "任务被用户取消");
-                    } else {
-                        taskService.markFailed(taskId, error);
-                    }
-                } finally {
-                    runningTasks.remove(taskId);
-                    redisUtil.clearCancelSignal(taskId);
-                }
-
-            } catch (IllegalStateException e) {
-                // Redis 连接工厂已停止（应用正在关闭），直接退出
+            } catch (Exception e) {
                 if (!running.get()) {
                     break;
                 }
                 if (!redisWarned) {
-                    log.warn("[任务消费者] Redis 连接不可用，等待重试: {}", e.getMessage());
+                    log.warn("[任务消费者] Redis 异常，等待重试: group={}, error={}", group, e.getMessage());
                     redisWarned = true;
                 }
-                sleepQuietly(5000);
-            } catch (Exception e) {
-                if (!running.get()) break;
-                if (!redisWarned) {
-                    log.warn("[任务消费者] Redis 异常，等待重试: {}", e.getMessage());
-                    redisWarned = true;
-                }
-                sleepQuietly(5000);
+                sleepQuietly(5_000L);
             }
         }
+        log.info("[任务消费者] worker 退出, group={}, consumer={}", group, consumerName);
+    }
+
+    /** 同组共享 consumer name，PEL 也是共享的；多实例下加 host 前缀区分 */
+    private String sharedConsumerName(TaskType.Group group) {
+        String host = System.getenv().getOrDefault("HOSTNAME", "local");
+        return host + "-" + group.name().toLowerCase();
+    }
+
+    /**
+     * 处理单条消息：状态校验 → 取消检查 → 路由执行 → 异常分级路由
+     * <p>包级可见以便单测直接调用，绕过 consumeLoop</p>
+     */
+    void handleMessage(TaskMessage msg, TaskType.Group group) {
+        Long taskId = msg.getTaskId();
+        String streamId = msg.getStreamId();
+
+        Task task;
+        try {
+            task = taskService.getById(taskId);
+        } catch (Exception e) {
+            log.error("[任务消费者] 加载任务失败, taskId={}, streamId={}", taskId, streamId, e);
+            safeAck(streamId);
+            return;
+        }
+
+        if (task == null) {
+            log.warn("[任务消费者] 任务不存在, taskId={}, streamId={}", taskId, streamId);
+            safeAck(streamId);
+            return;
+        }
+
+        // 1. 状态校验：只处理 PENDING / PENDING_RETRY；其他状态直接 ACK（防重复消费）
+        if (task.getStatus() != TaskStatus.PENDING && task.getStatus() != TaskStatus.PENDING_RETRY) {
+            log.info("[任务消费者] 跳过非活跃任务, taskId={}, status={}", taskId, task.getStatus());
+            safeAck(streamId);
+            return;
+        }
+
+        // 2. 执行前取消检查：取消信号若已存在则直接落 CANCELLED
+        if (taskQueueService.isCancelled(taskId)) {
+            taskService.markCancelled(taskId, "任务在执行前被用户取消");
+            taskQueueService.clearCancel(taskId);
+            safeAck(streamId);
+            return;
+        }
+
+        // 3. 计算本次尝试次数（含本次），用于 markStart 与重试判定
+        int prevAttempts = task.getAttempts() == null ? 0 : task.getAttempts();
+        int newAttempts = prevAttempts + 1;
+
+        // 4. 记录执行线程，便于取消时 interrupt
+        runningTasks.put(taskId, Thread.currentThread());
+        try {
+            // 5. 状态置 RUNNING + 写入 attempts/streamId
+            taskService.markStart(taskId, newAttempts, streamId);
+            log.info("[任务消费者] 开始执行, taskId={}, type={}, attempts={}/{}",
+                    taskId, task.getType(), newAttempts,
+                    task.getMaxAttempts() == null ? retryPolicyProperties.resolve(task.getType()).getMaxAttempts() : task.getMaxAttempts());
+
+            // 6. 路由到对应执行器
+            TaskExecutor executor = getExecutor(task.getType());
+            if (executor == null) {
+                handleFatal(task, streamId, "不支持的任务类型: " + task.getType());
+                return;
+            }
+
+            // 7. 执行（注意：executor 内部若检测到取消信号会抛 TaskCancelledException）
+            String result = executor.execute(task);
+
+            // 8. 成功
+            taskService.markSuccess(taskId, result);
+            taskQueueService.clearCancel(taskId);
+            safeAck(streamId);
+
+        } catch (TaskCancelledException e) {
+            // 用户取消：不重试、不进死信
+            taskService.markCancelled(taskId, e.getMessage());
+            taskQueueService.clearCancel(taskId);
+            safeAck(streamId);
+            log.info("[任务消费者] 任务取消, taskId={}", taskId);
+        } catch (RetryableTaskException e) {
+            handleRetry(task, streamId, newAttempts, e);
+        } catch (FatalTaskException e) {
+            handleFatal(task, streamId, e.getMessage());
+        } catch (Throwable t) {
+            // 兜底：未知异常视为 Fatal，避免无限重投
+            String error = buildErrorMessage(t);
+            handleFatal(task, streamId, error);
+        } finally {
+            runningTasks.remove(taskId);
+        }
+    }
+
+    /**
+     * 可重试异常路由：判断重试次数是否到顶，到顶则进死信，否则退避延迟后重投主队列
+     */
+    private void handleRetry(Task task, String streamId, int failedAttempts, RetryableTaskException e) {
+        RetryPolicy policy = retryPolicyProperties.resolve(task.getType());
+        int maxAttempts = policy.getMaxAttempts();
+
+        if (failedAttempts >= maxAttempts) {
+            // 重试次数到顶 → 终态失败 + 死信
+            String error = String.format("%s（达到最大尝试次数 %d）", e.getMessage(), maxAttempts);
+            handleFatal(task, streamId, error);
+            return;
+        }
+
+        // 计算退避时长（指数退避）并投递到延迟队列
+        long delayMs = policy.computeDelay(failedAttempts - 1);
+        long delayAt = System.currentTimeMillis() + delayMs;
+        LocalDateTime nextRetryAt = LocalDateTime.now().plusNanos(delayMs * 1_000_000L);
+
+        // 状态置 PENDING_RETRY + 记录 attempts/nextRetryAt
+        taskService.markPendingRetry(task.getId(), failedAttempts, nextRetryAt, e.getMessage());
+
+        // ZADD 延迟队列，到点由 TaskDelayScheduler 扫描并 XADD 回主队列
+        Task fresh = new Task();
+        fresh.setId(task.getId());
+        fresh.setType(task.getType());
+        fresh.setAttempts(failedAttempts);
+        taskQueueService.enqueueDelayed(fresh, delayAt);
+
+        // ACK 旧 streamId（新投递后会生成新 streamId）
+        safeAck(streamId);
+        log.info("[任务消费者] 任务重试, taskId={}, attempts={}/{}, delayMs={}",
+                task.getId(), failedAttempts, maxAttempts, delayMs);
+    }
+
+    /**
+     * 致命异常路由：直接 markFailed + 死信 Stream
+     */
+    private void handleFatal(Task task, String streamId, String error) {
+        log.error("[任务消费者] 任务失败, taskId={}, error={}", task.getId(), error);
+        taskService.markFailed(task.getId(), error);
+        taskService.markDeadLetter(task.getId(), error);
+
+        // 死信 Stream 记录原始 streamId 便于回溯
+        taskQueueService.sendToDeadLetter(task, streamId, error);
+        taskQueueService.clearCancel(task.getId());
+        safeAck(streamId);
+    }
+
+    /** 安全 ACK：失败仅记录日志，避免影响主流程 */
+    private void safeAck(String streamId) {
+        if (streamId == null) {
+            return;
+        }
+        try {
+            taskQueueService.ack(streamId);
+        } catch (Exception e) {
+            log.warn("[任务消费者] XACK 失败, streamId={}, error={}", streamId, e.getMessage());
+        }
+    }
+
+    /** 多实例/多 worker 全局唯一的消费者名（保留：未来若启用 XCLAIM 路由可用） */
+    @SuppressWarnings("unused")
+    private String generateUniqueConsumerName(TaskType.Group group) {
+        String host = System.getenv().getOrDefault("HOSTNAME", "local");
+        String suffix = UUID.randomUUID().toString().replace("-", "").substring(0, 8);
+        return host + "-" + group.name().toLowerCase() + "-" + suffix;
     }
 
     private void sleepQuietly(long millis) {
@@ -244,9 +411,9 @@ public class TaskConsumerConfig implements TaskInterruptPort {
     }
 
     /**
-     * 构建详细的错误信息（对NPE等getMessage为null的异常做特殊处理）
+     * 构建详细的错误信息（对 NPE 等 getMessage 为 null 的异常做特殊处理）
      */
-    private String buildErrorMessage(Exception e) {
+    private String buildErrorMessage(Throwable e) {
         if (ModelErrorClassifier.isFatal(e)) {
             return ModelErrorClassifier.formatDetail(e);
         }
@@ -254,12 +421,10 @@ public class TaskConsumerConfig implements TaskInterruptPort {
         if (msg != null && !msg.isBlank()) {
             return msg;
         }
-        // NPE 等 getMessage 为 null 的异常，尝试从 cause 或堆栈提取信息
         Throwable cause = e.getCause();
         if (cause != null && cause.getMessage() != null) {
             return e.getClass().getSimpleName() + ": " + cause.getMessage();
         }
-        // 从堆栈中提取异常发生位置
         StackTraceElement[] stackTrace = e.getStackTrace();
         if (stackTrace.length > 0) {
             StackTraceElement top = stackTrace[0];
@@ -267,5 +432,11 @@ public class TaskConsumerConfig implements TaskInterruptPort {
                     + "(" + top.getFileName() + ":" + top.getLineNumber() + ")";
         }
         return e.getClass().getSimpleName();
+    }
+
+    /** 保留供 ReclaimScheduler 反射调用入口（暂未使用，留作扩展点） */
+    @SuppressWarnings("unused")
+    private List<com.lightbot.task.StaleMessage> listStaleForDebug(TaskType.Group group) {
+        return taskQueueService.scanStale(group, Duration.ofMinutes(5), 100);
     }
 }

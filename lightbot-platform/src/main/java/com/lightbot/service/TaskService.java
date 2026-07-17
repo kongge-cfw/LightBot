@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.entity.Task;
 import com.lightbot.enums.TaskType;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -28,14 +29,33 @@ public interface TaskService extends IService<Task> {
     Task createTask(TaskType type, String name, Long userId, Long refId, String payload);
 
     /**
-     * 更新任务进度
+     * 更新任务进度（同步写 DB + Redis Hash，前端可从 Hash 毫秒级读取）
      */
     void updateProgress(Long taskId, int progress, String message);
 
     /**
-     * 标记任务为执行中
+     * 标记任务为执行中（旧版保留兼容；新流程请用 {@link #markStart}）
      */
     void markRunning(Long taskId);
+
+    /**
+     * 标记任务开始执行（Stream 模式）：status=RUNNING + 记录 attempts/streamId
+     *
+     * @param taskId   任务ID
+     * @param attempts 本次执行的累计尝试次数（含本次）
+     * @param streamId 主 Stream 消息 ID
+     */
+    void markStart(Long taskId, int attempts, String streamId);
+
+    /**
+     * 标记任务为等待重试：status=PENDING_RETRY + 记录 attempts/nextRetryAt + 拼接错误信息
+     *
+     * @param taskId      任务ID
+     * @param attempts    本次失败的累计尝试次数
+     * @param nextRetryAt 下次重试时间
+     * @param error       失败原因
+     */
+    void markPendingRetry(Long taskId, int attempts, LocalDateTime nextRetryAt, String error);
 
     /**
      * 标记任务成功
@@ -46,6 +66,11 @@ public interface TaskService extends IService<Task> {
      * 标记任务失败
      */
     void markFailed(Long taskId, String error);
+
+    /**
+     * 标记任务进入死信：dead_letter=1
+     */
+    void markDeadLetter(Long taskId, String error);
 
     /**
      * 请求取消任务，返回是否成功

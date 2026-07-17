@@ -2,6 +2,7 @@ package com.lightbot.task;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.lightbot.common.task.TaskCancelledException;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.enums.DocumentStatus;
@@ -195,7 +196,7 @@ public class DocumentUploadExecutor implements TaskExecutor {
 
     private void checkCancelled(Long taskId) {
         if (redisUtil.hasCancelSignal(taskId)) {
-            throw new RuntimeException("任务已被用户取消");
+            throw new TaskCancelledException();
         }
     }
 
