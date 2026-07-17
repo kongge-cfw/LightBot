@@ -38,7 +38,7 @@
           <DynamicIcon :name="s.icon" :fallback="s.name" />
         </template>
         <template #actions>
-          <a-tooltip title="删除">
+          <a-tooltip v-if="!isBuiltin(s)" title="删除">
             <button class="btn-icon danger" @click="handleDelete(s.id)"><DeleteOutlined /></button>
           </a-tooltip>
           <a-dropdown :trigger="['click']">

@@ -138,6 +138,7 @@ public enum ErrorCode {
     // ========== MCP模块 ==========
     MCP_SERVER_NOT_FOUND(90001, "MCP Server不存在", HttpStatus.BAD_REQUEST),
     MCP_SERVER_NAME_EXISTS(90005, "MCP Server名称已存在", HttpStatus.BAD_REQUEST),
+    MCP_SERVER_BUILTIN_DELETE_FORBIDDEN(90006, "内置MCP Server禁止删除", HttpStatus.BAD_REQUEST),
     MCP_CONNECTION_FAILED(90002, "MCP Server连接失败", HttpStatus.BAD_REQUEST),
     MCP_CONFIG_ERROR(90003, "MCP Server配置错误", HttpStatus.BAD_REQUEST),
     MCP_TOOLS_FETCH_FAILED(90004, "MCP获取工具失败", HttpStatus.BAD_REQUEST),

@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  * MCP Server 服务实现类
@@ -133,9 +134,17 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_MCP_SERVER, key = "#id")
     public void deleteById(Long id) {
-        if (!removeById(id)) {
+        // 1. 校验存在性
+        McpServer server = getById(id);
+        if (server == null) {
             throw new BizException(ErrorCode.MCP_SERVER_NOT_FOUND);
         }
+        // 2. 内置 MCP 禁止删除
+        if (Objects.equals(server.getIsBuiltin(), 1)) {
+            throw new BizException(ErrorCode.MCP_SERVER_BUILTIN_DELETE_FORBIDDEN);
+        }
+        // 3. 逻辑删除并清理客户端缓存
+        removeById(id);
         mcpClientService.clearCache(id);
     }
 }
