@@ -220,6 +220,31 @@ public class MessageMiddleware implements ChatMiddleware {
     }
 
     /**
+     * 保存用户消息（含附件/mentions/requestId 元数据），并写回 ctx.userMessageId。
+     * <p>供 UserSensitiveMiddleware 在敏感词短路时复用，保持与正常流程一致的落库语义
+     * （含 ask_user 父消息检测、引用回复校验等）</p>
+     *
+     * @param ctx 对话上下文
+     * @return 用户消息 ID
+     */
+    public Long persistUserMessage(ChatContext ctx) {
+        String userText = resolveUserText(ctx.getRequest());
+        Long askUserParentId = detectAskUserParentId(ctx.getSessionId());
+        Long replyToId = ctx.getRequest().getReplyToMessageId();
+        if (replyToId != null) {
+            validateReplyToMessage(replyToId, ctx.getSessionId());
+        }
+        Long userMsgId = saveUserMessage(ctx.getSessionId(), userText, ctx.getRequest().getAttachments(),
+                askUserParentId, replyToId, ctx.getRequest().getMentions(),
+                ctx.getRequest().getAgentVersionId(), ctx.getConfigMap(), ctx.getRequestId());
+        ctx.setUserMessageId(userMsgId);
+        if (askUserParentId != null) {
+            ctx.setUserMessageParentId(askUserParentId);
+        }
+        return userMsgId;
+    }
+
+    /**
      * 校验附件数量与类型：文档需开启文件读取；图片/视频需开启多模态对应能力
      */
     private void validateAttachments(List<ChatAttachmentDTO> attachments, Map<String, Object> configMap, Long sessionId) {

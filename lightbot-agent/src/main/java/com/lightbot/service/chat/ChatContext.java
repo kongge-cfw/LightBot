@@ -114,6 +114,12 @@ public class ChatContext {
     private String streamErrorMessage;
     /** 流式模型调用最终失败错误码 */
     private String streamErrorCode;
+    /**
+     * 用户输入敏感词拦截已落库标记
+     * <p>UserSensitiveMiddleware 命中拦截后会同步落 USER + ASSISTANT 两条消息，
+     * 置 true 让 buildDoneEvent 跳过二次落库与标题/记忆抽取等后置流程</p>
+     */
+    private boolean sensitiveUserBlocked;
 
     private volatile boolean aborted;
     private volatile String abortReason;

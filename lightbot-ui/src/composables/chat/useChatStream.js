@@ -340,6 +340,9 @@ export function useChatStream(deps) {
             }
             // 敏感词拦截事件：标记消息为拦截状态
             if (event.type === 'sensitive_block') {
+              // 兜底：SENSITIVE_USER 场景无任何前置 chunk/reasoning/tool 事件，
+              // assistantMsg 可能尚未初始化，此处先 ensure 避免后续读取 undefined 抛错
+              ensureAssistantMsg()
               assistantMsg._sensitiveBlock = event.scope || 'ai_output'
               assistantMsg.content = event.message || assistantMsg.content
               assistantMsg._streaming = false

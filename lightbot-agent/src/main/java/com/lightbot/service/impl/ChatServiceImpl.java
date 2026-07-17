@@ -433,6 +433,12 @@ public class ChatServiceImpl implements ChatService {
             return toolEventGenerator.doneWithMetadata(ctx.getUserMessageId(), null, totalTokens,
                     buildStreamFailureMetadata(ctx));
         }
+        // 用户输入敏感词拦截：UserSensitiveMiddleware 已落库 USER + ASSISTANT 两条消息，
+        // 直接返回带 IDs 的 [DONE]，跳过助手消息重复保存与标题/记忆抽取等后置流程
+        if (ctx.isSensitiveUserBlocked()) {
+            return toolEventGenerator.doneWithMetadata(
+                    ctx.getUserMessageId(), ctx.getAssistantMessageId(), totalTokens, null);
+        }
 
         try {
             Long agentId = ctx.getAgent() != null ? ctx.getAgent().getId() : null;
