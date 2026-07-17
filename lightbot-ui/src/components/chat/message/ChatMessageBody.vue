@@ -21,7 +21,7 @@
         :events="getTopSkillEvents(msg)"
         :is-done="!msg._streaming || msg._toolsDone"
         :stream-finished="!msg._streaming"
-        :default-expanded="true"
+        :default-expanded="!!msg._streaming"
         @heightChange="$emit('height-change', $event)"
       />
     </div>
@@ -56,7 +56,7 @@
             v-if="segment.block?.kind === 'tools' && getPureToolEvents(segment.block.events).length > 0"
             :tool-events="getPureToolEvents(segment.block.events)"
             :is-done="isToolBlockSegmentDone(msg, segment.block)"
-            :default-expanded="true"
+            :default-expanded="!!msg._streaming"
             :message-index="index"
             @heightChange="$emit('height-change', $event)"
           />
@@ -66,7 +66,7 @@
             :all-events="msg._toolEvents || []"
             :is-done="isToolBlockSegmentDone(msg, segment.block)"
             :stream-finished="!msg._streaming"
-            :default-expanded="true"
+            :default-expanded="!!msg._streaming"
             @heightChange="$emit('height-change', $event)"
           />
         </div>
@@ -100,6 +100,22 @@
       @submit="formData => $emit('workflow-confirm-submit', formData)"
       @abandon="$emit('workflow-confirm-abandon')"
     />
+    <!-- 未完成待办告警：AI 提前结束时提示用户仍有 pending 项 -->
+    <div
+      v-if="msg?._incompleteTodos?.length > 0 && !msg._streaming && !hasErrors"
+      class="incomplete-todos-alert"
+    >
+      <WarningFilled class="alert-icon" />
+      <div class="alert-body">
+        <div class="alert-title">还有 {{ msg._incompleteTodos.length }} 项待办未完成</div>
+        <ul class="alert-list">
+          <li v-for="(t, i) in msg._incompleteTodos" :key="t.id || i">
+            <span class="alert-status">{{ statusLabel(t.status) }}</span>
+            <span class="alert-content">{{ t.content }}</span>
+          </li>
+        </ul>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -128,6 +144,7 @@ import {
   shouldRenderMentions,
 } from '../../../composables/chat/useChatMessageModel.js'
 import { hasMessageErrorState } from '../../../utils/chat/messageErrorState.js'
+import { WarningFilled } from '@ant-design/icons-vue'
 
 const props = defineProps({
   msg: { type: Object, required: true },
@@ -139,6 +156,11 @@ const props = defineProps({
 })
 
 const hasErrors = computed(() => hasMessageErrorState(props.msg) && !props.msg?._terminated)
+
+function statusLabel(status) {
+  if (status === 'in_progress') return '进行中'
+  return '待处理'
+}
 
 defineEmits([
   'preview-attachment',
@@ -153,6 +175,45 @@ defineEmits([
 .message-body-inner {
   position: relative;
   width: 100%;
+}
+.incomplete-todos-alert {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--color-warning-300, #fadb14);
+  border-radius: 8px;
+  background: var(--color-warning-50, #fffbe6);
+  color: var(--color-warning-700, #ad6800);
+  font-size: 13px;
+}
+.incomplete-todos-alert .alert-icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: var(--color-warning-600, #d48806);
+  font-size: 14px;
+}
+.incomplete-todos-alert .alert-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.incomplete-todos-alert .alert-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.incomplete-todos-alert .alert-list li {
+  display: flex;
+  gap: 6px;
+  line-height: 1.5;
+}
+.incomplete-todos-alert .alert-status {
+  flex-shrink: 0;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--color-warning-100, #fff1b8);
+  font-size: 11px;
+  line-height: 18px;
 }
 .message-body-inner.user-message-body {
   display: flex;

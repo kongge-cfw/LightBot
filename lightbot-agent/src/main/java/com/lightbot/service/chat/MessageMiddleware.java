@@ -557,7 +557,9 @@ public class MessageMiddleware implements ChatMiddleware {
 
     /**
      * 追加当前会话的 todos 快照到 system prompt，避免 AI 在长调研中漏传导致丢项。
-     * <p>仅当存在未完结项时追加；读取失败静默返回原 prompt 不影响主链路。</p>
+     * <p>仅当存在未完结项时追加；同时把快照写入 ctx.currentTodosSnapshot，
+     * 供后续 WriteTodosTool 按 id 合并时读取（本轮多次 write_todos 调用共享同一份累加快照）。
+     * 读取失败静默返回原 prompt 不影响主链路。</p>
      */
     private String appendCurrentTodosPrompt(String systemPrompt, ChatContext ctx) {
         if (ctx == null || ctx.getSessionId() == null
@@ -569,9 +571,24 @@ public class MessageMiddleware implements ChatMiddleware {
             if (todos == null || todos.isEmpty()) {
                 return systemPrompt;
             }
+            // 初始化本轮内存快照：WriteTodosTool 按 id 合并基准，每次 write_todos 成功后由 executeToolCallback 回写
+            if (ctx.getCurrentTodosSnapshot() == null) {
+                List<Map<String, String>> snapshot = new ArrayList<>(todos.size());
+                for (TodoItemVO t : todos) {
+                    Map<String, String> m = new LinkedHashMap<>();
+                    m.put("id", t.getId() != null ? t.getId() : "");
+                    m.put("content", t.getContent() != null ? t.getContent() : "");
+                    m.put("status", t.getStatus() != null ? t.getStatus() : "pending");
+                    snapshot.add(m);
+                }
+                ctx.setCurrentTodosSnapshot(snapshot);
+            }
             StringBuilder sb = new StringBuilder("\n\n# 当前会话待办快照\n\n");
-            sb.append("如果调用 write_todos，必须保留以下未完结项（status=pending/in_progress）的 id；");
-            sb.append("可以新增项、更新 status，但不能丢失这些 id。\n\n");
+            sb.append("调用 write_todos 时遵循以下合并语义：\n");
+            sb.append("- 已完成（completed）/已取消（cancelled）项不要重传，系统会自动保留\n");
+            sb.append("- 未提及的 pending/in_progress 项会保留，不需要重传\n");
+            sb.append("- **只传需要更新 status 的项或新增项**，不要重写整张清单\n");
+            sb.append("- 不要重复新增已存在的 id\n\n");
             sb.append("| id | content | status |\n");
             sb.append("|----|---------|--------|\n");
             for (TodoItemVO t : todos) {
@@ -579,6 +596,13 @@ public class MessageMiddleware implements ChatMiddleware {
                         .append(" | ").append(safe(t.getContent()))
                         .append(" | ").append(safe(t.getStatus())).append(" |\n");
             }
+            // 强制约束：本轮必须把所有 pending/in_progress 推进到 completed/cancelled 才能结束
+            // 防止 AI 写了 todos 却中途收尾，剩余项悬挂
+            sb.append("\n## 强制结束约束\n");
+            sb.append("本轮回复结束前，必须确保上面所有 todos 都已变为 completed 或 cancelled。\n");
+            sb.append("- 只要还有 pending 或 in_progress 的项，必须继续调用工具推进，**不得提前输出总结/结束语**\n");
+            sb.append("- 完成一项后立即调用 write_todos 更新该项 status=completed，再继续下一项\n");
+            sb.append("- 全部完成后才能输出最终总结并结束本轮回复\n");
             return systemPrompt + sb.toString();
         } catch (Exception e) {
             return systemPrompt;
@@ -866,6 +890,19 @@ public class MessageMiddleware implements ChatMiddleware {
     @Transactional(rollbackFor = Exception.class)
     public Long saveMessage(Long sessionId, MessageRole role, String content, String metadata,
                             int tokenCount, MessageType messageType, Long parentId, Long replyToMessageId) {
+        return saveMessage(sessionId, role, content, metadata, null,
+                tokenCount, messageType, parentId, replyToMessageId);
+    }
+
+    /**
+     * 持久化消息（含 toolEvents 工具事件流，与 metadata 解耦）
+     *
+     * @param toolEvents 工具事件流 JSON 字符串；可为 null（无工具调用）
+     * @return 消息ID
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public Long saveMessage(Long sessionId, MessageRole role, String content, String metadata, String toolEvents,
+                            int tokenCount, MessageType messageType, Long parentId, Long replyToMessageId) {
         Message msg = new Message();
         msg.setSessionId(sessionId);
         msg.setRole(role);
@@ -874,6 +911,7 @@ public class MessageMiddleware implements ChatMiddleware {
         msg.setMessageType(messageType != null ? messageType : MessageType.TEXT);
         msg.setTokenCount(tokenCount);
         msg.setMetadata(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(metadata));
+        msg.setToolEvents(com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(toolEvents));
         msg.setParentId(parentId);
         msg.setReplyToMessageId(replyToMessageId);
         messageMapper.insert(msg);

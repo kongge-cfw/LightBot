@@ -249,6 +249,29 @@ export function useChatStream(deps) {
       return assistantMsg
     }
 
+    // 工具事件 RAF 批处理：高频 SSE（subagent_token/tool_status 等）合并到单帧刷新，
+    // 把 30+ 次/秒的响应式触发压到约 60 帧/秒（每帧一次 v-for 重渲染）
+    let pendingToolEvents = []
+    let toolEventRafHandle = 0
+    const flushToolEventBatch = () => {
+      toolEventRafHandle = 0
+      if (pendingToolEvents.length === 0) return
+      const events = pendingToolEvents
+      pendingToolEvents = []
+      // 同步连续 push：Vue 微任务会合并为单次重渲染
+      for (const ev of events) {
+        assistantMsg?._toolEvents?.push(ev)
+        toolEvents.value.push(ev)
+      }
+      scrollToBottom()
+    }
+    const batchToolEvent = (event) => {
+      pendingToolEvents.push(event)
+      if (toolEventRafHandle === 0) {
+        toolEventRafHandle = requestAnimationFrame(flushToolEventBatch)
+      }
+    }
+
     try {
       let sid = sessionId.value
       const currentAgentId = selectedAgentId.value
@@ -409,6 +432,9 @@ export function useChatStream(deps) {
               return
             }
 
+            // 关键低频事件（tool_call/tool_result/subagent_task_*）立即更新 UI 状态：
+            // _toolExpanded / _currentToolOffset / toolBlockOffsets 必须在事件到达时就位，
+            // 否则后续 subagent_token 事件的 contentOffset 会落到错误位置。
             const offset = event.contentOffset ?? assistantMsg.content.length
             if (event.contentOffset == null) {
               event.contentOffset = offset
@@ -422,12 +448,13 @@ export function useChatStream(deps) {
               registerToolBlockOffset(assistantMsg, offset)
             }
 
-            assistantMsg._toolEvents.push(event)
-            toolEvents.value.push(event)
+            // tool_status 提示文案：低频，立即生效
             if (event.type === 'tool_status' && event.message) {
               currentStatus.value = event.message
             }
-            scrollToBottom()
+
+            // 高频事件批量入队：一帧内的所有事件合并到单次响应式更新（RAF 批处理）
+            batchToolEvent(event)
           },
           // onMetadata: metadata消息（含工具事件与 offset，每轮工具调用后更新）
           onMetadata: (metadataStr) => {
@@ -436,6 +463,12 @@ export function useChatStream(deps) {
           },
           // onDone: 完成
           onDone: (meta) => {
+            // 流结束前冲刷 RAF 缓冲区，确保最后一批 toolEvents 落入响应式数组
+            if (toolEventRafHandle !== 0) {
+              cancelAnimationFrame(toolEventRafHandle)
+              toolEventRafHandle = 0
+              flushToolEventBatch()
+            }
             // 用户主动停止时仍合并 [DONE] 中的消息 ID（后端可能已完成落库）
             if (userStoppedStream.value) {
               if (assistantMsg) {

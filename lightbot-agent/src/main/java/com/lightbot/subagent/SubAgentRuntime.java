@@ -230,6 +230,11 @@ public class SubAgentRuntime implements SubAgentExecutor {
             // 超时语义：首字超时（connectTimeoutSeconds）+ token 间隔超时（resolveTokenIntervalTimeoutSeconds），
             // 流式输出期间不做总时长判定——长输出不会再被误判为"响应超时"
             String reply = "";
+            // 共享 replyBuilder 引用提到循环外：循环达到 MAX_LOOP_DEPTH 退出时也能取最后一轮的累积文本，
+            // 避免回复为空导致"未返回有效内容"误报（模型最后一轮既输出文本又调工具的场景）
+            StringBuilder replyBuilder = new StringBuilder();
+            // 最后一轮 AssistantMessage 引用：兜底取 getText()，进一步降低空回复概率
+            AssistantMessage lastAssistant = null;
             int toolCallCount = 0;
             for (int depth = 0; depth < MAX_LOOP_DEPTH; depth++) {
                 if (chatContext != null && chatContext.isAborted()) {
@@ -241,7 +246,7 @@ public class SubAgentRuntime implements SubAgentExecutor {
                     emitSubAgentError(chatContext, subAgent, "SubAgent 任务已取消", "CANCELLED");
                     return new SubAgentResult("", threadId, continued);
                 }
-                StringBuilder replyBuilder = new StringBuilder();
+                replyBuilder.setLength(0);
                 AssistantMessage assistant;
                 try {
                     prepareMessagesForLlm(messages);
@@ -261,10 +266,16 @@ public class SubAgentRuntime implements SubAgentExecutor {
                 if (assistant == null) {
                     break;
                 }
+                lastAssistant = assistant;
                 if (!assistant.hasToolCalls()) {
                     reply = replyBuilder.length() > 0 ? replyBuilder.toString()
                             : (assistant.getText() != null ? assistant.getText() : "");
                     break;
+                }
+                // 工具调用循环过程中也可能已累积部分正文（部分模型在调工具前先输出文本），
+                // 这里在继续下一轮前先记一份，作为循环达到上限时的兜底回复
+                if (reply.isBlank() && replyBuilder.length() > 0) {
+                    reply = replyBuilder.toString();
                 }
 
                 // 8.2 模型要求调用工具：逐个执行后回填
@@ -312,9 +323,20 @@ public class SubAgentRuntime implements SubAgentExecutor {
             // 9. 保存消息历史（续跑用）
             threadManager.saveMessages(threadId, messages);
 
-            // 10. 更新运行记录为完成
+            // 10. 三层 fallback 取最终回复：
+            //   ① 正常退出时 reply（!hasToolCalls 时赋值）
+            //   ② reply 兜底：循环中累积的 replyBuilder 文本（模型边输出边调工具）
+            //   ③ lastAssistant.getText()：纯流式无工具调用但 replyBuilder 漏抓的情况
+            //   ④ 仍为空时给出可读提示，明确语义是"工具用尽未总结"而非"无产出"
+            if (reply.isBlank() && replyBuilder.length() > 0) {
+                reply = replyBuilder.toString();
+            }
+            if (reply.isBlank() && lastAssistant != null && lastAssistant.getText() != null) {
+                reply = lastAssistant.getText();
+            }
             String finalReply = reply.isBlank()
-                    ? "（SubAgent " + subAgent.getName() + " 未返回有效内容）"
+                    ? "（SubAgent " + subAgent.getName() + " 已完成 " + toolCallCount
+                            + " 次工具调用但未输出最终文本结果，请基于工具结果继续追问或重试）"
                     : TextNormalizeUtil.sanitizeForAiMessage(reply, 0);
             long cost = System.currentTimeMillis() - start;
             run.setReply(finalReply);

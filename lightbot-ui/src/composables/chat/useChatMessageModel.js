@@ -76,6 +76,7 @@ export function parseMessage(m) {
   let sensitiveBlock = null
   let attachments = []
   let requestId = null
+  let incompleteTodos = []
 
   // 解析metadata（处理JSON字符串嵌套）
   let metadata = m.metadata
@@ -94,6 +95,18 @@ export function parseMessage(m) {
     }
   }
 
+  // toolEvents 顶层字段（与 metadata 解耦存储）；旧消息回退 metadata.toolEvents
+  let topToolEvents = m.toolEvents
+  if (topToolEvents && typeof topToolEvents === 'string') {
+    try {
+      topToolEvents = JSON.parse(topToolEvents)
+      if (typeof topToolEvents === 'string') topToolEvents = JSON.parse(topToolEvents)
+    } catch (e) {
+      console.error('[parseMessage] toolEvents 解析失败:', e)
+      topToolEvents = null
+    }
+  }
+
   // 提取字段
   if (metadata) {
     if (metadata.toolEvents) toolEvents = metadata.toolEvents
@@ -104,7 +117,15 @@ export function parseMessage(m) {
     if (metadata.reasoningContent) reasoningContent = metadata.reasoningContent.replace(/^\s+/, '')
     if (metadata.sensitiveBlock) sensitiveBlock = metadata.sensitiveBlock
     if (metadata.requestId) requestId = metadata.requestId
+    if (Array.isArray(metadata.incompleteTodos) && metadata.incompleteTodos.length > 0) {
+      incompleteTodos = metadata.incompleteTodos
+    }
     attachments = parseAttachmentsFromMetadata(metadata)
+  }
+
+  // 顶层 toolEvents 优先于 metadata.toolEvents（新存储路径）
+  if (Array.isArray(topToolEvents) && topToolEvents.length > 0) {
+    toolEvents = topToolEvents
   }
 
   // 规范化 toolEvents 中的 contentOffset 为数字类型
@@ -150,6 +171,7 @@ export function parseMessage(m) {
     _reasoningExpanded: true,
     _reasoningDone: true,
     _sensitiveBlock: sensitiveBlock,
+    _incompleteTodos: incompleteTodos,
     _requestId: requestId,
     _replyToMessageId: m.replyToMessageId || null,
     _replyToContent: null,
@@ -192,6 +214,10 @@ export function applyStreamDoneMetadata(assistantMsg, meta, sessionTokenCount) {
   }
   if (restMeta.reasoningContent && !assistantMsg._reasoningContent) {
     assistantMsg._reasoningContent = String(restMeta.reasoningContent).replace(/^\s+/, '')
+  }
+  // 未完成待办告警：buildDoneEvent 检测到 pending/in_progress todos 时下发
+  if (Array.isArray(restMeta.incompleteTodos) && restMeta.incompleteTodos.length > 0) {
+    assistantMsg._incompleteTodos = restMeta.incompleteTodos
   }
   applyMessageErrorFromDoneMeta(assistantMsg, meta)
 }

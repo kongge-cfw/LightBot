@@ -121,6 +121,14 @@ public class ChatContext {
      */
     private boolean sensitiveUserBlocked;
 
+    /**
+     * 本轮请求内存级 todos 累加快照
+     * <p>初始值由 ToolPrepMiddleware.prepare 从数据库加载；
+     * 每次 write_todos 工具执行成功后由 ChatServiceImpl.executeToolCallback 回写合并结果，
+     * 保证同一轮内多次 write_todos 调用都能拿到上一轮的最新合并基准，避免覆盖式丢项</p>
+     */
+    private List<Map<String, String>> currentTodosSnapshot;
+
     private volatile boolean aborted;
     private volatile String abortReason;
 

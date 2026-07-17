@@ -18,7 +18,7 @@
       </div>
     </template>
     <a-spin :spinning="detailLoading">
-      <div class="task-detail-scroll">
+      <div ref="scrollRef" class="task-detail-scroll" @scroll="onScroll">
         <div v-if="selectedDisplayTask" class="task-detail-summary">
           <span :class="['task-detail-status', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.status_label || statusLabel(selectedDisplayTask.status) }}</span>
           <span :class="['task-detail-progress', `is-${selectedDisplayTask.status}`]">{{ selectedDisplayTask.progress_summary || selectedDisplayTask.status_label || statusLabel(selectedDisplayTask.status) }}</span>
@@ -97,7 +97,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, nextTick, toRef } from 'vue'
 import { Empty } from 'ant-design-vue'
 import { ReloadOutlined, RightOutlined, CloseOutlined } from '@ant-design/icons-vue'
 import MarkdownPreview from '@/components/MarkdownPreview.vue'
@@ -106,6 +106,8 @@ import CollapseTransition from '@/components/common/CollapseTransition.vue'
 import { formatTime } from '@/utils/format'
 import { pickFresher } from '@/utils/subagentRuntime'
 import { getSubAgentRun, getSubAgentRunEvents, getSubAgentRunThread } from '@/api/subagent'
+import { useAutoScroll } from '@/composables/chat/useAutoScroll'
+import { useSubAgentLiveState } from '@/composables/chat/useSubAgentLiveState'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -122,6 +124,8 @@ const detailLoading = ref(false)
 const detailRefreshing = ref(false)
 const events = ref([])
 const eventCursor = ref('')
+// 滚动容器 ref（useAutoScroll 在所有依赖 computed 定义之后再调用，避免 TDZ）
+const scrollRef = ref(null)
 const threadMessages = ref([])
 const threadAvailable = ref(false)
 // 三大块默认展开
@@ -138,71 +142,8 @@ const detailTitle = computed(() => props.task
   ? `${displayNameOf(props.task)} · 子线程详情`
   : '子智能体子线程详情')
 
-/** 从父级透传的实时 SSE 中还原当前任务的运行态，用于运行中的实时输出 */
-const liveTaskStates = computed(() => {
-  const states = new Map()
-  for (const event of props.liveEvents) {
-    if (event?.type === 'subagent_batch_start') {
-      for (const task of event.tasks || []) {
-        states.set(String(task.task_id), {
-          task_id: task.task_id,
-          batch_id: event.batch_id,
-          subagent_name: task.subagent_name,
-          display_name: task.display_name || task.displayName || task.subagent_name,
-          task: task.task,
-          status: 'pending',
-          progress_summary: '等待调度',
-          liveOutput: '',
-          reply: '',
-        })
-      }
-      continue
-    }
-    if (!event?.task_id) continue
-    const taskKey = String(event.task_id)
-    const state = states.get(taskKey) || {
-      task_id: event.task_id,
-      batch_id: event.batch_id,
-      subagent_name: event.subagentName,
-      display_name: event.display_name || event.displayName || event.subagentName,
-      task: '',
-      status: 'pending',
-      progress_summary: '等待调度',
-      liveOutput: '',
-      reply: '',
-    }
-    if (event.type === 'subagent_task_start') {
-      state.status = 'running'
-      state.progress_summary = '正在执行'
-    } else if (event.type === 'subagent_tool_call') {
-      state.progress_summary = `正在调用 ${event.toolDisplayName || event.toolName || '工具'}`
-    } else if (event.type === 'subagent_tool_result') {
-      state.progress_summary = '工具执行完成，继续处理'
-    } else if (event.type === 'subagent_token') {
-      state.status = 'running'
-      state.progress_summary = '正在生成输出'
-      state.liveOutput = `${state.liveOutput || ''}${event.content || ''}`.slice(-8000)
-    } else if (event.type === 'subagent_error') {
-      state.status = 'failed'
-      state.progress_summary = event.message || '任务执行异常'
-      state.error = event.message || '任务执行异常'
-    } else if (event.type === 'subagent_task_done') {
-      state.status = event.status || 'completed'
-      state.progress_summary = state.status === 'completed' ? '任务已完成' : '任务执行结束'
-      const reply = event.result?.reply
-      if (event.result?.error) state.error = event.result.error
-      if (reply) state.reply = String(reply)
-      if (!state.liveOutput && reply) state.liveOutput = String(reply)
-    }
-    if (event.display_name || event.displayName) {
-      state.display_name = event.display_name || event.displayName
-    }
-    if (event.task) state.task = event.task
-    if (event.status_label) state.status_label = event.status_label
-    states.set(taskKey, state)
-  }
-  return states
-})
+/** 从父级透传的实时 SSE 中还原当前任务的运行态（增量维护 + RAF 批处理） */
+const { stateMap: liveTaskStates } = useSubAgentLiveState(toRef(props, 'liveEvents'))
 
 const selectedLiveState = computed(() => liveTaskStates.value.get(String(props.task?.task_id)) || null)
 const baseTask = computed(() => detailTask.value || props.task)
@@ -247,6 +188,20 @@ function stringifyToolPayload(value) {
   return typeof value === 'string' ? value : JSON.stringify(value)
 }
 
+// useAutoScroll 仅提供 scrollIntoView / scrollToBottom 主动调用方法，
+// 不再传 depsGetter 自动跟随（避免初始填充时滚动条被拉到底部）
+const { onScroll, scrollIntoView } = useAutoScroll(scrollRef)
+
+/** 打开/切换任务时定位到「最终输出」开头：跳过任务信息块，让用户直接看到 AI 输出 */
+function scrollToLiveOutputStart() {
+  scrollIntoView('.live-output-section')
+}
+
+/** 真正运行中的任务才定位到流式输出；pending/cancel_requested/终态都从顶部正常显示 */
+function isRunningStatus(status) {
+  return status === 'running'
+}
+
 async function loadDetail() {
   const taskId = props.task?.task_id
   if (!taskId || !props.sessionId) return
@@ -268,6 +223,10 @@ async function loadDetail() {
     threadAvailable.value = !!threadRes.data?.available
   } finally {
     detailLoading.value = false
+    // 仅运行中的任务在 DOM 渲染完成后补一次定位（已完成的不滚动）
+    if (isRunningStatus(detailTask.value?.status)) {
+      nextTick(() => scrollToLiveOutputStart())
+    }
   }
 }
 
@@ -377,6 +336,10 @@ watch(() => [props.open, props.task?.task_id], ([open]) => {
   if (open && props.task?.task_id) {
     loadDetail()
     startPolling()
+    // 仅运行中的任务定位到「最终输出」块（流式输出场景）；已完成的不滚动，保持顶部
+    if (isRunningStatus(props.task?.status)) {
+      nextTick(() => scrollToLiveOutputStart())
+    }
   } else {
     stopPolling()
     detailTask.value = null

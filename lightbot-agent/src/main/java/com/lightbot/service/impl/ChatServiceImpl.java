@@ -28,6 +28,7 @@ import com.lightbot.agent.tool.memory.UserMemoryToolCallbackFactory;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.enums.MessageRole;
+import com.lightbot.enums.MessageType;
 import com.lightbot.service.*;
 import com.lightbot.service.chat.*;
 import lombok.RequiredArgsConstructor;
@@ -153,11 +154,13 @@ public class ChatServiceImpl implements ChatService {
 
         log.info("[Chat] AI回复: sessionId={}, length={}", ctx.getSessionId(), reply != null ? reply.length() : 0);
 
-        // 3. 构建metadata并持久化AI回复
+        // 3. 构建metadata并持久化AI回复（toolEvents 单独写入 tool_events 列）
         String metadataStr = buildChatMetadata(ctx);
+        String toolEventsStr = serializeToolEvents(
+                ToolEventCompactUtil.compactForPersistence(ctx.getToolEventsList(), reply));
         int totalTokens = ctx.getInputTokenHolder()[0] + ctx.getOutputTokenHolder()[0];
         Long messageId = messageMiddleware.saveMessage(ctx.getSessionId(), MessageRole.ASSISTANT,
-                reply, metadataStr, totalTokens);
+                reply, metadataStr, toolEventsStr, totalTokens, MessageType.TEXT, null, null);
         ctx.setAssistantMessageId(messageId);
 
         // 3.0 记录 Token 消耗
@@ -353,12 +356,11 @@ public class ChatServiceImpl implements ChatService {
                 meta.putAll(existing);
             }
 
-            // 2. 添加工具事件
+            // 2. 添加工具事件 offset（toolEvents 本体已拆到 message.tool_events 独立列）
             List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
             if (!toolEventsList.isEmpty()) {
-                meta.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
-                        (List<Map<String, Object>>) meta.get("toolEvents"));
+                List<Map<String, Object>> compactEvents = ToolEventCompactUtil.compactForPersistence(toolEventsList);
+                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(compactEvents);
                 if (!offsets.isEmpty()) {
                     meta.put("toolBlockOffsets", offsets);
                 }
@@ -461,9 +463,12 @@ public class ChatServiceImpl implements ChatService {
             // 仅做数据库安全清理（非法字符），不做敏感词二次过滤
             String replyToSave = com.lightbot.util.TextNormalizeUtil.sanitizeForAiMessage(fullReplyText, 0);
             String metadataStr = buildPersistMetadata(ctx, replyToSave);
+            // toolEvents 单独序列化到 message.tool_events 列（与 metadata 解耦）
+            String toolEventsStr = serializeToolEvents(buildPersistToolEvents(ctx, replyToSave));
             Long assistantMessageId = messageMiddleware.saveMessage(
                     ctx.getSessionId(), MessageRole.ASSISTANT,
-                    replyToSave, metadataStr, (int) totalTokens);
+                    replyToSave, metadataStr, toolEventsStr,
+                    (int) totalTokens, MessageType.TEXT, null, null);
             ctx.setAssistantMessageId(assistantMessageId);
 
             // 1.1 批量写入工具调用记录
@@ -564,6 +569,8 @@ public class ChatServiceImpl implements ChatService {
 
     /**
      * 构建持久化 metadata：合并 ragMetadata + reasoningContent + sensitiveBlock + requestId
+     * <p>toolEvents 已拆到 message.tool_events 独立列，不再写入 metadata（避免 metadata 暴增），
+     * 由 {@link #buildPersistToolEvents} 单独产出</p>
      *
      * @param ctx          对话上下文
      * @param finalContent 最终落库正文（用于对齐 toolEvents contentOffset）
@@ -577,16 +584,13 @@ public class ChatServiceImpl implements ChatService {
                 Map<String, Object> existing = objectMapper.readValue(ragMeta, Map.class);
                 meta.putAll(existing);
             }
-            List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
-            if (!toolEventsList.isEmpty()) {
-                List<Map<String, Object>> compactEvents = ToolEventCompactUtil.compactForPersistence(
-                        toolEventsList, finalContent);
-                meta.put("toolEvents", compactEvents);
+            // toolEvents 拆到独立列存储（见 buildPersistToolEvents），metadata 仅保留 toolBlockOffsets
+            // 用于前端按 contentOffset 切分正文与工具块；offsets 来自同一份 compactEvents。
+            List<Map<String, Object>> compactEvents = buildPersistToolEvents(ctx, finalContent);
+            if (!compactEvents.isEmpty()) {
                 List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(compactEvents);
                 if (!offsets.isEmpty()) {
                     meta.put("toolBlockOffsets", offsets);
-                } else {
-                    meta.remove("toolBlockOffsets");
                 }
             }
             if (ctx.getReasoningContent().length() > 0) {
@@ -606,11 +610,74 @@ public class ChatServiceImpl implements ChatService {
                     meta.put("abortReason", ctx.getAbortReason());
                 }
             }
+            // 未完成待办告警：本轮结束时仍有 pending/in_progress 项时，前端在消息末尾渲染醒目提示
+            // 用于 AI 违反 prompt 硬约束（必须完成所有 todos 才能结束）时的兜底告警
+            List<Map<String, String>> incompleteTodos = collectIncompleteTodos(ctx);
+            if (!incompleteTodos.isEmpty()) {
+                meta.put("incompleteTodos", incompleteTodos);
+            }
             return meta.isEmpty() ? null : objectMapper.writeValueAsString(meta);
         } catch (Exception e) {
             log.warn("[Chat] 构建持久化metadata失败: {}", e.getMessage());
             return ctx.getRagMetadataHolder()[0];
         }
+    }
+
+    /**
+     * 构建持久化 toolEvents JSON：压缩 + 按 finalContent 对齐 contentOffset，
+     * 写入 message.tool_events 独立列（与 metadata 解耦）。
+     *
+     * @param ctx          对话上下文
+     * @param finalContent 最终落库正文（用于对齐 contentOffset）
+     * @return 压缩后的事件列表；空时返回空列表
+     */
+    private List<Map<String, Object>> buildPersistToolEvents(ChatContext ctx, String finalContent) {
+        List<Map<String, Object>> toolEventsList = ctx.getToolEventsList();
+        if (toolEventsList == null || toolEventsList.isEmpty()) {
+            return List.of();
+        }
+        return ToolEventCompactUtil.compactForPersistence(toolEventsList, finalContent);
+    }
+
+    /**
+     * 序列化 toolEvents 列表为 JSON 字符串，用于 message.tool_events 落库。
+     *
+     * @param compactEvents 已压缩对齐的事件列表
+     * @return JSON 字符串；空列表时返回 null
+     */
+    private String serializeToolEvents(List<Map<String, Object>> compactEvents) {
+        if (compactEvents == null || compactEvents.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(compactEvents);
+        } catch (Exception e) {
+            log.warn("[Chat] 序列化 toolEvents 失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 收集本轮结束时仍未完成的 todos（pending / in_progress），供前端渲染「未完成」告警。
+     * <p>读取 {@link ChatContext#getCurrentTodosSnapshot()} —— 该快照由 ToolPrepMiddleware 初始化、
+     * 每次 write_todos 成功后由 executeToolCallback 回写，反映本轮最新状态</p>
+     *
+     * @param ctx 对话上下文
+     * @return 未完成 todos 列表（每项含 id/content/status）；空列表表示全部完成
+     */
+    private List<Map<String, String>> collectIncompleteTodos(ChatContext ctx) {
+        List<Map<String, String>> snapshot = ctx.getCurrentTodosSnapshot();
+        if (snapshot == null || snapshot.isEmpty()) {
+            return List.of();
+        }
+        List<Map<String, String>> incomplete = new java.util.ArrayList<>();
+        for (Map<String, String> todo : snapshot) {
+            String status = todo.get("status");
+            if ("pending".equalsIgnoreCase(status) || "in_progress".equalsIgnoreCase(status)) {
+                incomplete.add(todo);
+            }
+        }
+        return incomplete;
     }
 
     /** SSE 心跳间隔（秒） */
@@ -920,9 +987,9 @@ public class ChatServiceImpl implements ChatService {
                         if (!kbResultsRef.isEmpty() || !toolEventsList.isEmpty()) {
                             Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                             if (!toolEventsList.isEmpty()) {
-                                metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
-                                        (List<Map<String, Object>>) metadataMap.get("toolEvents"));
+                                // toolEvents 拆到 message.tool_events 独立列；中间 metadata 仅承载 toolBlockOffsets
+                                List<Map<String, Object>> compactEvents = ToolEventCompactUtil.compactForPersistence(toolEventsList);
+                                List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(compactEvents);
                                 if (!offsets.isEmpty()) metadataMap.put("toolBlockOffsets", offsets);
                             }
                             if (!kbResultsRef.isEmpty()) {
@@ -1322,6 +1389,11 @@ public class ChatServiceImpl implements ChatService {
                 if (chatContext != null && !mcpTool) {
                     ctxMap.put("chatContext", chatContext);
                 }
+                // 注入本轮 todos 快照作为 WriteTodosTool 按 id 合并的基准：
+                // 每次 write_todos 成功后会回写到 chatContext.currentTodosSnapshot，下次调用拿到的是最新合并结果
+                if (chatContext != null && chatContext.getCurrentTodosSnapshot() != null) {
+                    ctxMap.put("currentTodos", chatContext.getCurrentTodosSnapshot());
+                }
                 final String argsForCall = effectiveArgs != null ? effectiveArgs : "{}";
                 String result = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -1344,6 +1416,10 @@ public class ChatServiceImpl implements ChatService {
                 }
                 if (!ToolResultPrefixes.isError(result)) {
                     sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, result);
+                    // write_todos 成功后把合并结果回写到 ChatContext，保证下次调用拿到最新基准（防丢项核心）
+                    if ("write_todos".equals(toolName) && chatContext != null) {
+                        updateCurrentTodosSnapshot(chatContext, result);
+                    }
                 }
                 return result;
             } catch (TimeoutException e) {
@@ -1382,6 +1458,42 @@ public class ChatServiceImpl implements ChatService {
         }
         log.warn("[Chat][Trace] 工具不存在: name={}, 可用工具={}", toolName, toolCallbackMap.keySet());
         return ToolResultPrefixes.failureJson(ToolResultPrefixes.NOT_FOUND + ": " + toolName);
+    }
+
+    /**
+     * 解析 write_todos 工具结果，把合并后的 todos 回写到 ChatContext.currentTodosSnapshot。
+     * <p>下次 write_todos 调用时，WriteTodosTool.loadHistoryTodos 拿到的就是本次合并结果，
+     * 避免同一轮内多次调用因基准过期导致丢项或重复新增</p>
+     *
+     * @param chatContext 对话上下文
+     * @param toolResult  write_todos 返回的 JSON 字符串，格式：{"success":true,"todos":[{id,content,status}]}
+     */
+    private void updateCurrentTodosSnapshot(ChatContext chatContext, String toolResult) {
+        if (toolResult == null || toolResult.isBlank()) {
+            return;
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(toolResult);
+            if (!root.path("success").asBoolean(false)) {
+                return;
+            }
+            com.fasterxml.jackson.databind.JsonNode todosNode = root.path("todos");
+            if (!todosNode.isArray()) {
+                return;
+            }
+            // 用 ArrayList 包装保证可变（loadCurrentTodos 返回的可能不可变）
+            List<Map<String, String>> snapshot = new java.util.ArrayList<>();
+            for (com.fasterxml.jackson.databind.JsonNode item : todosNode) {
+                Map<String, String> m = new java.util.LinkedHashMap<>();
+                m.put("id", item.path("id").asText(""));
+                m.put("content", item.path("content").asText(""));
+                m.put("status", item.path("status").asText("pending"));
+                snapshot.add(m);
+            }
+            chatContext.setCurrentTodosSnapshot(snapshot);
+        } catch (Exception e) {
+            log.warn("[Chat] 回写 todos 快照失败: error={}", e.getMessage());
+        }
     }
 
     /** 粗判 JSON 是否因截断而不完整（无法 parse 或括号/引号不平衡） */
@@ -1445,9 +1557,9 @@ public class ChatServiceImpl implements ChatService {
             if (!kbResultsRef.isEmpty() || !toolEventsList.isEmpty()) {
                 Map<String, Object> metadataMap = new java.util.LinkedHashMap<>();
                 if (!toolEventsList.isEmpty()) {
-                    metadataMap.put("toolEvents", ToolEventCompactUtil.compactForPersistence(toolEventsList));
-                    List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(
-                            (List<Map<String, Object>>) metadataMap.get("toolEvents"));
+                    // toolEvents 拆到 message.tool_events 独立列；中间 metadata 仅承载 toolBlockOffsets
+                    List<Map<String, Object>> compactEvents = ToolEventCompactUtil.compactForPersistence(toolEventsList);
+                    List<Integer> offsets = ToolEventCompactUtil.extractToolBlockOffsets(compactEvents);
                     if (!offsets.isEmpty()) {
                         metadataMap.put("toolBlockOffsets", offsets);
                     }

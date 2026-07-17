@@ -41,6 +41,7 @@
     <a-empty v-else-if="!loading" description="当前会话暂无子智能体任务" />
 
     <SubAgentTaskDetailModal
+      v-if="detailOpen"
       v-model:open="detailOpen"
       :session-id="sessionId"
       :task="selectedTask"
@@ -50,12 +51,13 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch, toRef } from 'vue'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import { CircleStop } from 'lucide-vue-next'
 import SubAgentTaskDetailModal from './SubAgentTaskDetailModal.vue'
 import { pickFresher } from '@/utils/subagentRuntime'
+import { useSubAgentLiveState } from '@/composables/chat/useSubAgentLiveState.js'
 import {
   getSubAgentRuntimeSummaries,
   cancelSubAgentTask,
@@ -76,74 +78,12 @@ const detailOpen = ref(false)
 const selectedTask = ref(null)
 let refreshTimer = null
 
-const liveTaskStates = computed(() => {
-  const states = new Map()
-  for (const event of props.liveEvents) {
-    if (event?.type === 'subagent_batch_start') {
-      for (const task of event.tasks || []) {
-        states.set(String(task.task_id), {
-          task_id: task.task_id,
-          batch_id: event.batch_id,
-          subagent_name: task.subagent_name,
-          display_name: task.display_name || task.displayName || task.subagent_name,
-          task: task.task,
-          status: 'pending',
-          progress_summary: '等待调度',
-          liveOutput: '',
-          reply: '',
-        })
-      }
-      continue
-    }
-    if (!event?.task_id) continue
-    const taskKey = String(event.task_id)
-    const state = states.get(taskKey) || {
-      task_id: event.task_id,
-      batch_id: event.batch_id,
-      subagent_name: event.subagentName,
-      display_name: event.display_name || event.displayName || event.subagentName,
-      task: '',
-      status: 'pending',
-      progress_summary: '等待调度',
-      liveOutput: '',
-      reply: '',
-    }
-    if (event.type === 'subagent_task_start') {
-      state.status = 'running'
-      state.progress_summary = '正在执行'
-    } else if (event.type === 'subagent_tool_call') {
-      state.progress_summary = `正在调用 ${event.toolDisplayName || event.toolName || '工具'}`
-    } else if (event.type === 'subagent_tool_result') {
-      state.progress_summary = '工具执行完成，继续处理'
-    } else if (event.type === 'subagent_token') {
-      state.status = 'running'
-      state.progress_summary = '正在生成输出'
-      state.liveOutput = `${state.liveOutput || ''}${event.content || ''}`.slice(-8000)
-    } else if (event.type === 'subagent_error') {
-      state.status = 'failed'
-      state.progress_summary = event.message || '任务执行异常'
-      state.error = event.message || '任务执行异常'
-    } else if (event.type === 'subagent_task_done') {
-      state.status = event.status || 'completed'
-      state.progress_summary = state.status === 'completed' ? '任务已完成' : '任务执行结束'
-      const reply = event.result?.reply
-      if (event.result?.error) state.error = event.result.error
-      if (reply) state.reply = String(reply)
-      if (!state.liveOutput && reply) state.liveOutput = String(reply)
-    }
-    if (event.display_name || event.displayName) {
-      state.display_name = event.display_name || event.displayName
-    }
-    if (event.task) state.task = event.task
-    if (event.status_label) state.status_label = event.status_label
-    states.set(taskKey, state)
-  }
-  return states
-})
+// SubAgent 实时状态：增量维护 + RAF 批处理（避免每事件 O(N) 重算）
+const { stateMap: liveTaskStateMap, reset: resetLiveState } = useSubAgentLiveState(toRef(props, 'liveEvents'))
 
 const runtimeRuns = computed(() => {
   const merged = new Map(runs.value.map(run => [String(run.task_id), { ...run }]))
-  for (const [taskId, live] of liveTaskStates.value) {
+  for (const [taskId, live] of liveTaskStateMap.value) {
     merged.set(taskId, pickFresher(merged.get(taskId), live))
   }
   return [...merged.values()].sort((a, b) => Number(b.status === 'running') - Number(a.status === 'running'))
@@ -230,7 +170,13 @@ function displayNameOf(task) {
   return task?.display_name || task?.displayName || task?.subagent_name || task?.subagentName || '子智能体'
 }
 
-watch(() => [props.open, props.sessionId], ([open]) => {
+watch(() => [props.open, props.sessionId], ([open], prev = []) => {
+  // immediate 首次触发 oldValue 为 undefined，用默认空数组兜底
+  // 会话切换：清空增量状态表，避免上一会话任务污染
+  const prevSessionId = prev[1]
+  if (prevSessionId !== undefined && props.sessionId !== prevSessionId) {
+    resetLiveState()
+  }
   if (open) {
     loadSummaries()
     startPolling()

@@ -100,6 +100,13 @@ public class ToolPrepMiddleware implements ChatMiddleware {
         ChatModel chatModel = modelFactory.getChatModel(providerId);
         ctx.setChatModel(chatModel);
 
+        // 1.1 初始化本轮 todos 快照到 ChatContext：
+        // WriteTodosTool 按 id 合并的基准必须能跨多次工具调用累积，否则第二次 write_todos 会用空基准覆盖第一次结果。
+        // 此处只初始化一次（基于历史），后续每次 write_todos 成功后由 ChatServiceImpl.executeToolCallback 回写
+        if (ctx.getCurrentTodosSnapshot() == null) {
+            ctx.setCurrentTodosSnapshot(loadCurrentTodos(ctx.getSessionId(), ctx.getRequestId()));
+        }
+
         // 2. 构建工具选项
         ToolCallingChatOptions toolOptions = buildChatOptionsWithTools(providerId, configMap, agent, ctx);
         toolOptions.setInternalToolExecutionEnabled(false);

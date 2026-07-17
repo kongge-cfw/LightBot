@@ -139,6 +139,7 @@
     </div>
 
     <SubAgentTaskDetailModal
+      v-if="detailOpen"
       v-model:open="detailOpen"
       :session-id="sessionId"
       :task="selectedTask"

@@ -231,6 +231,7 @@ CREATE TABLE message (
     tool_call_id    VARCHAR(128),
     token_count     INT             NOT NULL DEFAULT 0,
     metadata        JSONB           DEFAULT '{}',
+    tool_events     JSONB           DEFAULT '[]',
     parent_id       BIGINT,
     create_time     TIMESTAMP       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id)

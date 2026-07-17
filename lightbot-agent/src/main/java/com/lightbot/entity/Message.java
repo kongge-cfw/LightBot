@@ -58,6 +58,14 @@ public class Message {
     @Schema(description = "元数据")
     private String metadata;
 
+    /**
+     * 工具事件流（tool_call / tool_result / subagent_* 等），与 metadata 解耦存储。
+     * <p>历史接口直接以顶层字段下发，避免前端对 metadata 整体 deep watch 时扫描工具结果字符串</p>
+     */
+    @TableField(value = "tool_events", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "工具事件流（与 metadata 解耦）")
+    private String toolEvents;
+
     @TableField("parent_id")
     @Schema(description = "父消息ID")
     @JsonSerialize(using = ToStringSerializer.class)
