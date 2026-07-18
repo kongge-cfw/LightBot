@@ -101,7 +101,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
 
     @Override
     public String getToolResultDetail(Long messageId, int eventIndex) {
-        // 1. 按 id 取原始 message（未经瘦身），保证拿到完整 result
+        // 1. 按 id 取原始 message（未经瘦身），优先从 tool_events 拿 result
         Message msg = getById(messageId);
         if (msg == null) {
             throw new BizException(ErrorCode.MESSAGE_NOT_FOUND);
@@ -119,8 +119,38 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
             if (!"tool_result".equals(evt.path("type").asText())) {
                 return null;
             }
+            // 2. tool_events 里已有完整 result（JSON 不截断），直接返回
             JsonNode resultNode = evt.get("result");
-            return resultNode != null ? resultNode.asText("") : "";
+            String inlineResult = resultNode != null ? resultNode.asText("") : "";
+            if (!inlineResult.isBlank()) {
+                return inlineResult;
+            }
+            // 3. tool_events 的 result 为空时，兜底从 tool_calls 表读完整 tool_output。
+            //    evt 在数组中是该 toolName 的第几个 tool_result（0-based），对应 tool_calls 同名第 K 条
+            String toolName = evt.path("toolName").asText(null);
+            if (toolName == null || toolName.isBlank()) {
+                return null;
+            }
+            int sameNameIdx = 0;
+            for (JsonNode node : root) {
+                if (node == evt) {
+                    break;
+                }
+                if ("tool_result".equals(node.path("type").asText())
+                        && toolName.equals(node.path("toolName").asText(null))) {
+                    sameNameIdx++;
+                }
+            }
+            // 4. tool_calls 表按 message_id + tool_name 过滤，created_at 升序对齐调用顺序
+            List<com.lightbot.entity.ToolCall> calls = toolCallMapper.selectList(
+                    new LambdaQueryWrapper<com.lightbot.entity.ToolCall>()
+                            .eq(com.lightbot.entity.ToolCall::getMessageId, messageId)
+                            .eq(com.lightbot.entity.ToolCall::getToolName, toolName)
+                            .orderByAsc(com.lightbot.entity.ToolCall::getCreatedAt));
+            if (sameNameIdx >= 0 && sameNameIdx < calls.size()) {
+                return calls.get(sameNameIdx).getToolOutput();
+            }
+            return null;
         } catch (Exception e) {
             log.warn("[Message] 读取 tool_result 详情失败：messageId={}, index={}, err={}",
                     messageId, eventIndex, e.getMessage());

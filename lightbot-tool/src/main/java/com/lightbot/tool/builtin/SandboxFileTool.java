@@ -5,6 +5,7 @@ import com.lightbot.service.sandbox.SandboxFs;
 import com.lightbot.service.sandbox.SandboxPath;
 import com.lightbot.tool.annotation.SystemTool;
 import com.lightbot.tool.annotation.ToolParamMeta;
+import com.lightbot.util.MinioUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.model.ToolContext;
@@ -35,6 +36,7 @@ public class SandboxFileTool {
 
     private final SandboxFs sandboxFs;
     private final ObjectMapper objectMapper;
+    private final MinioUtil minioUtil;
 
     @Tool(name = "sandbox_read_file",
           description = "读取沙盒中的文件内容。两种路径模式：" +
@@ -127,6 +129,8 @@ public class SandboxFileTool {
         }
         try {
             SandboxPath sandboxPath = resolvePath(path.trim(), toolContext);
+            // 实际写入字节数：append 时为旧内容+新内容，overwrite 时为新内容
+            long writeBytes;
             if (append) {
                 String existing = "";
                 try {
@@ -134,19 +138,64 @@ public class SandboxFileTool {
                 } catch (Exception ignored) {
                     // 文件不存在则当作空文件追加
                 }
-                sandboxFs.writeFile(sandboxPath, existing + content);
+                String merged = existing + content;
+                sandboxFs.writeFile(sandboxPath, merged);
+                writeBytes = merged.getBytes().length;
             } else {
                 sandboxFs.writeFile(sandboxPath, content);
+                writeBytes = content.getBytes().length;
             }
             Map<String, Object> output = new LinkedHashMap<>();
             output.put("path", path.trim());
-            output.put("size", content.length());
+            output.put("size", writeBytes);
             output.put("success", true);
             output.put("mode", append ? "append" : "overwrite");
+            // outputs/ 路径：交付物，附预签名 URL 让前端直接渲染文件卡片
+            String normalized = path.trim().replace("\\", "/");
+            if (normalized.startsWith("/")) {
+                normalized = normalized.substring(1);
+            }
+            if (normalized.startsWith("outputs/")) {
+                String contentType = inferContentType(normalized);
+                String name = normalized.contains("/")
+                        ? normalized.substring(normalized.lastIndexOf('/') + 1)
+                        : normalized;
+                String minioPath = sandboxPath.toMinioPath();
+                try {
+                    output.put("name", name);
+                    output.put("contentType", contentType);
+                    output.put("url", minioUtil.getPresignedUrl(minioPath, contentType));
+                    output.put("downloadUrl", minioUtil.getPresignedDownloadUrl(minioPath, name, contentType));
+                } catch (Exception ex) {
+                    // 预签名失败不影响写入结果，只记日志
+                    log.warn("[Tool:sandbox_{}] 生成预签名URL失败: path={}, error={}",
+                            append ? "append_file" : "write_file", path, ex.getMessage());
+                }
+            }
             return toJson(output);
         } catch (Exception e) {
             return errorJson((append ? "追加" : "写入") + "文件失败: " + e.getMessage());
         }
+    }
+
+    private String inferContentType(String path) {
+        String lower = path.toLowerCase();
+        if (lower.endsWith(".png")) return "image/png";
+        if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+        if (lower.endsWith(".gif")) return "image/gif";
+        if (lower.endsWith(".webp")) return "image/webp";
+        if (lower.endsWith(".svg")) return "image/svg+xml";
+        if (lower.endsWith(".pdf")) return "application/pdf";
+        if (lower.endsWith(".doc") || lower.endsWith(".docx")) return "application/msword";
+        if (lower.endsWith(".xls") || lower.endsWith(".xlsx")) return "application/vnd.ms-excel";
+        if (lower.endsWith(".ppt") || lower.endsWith(".pptx")) return "application/vnd.ms-powerpoint";
+        if (lower.endsWith(".zip")) return "application/zip";
+        if (lower.endsWith(".json")) return "application/json";
+        if (lower.endsWith(".csv")) return "text/csv";
+        if (lower.endsWith(".txt")) return "text/plain";
+        if (lower.endsWith(".md")) return "text/markdown";
+        if (lower.endsWith(".html") || lower.endsWith(".htm")) return "text/html";
+        return "application/octet-stream";
     }
 
     /**

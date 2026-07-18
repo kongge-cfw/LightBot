@@ -268,13 +268,25 @@ const completedTodoCount = computed(() => todos.value.filter(todo => todo.status
 const todoProgress = computed(() => todos.value.length ? Math.round(completedTodoCount.value * 100 / todos.value.length) : 0)
 
 const artifactsFromMessages = computed(() => {
+  // 产物按 path 去重：同一文件被多次写入/交付，只保留最后一次快照
   const byPath = new Map()
   for (const event of allToolEvents.value) {
-    if (event?.type !== 'tool_result' || event.toolName !== 'present_artifacts') continue
+    if (event?.type !== 'tool_result') continue
     const payload = parseResult(event)
-    for (const artifact of payload?.artifacts || []) {
-      const key = artifact.path || artifact.url || artifact.name
-      if (key) byPath.set(key, artifact)
+    if (!payload) continue
+    if (event.toolName === 'present_artifacts') {
+      for (const artifact of payload?.artifacts || []) {
+        const key = artifact.path || artifact.url || artifact.name
+        if (key) byPath.set(key, artifact)
+      }
+      continue
+    }
+    // sandbox_write_file / sandbox_append_file 写 outputs/ 时也算产物
+    // 后端在 outputs/ 写入时会注入 url/name/contentType/downloadUrl，前端直接复用
+    if ((event.toolName === 'sandbox_write_file' || event.toolName === 'sandbox_append_file')
+            && payload.success && payload.url) {
+      const key = payload.path || payload.url || payload.name
+      if (key) byPath.set(key, payload)
     }
   }
   return [...byPath.values()]

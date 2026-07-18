@@ -139,12 +139,25 @@ public class ResearchTaskProjectionServiceImpl implements ResearchTaskProjection
                     result.path("todos").forEach(item -> todos.add(objectMapper.convertValue(item, Map.class)));
                 }
                 if ("present_artifacts".equals(toolName) && result.path("artifacts").isArray()) {
+                    // 产物按 path 去重：同一文件多次交付保留最新
                     for (JsonNode artifact : result.path("artifacts")) {
                         Map<String, Object> value = objectMapper.convertValue(artifact, Map.class);
                         String key = firstNonBlank(value.get("path"), value.get("url"), value.get("name"));
                         if (key != null) {
                             artifacts.put(key, value);
                         }
+                    }
+                }
+                // sandbox_write_file / sandbox_append_file 写 outputs/ 时也算产物
+                // 同一文件多次写入只保留最后一次的快照（url 是写入时刻的预签名）
+                if (("sandbox_write_file".equals(toolName) || "sandbox_append_file".equals(toolName))
+                        && result.path("success").asBoolean(false)
+                        && result.has("url")) {
+                    Map<String, Object> value = objectMapper.convertValue(result, Map.class);
+                    String key = firstNonBlank(value.get("path"), value.get("url"), value.get("name"));
+                    if (key != null) {
+                        // 统一字段名：sandbox_write_file 的结果是平铺结构，已含 path/url/name/contentType/size
+                        artifacts.put(key, value);
                     }
                 }
             }
