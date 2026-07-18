@@ -58,8 +58,8 @@
           <span v-if="evt.resultTotalLength && !evt.result" class="result-size-hint">
             {{ formatLength(evt.resultTotalLength) }}
           </span>
-          <button class="result-toggle" @click="toggleResult(ti, $event)"
-                  :disabled="loadingFullResult.has(ti)">
+          <button v-if="evt.toolCallId || evt.result" class="result-toggle"
+                  @click="toggleResult(ti, $event)" :disabled="loadingFullResult.has(ti)">
             <LoadingOutlined v-if="loadingFullResult.has(ti)" class="icon-spinning" />
             <RightOutlined v-else :class="{ expanded: expandedResults.has(ti) }" class="expand-icon-sm" />
             <span>{{ loadingFullResult.has(ti) ? '加载中…' : '查看结果' }}</span>
@@ -252,16 +252,16 @@ function needFetchFullResult(index) {
 
 async function fetchFullResult(index) {
   const evt = props.toolEvents[index]
-  const messageId = evt?.messageId || props.messageId
-  if (!messageId) {
-    // 流式中尚未拿到 messageId，无法拉取
+  const toolCallId = evt?.toolCallId
+  if (!toolCallId) {
+    // 历史数据未带 toolCallId（旧消息），无法按 id 拉取
     return
   }
   const loadingSet = new Set(loadingFullResult.value)
   loadingSet.add(index)
   loadingFullResult.value = loadingSet
   try {
-    const res = await getToolResultDetail(messageId, index)
+    const res = await getToolResultDetail(toolCallId)
     if (typeof res?.data === 'string') {
       // 拉到完整 result 后赋值，触发 ToolCallRenderer 渲染
       evt.result = res.data

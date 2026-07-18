@@ -259,13 +259,14 @@ public class ChatServiceImpl implements ChatService {
             String safeArgs = toolArgs != null ? toolArgs : "";
 
             // 记录工具调用开始（SubAgent 委派走专用 subagent_call 事件）
-            appendToolCallStart(ctx, toolEventsList, null, toolName, safeArgs, toolContentOffset);
+            long toolCallId = appendToolCallStart(ctx, toolEventsList, null, toolName, safeArgs, toolContentOffset);
 
             // 执行工具
             String toolResult = executeToolCallback(toolCallbackMap, toolName, safeArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
 
-            // 暂存工具调用记录
+            // 暂存工具调用记录（复用 toolCallId 作为主键，前端按 id 拉取完整结果）
             ToolCall toolCallLog = new ToolCall();
+            toolCallLog.setId(toolCallId);
             toolCallLog.setToolName(toolName);
             toolCallLog.setToolInput(safeArgs);
             toolCallLog.setToolOutput(toolResult);
@@ -282,7 +283,7 @@ public class ChatServiceImpl implements ChatService {
             }
 
             // 记录工具结果（SubAgent 委派走 subagent_result）
-            appendToolCallResult(ctx, toolEventsList, null, toolName, safeArgs, toolResult, toolContentOffset);
+            appendToolCallResult(ctx, toolEventsList, null, toolName, safeArgs, toolResult, toolContentOffset, toolCallId);
 
             toolResponses.add(new org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse(
                     firstTool.id(), toolName, toolResult));
@@ -888,11 +889,12 @@ public class ChatServiceImpl implements ChatService {
                         List<CompletableFuture<String>> futures = new ArrayList<>();
                         for (AssistantMessage.ToolCall tc : toolCalls) {
                             String tcArgs = tc.arguments() != null ? tc.arguments() : "";
-                            appendToolCallStart(ctx, toolEventsList, statusFluxes, tc.name(), tcArgs, toolContentOffset);
+                            long tcToolCallId = appendToolCallStart(ctx, toolEventsList, statusFluxes, tc.name(), tcArgs, toolContentOffset);
                             toolCallCountHolder[0]++;
                             final String tcName = tc.name();
                             final String safeTcArgs = toolArgsSanitizer.forChatCall(tcArgs);
                             final Sinks.Many<String> sink = eventSink;
+                            final long tcIdFinal = tcToolCallId;
                             futures.add(CompletableFuture.supplyAsync(() -> {
                                 long tStart = System.currentTimeMillis();
                                 // 绑定 Sink 到当前 worker 线程，使 emit() 实时推送
@@ -918,8 +920,9 @@ public class ChatServiceImpl implements ChatService {
                                     List<Map<String, Object>> kbResults = QueryKnowledgeTool.getSearchResults(requestId);
                                     synchronized (kbResultsHolder) { kbResultsHolder.addAll(kbResults); }
                                 }
-                                // 暂存工具调用记录（assistant 消息保存后批量写入）
+                                // 暂存工具调用记录（复用 tcIdFinal 作为主键，前端按 id 拉取完整结果）
                                 ToolCall toolCallLog = new ToolCall();
+                                toolCallLog.setId(tcIdFinal);
                                 toolCallLog.setToolName(tcName);
                                 toolCallLog.setToolInput(safeTcArgs);
                                 toolCallLog.setToolOutput(result);
@@ -929,7 +932,7 @@ public class ChatServiceImpl implements ChatService {
                                     ctx.getPendingToolCalls().add(toolCallLog);
                                 }
 
-                                appendToolCallResult(ctx, toolEventsList, statusFluxes, tcName, tcArgs, result, toolContentOffset);
+                                appendToolCallResult(ctx, toolEventsList, statusFluxes, tcName, tcArgs, result, toolContentOffset, tcIdFinal);
                                 return result;
                             }, lightBotExecutor));
                         }
@@ -950,7 +953,7 @@ public class ChatServiceImpl implements ChatService {
 
                         String safeArgs = toolArgs != null ? toolArgs : "";
                         String callArgs = toolArgsSanitizer.forChatCall(safeArgs);
-                        appendToolCallStart(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolContentOffset);
+                        long toolCallId = appendToolCallStart(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolContentOffset);
 
                         long tToolStart = System.currentTimeMillis();
                         // 流式模式：绑定 Sink 使工具内部 emit() 实时推送给前端
@@ -975,8 +978,9 @@ public class ChatServiceImpl implements ChatService {
                             if (!kbResults.isEmpty()) kbResultsHolder.addAll(kbResults);
                         }
 
-                        // 暂存工具调用记录（assistant 消息保存后批量写入）
+                        // 暂存工具调用记录（复用 toolCallId 作为主键，前端按 id 拉取完整结果）
                         ToolCall toolCallLog = new ToolCall();
+                        toolCallLog.setId(toolCallId);
                         toolCallLog.setToolName(toolName);
                         toolCallLog.setToolInput(safeArgs);
                         toolCallLog.setToolOutput(toolResult);
@@ -984,7 +988,7 @@ public class ChatServiceImpl implements ChatService {
                         toolCallLog.setErrorMessage(ToolResultPrefixes.isError(toolResult) ? toolResult : null);
                         ctx.getPendingToolCalls().add(toolCallLog);
 
-                        appendToolCallResult(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolResult, toolContentOffset);
+                        appendToolCallResult(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolResult, toolContentOffset, toolCallId);
                         toolResponses.add(new org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse(
                                 firstTool.id(), toolName, toolResult));
                     }
@@ -1240,11 +1244,12 @@ public class ChatServiceImpl implements ChatService {
             List<CompletableFuture<String>> futures = new ArrayList<>();
             for (AssistantMessage.ToolCall tc : toolCalls) {
                 String tcArgs = tc.arguments() != null ? tc.arguments() : "";
-                appendToolCallStart(ctx, toolEventsList, statusFluxes, tc.name(), tcArgs, toolContentOffset);
+                long tcToolCallId = appendToolCallStart(ctx, toolEventsList, statusFluxes, tc.name(), tcArgs, toolContentOffset);
                 toolCallCountHolder[0]++;
                 final String tcName = tc.name();
                 final String safeTcArgs = toolArgsSanitizer.forChatCall(tcArgs);
                 final int offsetFinal = toolContentOffset;
+                final long tcIdFinal = tcToolCallId;
                 futures.add(CompletableFuture.supplyAsync(() -> {
                     long tStart = System.currentTimeMillis();
                     String result = executeToolCallback(toolCallbackMap, tcName, safeTcArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
@@ -1259,8 +1264,9 @@ public class ChatServiceImpl implements ChatService {
                             kbResultsHolder.addAll(kbResults);
                         }
                     }
-                    // 暂存工具调用记录（assistant 消息保存后批量写入）
+                    // 暂存工具调用记录（复用 tcIdFinal 作为主键，前端按 id 拉取完整结果）
                     ToolCall toolCallLog = new ToolCall();
+                    toolCallLog.setId(tcIdFinal);
                     toolCallLog.setToolName(tcName);
                     toolCallLog.setToolInput(safeTcArgs);
                     toolCallLog.setToolOutput(result);
@@ -1271,7 +1277,7 @@ public class ChatServiceImpl implements ChatService {
                     }
 
                     synchronized (toolEventsList) {
-                        appendToolCallResult(ctx, toolEventsList, statusFluxes, tcName, tcArgs, result, offsetFinal);
+                        appendToolCallResult(ctx, toolEventsList, statusFluxes, tcName, tcArgs, result, offsetFinal, tcIdFinal);
                     }
                     return result;
                 }, lightBotExecutor));
@@ -1292,7 +1298,7 @@ public class ChatServiceImpl implements ChatService {
 
             String safeArgs = toolArgs != null ? toolArgs : "";
             String callArgs = toolArgsSanitizer.forChatCall(safeArgs);
-            appendToolCallStart(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolContentOffset);
+            long toolCallId = appendToolCallStart(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolContentOffset);
 
             long tToolStart = System.currentTimeMillis();
             String toolResult = executeToolCallback(toolCallbackMap, toolName, callArgs, agent.getId(), ctx.getSessionId(), requestId, null, ctx);
@@ -1309,8 +1315,9 @@ public class ChatServiceImpl implements ChatService {
                 }
             }
 
-            // 暂存工具调用记录（assistant 消息保存后批量写入）
+            // 暂存工具调用记录（复用 toolCallId 作为主键，前端按 id 拉取完整结果）
             ToolCall toolCallLog = new ToolCall();
+            toolCallLog.setId(toolCallId);
             toolCallLog.setToolName(toolName);
             toolCallLog.setToolInput(callArgs);
             toolCallLog.setToolOutput(toolResult);
@@ -1325,7 +1332,7 @@ public class ChatServiceImpl implements ChatService {
                 statusFluxes.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolStatusEvent(event, toolContentOffset)));
             }
 
-            appendToolCallResult(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolResult, toolContentOffset);
+            appendToolCallResult(ctx, toolEventsList, statusFluxes, toolName, safeArgs, toolResult, toolContentOffset, toolCallId);
             toolResponses.add(new org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse(
                     firstTool.id(), toolName, toolResult));
         }
@@ -1897,7 +1904,7 @@ public class ChatServiceImpl implements ChatService {
         return toolArgsSanitizer.compactForHistory(toolName, args);
     }
 
-    private void appendToolCallStart(ChatContext ctx, List<Map<String, Object>> toolEventsList,
+    private long appendToolCallStart(ChatContext ctx, List<Map<String, Object>> toolEventsList,
                                      List<Flux<String>> statusFluxes,
                                      String toolName, String args, int contentOffset) {
         // 按需推送 skill_active（工具属于某个 Skill 时）
@@ -1917,8 +1924,11 @@ public class ChatServiceImpl implements ChatService {
                 ctx.setSubAgentContentPrefixAnchor(splitAt > 0 ? reply.substring(0, splitAt) : null);
                 ctx.setSubAgentDelegationIndex(delegationIndex);
             }
-            return;
+            // 委派类工具不入 tool_calls 表，返回 0 表示无 toolCallId
+            return 0L;
         }
+        // 预生成 toolCallId：tool_call/tool_result 事件 + tool_calls 表主键共用同一 id
+        long toolCallId = com.baomidou.mybatisplus.core.toolkit.IdWorker.getId();
         String dn = getToolDisplayName(ctx, toolName);
         String icon = getToolIcon(ctx, toolName);
         Map<String, Object> callEvt = new java.util.LinkedHashMap<>();
@@ -1928,19 +1938,21 @@ public class ChatServiceImpl implements ChatService {
         if (icon != null) callEvt.put("icon", icon);
         callEvt.put("args", compactArgsForEvent(toolName, args));
         callEvt.put("contentOffset", contentOffset);
+        callEvt.put("toolCallId", String.valueOf(toolCallId));
         putContentPrefixAnchor(ctx, callEvt, contentOffset);
         int normalizedOffset = callEvt.get("contentOffset") instanceof Number n ? n.intValue() : contentOffset;
         toolEventsList.add(callEvt);
-        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, icon, compactArgsForEvent(toolName, args), normalizedOffset);
+        String callJson = toolEventGenerator.toolCallEvent(toolName, dn, icon, compactArgsForEvent(toolName, args), normalizedOffset, toolCallId);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(callJson);
         } else if (statusFluxes != null) {
             statusFluxes.add(Flux.just(STATUS_PREFIX + callJson));
         }
+        return toolCallId;
     }
 
     private void appendToolCallResult(ChatContext ctx, List<Map<String, Object>> toolEventsList, List<Flux<String>> statusFluxes,
-                                    String toolName, String args, String result, int contentOffset) {
+                                    String toolName, String args, String result, int contentOffset, long toolCallId) {
         String truncated = toolEventGenerator.truncateForSse(result);
         if (DelegateSubAgentTool.TOOL_NAME.equals(toolName)
                 || DelegateSubAgentTool.RESULT_TOOL_NAME.equals(toolName)
@@ -1974,8 +1986,11 @@ public class ChatServiceImpl implements ChatService {
         if (icon != null) resultEvt.put("icon", icon);
         resultEvt.put("result", truncated);
         resultEvt.put("contentOffset", contentOffset);
+        if (toolCallId > 0) {
+            resultEvt.put("toolCallId", String.valueOf(toolCallId));
+        }
         toolEventsList.add(resultEvt);
-        String resultJson = toolEventGenerator.toolResultEvent(toolName, dn, icon, truncated, contentOffset);
+        String resultJson = toolEventGenerator.toolResultEvent(toolName, dn, icon, truncated, contentOffset, toolCallId);
         if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
             ctx.emitRealtimeStatus(resultJson);
         } else if (statusFluxes != null) {

@@ -97,14 +97,14 @@ public interface MessageService extends IService<Message> {
     List<ConversationSearchResultVO> searchConversations(Long userId, String keyword, int limit);
 
     /**
-     * 按 message 内 toolEvents 索引读取完整 tool_result.result。
-     * <p>历史列表场景已对超长 result 做预览截断，前端展开「查看结果」时调用此接口拉取完整内容</p>
+     * 按 tool_calls 主键读取完整工具执行结果。
+     * <p>历史列表场景已剥离 tool_result.result 正文，前端展开「查看结果」时按 toolCallId 拉取完整 JSON，
+     * 交由 ToolCallRenderer 按工具类型渲染。</p>
      *
-     * @param messageId  消息 ID
-     * @param eventIndex toolEvents 数组下标
-     * @return 完整 result 文本；事件不存在或非 tool_result 时返回 null
+     * @param toolCallId 工具调用记录主键（tool_events 事件中的 toolCallId）
+     * @return 完整 tool_output 文本；记录不存在时返回 null
      */
-    String getToolResultDetail(Long messageId, int eventIndex);
+    String getToolResultDetail(Long toolCallId);
 
     /**
      * 切换消息收藏状态

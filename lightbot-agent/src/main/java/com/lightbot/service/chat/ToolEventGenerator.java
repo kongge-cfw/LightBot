@@ -92,6 +92,15 @@ public class ToolEventGenerator {
      * @param contentOffset 内容偏移
      */
     public String toolCallEvent(String toolName, String displayName, String icon, String args, int contentOffset) {
+        return toolCallEvent(toolName, displayName, icon, args, contentOffset, 0L);
+    }
+
+    /**
+     * 生成工具调用状态事件 JSON（带 toolCallId）
+     *
+     * @param toolCallId 工具调用记录主键，前端据此按需拉取完整结果；为 0 时不写入事件
+     */
+    public String toolCallEvent(String toolName, String displayName, String icon, String args, int contentOffset, long toolCallId) {
         try {
             Map<String, Object> evt = new java.util.LinkedHashMap<>();
             evt.put("type", "tool_call");
@@ -104,6 +113,9 @@ public class ToolEventGenerator {
             }
             evt.put("args", args != null ? args : "");
             evt.put("contentOffset", contentOffset);
+            if (toolCallId > 0) {
+                evt.put("toolCallId", String.valueOf(toolCallId));
+            }
             return objectMapper.writeValueAsString(evt);
         } catch (Exception e) {
             return safeFallbackJson(Map.of("type", "tool_call", "toolName", toolName != null ? toolName : "", "contentOffset", contentOffset));
@@ -120,6 +132,15 @@ public class ToolEventGenerator {
      * @param contentOffset 内容偏移
      */
     public String toolResultEvent(String toolName, String displayName, String icon, String result, int contentOffset) {
+        return toolResultEvent(toolName, displayName, icon, result, contentOffset, 0L);
+    }
+
+    /**
+     * 生成工具结果状态事件 JSON（带 toolCallId）
+     *
+     * @param toolCallId 工具调用记录主键，前端据此按需拉取完整结果；为 0 时不写入事件
+     */
+    public String toolResultEvent(String toolName, String displayName, String icon, String result, int contentOffset, long toolCallId) {
         try {
             String truncated = truncateForSse(result);
             Map<String, Object> evt = new java.util.LinkedHashMap<>();
@@ -133,6 +154,9 @@ public class ToolEventGenerator {
             }
             evt.put("result", truncated);
             evt.put("contentOffset", contentOffset);
+            if (toolCallId > 0) {
+                evt.put("toolCallId", String.valueOf(toolCallId));
+            }
             return objectMapper.writeValueAsString(evt);
         } catch (Exception e) {
             return safeFallbackJson(Map.of("type", "tool_result", "toolName", toolName != null ? toolName : "", "contentOffset", contentOffset));

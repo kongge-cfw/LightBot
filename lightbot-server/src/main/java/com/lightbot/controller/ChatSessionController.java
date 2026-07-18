@@ -138,11 +138,9 @@ public class ChatSessionController {
     }
 
     @Operation(summary = "按需拉取工具调用结果详情")
-    @GetMapping("/messages/{messageId}/tool-result")
-    public Result<String> getToolResultDetail(
-            @PathVariable Long messageId,
-            @RequestParam int index) {
-        return Result.ok(messageService.getToolResultDetail(messageId, index));
+    @GetMapping("/tool-calls/{toolCallId}/result")
+    public Result<String> getToolResultDetail(@PathVariable Long toolCallId) {
+        return Result.ok(messageService.getToolResultDetail(toolCallId));
     }
 
     @Operation(summary = "切换消息收藏状态")
