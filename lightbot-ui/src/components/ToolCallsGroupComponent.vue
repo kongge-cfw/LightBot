@@ -55,9 +55,14 @@
           <span class="event-label">
             <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 执行完成
           </span>
-          <button class="result-toggle" @click="toggleResult(ti, $event)" v-if="evt.result">
-            <RightOutlined :class="{ expanded: expandedResults.has(ti) }" class="expand-icon-sm" />
-            <span>查看结果</span>
+          <span v-if="evt.resultTotalLength && !evt.result" class="result-size-hint">
+            {{ formatLength(evt.resultTotalLength) }}
+          </span>
+          <button class="result-toggle" @click="toggleResult(ti, $event)"
+                  :disabled="loadingFullResult.has(ti)">
+            <LoadingOutlined v-if="loadingFullResult.has(ti)" class="icon-spinning" />
+            <RightOutlined v-else :class="{ expanded: expandedResults.has(ti) }" class="expand-icon-sm" />
+            <span>{{ loadingFullResult.has(ti) ? '加载中…' : '查看结果' }}</span>
           </button>
         </div>
         <!-- 结果详情展开 -->
@@ -78,16 +83,20 @@
 <script setup>
 import { ref, computed, watch, nextTick } from 'vue'
 import { CheckCircleOutlined, LoadingOutlined, RightOutlined, FileSearchOutlined } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import * as AntIcons from '@ant-design/icons-vue'
 import ToolCallRenderer from './ToolCallRenderer.vue'
 import CollapseTransition from './common/CollapseTransition.vue'
 import { getToolDisplayName, getToolIcon } from './toolRegistry'
+import { getToolResultDetail } from '@/api/chatSession'
 
 const props = defineProps({
   toolEvents: { type: Array, default: () => [] },
   isDone: { type: Boolean, default: true },
   defaultExpanded: { type: Boolean, default: true },
-  messageIndex: { type: Number, default: -1 }
+  messageIndex: { type: Number, default: -1 },
+  /** 所属消息 ID（历史消息按需拉取完整 tool_result 时必传） */
+  messageId: { type: [String, Number], default: null },
 })
 
 const emit = defineEmits(['heightChange'])
@@ -103,8 +112,14 @@ const manualToggled = ref(new Set())
 const expandedArgs = ref(new Set())
 const argsModalOpen = ref(false)
 const argsModalContent = ref('')
+/** index → 是否正在拉取完整 result（历史消息 result 被后端截断时按需拉取） */
+const loadingFullResult = ref(new Set())
 
 function syncExpandedResults() {
+  // 历史消息（非流式）默认折叠所有 tool_result 详情；流式中保持自动展开
+  if (!props.defaultExpanded) {
+    return
+  }
   const s = new Set(expandedResults.value)
   props.toolEvents.forEach((e, i) => {
     if (e.type === 'tool_result' && e.result && !manualToggled.value.has(i)) {
@@ -212,13 +227,60 @@ function openArgs(index) {
   argsModalOpen.value = true
 }
 
-function toggleResult(index, event) {
+async function toggleResult(index, event) {
   manualToggled.value.add(index)
   const s = new Set(expandedResults.value)
-  if (s.has(index)) s.delete(index)
-  else s.add(index)
+  const willExpand = !s.has(index)
+  if (willExpand) {
+    s.add(index)
+  } else {
+    s.delete(index)
+  }
   expandedResults.value = s
   nextTick(() => emit('heightChange', { target: event?.target, preserveViewport: true }))
+  // 展开时若无完整 result（历史消息被瘦身），按需从数据库拉取完整 JSON
+  if (willExpand && needFetchFullResult(index)) {
+    await fetchFullResult(index)
+  }
+}
+
+function needFetchFullResult(index) {
+  const evt = props.toolEvents[index]
+  // 历史消息列表接口会剥离 result 正文；流式中 SSE 推送的 tool_result 本身就带完整 result
+  return !evt?.result
+}
+
+async function fetchFullResult(index) {
+  const evt = props.toolEvents[index]
+  const messageId = evt?.messageId || props.messageId
+  if (!messageId) {
+    // 流式中尚未拿到 messageId，无法拉取
+    return
+  }
+  const loadingSet = new Set(loadingFullResult.value)
+  loadingSet.add(index)
+  loadingFullResult.value = loadingSet
+  try {
+    const res = await getToolResultDetail(messageId, index)
+    if (typeof res?.data === 'string') {
+      // 拉到完整 result 后赋值，触发 ToolCallRenderer 渲染
+      evt.result = res.data
+      emit('heightChange', { target: null, preserveViewport: true })
+    }
+  } catch (e) {
+    message.error('加载结果失败')
+  } finally {
+    const finalSet = new Set(loadingFullResult.value)
+    finalSet.delete(index)
+    loadingFullResult.value = finalSet
+  }
+}
+
+function formatLength(n) {
+  if (typeof n !== 'number' || n <= 0) return ''
+  if (n < 1024) return `${n} 字符`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+  return `${(n / 1024 / 1024).toFixed(1)} MB`
 }
 </script>
 
@@ -367,6 +429,16 @@ function toggleResult(index, event) {
     transition: all 0.15s ease;
     flex-shrink: 0;
     &:hover { background: var(--gray-50); color: var(--gray-600); }
+    &:disabled { cursor: progress; opacity: 0.7; }
+  }
+
+  .result-size-hint {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--gray-500);
+    background: var(--gray-50);
   }
 
   .expand-icon-sm {

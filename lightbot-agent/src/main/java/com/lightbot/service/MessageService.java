@@ -3,6 +3,7 @@ package com.lightbot.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.entity.Message;
+import com.lightbot.vo.ConversationSearchResultVO;
 
 import java.util.List;
 
@@ -84,6 +85,26 @@ public interface MessageService extends IService<Message> {
      * @return 匹配的消息分页列表
      */
     Page<Message> searchBySessionId(Long sessionId, String keyword, int pageNum, int pageSize);
+
+    /**
+     * 跨会话搜索消息（按关键词匹配内容，限当前用户的会话）。
+     *
+     * @param userId  当前登录用户 ID
+     * @param keyword 关键词（不可为空）
+     * @param limit   最多返回条数
+     * @return 每条命中消息 + 所属会话信息
+     */
+    List<ConversationSearchResultVO> searchConversations(Long userId, String keyword, int limit);
+
+    /**
+     * 按 message 内 toolEvents 索引读取完整 tool_result.result。
+     * <p>历史列表场景已对超长 result 做预览截断，前端展开「查看结果」时调用此接口拉取完整内容</p>
+     *
+     * @param messageId  消息 ID
+     * @param eventIndex toolEvents 数组下标
+     * @return 完整 result 文本；事件不存在或非 tool_result 时返回 null
+     */
+    String getToolResultDetail(Long messageId, int eventIndex);
 
     /**
      * 切换消息收藏状态

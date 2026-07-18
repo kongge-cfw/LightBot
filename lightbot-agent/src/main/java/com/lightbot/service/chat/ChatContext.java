@@ -122,6 +122,13 @@ public class ChatContext {
     private boolean sensitiveUserBlocked;
 
     /**
+     * AI 输出敏感词拦截已触发标记
+     * <p>流式过程中首次命中敏感词后置 true，后续 chunk 全部跳过处理（不再追加 reasoning/fullReply、不再重复发 sensitive_block），
+     * buildPersistMetadata 据此跳过 reasoningContent 暴露</p>
+     */
+    private boolean sensitiveAiBlocked;
+
+    /**
      * 本轮请求内存级 todos 累加快照
      * <p>初始值由 ToolPrepMiddleware.prepare 从数据库加载；
      * 每次 write_todos 工具执行成功后由 ChatServiceImpl.executeToolCallback 回写合并结果，
@@ -134,6 +141,13 @@ public class ChatContext {
 
     /** 流式敏感词过滤状态（按累积全文过滤，避免分片漏拦） */
     private SensitiveWordFilter.StreamState sensitiveStreamState;
+
+    /**
+     * 流式开始前累积的状态事件（context_compression 等）
+     * <p>由 MessageMiddleware.buildMessages 在摘要等阶段写入；
+     * execute 在调用 next.proceed 前取出并 prepend 到主 Flux，确保事件在 LLM 输出前到达前端</p>
+     */
+    private List<String> preStreamStatusEvents = new ArrayList<>();
 
     /** 流式 inline thinking 标签解析（Ollama 等模型） */
     com.lightbot.util.InlineThinkingStreamParser inlineThinkingParser;
@@ -320,6 +334,12 @@ public class ChatContext {
      */
     public void finalizeInlineThinking() {
         if (inlineThinkingFinalized) {
+            return;
+        }
+        // 敏感拦截场景：fullReply 已被改写为拦截文案，禁止用 rawLlmStreamText 重新 parse 覆盖（会还原出敏感原文），
+        // 也不再用 traceCompleteReply 推导 reasoning（拦截后 reasoning 不应暴露给前端/入库）
+        if (sensitiveAiBlocked) {
+            inlineThinkingFinalized = true;
             return;
         }
 

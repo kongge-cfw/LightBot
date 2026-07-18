@@ -3,6 +3,7 @@ import markdownItKatex from '@vscode/markdown-it-katex'
 import taskLists from 'markdown-it-task-lists'
 import DOMPurify from 'dompurify'
 import { createHighlighter } from 'shiki'
+import { renderHtmlPreviewBlocks } from './htmlPreviewRenderer'
 
 const markdownKatexPlugin = markdownItKatex.default || markdownItKatex
 
@@ -333,6 +334,22 @@ function sanitizeHtml(html) {
   return DOMPurify.sanitize(html, PURIFY_CONFIG)
 }
 
+/**
+ * html:preview iframe 内容专用 sanitizer：
+ * 允许整文档结构（html/head/body/style/link）但禁止脚本/表单/嵌套框架，
+ * 配合 iframe sandbox=allow-scripts 形成两层隔离
+ */
+const HTML_PREVIEW_SRCDOC_CONFIG = {
+  WHOLE_DOCUMENT: true,
+  ADD_TAGS: ['html', 'head', 'body', 'style', 'link'],
+  FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'textarea', 'select'],
+  FORBID_ATTR: ['srcdoc', 'sandbox'],
+}
+
+function sanitizeHtmlPreviewSrcdoc(html) {
+  return DOMPurify.sanitize(html, HTML_PREVIEW_SRCDOC_CONFIG)
+}
+
 // ── markdown-it 渲染器工厂（带缓存）─────────────────────────────────
 
 const rendererCache = new Map()
@@ -637,6 +654,9 @@ export async function renderMarkdown(text, { streaming = false, theme = 'github-
   if (!text) return ''
 
   let processed = preprocessMarkdown(text)
+  // html:preview 围栏 → sandboxed iframe 预览块（必须在 markdown-it 之前替换，
+  // 否则会被 fence 渲染器当普通代码块处理）
+  processed = renderHtmlPreviewBlocks(processed, { sanitizeHtml: sanitizeHtmlPreviewSrcdoc })
   processed = patchStreamingTables(processed)
   if (streaming) {
     processed = patchStreamingMarkdown(processed)
@@ -682,7 +702,8 @@ const syncRenderer = applyCommonMarkdownPlugins(new MarkdownIt({
  */
 export function renderMarkdownSync(text) {
   if (!text) return ''
-  const processed = preprocessMarkdown(text)
+  let processed = preprocessMarkdown(text)
+  processed = renderHtmlPreviewBlocks(processed, { sanitizeHtml: sanitizeHtmlPreviewSrcdoc })
   const rawHtml = /<details/i.test(processed)
     ? renderWithDetailsBlocks(processed, syncRenderer)
     : syncRenderer.render(processed)

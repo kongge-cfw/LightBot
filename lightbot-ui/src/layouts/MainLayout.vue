@@ -60,9 +60,16 @@
       <!-- 对话历史 -->
       <div v-show="!sidebarCollapsed" class="session-section">
         <div class="section-title" @click="sessionsCollapsed = !sessionsCollapsed">
-          <span>最近对话</span>
-          <DownOutlined v-if="sessionsCollapsed" class="collapse-icon" />
-          <UpOutlined v-else class="collapse-icon" />
+          <span class="section-title-label" @click.stop="sessionsCollapsed = !sessionsCollapsed">最近对话</span>
+          <div class="section-title-actions">
+            <a-tooltip title="搜索历史对话" placement="bottom">
+              <span class="section-title-search" @click.stop="openConversationSearch">
+                <SearchOutlined />
+              </span>
+            </a-tooltip>
+            <DownOutlined v-if="sessionsCollapsed" class="collapse-icon" />
+            <UpOutlined v-else class="collapse-icon" />
+          </div>
         </div>
         <div v-show="!sessionsCollapsed" class="session-list" ref="sessionListRef">
           <div
@@ -109,6 +116,12 @@
           :maxlength="50"
         />
       </a-modal>
+
+      <!-- 跨会话搜索弹窗 -->
+      <ConversationSearchModal
+        v-model:open="conversationSearchOpen"
+        @pick="handleConversationSearchPick"
+      />
 
       <!-- 用户信息 -->
       <div class="sidebar-footer">
@@ -212,6 +225,7 @@ import {
   BulbOutlined,
   BulbFilled,
   StarOutlined,
+  SearchOutlined,
 } from '@ant-design/icons-vue'
 import { useUserStore } from '../stores/user'
 import { useTaskStore } from '../stores/task'
@@ -220,6 +234,7 @@ import { Modal, message } from 'ant-design-vue'
 import { getSessions, updateSessionTitle, deleteSession, togglePinSession, exportSession } from '../api/chatSession'
 import AvatarFrame from '../components/AvatarFrame.vue'
 import LevelTag from '../components/LevelTag.vue'
+import ConversationSearchModal from '../components/chat/modals/ConversationSearchModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -244,6 +259,7 @@ let sessionObserver = null
 const renameVisible = ref(false)
 const renameValue = ref('')
 const renameTarget = ref(null)
+const conversationSearchOpen = ref(false)
 const userDropdownOpen = ref(false)
 const sessionsCollapsed = ref(false)
 const sidebarCollapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
@@ -443,6 +459,16 @@ function startRename(session) {
   renameTarget.value = session
   renameValue.value = session.title || ''
   renameVisible.value = true
+}
+
+function openConversationSearch() {
+  conversationSearchOpen.value = true
+}
+
+function handleConversationSearchPick(item) {
+  if (!item || !item.sessionId) return
+  // 直接跳转到目标会话；messageId 可由 Chat 视图后续用于高亮定位（当前先不实现高亮）
+  router.push(`/app/chat/${item.sessionId}`)
 }
 
 async function confirmRename() {
@@ -748,6 +774,30 @@ watch(sessionLoadMoreRef, (el) => {
   letter-spacing: 0.5px;
   cursor: pointer;
   user-select: none;
+}
+.section-title-label {
+  flex: 1;
+  min-width: 0;
+}
+.section-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.section-title-search {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--color-mute);
+  transition: background 0.15s, color 0.15s;
+}
+.section-title-search:hover {
+  background: var(--sidebar-bg-hover);
+  color: var(--sidebar-text-bright);
 }
 .section-title:hover {
   color: var(--color-mute);

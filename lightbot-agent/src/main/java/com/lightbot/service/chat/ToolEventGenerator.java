@@ -412,6 +412,26 @@ public class ToolEventGenerator {
     }
 
     /**
+     * 上下文压缩（Summary）实时状态事件
+     *
+     * @param status  状态：started / completed / failed
+     * @param message 状态描述（如压缩前后的条数、失败原因），可为 null
+     */
+    public String contextCompressionEvent(String status, String message) {
+        try {
+            Map<String, Object> evt = new LinkedHashMap<>();
+            evt.put("type", "context_compression");
+            evt.put("status", status != null ? status : "started");
+            if (message != null && !message.isBlank()) {
+                evt.put("message", message);
+            }
+            return objectMapper.writeValueAsString(evt);
+        } catch (Exception e) {
+            return safeFallbackJson(Map.of("type", "context_compression", "status", status != null ? status : "started"));
+        }
+    }
+
+    /**
      * SubAgent 流式错误事件
      */
     public String subagentErrorEvent(String subagentName, String displayName, String message, String code, int contentOffset) {

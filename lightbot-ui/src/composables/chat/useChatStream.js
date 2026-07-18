@@ -378,6 +378,18 @@ export function useChatStream(deps) {
               abortController.value = null
               return
             }
+            // 上下文压缩实时状态：started 时切换占位文案，completed/failed 后恢复"正在思考…"
+            // 让用户在长会话首次响应延迟期间看到"正在压缩 N 条"提示，避免误判卡死
+            if (event.type === 'context_compression') {
+              if (event.status === 'started') {
+                currentStatus.value = event.message || '正在压缩上下文…'
+                scrollToBottom()
+              } else {
+                // completed/failed：恢复默认思考态，等首个 LLM chunk 到达后再被覆盖
+                currentStatus.value = ''
+              }
+              return
+            }
             // 1.3 模型调用重试事件：保留流式状态，只更新专门提示块
             if (event.type === 'error_retry') {
               assistantMsg._errorRetry = {

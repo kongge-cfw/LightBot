@@ -58,6 +58,7 @@
             :is-done="isToolBlockSegmentDone(msg, segment.block)"
             :default-expanded="!!msg._streaming"
             :message-index="index"
+            :message-id="msg._id"
             @heightChange="$emit('height-change', $event)"
           />
           <AgentCapabilityPanel

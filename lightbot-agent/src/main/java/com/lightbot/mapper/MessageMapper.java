@@ -2,6 +2,7 @@ package com.lightbot.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.lightbot.entity.Message;
+import com.lightbot.vo.ConversationSearchResultVO;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -75,4 +76,30 @@ public interface MessageMapper extends BaseMapper<Message> {
             """)
     Message selectPreviousUserMessage(@Param("sessionId") Long sessionId,
                                       @Param("beforeMessageId") Long beforeMessageId);
+
+    /**
+     * 跨会话按关键词搜索消息：返回每条命中消息 + 所属会话基础信息（标题/agent/置顶/最后消息时间）。
+     * <p>限当前用户的会话，关键字使用 ILIKE 不区分大小写模糊匹配</p>
+     */
+    @Select("""
+            SELECT m.id           AS messageId,
+                   m.role         AS messageRole,
+                   m.content      AS snippet,
+                   m.create_time  AS messageCreateTime,
+                   s.id           AS sessionId,
+                   s.title        AS sessionTitle,
+                   s.agent_id     AS agentId,
+                   s.pinned       AS pinned,
+                   s.last_message_at AS sessionLastMessageAt
+            FROM message m
+            JOIN chat_session s ON m.session_id = s.id
+            WHERE s.user_id = #{userId}
+              AND s.deleted = 0
+              AND m.content ILIKE CONCAT('%', #{keyword}, '%')
+            ORDER BY m.create_time DESC, m.id DESC
+            LIMIT #{limit}
+            """)
+    List<ConversationSearchResultVO> searchConversationsByContent(@Param("userId") Long userId,
+                                                                  @Param("keyword") String keyword,
+                                                                  @Param("limit") int limit);
 }

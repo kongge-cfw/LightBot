@@ -50,6 +50,14 @@ export function searchMessages(sessionId, keyword, params = {}) {
   })
 }
 
+export function searchConversations(q, limit = 20) {
+  return request.get('/chat/sessions/search', { params: { q, limit } })
+}
+
+export function getToolResultDetail(messageId, index) {
+  return request.get(`/chat/sessions/messages/${messageId}/tool-result`, { params: { index } })
+}
+
 export function exportSession(id, format = 'markdown') {
   return request.get(`/chat/sessions/${id}/export`, {
     params: { format },

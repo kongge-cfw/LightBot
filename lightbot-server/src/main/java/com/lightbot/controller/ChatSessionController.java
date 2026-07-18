@@ -8,6 +8,7 @@ import com.lightbot.entity.Message;
 import com.lightbot.service.ChatSessionService;
 import com.lightbot.service.MessageService;
 import com.lightbot.service.SessionFileService;
+import com.lightbot.vo.ConversationSearchResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -125,6 +126,23 @@ public class ChatSessionController {
             @RequestParam(defaultValue = "1") int pageNum,
             @RequestParam(defaultValue = "20") int pageSize) {
         return Result.ok(messageService.searchBySessionId(id, keyword, pageNum, pageSize));
+    }
+
+    @Operation(summary = "跨会话搜索消息（按内容匹配）")
+    @GetMapping("/search")
+    public Result<List<ConversationSearchResultVO>> searchConversations(
+            @RequestParam String q,
+            @RequestParam(defaultValue = "20") int limit) {
+        long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(messageService.searchConversations(userId, q, limit));
+    }
+
+    @Operation(summary = "按需拉取工具调用结果详情")
+    @GetMapping("/messages/{messageId}/tool-result")
+    public Result<String> getToolResultDetail(
+            @PathVariable Long messageId,
+            @RequestParam int index) {
+        return Result.ok(messageService.getToolResultDetail(messageId, index));
     }
 
     @Operation(summary = "切换消息收藏状态")

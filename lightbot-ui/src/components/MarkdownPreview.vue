@@ -13,7 +13,7 @@
 </template>
 
 <script setup>
-import { watch, shallowRef, ref, nextTick } from 'vue'
+import { watch, shallowRef, ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { message } from 'ant-design-vue'
 import { renderMarkdown } from '@/utils/markdown_preview'
 import { renderMermaidDiagrams, resetMermaidTheme } from '@/utils/mermaidRender'
@@ -21,6 +21,11 @@ import {
   enhanceMarkdownInteractiveElements,
   destroyMarkdownInteractiveEnhancements,
 } from '@/utils/markdownInteractiveEnhance'
+import {
+  mountHtmlPreviewIframes,
+  cleanupHtmlPreviewFrames,
+  handleHtmlPreviewHeightMessage,
+} from '@/utils/htmlPreviewMount'
 import { useTheme } from '@/composables/useTheme'
 import { copyToClipboard } from '@/utils/clipboard'
 import ChatMediaPreview from '@/components/ChatMediaPreview.vue'
@@ -89,6 +94,14 @@ function stripFrontmatter(text) {
   return text.replace(/^---\n[\s\S]*?\n---\n?/, '')
 }
 
+// html:preview iframe 高度自适应消息：组件挂载时绑定、卸载时移除
+const onHtmlPreviewMessage = (event) => handleHtmlPreviewHeightMessage(event, containerRef.value)
+onMounted(() => window.addEventListener('message', onHtmlPreviewMessage))
+onBeforeUnmount(() => {
+  window.removeEventListener('message', onHtmlPreviewMessage)
+  cleanupHtmlPreviewFrames(containerRef.value)
+})
+
 watch(
   () => [props.content, props.finalized, isDark.value],
   async ([val, finalized], _, onCleanup) => {
@@ -122,6 +135,10 @@ watch(
     enhanceMarkdownInteractiveElements(containerRef.value, {
       onCodeCopy: copyCodeText,
     })
+    // 挂载 html:preview iframe（流式期间未闭合围栏为骨架占位，无需挂载）
+    mountHtmlPreviewIframes(containerRef.value)
+    // 清理已不在 DOM 中的旧 iframe 引用（避免 message 监听器内存泄漏）
+    cleanupHtmlPreviewFrames(containerRef.value)
   },
   { immediate: true }
 )
@@ -442,6 +459,103 @@ watch(
   pre.shiki.github-light code span:not([style*='color']) {
     color: inherit;
   }
+
+  /* ── html:preview sandboxed iframe 预览 ── */
+  .html-preview-render {
+    width: var(--html-preview-width, 800px);
+    max-width: 100%;
+    margin: 14px 0;
+    overflow: hidden;
+    background: #fff;
+    border: 1px solid var(--gray-100);
+    border-radius: 8px;
+  }
+  .html-preview-frame-slot {
+    display: block;
+    width: 100%;
+    height: var(--html-preview-min-height, 1px);
+    max-height: var(--html-preview-max-height, 700px);
+    background: #fff;
+  }
+  .html-preview-frame {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    background: #fff;
+  }
+  .html-preview-srcdoc {
+    display: none;
+  }
+
+  /* 流式未闭合围栏：骨架占位（避免空白卡片） */
+  .html-preview-loading-slot {
+    display: block;
+    width: 100%;
+    height: clamp(var(--html-preview-height, 360px), 58vh, var(--html-preview-max-height, 700px));
+    padding: 24px;
+    background: linear-gradient(180deg, #fff 0%, var(--gray-25) 100%);
+  }
+  .html-preview-loading-canvas {
+    position: relative;
+    box-sizing: border-box;
+    width: 100%;
+    height: 100%;
+    padding: 26px 28px;
+  }
+  .html-preview-loading-text {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+  .html-preview-skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: 6px;
+    background: var(--gray-100);
+  }
+  .html-preview-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.55) 50%,
+      transparent 100%
+    );
+    animation: html-preview-skeleton-shimmer 1.45s ease-in-out infinite;
+  }
+  @keyframes html-preview-skeleton-shimmer {
+    100% { transform: translateX(100%); }
+  }
+  .html-preview-skeleton-title {
+    width: min(280px, 52%);
+    height: 28px;
+    margin-bottom: 22px;
+  }
+  .html-preview-skeleton-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .html-preview-skeleton-card {
+    height: 84px;
+    border-radius: 8px;
+  }
+  .html-preview-skeleton-line {
+    width: 70%;
+    height: 14px;
+    margin-top: 12px;
+    border-radius: 999px;
+  }
+  .html-preview-skeleton-line.wide { width: 88%; }
+  .html-preview-skeleton-line.short { width: 46%; }
 }
 .no-image-preview img {
   cursor: default;

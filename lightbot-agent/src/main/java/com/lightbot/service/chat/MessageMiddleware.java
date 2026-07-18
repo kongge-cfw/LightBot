@@ -77,6 +77,8 @@ public class MessageMiddleware implements ChatMiddleware {
     private final UserMemoryService userMemoryService;
     /** 用于把当前会话 todos 快照注入 system prompt，避免 AI 在长调研中漏传导致丢项 */
     private final SessionTodoService sessionTodoService;
+    /** 用于生成 SSE 状态事件 JSON（context_compression 等） */
+    private final ToolEventGenerator toolEventGenerator;
 
     /** 平台统一回复约束（不含工具相关，工具能力由 Provider 决定后按需追加） */
     private static final String PLATFORM_REPLY_CONSTRAINTS = """
@@ -93,6 +95,13 @@ public class MessageMiddleware implements ChatMiddleware {
             - **加粗** 和 *斜体* 标记必须成对出现，不要遗漏闭合符号
             - 列表项之间不要插入空行（否则会被解析为独立段落）
             - 代码块必须使用 ``` 包裹，不要缩进混用
+
+            ## HTML 可视化（生成可交互页面时必须遵守）
+            - 当用户要求「预览页面 / 做一个 demo / 可视化 / 交互组件」等需要浏览器渲染 HTML 的场景，
+              必须用 ```html:preview 围栏代码块输出**完整可直接运行的 HTML 文档**，平台会在沙盒 iframe 中渲染
+            - 不要把 HTML 放在普通 ```html 代码块里（用户看到的是源码而非渲染结果）
+            - HTML 内可以写 `<style>` 与 `<script>`；iframe 沙盒只放开 allow-scripts，禁止访问父窗口或外发请求
+            - 同一轮回答只输出一个 html:preview 块，必要时把说明文字写在围栏之外
 
             ## 对话聚焦
             - **只回答当前用户最后一条消息中的问题**；历史消息仅作背景，勿复述无关旧话题
@@ -203,7 +212,14 @@ public class MessageMiddleware implements ChatMiddleware {
                 ctx.getSessionId(), userText, ctx.getAgent(), ctx.getRequest(), ctx.getConfigMap(), ctx);
         ctx.setMessages(messages);
 
-        return next.proceed(ctx);
+        // 取出 buildMessages 期间累积的 pre-stream 状态事件（context_compression 等），
+        // prepend 到 next.proceed 之前下发，确保前端在 LLM 输出到达前收到占位提示
+        List<String> preStreamEvents = ctx.getPreStreamStatusEvents();
+        if (preStreamEvents == null || preStreamEvents.isEmpty()) {
+            return next.proceed(ctx);
+        }
+        return Flux.fromIterable(new ArrayList<>(preStreamEvents))
+                .concatWith(next.proceed(ctx));
     }
 
     /**
@@ -508,8 +524,9 @@ public class MessageMiddleware implements ChatMiddleware {
             history = history.subList(history.size() - maxContextMessages, history.size());
         }
 
-        // 5. 上下文摘要
-        history = summarizeIfNeeded(history, agentConfigMap, agent);
+        // 5. 上下文摘要：在压缩前后向 SSE 通道推送 context_compression 事件，
+        // 让前端展示"正在压缩上下文…"占位（避免长会话首次响应延迟被误判为卡死）
+        history = summarizeIfNeeded(history, agentConfigMap, agent, ctx);
 
         // 5.1 处理孤立 USER 消息：AI 回复失败或用户主动停止后，DB 会留下没有 ASSISTANT 配对的 USER 消息
         // 连续 USER 消息会导致 LLM 误判为需要回答多条，在孤立 USER 后插入占位 ASSISTANT 消息
@@ -773,8 +790,10 @@ public class MessageMiddleware implements ChatMiddleware {
 
     /**
      * 上下文摘要
+     * <p>压缩开始/完成/失败时通过 ctx.preStreamStatusEvents 推送 SSE 事件，
+     * 让前端展示占位提示；事件由 execute() 取出并 prepend 到主 Flux</p>
      */
-    private List<Message> summarizeIfNeeded(List<Message> history, Map<String, Object> configMap, Agent agent) {
+    private List<Message> summarizeIfNeeded(List<Message> history, Map<String, Object> configMap, Agent agent, ChatContext ctx) {
         if (!Boolean.TRUE.equals(configMap.get(ConfigKeys.Agent.ENABLE_SUMMARY))) {
             return history;
         }
@@ -805,6 +824,10 @@ public class MessageMiddleware implements ChatMiddleware {
 
         List<Message> olderMessages = history.subList(0, history.size() - keepRecent);
         List<Message> recentMessages = history.subList(history.size() - keepRecent, history.size());
+
+        // 推送 started 事件：附原始条数与体积，让前端展示"正在压缩 N 条 / M KB"
+        emitPreStreamEvent(ctx, toolEventGenerator.contextCompressionEvent("started",
+                "压缩 " + history.size() + " 条 / " + String.format("%.1f", totalKb) + "KB"));
 
         try {
             Long providerId = providerResolver.resolveFromConfig(configMap);
@@ -844,6 +867,7 @@ public class MessageMiddleware implements ChatMiddleware {
             String summary = response.getResult().getOutput().getText().trim();
 
             if (summary.isBlank()) {
+                emitPreStreamEvent(ctx, toolEventGenerator.contextCompressionEvent("failed", "摘要内容为空，使用原始上下文"));
                 return history;
             }
 
@@ -856,10 +880,25 @@ public class MessageMiddleware implements ChatMiddleware {
 
             log.info("[Chat][Summary] 上下文摘要完成: 原始{}条({}KB) → 摘要+最近{}条",
                     history.size(), String.format("%.1f", totalKb), keepRecent);
+            // 推送 completed 事件：附压缩后条数，让前端停止占位动画
+            emitPreStreamEvent(ctx, toolEventGenerator.contextCompressionEvent("completed",
+                    "压缩完成，保留 " + result.size() + " 条"));
             return result;
         } catch (Exception e) {
             log.warn("[Chat][Summary] 摘要生成失败，使用原始上下文: {}", e.getMessage());
+            emitPreStreamEvent(ctx, toolEventGenerator.contextCompressionEvent("failed",
+                    "摘要生成失败：" + e.getMessage()));
             return history;
+        }
+    }
+
+    /**
+     * 把 SSE 状态事件追加到 ctx.preStreamStatusEvents，
+     * 由 execute() 在 next.proceed 之前 prepend 到主 Flux 下发
+     */
+    private void emitPreStreamEvent(ChatContext ctx, String statusJson) {
+        if (ctx != null && statusJson != null && !statusJson.isBlank()) {
+            ctx.getPreStreamStatusEvents().add(ToolEventGenerator.STATUS_PREFIX + statusJson);
         }
     }
 

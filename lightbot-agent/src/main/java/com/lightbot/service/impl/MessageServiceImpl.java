@@ -17,6 +17,7 @@ import com.lightbot.service.ChatAttachmentParsedService;
 import com.lightbot.service.MessageService;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.SessionStoragePath;
+import com.lightbot.vo.ConversationSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -45,10 +46,86 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
 
     @Override
     public Page<Message> listBySessionIdPage(Long sessionId, int pageNum, int pageSize) {
-        return baseMapper.selectPage(new Page<>(pageNum, pageSize),
+        Page<Message> page = baseMapper.selectPage(new Page<>(pageNum, pageSize),
                 new LambdaQueryWrapper<Message>()
                         .eq(Message::getSessionId, sessionId)
                         .orderByDesc(Message::getCreateTime));
+        // 1. 历史列表场景剥离 tool_result.result 正文，仅保留长度提示，
+        //    前端展开「查看结果」时调 getToolResultDetail 按需拉取完整 JSON
+        for (Message msg : page.getRecords()) {
+            msg.setToolEvents(compactToolEventsForList(msg.getToolEvents()));
+        }
+        return page;
+    }
+
+    /**
+     * 历史列表 toolEvents 瘦身：剥离所有 type=tool_result 事件的 result 正文，仅保留长度提示。
+     * 前端展开时按 messageId+index 调 getToolResultDetail 按需拉取完整内容
+     */
+    private String compactToolEventsForList(String toolEventsJson) {
+        if (toolEventsJson == null || toolEventsJson.isBlank()) {
+            return toolEventsJson;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(toolEventsJson);
+            if (!root.isArray() || root.isEmpty()) {
+                return toolEventsJson;
+            }
+            boolean changed = false;
+            List<JsonNode> output = new ArrayList<>();
+            for (JsonNode evt : root) {
+                if (!"tool_result".equals(evt.path("type").asText())) {
+                    output.add(evt);
+                    continue;
+                }
+                JsonNode resultNode = evt.get("result");
+                String result = resultNode != null ? resultNode.asText("") : "";
+                // 1. 删除 result 正文，仅保留长度供前端显示大小提示
+                com.fasterxml.jackson.databind.node.ObjectNode mutable = evt.deepCopy();
+                mutable.remove("result");
+                if (!result.isEmpty()) {
+                    mutable.put("resultTotalLength", result.length());
+                }
+                output.add(mutable);
+                changed = true;
+            }
+            if (!changed) {
+                return toolEventsJson;
+            }
+            return objectMapper.writeValueAsString(output);
+        } catch (Exception e) {
+            log.warn("[Message] 瘦身 toolEvents 失败：{}", e.getMessage());
+            return toolEventsJson;
+        }
+    }
+
+    @Override
+    public String getToolResultDetail(Long messageId, int eventIndex) {
+        // 1. 按 id 取原始 message（未经瘦身），保证拿到完整 result
+        Message msg = getById(messageId);
+        if (msg == null) {
+            throw new BizException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+        String toolEventsJson = msg.getToolEvents();
+        if (toolEventsJson == null || toolEventsJson.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(toolEventsJson);
+            if (!root.isArray() || eventIndex < 0 || eventIndex >= root.size()) {
+                return null;
+            }
+            JsonNode evt = root.get(eventIndex);
+            if (!"tool_result".equals(evt.path("type").asText())) {
+                return null;
+            }
+            JsonNode resultNode = evt.get("result");
+            return resultNode != null ? resultNode.asText("") : "";
+        } catch (Exception e) {
+            log.warn("[Message] 读取 tool_result 详情失败：messageId={}, index={}, err={}",
+                    messageId, eventIndex, e.getMessage());
+            return null;
+        }
     }
 
     @Override
@@ -128,6 +205,49 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
                         .eq(Message::getSessionId, sessionId)
                         .like(Message::getContent, keyword)
                         .orderByDesc(Message::getCreateTime));
+    }
+
+    @Override
+    public List<ConversationSearchResultVO> searchConversations(Long userId, String keyword, int limit) {
+        // 1. 关键词归一化：trim 后为空直接返回空列表（避免 ILIKE '%%' 全表扫描）
+        String normalized = keyword == null ? "" : keyword.trim();
+        if (normalized.isEmpty() || userId == null) {
+            return List.of();
+        }
+        // 2. 关键词长度限制：避免超长关键字拖慢 ILIKE
+        String boundedKeyword = normalized.length() > 64 ? normalized.substring(0, 64) : normalized;
+        // 3. 查询数量兜底
+        int boundedLimit = Math.max(1, Math.min(limit, 50));
+        // 4. 查询并裁剪 snippet 到 200 字符
+        List<ConversationSearchResultVO> raw = baseMapper.searchConversationsByContent(userId, boundedKeyword, boundedLimit);
+        for (ConversationSearchResultVO item : raw) {
+            item.setSnippet(truncateSnippet(item.getSnippet(), boundedKeyword, 200));
+        }
+        return raw;
+    }
+
+    /**
+     * 裁剪 snippet：保留关键字上下文窗口，最多 maxLen 字符
+     */
+    private String truncateSnippet(String content, String keyword, int maxLen) {
+        if (content == null) {
+            return "";
+        }
+        if (content.length() <= maxLen) {
+            return content;
+        }
+        // 1. 大小写不敏感定位关键字位置，命中则截取上下文窗口
+        int idx = content.toLowerCase().indexOf(keyword.toLowerCase());
+        if (idx < 0) {
+            return content.substring(0, maxLen) + "…";
+        }
+        // 2. 上下文窗口：关键字前 60 字符 + 关键字 + 剩余到 maxLen
+        int start = Math.max(0, idx - 60);
+        int end = Math.min(content.length(), start + maxLen);
+        String snippet = content.substring(start, end);
+        String prefix = start > 0 ? "…" : "";
+        String suffix = end < content.length() ? "…" : "";
+        return prefix + snippet + suffix;
     }
 
     @Override

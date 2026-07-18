@@ -593,11 +593,13 @@ public class ChatServiceImpl implements ChatService {
                     meta.put("toolBlockOffsets", offsets);
                 }
             }
-            if (ctx.getReasoningContent().length() > 0) {
+            // 敏感拦截时不再暴露 reasoningContent（拦截前累积的思考也不应透出）；
+            // 仅保留 sensitiveBlock 标记与必要 ID 字段
+            if (!ctx.isSensitiveAiBlocked() && ctx.getReasoningContent().length() > 0) {
                 meta.put("reasoningContent", com.lightbot.util.TextNormalizeUtil.sanitizeForDatabase(
                         ctx.getReasoningContent().toString()));
             }
-            if (ctx.getSensitiveStreamState() != null && ctx.getSensitiveStreamState().isBlocked()) {
+            if (ctx.isSensitiveAiBlocked()) {
                 meta.put("sensitiveBlock", "ai_output");
             }
             if (ctx.getRequestId() != null && !ctx.getRequestId().isBlank()) {
@@ -744,6 +746,10 @@ public class ChatServiceImpl implements ChatService {
         if (ctx.isAborted()) {
             return Flux.empty();
         }
+        // 上一轮或本轮已触发敏感拦截：跳过后续 LLM 调用，让 buildDoneEvent 立即收尾
+        if (ctx.isSensitiveAiBlocked()) {
+            return Flux.empty();
+        }
         int maxSteps = resolveMaxExecutionSteps(ctx.getConfigMap());
         if (depth >= maxSteps) {
             log.warn("[Chat][Trace] 工具调用递归深度达到上限({})，停止循环", depth);
@@ -786,6 +792,11 @@ public class ChatServiceImpl implements ChatService {
 
         return streamModelWithRetry(ctx, chatModel, prompt, depth, eventSink)
                 .concatMap(response -> {
+                    // 已触发 AI 输出敏感拦截：跳过后续 chunk（含 metadata reasoning、正文增量），
+                    // 由首条 sensitive_block + buildDoneEvent 最小 metadata 收尾
+                    if (ctx.isSensitiveAiBlocked()) {
+                        return Flux.empty();
+                    }
                     Generation gen = response.getResult();
                     AssistantMessage assistantMsg = (gen != null) ? gen.getOutput() : null;
 
@@ -1006,18 +1017,11 @@ public class ChatServiceImpl implements ChatService {
                         return Flux.empty();
                     });
 
+                    // tool_result 已由 appendToolCallResult 写入 statusFluxes，此处不再重复推送，
+                    // 否则前端会收到两次相同的 tool_result 事件（工具卡片渲染两份）。
                     long nextLlmStart = System.currentTimeMillis();
-                    List<Flux<String>> toolResultEvents = new ArrayList<>();
                     final int resultContentOffset = toolContentOffset;
-                    for (org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse tr : toolResponses) {
-                        if (!DelegateSubAgentTool.TOOL_NAME.equals(tr.name())) {
-                            String dn = getToolDisplayName(ctx, tr.name());
-                            String icon = getToolIcon(ctx, tr.name());
-                            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dn, icon, tr.responseData(), resultContentOffset)));
-                        }
-                    }
                     Flux<String> toolEventFlux = Flux.concat(statusFluxes)
-                            .concatWith(Flux.concat(toolResultEvents))
                             .concatWith(Flux.just(STATUS_PREFIX + toolEventGenerator.toolCompleteEvent(resultContentOffset)))
                             .concatWith(afterTool);
                     // 正文先于组件事件下发，确保组件插在完整正文之后，不腰斩已产出内容
@@ -1187,6 +1191,8 @@ public class ChatServiceImpl implements ChatService {
             if (filtered.blocked()) {
                 fullReply.setLength(0);
                 fullReply.append(filtered.text());
+                // 非流式路径同样置标记位，让 buildPersistMetadata 跳过 reasoningContent 暴露
+                ctx.setSensitiveAiBlocked(true);
                 spans.add(LlmTraceSpanDTO.of(llmSpanId, "s1", "llm_call", llmCallStart,
                         System.currentTimeMillis() - llmCallStart, "OK",
                         Map.of("depth", depth, "model", configMap.getOrDefault("modelId", ""),
@@ -1331,15 +1337,10 @@ public class ChatServiceImpl implements ChatService {
         List<Map<String, Object>> kbResultsRef = kbResultsHolder;
         Flux<String> afterTool = buildToolMetadataFlux(kbResultsRef, toolEventsList, ragMetadataHolder);
 
-        List<Flux<String>> toolResultEvents = new ArrayList<>();
+        // tool_result 已由 appendToolCallResult 写入 statusFluxes，此处不再重复推送，
+        // 否则前端会收到两次相同的 tool_result 事件（工具卡片渲染两份）。
         final int resultContentOffset = toolContentOffset;
-        for (org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse tr : toolResponses) {
-            String dnRes = getToolDisplayName(ctx, tr.name());
-            String iconRes = getToolIcon(ctx, tr.name());
-            toolResultEvents.add(Flux.just(STATUS_PREFIX + toolEventGenerator.toolResultEvent(tr.name(), dnRes, iconRes, tr.responseData(), resultContentOffset)));
-        }
         Flux<String> toolEventFlux = Flux.concat(statusFluxes)
-                .concatWith(Flux.concat(toolResultEvents))
                 .concatWith(Flux.just(STATUS_PREFIX + toolEventGenerator.toolCompleteEvent(resultContentOffset)))
                 .concatWith(afterTool);
         trimToolCallContext(messages);
@@ -1594,12 +1595,23 @@ public class ChatServiceImpl implements ChatService {
         var mediaAttachments = ChatDocumentMessageUtil.filterMedia(ctx.getRequest().getAttachments());
         return mimoChatClient.streamChat(provider, configMap, messages, mediaAttachments)
                 .concatMap(chunk -> {
+                    // 已触发敏感拦截：丢弃后续 chunk，避免重复发 sensitive_block 与正文增量
+                    if (ctx.isSensitiveAiBlocked()) {
+                        return Flux.empty();
+                    }
                     // MimoChatClient 已处理 reasoning 提取（emitReasoningContent），
                     // 此处直接透传 [STATUS] 事件，无需重复解析
                     if (chunk.startsWith(STATUS_PREFIX)) {
                         return Flux.just(chunk);
                     }
                     String delta = sensitiveState != null ? sensitiveState.processChunk(chunk) : chunk;
+                    if (sensitiveState != null && sensitiveState.isBlocked()) {
+                        // MiMo 直连首次命中敏感词：清空已累积正文写入拦截文案，置标记位短路后续 chunk
+                        fullReply.setLength(0);
+                        fullReply.append(SensitiveWordFilter.AI_BLOCK_MESSAGE);
+                        ctx.setSensitiveAiBlocked(true);
+                        return Flux.just(STATUS_PREFIX + toolEventGenerator.sensitiveBlockEvent("ai_output", SensitiveWordFilter.AI_BLOCK_MESSAGE));
+                    }
                     if (delta.isEmpty()) {
                         return Flux.empty();
                     }
@@ -1677,6 +1689,11 @@ public class ChatServiceImpl implements ChatService {
                                                 InlineThinkingStreamParser.ParseResult parsed,
                                                 Runnable onContentAppended,
                                                 boolean appendToFullReply) {
+        // 已触发敏感拦截：丢弃后续 chunk（reasoning/正文均不再累积、不再重复发 sensitive_block），
+        // 只让首条 sensitive_block 事件下发，DONE 由 buildDoneEvent 按最小 metadata 输出
+        if (ctx.isSensitiveAiBlocked()) {
+            return Flux.empty();
+        }
         if (parsed.isEmpty()) {
             return Flux.empty();
         }
@@ -1694,8 +1711,10 @@ public class ChatServiceImpl implements ChatService {
                     ? ctx.getSensitiveStreamState().processChunk(contentDelta)
                     : SensitiveWordFilter.filterAiOutput(contentDelta, ctx.getConfigMap(), agent.getId(), ctx.getSessionId()).text();
             if (ctx.getSensitiveStreamState() != null && ctx.getSensitiveStreamState().isBlocked()) {
+                // 首次命中：清空已累积正文写入拦截文案，置标记位让后续 chunk 全部短路
                 ctx.getFullReply().setLength(0);
                 ctx.getFullReply().append(SensitiveWordFilter.AI_BLOCK_MESSAGE);
+                ctx.setSensitiveAiBlocked(true);
                 return Flux.just(STATUS_PREFIX + toolEventGenerator.sensitiveBlockEvent("ai_output", SensitiveWordFilter.AI_BLOCK_MESSAGE));
             }
             if (!delta.isEmpty()) {
