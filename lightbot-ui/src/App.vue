@@ -1,6 +1,10 @@
 <template>
   <a-config-provider :locale="zhCN" :theme="themeConfig">
-    <router-view />
+    <router-view v-slot="{ Component, route: r }">
+      <transition name="route-fade" mode="out-in">
+        <component :is="Component" :key="r.matched[0]?.path || r.path" />
+      </transition>
+    </router-view>
   </a-config-provider>
 </template>
 
@@ -442,5 +446,19 @@ body {
 [data-theme="dark"] .web-search-result *,
 [data-theme="dark"] .sandbox-file-result * {
   border-color: var(--color-hairline) !important;
+}
+
+/* 顶层路由切换：淡入淡出，仅作用于 Landing/Login/MainLayout 等顶层路由 */
+.route-fade-enter-active,
+.route-fade-leave-active {
+  transition: opacity 0.32s cubic-bezier(0.22, 1, 0.36, 1), transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.route-fade-enter-from {
+  opacity: 0;
+  transform: translateY(6px) scale(0.992);
+}
+.route-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.992);
 }
 </style>

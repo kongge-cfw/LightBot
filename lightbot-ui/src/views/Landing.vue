@@ -86,15 +86,15 @@
       <main class="hero-section">
         <div class="hero-layout">
           <!-- 左侧文案 -->
-          <div class="hero-content reveal-up">
+          <div class="hero-content">
             <h1 class="title reveal-up delay-1">{{ config.title || 'LightBot' }}</h1>
             <Transition name="subtitle-switch" mode="out-in">
-              <p v-if="currentSubtitle" class="subtitle" :key="currentSubtitle">
+              <p v-if="currentSubtitle" class="subtitle reveal-up delay-2" :key="currentSubtitle">
                 {{ currentSubtitle }}
               </p>
             </Transition>
-            <p class="description reveal-up delay-1">{{ config.description }}</p>
-            <div class="hero-actions reveal-up delay-2">
+            <p class="description reveal-up delay-3">{{ config.description }}</p>
+            <div class="hero-actions reveal-up delay-4">
               <button class="button-base primary" @click="handleStart">
                 <span>开始体验</span>
                 <RightOutlined />
@@ -103,7 +103,7 @@
           </div>
 
           <!-- 右侧功能动画 -->
-          <aside class="hero-visual reveal-up delay-1">
+          <aside class="hero-visual reveal-up">
             <div class="visual-card">
               <div class="visual-glow" aria-hidden="true"></div>
               <div class="feature-grid">
@@ -142,7 +142,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { getLandingConfig } from '../api/landing'
 import { checkHealth } from '../api/systemConfig'
@@ -178,6 +178,7 @@ import {
 } from '@ant-design/icons-vue'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 const { isDark, toggleTheme } = useTheme()
 const isLoggedIn = computed(() => !!userStore.token)
@@ -280,6 +281,12 @@ function stopSubtitleCycle() {
 }
 
 function handleStart() {
+  // 优先恢复 redirect_url：后端不可用时跳转 Landing 携带的原页面路径
+  const redirect = route.query.redirect
+  if (typeof redirect === 'string' && redirect && !redirect.startsWith('//')) {
+    router.push(redirect)
+    return
+  }
   if (userStore.token) {
     router.push('/app/chat')
   } else {
@@ -324,14 +331,7 @@ async function doHealthCheck() {
   isLoading.value = true
   try {
     await checkHealth()
-    // 健康检查通过，尝试恢复上次停留的页面
-    const lastRoute = localStorage.getItem('lastRoute')
-    if (lastRoute) {
-      localStorage.removeItem('lastRoute')
-      router.replace(lastRoute)
-      return
-    }
-    // 加载配置
+    // 加载 Landing 配置；redirect_url 恢复交给「开始体验」按钮，不在健康检查通过后自动跳转
     if (isLoggedIn.value && !userStore.user) {
       try { await userStore.fetchUser() } catch { /* ignore */ }
     }
@@ -681,32 +681,43 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  height: 52px;
-  padding: 0 32px;
+  gap: 10px;
+  height: 54px;
+  padding: 0 36px;
   border-radius: 100px;
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   border: none;
   text-decoration: none;
-  transition: all 0.2s;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.25s ease;
   font-family: var(--font-sans);
+  letter-spacing: 0.01em;
 }
 .button-base.primary {
   background: linear-gradient(135deg, #0070f3, #3898ec);
   color: #fff;
-  box-shadow: 0 8px 24px -4px rgba(0, 112, 243, 0.4);
+  box-shadow: 0 8px 24px -6px rgba(0, 112, 243, 0.45),
+              inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 .button-base.primary:hover {
   background: linear-gradient(135deg, #005bcc, #0070f3);
-  box-shadow: 0 12px 28px -4px rgba(0, 112, 243, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px -6px rgba(0, 112, 243, 0.55),
+              inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
-.button-base.primary:hover :deep(svg) {
-  transform: translateX(3px);
+.button-base.primary:active {
+  transform: translateY(0) scale(0.985);
+  box-shadow: 0 6px 18px -6px rgba(0, 112, 243, 0.4);
+  transition-duration: 0.08s;
 }
 .button-base.primary :deep(svg) {
-  transition: transform 0.2s ease;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.button-base.primary:hover :deep(svg) {
+  transform: translateX(5px);
 }
 
 /* Ant Design icon sizing */
@@ -861,16 +872,35 @@ onUnmounted(() => {
 /* 入场动画 */
 .reveal-up {
   opacity: 0;
-  transform: translateY(16px);
-  animation: revealUp 0.7s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  transform: translateY(20px);
+  animation: revealUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
-.reveal-up.delay-1 { animation-delay: 110ms; }
-.reveal-up.delay-2 { animation-delay: 220ms; }
+.reveal-up.delay-1 { animation-delay: 140ms; }
+.reveal-up.delay-2 { animation-delay: 280ms; }
+.reveal-up.delay-3 { animation-delay: 380ms; }
+.reveal-up.delay-4 { animation-delay: 460ms; }
 
 @keyframes revealUp {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* 视觉卡片：从右侧轻滑入 + 轻微缩放，配合左侧文案节奏 */
+.hero-visual.reveal-up {
+  animation-name: revealVisualCard;
+  animation-duration: 0.9s;
+  animation-delay: 200ms;
+}
+@keyframes revealVisualCard {
+  from {
+    opacity: 0;
+    transform: translateX(28px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
   }
 }
 
