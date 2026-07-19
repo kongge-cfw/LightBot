@@ -201,6 +201,43 @@ function isListContinuationLine(line) {
 }
 
 /**
+ * 表格结束后若紧跟普通段落，补空行，避免 markdown-it 把段落吞进表格末行
+ * （复用 isTableDataLine 的判定口径：含 ≥2 个 | 分隔单元格才算表格行）
+ */
+function ensureBlankLineAfterTables(text) {
+  if (!text) return text
+  const lines = text.split('\n')
+  const out = []
+  let inFence = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trim = line.trim()
+
+    if (trim.startsWith('```')) {
+      inFence = !inFence
+      out.push(line)
+      continue
+    }
+    if (inFence) {
+      out.push(line)
+      continue
+    }
+
+    const isTableRow = isTableDataLine(line)
+    const prevLine = out.length > 0 ? out[out.length - 1] : ''
+    const prevIsTableRow = isTableDataLine(prevLine)
+
+    if (!isTableRow && trim !== '' && prevIsTableRow) {
+      out.push('')
+    }
+
+    out.push(line)
+  }
+  return out.join('\n')
+}
+
+/**
  * 列表结束后若紧跟普通段落，补空行，避免 markdown-it 将段落解析为列表 lazy continuation
  */
 function ensureBlankLineAfterLists(text) {
@@ -315,6 +352,7 @@ function preprocessMarkdown(text) {
   s = normalizeCodeFences(s)
   s = normalizeBlankLineAfterHtmlBlocks(s)
   s = ensureBlankLineAfterLists(s)
+  s = ensureBlankLineAfterTables(s)
   s = convertStandaloneThematicBreaks(s)
   s = ensureBlankLineAfterHtmlHr(s)
   return s
