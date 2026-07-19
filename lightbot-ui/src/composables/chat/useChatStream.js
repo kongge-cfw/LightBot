@@ -8,7 +8,7 @@ import { enrichVideoThumbnails } from '../../utils/videoThumbnail'
 import { safeJsonParse } from '../../utils/request'
 import { getToolBlockOffsets, markToolBlockDone } from './useChatEventPartition.js'
 import { registerToolBlockOffset } from './useChatCapabilityStream.js'
-import { normalizeAssistantMessageErrors, hasMessageErrorState, resolveDeleteAssistantMessageId } from '../../utils/chat/messageErrorState.js'
+import { normalizeAssistantMessageErrors, resolveDeleteAssistantMessageId } from '../../utils/chat/messageErrorState.js'
 
 export function clearErrorRetry(msg) {
   if (msg?._errorRetry) {
@@ -71,6 +71,14 @@ export function useChatStream(deps) {
   } = deps
 
   let sendStartTime = 0
+  // 用户点终止后，等待后端通过 SSE 推 [DONE]+assistantMessageId 的兜底 abort 定时器
+  let stopFallbackTimer = null
+  const clearStopFallbackTimer = () => {
+    if (stopFallbackTimer) {
+      clearTimeout(stopFallbackTimer)
+      stopFallbackTimer = null
+    }
+  }
 
   async function submitAskUserResponse(payload) {
     if (!payload?.answers || !payload?.text || askUserModal.messageIndex < 0) {
@@ -94,8 +102,9 @@ export function useChatStream(deps) {
   /** 流被用户终止后，仅在本次请求确实落库时同步消息 ID（禁止借用历史助手消息 ID） */
   async function syncAbortedAssistantMessageId(sid, assistantMsg, sendStartMs) {
     if (!sid || !assistantMsg || assistantMsg._persisted) return
-    // 终止/错误/敏感拦截等未通过 DONE 落库的消息，不应绑定会话里其它助手消息的 ID
-    if (assistantMsg._terminated || assistantMsg._error || hasMessageErrorState(assistantMsg)) {
+    // 确知未落库的错误态（LLM 异常且 DONE 未带 assistantMessageId、敏感拦截）不轮询
+    // _terminated 不早退：终止消息后端一定落库（metadata.aborted=true），此处为 [DONE] 兜底补 ID
+    if (assistantMsg._error || assistantMsg._sensitiveBlock) {
       return
     }
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -481,12 +490,18 @@ export function useChatStream(deps) {
               toolEventRafHandle = 0
               flushToolEventBatch()
             }
-            // 用户主动停止时仍合并 [DONE] 中的消息 ID（后端可能已完成落库）
+            // 用户主动停止时仍合并 [DONE] 中的消息 ID（后端 buildDoneEvent 会落库并回传 assistantMessageId+aborted:true）
             if (userStoppedStream.value) {
+              // 收到 [DONE]，取消兜底 abort 定时器
+              clearStopFallbackTimer()
               if (assistantMsg) {
+                // 合并 [DONE] 元数据：设置 _id、_persisted=true、metadata.aborted 等
                 applyStreamDoneMetadata(assistantMsg, meta)
                 if (assistantMsg._id) loadBatchFeedbacks([assistantMsg])
               }
+              // finalizeAbortedStream 会把 _terminated=true 并清流式态；此时 _persisted 已由上一步置 true，
+              // 不会走 finalize 里的 `_id = null` 兜底分支，ID 得以保留供后续 regenerate/edit 删库
+              finalizeAbortedStream(assistantMsg, pushed)
               return
             }
             streamSmoother.stop()
@@ -665,23 +680,36 @@ export function useChatStream(deps) {
   }
 
   function stopGenerating() {
+    if (!abortController.value) return
+
     // 通知后端停止：置中断标记使 in-flight LLM 立即停，并连带取消子任务（fire-and-forget）
     const requestId = getCurrentStreamingMsg()?._requestId
     if (requestId) {
       stopChatStream(requestId).catch(() => {})
     }
-    if (abortController.value) {
-      userStoppedStream.value = true
-      abortController.value.abort()
-      abortController.value = null
-    }
-    // 兜底：AbortError 未及时触发时仍结束流式状态
-    setTimeout(() => {
+
+    // 标记为用户主动停止，让 onDone 走「合并 [DONE] 元数据但不覆盖 UI」分支
+    userStoppedStream.value = true
+
+    // 立即置流式相关 UI 为完结态，用户感知立即停止；但保留 SSE 连接等 [DONE] 补 ID
+    // [DONE] 到达时 onDone 会合并 assistantMessageId，然后本方法末尾的 finalize 逻辑收尾
+    currentStatus.value = '正在中断...'
+
+    // 兜底：5s 内没收到 [DONE] 就 abort TCP 走 AbortError 分支收尾
+    // 后端 buildDoneEvent 落库 + 发 [DONE] 通常在 100ms 内完成，5s 足够容错
+    clearStopFallbackTimer()
+    stopFallbackTimer = setTimeout(() => {
+      stopFallbackTimer = null
+      if (abortController.value) {
+        abortController.value.abort()
+        abortController.value = null
+      }
+      // 若 abort 也未触发 finalize，直接落地结束态
       if (!streaming.value) return
       const msg = getCurrentStreamingMsg()
         || [...messages.value].reverse().find(m => m.role === 'assistant' && m._streaming)
       if (msg) finalizeAbortedStream(msg, messages.value.includes(msg))
-    }, 120)
+    }, 5000)
   }
 
   return {
