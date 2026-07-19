@@ -4,11 +4,13 @@
       v-if="visible"
       ref="pickerRef"
       class="mention-picker"
+      role="listbox"
+      aria-label="提及候选列表"
       :style="pickerStyle"
       @mousedown.prevent
     >
       <a-spin :spinning="loading" size="small">
-        <div v-if="filteredItems.length === 0 && !loading" class="mention-empty">
+        <div v-if="filteredItems.length === 0 && !loading" class="mention-empty" role="status">
           {{ query ? `无匹配项：${query}` : '无可 @ 的资源' }}
         </div>
         <template v-else>
@@ -20,9 +22,14 @@
             <div class="mention-group-label">{{ groupLabel(group) }}</div>
             <div
               v-for="(item, ii) in group.items"
+              :id="`mention-option-${flatIndex(gi, ii)}`"
               :key="item.token"
               class="mention-item"
               :class="{ active: flatIndex(gi, ii) === activeIndex, disabled: !item.enabled }"
+              role="option"
+              :aria-selected="flatIndex(gi, ii) === activeIndex"
+              :aria-disabled="!item.enabled ? 'true' : undefined"
+              :tabindex="-1"
               @mouseenter="$emit('hover', flatIndex(gi, ii))"
               @click.stop="$emit('select', item)"
             >

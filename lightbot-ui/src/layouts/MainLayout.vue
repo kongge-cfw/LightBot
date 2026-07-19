@@ -235,6 +235,7 @@ import { getSessions, updateSessionTitle, deleteSession, togglePinSession, expor
 import AvatarFrame from '../components/AvatarFrame.vue'
 import LevelTag from '../components/LevelTag.vue'
 import ConversationSearchModal from '../components/chat/modals/ConversationSearchModal.vue'
+import { sseFetch } from '../utils/sseFetch'
 
 const route = useRoute()
 const router = useRouter()
@@ -511,34 +512,38 @@ function connectTaskSSE() {
   const token = localStorage.getItem('token') || ''
   if (!token) return
 
-  taskSSE = new EventSource(`/api/tasks/stream?satoken=${encodeURIComponent(token)}`)
-
-  taskSSE.addEventListener('count', (e) => {
-    try {
-      const counts = JSON.parse(e.data)
-      taskStore.updateCounts(counts)
-    } catch {
-      taskStore.updateCounts({ active: Number(e.data) || 0, pending: 0, running: 0 })
-    }
+  // 使用 sseFetch 替代 EventSource：token 走 Authorization Header，避免暴露在 URL（Nginx 日志 / Referer / 浏览器 history）
+  taskSSE = sseFetch('/api/tasks/stream', {
+    token,
+    onEvent: (evt) => {
+      // 后端推送 event: count \n data: {...}，sseFetch 已解析为 { event, data }
+      if (evt.event === 'count') {
+        try {
+          const counts = JSON.parse(evt.data)
+          taskStore.updateCounts(counts)
+        } catch {
+          taskStore.updateCounts({ active: Number(evt.data) || 0, pending: 0, running: 0 })
+        }
+      }
+    },
+    onDone: () => {
+      sseRetries = 0
+    },
+    onError: () => {
+      taskSSE = null
+      sseRetries++
+      if (sseRetries <= SSE_MAX_RETRIES) {
+        const delay = Math.min(SSE_BASE_DELAY * Math.pow(1.5, sseRetries - 1), 30000)
+        setTimeout(connectTaskSSE, delay)
+      }
+    },
+    maxRetries: 0,
   })
-
-  taskSSE.onopen = () => {
-    sseRetries = 0
-  }
-
-  taskSSE.onerror = () => {
-    taskSSE?.close()
-    taskSSE = null
-    sseRetries++
-    if (sseRetries <= SSE_MAX_RETRIES) {
-      const delay = Math.min(SSE_BASE_DELAY * Math.pow(1.5, sseRetries - 1), 30000)
-      setTimeout(connectTaskSSE, delay)
-    }
-  }
 }
 
 function disconnectTaskSSE() {
-  taskSSE?.close()
+  // sseFetch 返回的句柄提供 close 方法，会同步 abort 底层 fetch
+  taskSSE?.close?.()
   taskSSE = null
 }
 

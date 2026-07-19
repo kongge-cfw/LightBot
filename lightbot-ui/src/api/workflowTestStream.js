@@ -1,4 +1,5 @@
 import { processSseLines } from './chat'
+import { streamFetch } from '../utils/sseFetch'
 
 const WORKFLOW_SSE_EVENT_TYPES = new Set([
   'workflow_node_start',
@@ -20,31 +21,8 @@ const WORKFLOW_SSE_EVENT_TYPES = new Set([
  * @param {{ onEvent?: Function, onDone?: Function, signal?: AbortSignal }} callbacks
  */
 export async function readWorkflowTestSseStream(url, payload, { onEvent, onDone, signal } = {}) {
+  // SSE 场景必须直读 localStorage：fetch 早于 Pinia store 水合，从 store 取 token 可能为 null
   const token = localStorage.getItem('token')
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token || '',
-    },
-    body: JSON.stringify(payload),
-    signal,
-  })
-
-  if (!response.ok) {
-    let message = `流式请求失败: ${response.status}`
-    try {
-      const errBody = await response.json()
-      message = errBody?.message || message
-    } catch {
-      // ignore
-    }
-    throw new Error(message)
-  }
-
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
   let doneFired = false
 
   const fireDone = (meta) => {
@@ -63,27 +41,18 @@ export async function readWorkflowTestSseStream(url, payload, { onEvent, onDone,
     onEvent?.(parsed)
   }
 
-  try {
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) {
-        if (buffer.trim()) {
-          processSseLines(buffer, { onToolEvent: handleToolEvent, onDone: fireDone })
-        }
-        fireDone()
-        break
-      }
-      buffer += decoder.decode(value, { stream: true })
-      const lastNewline = buffer.lastIndexOf('\n')
-      if (lastNewline === -1) continue
-      const complete = buffer.substring(0, lastNewline)
-      buffer = buffer.substring(lastNewline + 1)
-      processSseLines(complete, { onToolEvent: handleToolEvent, onDone: fireDone })
-    }
-  } catch (err) {
-    if (err.name === 'AbortError') throw err
-    throw err
-  }
+  await streamFetch(url, {
+    method: 'POST',
+    token,
+    body: payload,
+    signal,
+    onLines: (text) => {
+      processSseLines(text, {
+        onToolEvent: handleToolEvent,
+        onDone: fireDone,
+      })
+    },
+  })
 }
 
 export function testWorkflowStream(agentId, payload, callbacks) {

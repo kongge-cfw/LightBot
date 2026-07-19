@@ -30,7 +30,7 @@ import com.lightbot.service.TaskService;
 import com.lightbot.util.QaPairVectorizeUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -57,9 +57,9 @@ public class QaPairServiceImpl extends ServiceImpl<QaPairMapper, QaPair>
     @Autowired
     private KnowledgeMemberService permissionHelper;
 
-    @Lazy
+    /** 延迟解析：KnowledgeServiceImpl 反向依赖 QaPairService，ObjectProvider 取 bean 时打破构造期循环 */
     @Autowired
-    private KnowledgeService knowledgeService;
+    private ObjectProvider<KnowledgeService> knowledgeServiceProvider;
 
     @Autowired
     private TaskService taskService;
@@ -216,7 +216,7 @@ public class QaPairServiceImpl extends ServiceImpl<QaPairMapper, QaPair>
         permissionHelper.checkPermission(knowledgeId, KnowledgeRole.DEVELOPER);
 
         // 2. 校验知识库存在性
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeServiceProvider.getObject().getById(knowledgeId);
         if (knowledge == null) {
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }

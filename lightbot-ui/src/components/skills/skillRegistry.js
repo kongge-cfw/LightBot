@@ -11,7 +11,7 @@ import {
   TableOutlined,
   FileTextOutlined,
 } from '@ant-design/icons-vue'
-import * as AntIcons from '@ant-design/icons-vue'
+import { resolveIcon } from '@/utils/iconRegistry'
 import { defineAsyncComponent } from 'vue'
 
 /** skill_active SSE 事件类型 */
@@ -124,7 +124,7 @@ export function resolveSkillSlug(skill) {
 
 /** 从后端 icon 字符串（Ant Design 图标名）解析图标组件，无法解析返回 null */
 function resolveIconComponent(iconName) {
-  return iconName && AntIcons[iconName] ? AntIcons[iconName] : null
+  return resolveIcon(iconName)
 }
 
 /** 获取 Skill 元数据（未知 slug 回退默认） */

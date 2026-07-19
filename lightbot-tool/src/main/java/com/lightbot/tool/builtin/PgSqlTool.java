@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.tool.annotation.SystemTool;
 import com.lightbot.tool.annotation.ToolParamMeta;
 import lombok.extern.slf4j.Slf4j;
+import net.sf.jsqlparser.JSQLParserException;
+import net.sf.jsqlparser.parser.CCJSqlParserUtil;
+import net.sf.jsqlparser.statement.select.Select;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -13,6 +16,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -39,6 +43,13 @@ public class PgSqlTool {
 
     private static final int MAX_ROWS = 50;
     private static final int MAX_CONTENT_LENGTH = 10000;
+    /**
+     * 单条查询超时（秒）：硬上限，避免长查询耗尽连接池
+     */
+    private static final int QUERY_TIMEOUT_SECONDS = 10;
+    /**
+     * 兜底正则：保留原有快速前置校验，JSqlParser 作为权威校验
+     */
     private static final Pattern SAFE_SQL_PATTERN = Pattern.compile(
             "^\\s*(SELECT|SHOW|EXPLAIN|WITH)\\s",
             Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
@@ -171,6 +182,17 @@ public class PgSqlTool {
 
         try (Connection conn = dataSource.getConnection();
              Statement stmt = conn.createStatement()) {
+            // DB 层兜底：连接标记只读 + 超时硬上限（防 JSqlParser 漏判的边界场景）
+            try {
+                conn.setReadOnly(true);
+            } catch (SQLException ignored) {
+                // 部分 DataSource 不支持 setReadOnly 后置调用，忽略
+            }
+            try {
+                stmt.setQueryTimeout(QUERY_TIMEOUT_SECONDS);
+            } catch (SQLException ignored) {
+                // 驱动不支持时跳过，已有上层超时
+            }
             stmt.setMaxRows(MAX_ROWS);
             long startTime = System.currentTimeMillis();
             ResultSet rs = stmt.executeQuery(sql);
@@ -242,18 +264,25 @@ public class PgSqlTool {
     }
 
     /**
-     * SQL 安全校验：仅允许只读查询，拒绝风险 SQL
+     * SQL 安全校验：双层防护
+     * <p>L1 正则黑名单：快速过滤明显风险关键字（含注释剥离）</p>
+     * <p>L2 JSqlParser AST：权威校验，仅允许 SELECT 或 SELECT 为最终语句的 WITH CTE，
+     *    拒绝任何 INSERT/UPDATE/DELETE/DDL，以及 CTE 中嵌入 DML 的绕过攻击</p>
+     *
+     * @param sql 待校验 SQL
+     * @return 非空字符串表示校验失败的错误消息；null 表示通过
      */
     private String validateSql(String sql) {
         if (sql == null || sql.isBlank()) return "SQL 不能为空";
         String trimmed = sql.strip();
+
+        // L1：正则前置快速校验（保留原有过滤逻辑，作为深度防御的第一层）
         if (!SAFE_SQL_PATTERN.matcher(trimmed).find()) {
             return "仅允许 SELECT/SHOW/EXPLAIN 查询，不允许写操作";
         }
         if (DANGEROUS_KEYWORDS.matcher(trimmed).find()) {
             return "SQL 中包含危险关键词（INSERT/UPDATE/DELETE/DROP 等），仅允许只读查询";
         }
-        // 去除注释后再校验，防止利用注释绕过
         String noComment = SQL_COMMENT_PATTERN.matcher(trimmed).replaceAll("");
         if (SYSTEM_SCHEMA_PATTERN.matcher(noComment).find()) {
             return "禁止访问系统 schema（pg_catalog/information_schema/pg_toast）";
@@ -261,6 +290,24 @@ public class PgSqlTool {
         if (DANGEROUS_FUNCTIONS.matcher(noComment).find()) {
             return "SQL 中包含危险函数（pg_sleep/lo_import 等），已拒绝执行";
         }
-        return null;
+
+        // L2：JSqlParser AST 权威校验
+        // 仅允许 Select 语句：JSqlParser 4.6 中 WITH ... SELECT 解析后顶层即 Select，
+        // 而 WITH x AS (INSERT/UPDATE/DELETE) 这类可写 CTE 顶层会解析为 Insert/Update/Delete，
+        // 因此 instanceof Select 强校验同时覆盖了 CTE 嵌入 DML 的绕过路径
+        try {
+            net.sf.jsqlparser.statement.Statement parsed = CCJSqlParserUtil.parse(trimmed);
+            if (!(parsed instanceof Select)) {
+                return "仅允许 SELECT 查询，已拒绝执行的语句类型: " + parsed.getClass().getSimpleName();
+            }
+            return null;
+        } catch (JSQLParserException e) {
+            // 解析失败按风险对待，避免攻击者利用 parser bug 绕过
+            log.warn("[Tool:pg_query] JSqlParser 解析失败，按风险拒绝: sql={}, reason={}", trimmed, e.getMessage());
+            return "SQL 语法解析失败，已拒绝执行";
+        } catch (Exception e) {
+            log.warn("[Tool:pg_query] JSqlParser 校验异常，按风险拒绝: sql={}, error={}", trimmed, e.getMessage());
+            return "SQL 安全校验异常，已拒绝执行";
+        }
     }
 }

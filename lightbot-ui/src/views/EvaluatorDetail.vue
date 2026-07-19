@@ -29,6 +29,11 @@
               <a-tag :color="v.status === 'published' ? 'green' : 'blue'" size="small">
                 {{ v.status === 'published' ? '已发布' : '草稿' }}
               </a-tag>
+              <a-tooltip :title="getModelStatusHint(v)">
+                <a-tag :color="hasConfiguredModel(v) ? 'cyan' : 'warning'" size="small">
+                  {{ hasConfiguredModel(v) ? getModelId(v) : '继承被测 Prompt' }}
+                </a-tag>
+              </a-tooltip>
               <a-tooltip title="查看详情">
                 <button class="btn-icon" @click.stop="openVersionDetail(v)"><EyeOutlined /></button>
               </a-tooltip>
@@ -158,11 +163,19 @@
             placeholder='JSON 格式，如: [{"name":"actual_output","description":"实际输出","required":true}]'
           />
         </a-form-item>
-        <a-form-item label="模型配置">
+        <a-form-item label="评估模型（可选）">
+          <ModelSelect
+            v-model:provider-id="versionForm.providerId"
+            v-model:model-id="versionForm.modelId"
+            placeholder="选择用于评分的模型"
+          />
+          <div class="model-config-hint">留空时完整继承被测 Prompt 的提供商、模型与参数；仅在需要使用独立裁判模型时配置。</div>
+        </a-form-item>
+        <a-form-item label="模型参数">
           <a-textarea
-            v-model:value="versionForm.modelConfig"
+            v-model:value="versionForm.modelParams"
             :rows="3"
-            placeholder='JSON 格式，如: {"providerId":"123","modelId":"qwen-max","temperature":0.3}'
+            placeholder='JSON 格式（可选），如: {"temperature":0.3}'
           />
         </a-form-item>
       </a-form>
@@ -184,6 +197,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PlusOutlined, ArrowLeftOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
+import ModelSelect from '../components/ModelSelect.vue'
 import {
   getEvaluator,
   getEvaluatorVersions, createEvaluatorVersion,
@@ -210,7 +224,9 @@ const versionForm = reactive({
   versionDesc: '',
   prompt: '',
   variables: '',
-  modelConfig: '',
+  providerId: null,
+  modelId: null,
+  modelParams: '',
 })
 
 const debugForm = reactive({
@@ -270,7 +286,8 @@ function populateVariableForm(v) {
 
 function openVersionDialog() {
   Object.assign(versionForm, {
-    version: '', versionDesc: '', prompt: '', variables: '', modelConfig: '',
+    version: '', versionDesc: '', prompt: '', variables: '',
+    providerId: null, modelId: null, modelParams: '',
   })
   versionDialogVisible.value = true
 }
@@ -278,6 +295,23 @@ function openVersionDialog() {
 async function handleCreateVersion() {
   if (!versionForm.version.trim()) return message.warning('请输入版本号')
   if (!versionForm.prompt.trim()) return message.warning('请输入评估模板')
+  if (Boolean(versionForm.providerId) !== Boolean(versionForm.modelId)) {
+    return message.warning('请同时选择模型提供商和模型，或两者都留空以继承被测 Prompt')
+  }
+  let modelParams = {}
+  if (versionForm.modelParams.trim()) {
+    try {
+      modelParams = JSON.parse(versionForm.modelParams)
+    } catch {
+      return message.warning('模型参数 JSON 格式不正确')
+    }
+    if (!modelParams || Array.isArray(modelParams) || typeof modelParams !== 'object') {
+      return message.warning('模型参数必须是 JSON 对象')
+    }
+    if (!versionForm.providerId) {
+      return message.warning('继承被测 Prompt 时不能单独设置评估器模型参数')
+    }
+  }
   submitting.value = true
   try {
     await createEvaluatorVersion({
@@ -285,7 +319,13 @@ async function handleCreateVersion() {
       version: versionForm.version,
       prompt: versionForm.prompt,
       variables: versionForm.variables,
-      modelConfig: versionForm.modelConfig,
+      modelConfig: versionForm.providerId
+        ? JSON.stringify({
+            ...modelParams,
+            providerId: String(versionForm.providerId),
+            modelId: versionForm.modelId,
+          })
+        : '{}',
     })
     message.success('版本创建成功')
     versionDialogVisible.value = false
@@ -350,6 +390,31 @@ function formatJson(str) {
     return str
   }
 }
+
+function parseModelConfig(version) {
+  if (!version?.modelConfig) return {}
+  try {
+    return typeof version.modelConfig === 'string' ? JSON.parse(version.modelConfig) : version.modelConfig
+  } catch {
+    return {}
+  }
+}
+
+function hasConfiguredModel(version) {
+  const config = parseModelConfig(version)
+  return Boolean(config.providerId && config.modelId)
+}
+
+function getModelId(version) {
+  return parseModelConfig(version).modelId || '继承被测 Prompt'
+}
+
+function getModelStatusHint(version) {
+  const config = parseModelConfig(version)
+  return hasConfiguredModel(version)
+    ? `providerId: ${config.providerId} / model: ${config.modelId}`
+    : '该版本将完整继承被测 Prompt 的模型提供商、模型和参数。'
+}
 </script>
 
 <style scoped>
@@ -378,6 +443,12 @@ function formatJson(str) {
   margin-bottom: 8px;
 }
 .btn-back:hover { color: var(--color-link); }
+.model-config-hint {
+  margin-top: 6px;
+  color: var(--color-mute);
+  font-size: 12px;
+  line-height: 1.5;
+}
 .page-title {
   font-size: 24px;
   font-weight: 600;

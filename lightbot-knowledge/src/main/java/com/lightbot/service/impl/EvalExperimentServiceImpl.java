@@ -264,6 +264,27 @@ public class EvalExperimentServiceImpl extends ServiceImpl<EvalExperimentMapper,
                     : evaluatorService.listByIds(evIds).stream()
                             .collect(java.util.stream.Collectors.toMap(EvalEvaluator::getId, e -> e));
 
+            // 4.2 评估器未绑定独立模型时，完整继承被测 Prompt 的模型配置，禁止回退到 Redis 提供商列表。
+            Map<Long, String> evaluatorModelConfigs = new HashMap<>();
+            for (Long evaluatorVersionId : evVersionIds) {
+                EvalEvaluatorVersion evaluatorVersion = evVersionMap.get(evaluatorVersionId);
+                if (evaluatorVersion == null) {
+                    throw new BizException(ErrorCode.EVAL_EVALUATOR_VERSION_NOT_FOUND);
+                }
+                EvalEvaluator evaluator = evMap.get(evaluatorVersion.getEvaluatorId());
+                String evaluatorName = evaluator != null ? evaluator.getName() : "评估器#" + evaluatorVersion.getEvaluatorId();
+                boolean useEvaluatorModel = hasExplicitModelConfig(evaluatorVersion.getModelConfig());
+                String effectiveModelConfig = useEvaluatorModel
+                        ? evaluatorVersion.getModelConfig() : promptVersion.getModelConfig();
+                evaluatorModelConfigs.put(evaluatorVersionId, effectiveModelConfig);
+                log.info("[评测实验][评估器模型] experimentId={}, evaluator={}@{}, source={}, {}",
+                        experimentId, evaluatorName, evaluatorVersion.getVersion(),
+                        useEvaluatorModel ? "评估器版本" : "被测 Prompt",
+                        describeModelConfig(effectiveModelConfig));
+            }
+            log.info("[评测实验][被测 Prompt 模型] experimentId={}, prompt={}@{}, {}",
+                    experimentId, promptKey, version, describeModelConfig(promptVersion.getModelConfig()));
+
             int total = items.size();
             int completed = 0;
             // 进度更新间隔：每 10% 或至少每 5 条更新一次
@@ -299,8 +320,8 @@ public class EvalExperimentServiceImpl extends ServiceImpl<EvalExperimentMapper,
 
                     // 构建评估器变量
                     String evalVariables = buildEvaluatorVariables(evalConfig, dataContent, actualOutput);
-                    var scoreResult = evalChatService.callEvaluator(
-                            evaluatorVersion.getModelConfig(), evaluatorVersion.getPrompt(), evalVariables);
+                    var scoreResult = callEvaluator(evaluatorName, evaluatorVersion,
+                            evaluatorModelConfigs.get(evaluatorVersionId), evalVariables);
 
                     // 收集结果
                     EvalExperimentResult result = new EvalExperimentResult();
@@ -368,7 +389,56 @@ public class EvalExperimentServiceImpl extends ServiceImpl<EvalExperimentMapper,
         }
 
         // 2. 调用LLM
-        return evalChatService.callPrompt(modelConfig, promptVersion.getTemplate(), variablesJson);
+        try {
+            return evalChatService.callPrompt(modelConfig, promptVersion.getTemplate(), variablesJson);
+        } catch (Exception e) {
+            throw new IllegalStateException("被测 Prompt 调用失败: " + promptVersion.getPromptKey()
+                    + "@" + promptVersion.getVersion() + ", " + describeModelConfig(modelConfig)
+                    + ", 原因: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 调用评估器并在异常中保留调用阶段与模型信息，便于定位限流来源。
+     */
+    private com.lightbot.dto.EvalScoreResultDTO callEvaluator(String evaluatorName,
+                                                               EvalEvaluatorVersion evaluatorVersion,
+                                                               String modelConfig,
+                                                               String variables) {
+        try {
+            return evalChatService.callEvaluator(
+                    modelConfig, evaluatorVersion.getPrompt(), variables);
+        } catch (Exception e) {
+            throw new IllegalStateException("评估器调用失败: " + evaluatorName + "@"
+                    + evaluatorVersion.getVersion() + ", "
+                    + describeModelConfig(modelConfig) + ", 原因: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 仅完整指定提供商与模型的评估器配置才作为独立裁判模型；其余情况继承被测 Prompt。
+     */
+    private boolean hasExplicitModelConfig(String modelConfig) {
+        try {
+            JsonNode config = objectMapper.readTree(modelConfig);
+            return !config.path("providerId").asText().isBlank()
+                    && !config.path("modelId").asText().isBlank();
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /**
+     * 从模型配置中提取可安全记录的标识信息，不输出密钥等敏感字段。
+     */
+    private String describeModelConfig(String modelConfig) {
+        try {
+            JsonNode config = objectMapper.readTree(modelConfig);
+            return "providerId=" + config.path("providerId").asText("未配置")
+                    + ", modelId=" + config.path("modelId").asText("未配置");
+        } catch (Exception e) {
+            return "模型配置无效";
+        }
     }
 
     /**

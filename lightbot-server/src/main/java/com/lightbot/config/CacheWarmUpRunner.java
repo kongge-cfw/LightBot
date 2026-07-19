@@ -1,9 +1,31 @@
 package com.lightbot.config;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.lightbot.entity.*;
-import com.lightbot.enums.ExperimentStatus;
-import com.lightbot.mapper.*;
+import com.lightbot.config.RedisCacheConfig;
+import com.lightbot.entity.Agent;
+import com.lightbot.entity.EvalDataset;
+import com.lightbot.entity.EvalEvaluator;
+import com.lightbot.entity.EvalExperiment;
+import com.lightbot.entity.Knowledge;
+import com.lightbot.entity.McpServer;
+import com.lightbot.entity.Model;
+import com.lightbot.entity.ModelProvider;
+import com.lightbot.entity.Skill;
+import com.lightbot.entity.SubAgent;
+import com.lightbot.entity.SystemConfig;
+import com.lightbot.entity.Tool;
+import com.lightbot.service.AgentService;
+import com.lightbot.service.EvalDatasetService;
+import com.lightbot.service.EvalEvaluatorService;
+import com.lightbot.service.EvalExperimentService;
+import com.lightbot.service.KnowledgeService;
+import com.lightbot.service.McpServerService;
+import com.lightbot.service.ModelProviderService;
+import com.lightbot.service.ModelService;
+import com.lightbot.service.SkillService;
+import com.lightbot.service.SubAgentService;
+import com.lightbot.service.SystemConfigService;
+import com.lightbot.service.ToolService;
 import com.lightbot.util.BloomFilterHelper;
 import com.lightbot.util.ModelCacheUtil;
 import com.lightbot.util.ModelProviderCacheUtil;
@@ -11,12 +33,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * 启动时预热模型和提供商缓存到Redis
@@ -32,21 +56,21 @@ import java.util.List;
 public class CacheWarmUpRunner implements ApplicationRunner {
 
     private final StringRedisTemplate stringRedisTemplate;
-    private final ModelProviderMapper modelProviderMapper;
-    private final ModelMapper modelMapper;
+    private final ModelProviderService modelProviderService;
+    private final ModelService modelService;
     private final ModelProviderCacheUtil providerCacheUtil;
     private final ModelCacheUtil modelCacheUtil;
     private final CacheManager cacheManager;
-    private final AgentMapper agentMapper;
-    private final KnowledgeMapper knowledgeMapper;
-    private final ToolMapper toolMapper;
-    private final McpServerMapper mcpServerMapper;
-    private final SubAgentMapper subAgentMapper;
-    private final SkillMapper skillMapper;
-    private final SystemConfigMapper systemConfigMapper;
-    private final EvalDatasetMapper evalDatasetMapper;
-    private final EvalEvaluatorMapper evalEvaluatorMapper;
-    private final EvalExperimentMapper evalExperimentMapper;
+    private final AgentService agentService;
+    private final KnowledgeService knowledgeService;
+    private final ToolService toolService;
+    private final McpServerService mcpServerService;
+    private final SubAgentService subAgentService;
+    private final SkillService skillService;
+    private final SystemConfigService systemConfigService;
+    private final EvalDatasetService evalDatasetService;
+    private final EvalEvaluatorService evalEvaluatorService;
+    private final EvalExperimentService evalExperimentService;
     private final BloomFilterHelper bloomFilterHelper;
 
     @Override
@@ -69,7 +93,8 @@ public class CacheWarmUpRunner implements ApplicationRunner {
                 log.info("[CacheWarmUp] Redis已有提供商缓存，跳过预热");
                 return;
             }
-            List<ModelProvider> providers = modelProviderMapper.selectList(
+            // deleted=0 由 @TableLogic 在 Service 层自动过滤
+            List<ModelProvider> providers = modelProviderService.list(
                     new LambdaQueryWrapper<ModelProvider>().orderByDesc(ModelProvider::getCreateTime));
             providerCacheUtil.cacheAllProviders(providers);
             log.info("[CacheWarmUp] 提供商缓存预热完成: count={}", providers.size());
@@ -85,7 +110,7 @@ public class CacheWarmUpRunner implements ApplicationRunner {
                 log.info("[CacheWarmUp] Redis已有模型缓存，跳过预热");
                 return;
             }
-            List<Model> models = modelMapper.selectList(
+            List<Model> models = modelService.list(
                     new LambdaQueryWrapper<Model>().orderByAsc(Model::getProviderId));
             modelCacheUtil.cacheAllModels(models);
             log.info("[CacheWarmUp] 模型缓存预热完成: count={}", models.size());
@@ -95,43 +120,22 @@ public class CacheWarmUpRunner implements ApplicationRunner {
     }
 
     /**
-     * 预热 Spring Cache 管理的业务缓存（Agent/Knowledge/Tool/McpServer/SubAgent/Skill/SystemConfig）
+     * 预热 Spring Cache 管理的业务缓存（Agent/Knowledge/Tool/McpServer/SubAgent/Skill/SystemConfig/Eval*）
+     * <p>逻辑删除过滤由 @TableLogic 在 Service 层自动应用，调用方无需显式 .eq(deleted, 0)</p>
      */
     private void warmUpSpringCaches() {
         log.info("[CacheWarmUp] 开始预热业务缓存...");
-        warmUpCache(RedisCacheConfig.CACHE_AGENT,
-                () -> agentMapper.selectList(new LambdaQueryWrapper<Agent>().eq(Agent::getDeleted, 0)),
-                agent -> agent.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_KNOWLEDGE,
-                () -> knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>().eq(Knowledge::getDeleted, 0)),
-                k -> k.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_TOOL,
-                () -> toolMapper.selectList(new LambdaQueryWrapper<Tool>().eq(Tool::getDeleted, 0)),
-                t -> t.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_MCP_SERVER,
-                () -> mcpServerMapper.selectList(new LambdaQueryWrapper<McpServer>().eq(McpServer::getDeleted, 0)),
-                m -> m.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_SUBAGENT,
-                () -> subAgentMapper.selectList(new LambdaQueryWrapper<SubAgent>().eq(SubAgent::getDeleted, 0)),
-                s -> s.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_SKILL,
-                () -> skillMapper.selectList(new LambdaQueryWrapper<Skill>().eq(Skill::getDeleted, 0)),
-                s -> s.getId().toString());
-        // SystemConfig 无 deleted 字段，全量加载
-        warmUpCache(RedisCacheConfig.CACHE_SYSTEM_CONFIG,
-                () -> systemConfigMapper.selectList(null),
-                SystemConfig::getConfigKey);
-        // 评测体系缓存预热
-        warmUpCache(RedisCacheConfig.CACHE_EVAL_DATASET,
-                () -> evalDatasetMapper.selectList(new LambdaQueryWrapper<EvalDataset>().eq(EvalDataset::getDeleted, 0)),
-                d -> d.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_EVAL_EVALUATOR,
-                () -> evalEvaluatorMapper.selectList(new LambdaQueryWrapper<EvalEvaluator>().eq(EvalEvaluator::getDeleted, 0)),
-                e -> e.getId().toString());
-        warmUpCache(RedisCacheConfig.CACHE_EVAL_EXPERIMENT,
-                () -> evalExperimentMapper.selectList(
-                        new LambdaQueryWrapper<EvalExperiment>().eq(EvalExperiment::getDeleted, 0)),
-                e -> e.getId().toString());
+        warmUpCache(RedisCacheConfig.CACHE_AGENT, agentService::list, Agent::getId);
+        warmUpCache(RedisCacheConfig.CACHE_KNOWLEDGE, knowledgeService::list, Knowledge::getId);
+        warmUpCache(RedisCacheConfig.CACHE_TOOL, toolService::list, Tool::getId);
+        warmUpCache(RedisCacheConfig.CACHE_MCP_SERVER, mcpServerService::list, McpServer::getId);
+        warmUpCache(RedisCacheConfig.CACHE_SUBAGENT, subAgentService::list, SubAgent::getId);
+        warmUpCache(RedisCacheConfig.CACHE_SKILL, skillService::list, Skill::getId);
+        // SystemConfig 无 @TableLogic，全量加载
+        warmUpCache(RedisCacheConfig.CACHE_SYSTEM_CONFIG, systemConfigService::list, SystemConfig::getConfigKey);
+        warmUpCache(RedisCacheConfig.CACHE_EVAL_DATASET, evalDatasetService::list, EvalDataset::getId);
+        warmUpCache(RedisCacheConfig.CACHE_EVAL_EVALUATOR, evalEvaluatorService::list, EvalEvaluator::getId);
+        warmUpCache(RedisCacheConfig.CACHE_EVAL_EXPERIMENT, evalExperimentService::list, EvalExperiment::getId);
     }
 
     /**
@@ -140,29 +144,22 @@ public class CacheWarmUpRunner implements ApplicationRunner {
     private void initBloomFilters() {
         try {
             bloomFilterHelper.init(RedisCacheConfig.CACHE_AGENT,
-                    agentMapper.selectList(new LambdaQueryWrapper<Agent>().eq(Agent::getDeleted, 0))
-                            .stream().map(Agent::getId).toList());
+                    agentService.list().stream().map(Agent::getId).toList());
             bloomFilterHelper.init(RedisCacheConfig.CACHE_KNOWLEDGE,
-                    knowledgeMapper.selectList(new LambdaQueryWrapper<Knowledge>().eq(Knowledge::getDeleted, 0))
-                            .stream().map(Knowledge::getId).toList());
+                    knowledgeService.list().stream().map(Knowledge::getId).toList());
             bloomFilterHelper.init(RedisCacheConfig.CACHE_TOOL,
-                    toolMapper.selectList(new LambdaQueryWrapper<Tool>().eq(Tool::getDeleted, 0))
-                            .stream().map(Tool::getId).toList());
+                    toolService.list().stream().map(Tool::getId).toList());
             log.info("[CacheWarmUp] 布隆过滤器初始化完成");
         } catch (Exception e) {
             log.warn("[CacheWarmUp] 布隆过滤器初始化失败: {}", e.getMessage());
         }
     }
 
-    @FunctionalInterface
-    private interface DataSupplier<T> {
-        List<T> get();
-    }
-
-    private <T> void warmUpCache(String cacheName, DataSupplier<T> supplier,
-                                  java.util.function.Function<T, Object> keyExtractor) {
+    private <T> void warmUpCache(String cacheName,
+                                  java.util.function.Supplier<List<T>> supplier,
+                                  Function<T, Object> keyExtractor) {
         try {
-            var cache = cacheManager.getCache(cacheName);
+            Cache cache = cacheManager.getCache(cacheName);
             if (cache == null) return;
             List<T> data = supplier.get();
             for (T item : data) {

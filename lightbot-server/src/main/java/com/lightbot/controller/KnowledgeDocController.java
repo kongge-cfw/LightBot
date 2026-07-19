@@ -11,7 +11,6 @@ import com.lightbot.entity.Document;
 import com.lightbot.entity.Task;
 import com.lightbot.service.ChunkService;
 import com.lightbot.service.DocumentService;
-import com.lightbot.util.MinioUtil;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.Operation;
@@ -25,7 +24,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
+import java.time.Duration;
 import java.util.List;
 
 /**
@@ -42,7 +41,6 @@ public class KnowledgeDocController {
 
     private final DocumentService documentService;
     private final ChunkService chunkService;
-    private final MinioUtil minioUtil;
     private final ObjectMapper objectMapper;
 
     // ========== 文档管理 ==========
@@ -166,19 +164,13 @@ public class KnowledgeDocController {
     @GetMapping("/images/{knowledgeId}/{filename}")
     public ResponseEntity<InputStreamResource> getKnowledgeImage(
             @PathVariable Long knowledgeId, @PathVariable String filename) {
-        String filePath = String.format("knowledge/%d/images/%s", knowledgeId, filename);
-        try {
-            var statObj = minioUtil.statObject(filePath);
-            String contentType = statObj.contentType();
-            InputStream is = minioUtil.downloadStream(filePath);
-            // InputStreamResource.close() 会自动关闭底层 InputStream，客户端断连时 MinIO 流会被释放
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(contentType != null ? contentType : "application/octet-stream"))
-                    .cacheControl(org.springframework.http.CacheControl.maxAge(java.time.Duration.ofDays(7)))
-                    .body(new InputStreamResource(is));
-        } catch (Exception e) {
-            return ResponseEntity.notFound().build();
-        }
+        // 业务编排（路径拼装 + MinIO stat/download）下沉到 DocumentService，Controller 仅做 Optional → ResponseEntity 的 HTTP 翻译
+        return documentService.serveKnowledgeImage(knowledgeId, filename)
+                .map(stream -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(stream.getContentType()))
+                        .cacheControl(org.springframework.http.CacheControl.maxAge(Duration.ofDays(7)))
+                        .body(new InputStreamResource(stream.getInputStream())))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     // ========== 分块查看 ==========

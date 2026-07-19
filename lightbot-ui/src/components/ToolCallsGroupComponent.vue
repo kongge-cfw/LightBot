@@ -84,11 +84,11 @@
 import { ref, computed, watch, nextTick } from 'vue'
 import { CheckCircleOutlined, LoadingOutlined, RightOutlined, FileSearchOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
-import * as AntIcons from '@ant-design/icons-vue'
 import ToolCallRenderer from './ToolCallRenderer.vue'
 import CollapseTransition from './common/CollapseTransition.vue'
 import { getToolDisplayName, getToolIcon } from './toolRegistry'
 import { getToolResultDetail } from '@/api/chatSession'
+import { resolveIcon } from '@/utils/iconRegistry'
 
 const props = defineProps({
   toolEvents: { type: Array, default: () => [] },
@@ -195,8 +195,9 @@ function resolveDisplayName(evt) {
  * 回退到内置工具注册表图标
  */
 function resolveEventIcon(evt) {
-  if (evt.icon && AntIcons[evt.icon]) {
-    return AntIcons[evt.icon]
+  if (evt.icon) {
+    const resolved = resolveIcon(evt.icon)
+    if (resolved) return resolved
   }
   return getToolIcon(evt.toolName)
 }

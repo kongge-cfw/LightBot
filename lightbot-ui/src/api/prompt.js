@@ -1,4 +1,5 @@
 import request from '../utils/request'
+import { streamFetch } from '../utils/sseFetch'
 
 export function getPrompts(params) {
   return request.get('/prompts', { params })
@@ -65,33 +66,13 @@ export async function runPromptStream(data, { onChunk, onDone, onError }, signal
   let retries = 0
 
   async function attempt() {
-    const response = await fetch('/api/prompts/run', {
+    await streamFetch('/api/prompts/run', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token || '',
-      },
-      body: JSON.stringify(data),
+      token,
+      body: data,
       signal,
-    })
-
-    if (!response.ok) {
-      const text = await response.text().catch(() => '')
-      throw new Error(text || `流式请求失败: ${response.status}`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-        for (const line of lines) {
+      onLines: (text) => {
+        for (const line of text.split('\n')) {
           if (line.startsWith('data:')) {
             const content = line.substring(5).trimStart()
             if (!content) continue
@@ -104,11 +85,8 @@ export async function runPromptStream(data, { onChunk, onDone, onError }, signal
             onChunk?.(content)
           }
         }
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') return
-      throw err
-    }
+      },
+    })
   }
 
   while (retries <= maxRetries) {
@@ -129,7 +107,7 @@ export async function runPromptStream(data, { onChunk, onDone, onError }, signal
         return
       }
       const delay = retryDelay * Math.pow(2, retries - 1)
-      await new Promise(r => setTimeout(r, delay))
+      await new Promise((r) => setTimeout(r, delay))
     }
   }
 }

@@ -6,6 +6,7 @@ import com.lightbot.constant.ConfigKeys;
 import com.lightbot.entity.ModelProvider;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.ModelProviderType;
+import com.lightbot.event.CacheInvalidationBroadcaster;
 import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.util.LlmTraceContext;
@@ -45,7 +46,10 @@ public class ModelFactory {
     private final ModelProviderCacheUtil cacheUtil;
     private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper;
+    private final CacheInvalidationBroadcaster cacheInvalidationBroadcaster;
 
+    /** 多实例广播的缓存域标识：chatModel（按 providerId 索引） */
+    private static final String CACHE_TYPE_CHAT_MODEL = "chatModel";
     private static final String CONNECTIVITY_CHECK_PROMPT = "你好，请回复OK";
 
     private Map<ModelProviderType, ModelProviderHandler> handlerMap;
@@ -55,6 +59,14 @@ public class ModelFactory {
     public void init() {
         handlerMap = handlers.stream()
                 .collect(Collectors.toMap(ModelProviderHandler::getProviderType, h -> h));
+        // 注册多实例失效处理：其他实例广播 chatModel 失效时，本实例同步清理本地缓存
+        cacheInvalidationBroadcaster.register(CACHE_TYPE_CHAT_MODEL, key -> {
+            if (key == null) {
+                chatModelCache.clear();
+            } else {
+                chatModelCache.remove(Long.parseLong(key));
+            }
+        });
         log.info("[ModelFactory] 已注册 {} 个模型处理器: {}", handlerMap.size(), handlerMap.keySet());
     }
 
@@ -255,6 +267,8 @@ public class ModelFactory {
     public void invalidateCache(Long providerId) {
         chatModelCache.remove(providerId);
         cacheUtil.evictProvider(providerId);
+        // 多实例广播：其他实例同步清理本地 chatModelCache，避免水平扩展时凭证更新不同步
+        cacheInvalidationBroadcaster.broadcast(CACHE_TYPE_CHAT_MODEL, String.valueOf(providerId));
         log.info("[ModelFactory] 缓存已清除: providerId={}", providerId);
     }
 
@@ -264,6 +278,8 @@ public class ModelFactory {
     public void invalidateAllCache() {
         chatModelCache.clear();
         cacheUtil.evictAll();
+        // 多实例广播：key=null 表示清空全部
+        cacheInvalidationBroadcaster.broadcast(CACHE_TYPE_CHAT_MODEL, null);
         log.info("[ModelFactory] 所有缓存已清除");
     }
 

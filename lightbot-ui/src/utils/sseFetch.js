@@ -15,7 +15,10 @@
  * @param {number} [options.retryDelay=2000] - 重试基础延迟（ms），指数退避
  * @returns {{ close: () => void }} 控制句柄
  */
-export function sseFetch(url, { token, method = 'GET', body, onEvent, onDone, onError, signal, maxRetries = 0, retryDelay = 2000 }) {
+export function sseFetch(
+  url,
+  { token, method = 'GET', body, onEvent, onDone, onError, signal, maxRetries = 0, retryDelay = 2000 }
+) {
   let aborted = false
   let retries = 0
   const internalController = new AbortController()
@@ -31,66 +34,18 @@ export function sseFetch(url, { token, method = 'GET', body, onEvent, onDone, on
 
   const effectiveSignal = internalController.signal
 
-  function buildHeaders() {
-    const h = {}
-    if (token) h['Authorization'] = token
-    if (body) h['Content-Type'] = 'application/json'
-    return h
-  }
-
-  function parseSseLines(text) {
-    const events = []
-    let currentEvent = ''
-    let currentData = ''
-    for (const line of text.split('\n')) {
-      if (line.startsWith('event:')) {
-        currentEvent = line.substring(6).trim()
-      } else if (line.startsWith('data:')) {
-        const chunk = line.substring(5).trimStart()
-        currentData += chunk
-      } else if (line === '') {
-        if (currentData) {
-          events.push({ event: currentEvent || 'message', data: currentData })
-        }
-        currentEvent = ''
-        currentData = ''
-      }
-    }
-    return events
-  }
-
   async function attempt() {
-    const fetchOptions = { method, headers: buildHeaders(), signal: effectiveSignal }
-    if (body) fetchOptions.body = JSON.stringify(body)
-    const response = await fetch(url, fetchOptions)
-    if (!response.ok) throw new Error(`SSE 请求失败: ${response.status}`)
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lastNewline = buffer.lastIndexOf('\n')
-        if (lastNewline === -1) continue
-        const complete = buffer.substring(0, lastNewline)
-        buffer = buffer.substring(lastNewline + 1)
-        for (const evt of parseSseLines(complete)) {
+    await streamFetch(url, {
+      token,
+      method,
+      body,
+      signal: effectiveSignal,
+      onLines: (text) => {
+        for (const evt of parseSseLines(text)) {
           onEvent?.(evt)
         }
-      }
-      if (buffer.trim()) {
-        for (const evt of parseSseLines(buffer)) {
-          onEvent?.(evt)
-        }
-      }
-    } catch (err) {
-      if (err.name === 'AbortError') return
-      throw err
-    }
+      },
+    })
   }
 
   async function run() {
@@ -107,7 +62,7 @@ export function sseFetch(url, { token, method = 'GET', body, onEvent, onDone, on
           return
         }
         const delay = retryDelay * Math.pow(2, retries - 1)
-        await new Promise(r => setTimeout(r, delay))
+        await new Promise((r) => setTimeout(r, delay))
       }
     }
   }
@@ -118,6 +73,84 @@ export function sseFetch(url, { token, method = 'GET', body, onEvent, onDone, on
     close() {
       aborted = true
       internalController.abort()
+    },
+  }
+}
+
+/**
+ * 底层 SSE 流式原语：fetch + reader + 行缓冲，按换行切段回调
+ * <p>所有协议变体（标准 SSE / 自定义 [STATUS] / 简单 data:）共用此实现，
+ * 各自只需提供 onLines 回调中的行解析逻辑</p>
+ *
+ * @param {string} url 请求地址
+ * @param {Object} options
+ * @param {string} [options.token] 认证 token
+ * @param {string} [options.method='GET'] HTTP 方法
+ * @param {Object} [options.body] 请求体（POST 时自动 JSON.stringify）
+ * @param {AbortSignal} [options.signal] 取消信号
+ * @param {function} [options.onLines] 收到一段完整行（按 \n 切）回调，参数为完整文本
+ * @returns {Promise<void>} 流结束时 resolve
+ */
+export async function streamFetch(url, { token, method = 'GET', body, signal, onLines } = {}) {
+  const headers = {}
+  if (token) headers['Authorization'] = token
+  if (body) headers['Content-Type'] = 'application/json'
+  const fetchOptions = { method, headers, signal }
+  if (body) fetchOptions.body = JSON.stringify(body)
+
+  try {
+    const response = await fetch(url, fetchOptions)
+    if (!response.ok) {
+      let msg = `流式请求失败: ${response.status}`
+      try {
+        const errBody = await response.json()
+        if (errBody?.message) msg = errBody.message
+      } catch {
+        // 非 JSON 错误体，沿用 status 文案
+      }
+      throw new Error(msg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) {
+        if (buffer.trim()) onLines?.(buffer)
+        return
+      }
+      buffer += decoder.decode(value, { stream: true })
+      const lastNewline = buffer.lastIndexOf('\n')
+      if (lastNewline === -1) continue
+      const complete = buffer.substring(0, lastNewline)
+      buffer = buffer.substring(lastNewline + 1)
+      onLines?.(complete)
+    }
+  } catch (err) {
+    // 用户主动中止：fetch 阶段或 reader 阶段都可能抛 AbortError，统一静默
+    if (err.name === 'AbortError') return
+    throw err
+  }
+}
+
+function parseSseLines(text) {
+  const events = []
+  let currentEvent = ''
+  let currentData = ''
+  for (const line of text.split('\n')) {
+    if (line.startsWith('event:')) {
+      currentEvent = line.substring(6).trim()
+    } else if (line.startsWith('data:')) {
+      const chunk = line.substring(5).trimStart()
+      currentData += chunk
+    } else if (line === '') {
+      if (currentData) {
+        events.push({ event: currentEvent || 'message', data: currentData })
+      }
+      currentEvent = ''
+      currentData = ''
     }
   }
+  return events
 }

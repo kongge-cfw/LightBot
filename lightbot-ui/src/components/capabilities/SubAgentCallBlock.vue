@@ -157,7 +157,7 @@ import {
   RobotOutlined, LoadingOutlined, RightOutlined, CloseCircleOutlined,
   CodeOutlined, CopyOutlined, CheckOutlined, CheckCircleOutlined,
 } from '@ant-design/icons-vue'
-import * as AntIcons from '@ant-design/icons-vue'
+import { resolveIcon } from '@/utils/iconRegistry'
 import ToolCallsGroupComponent from '../ToolCallsGroupComponent.vue'
 import MarkdownPreview from '../MarkdownPreview.vue'
 import CollapseTransition from '../common/CollapseTransition.vue'
@@ -309,12 +309,12 @@ const headerIcon = computed(() => {
     const calls = callList.value
     if (calls.length === 1) {
       const iconName = calls[0]?.icon
-      return (iconName && AntIcons[iconName]) || RobotOutlined
+      return resolveIcon(iconName) || RobotOutlined
     }
     return RobotOutlined
   }
   const iconName = props.event.icon
-  return (iconName && AntIcons[iconName]) || RobotOutlined
+  return resolveIcon(iconName) || RobotOutlined
 })
 
 const activeAttempt = computed(() =>
@@ -385,7 +385,7 @@ function attemptLabel(attempt, index) {
 /** 单个委派任务的图标：优先用 SubAgent 配置图标，回退机器人图标 */
 function attemptIcon(attempt) {
   const iconName = attempt?.call?.icon
-  return (iconName && AntIcons[iconName]) || RobotOutlined
+  return resolveIcon(iconName) || RobotOutlined
 }
 
 watch(() => props.defaultExpanded, (val) => {

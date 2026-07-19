@@ -132,6 +132,14 @@ public interface UserService {
     boolean hasAnyUser();
 
     /**
+     * 根据主键加载用户实体（供 Sa-Token 角色/权限数据源等仅查实体的场景使用）
+     *
+     * @param id 用户 ID
+     * @return 用户实体，不存在返回 null
+     */
+    User getById(Long id);
+
+    /**
      * 初始化管理员账号（仅系统无用户时允许调用）
      *
      * @param username 用户名

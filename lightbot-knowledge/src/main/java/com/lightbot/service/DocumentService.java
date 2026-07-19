@@ -11,6 +11,7 @@ import com.lightbot.entity.Task;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 /**
@@ -166,5 +167,14 @@ public interface DocumentService extends IService<Document> {
      * @return 更新后的文档（内容未变更时返回原文档）
      */
     Document syncUrlDocument(Long documentId);
+
+    /**
+     * 代理获取知识库图片流（供 Markdown 预览）
+     *
+     * @param knowledgeId 知识库ID
+     * @param filename    图片文件名
+     * @return 流式数据（不存在则 empty）
+     */
+    Optional<DocumentStreamVO> serveKnowledgeImage(Long knowledgeId, String filename);
 
 }

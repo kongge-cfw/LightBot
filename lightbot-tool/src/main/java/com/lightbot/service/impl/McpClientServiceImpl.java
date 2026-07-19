@@ -7,6 +7,7 @@ import com.lightbot.entity.McpServer;
 import com.lightbot.enums.CommonStatus;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.enums.McpTransportType;
+import com.lightbot.event.CacheInvalidationBroadcaster;
 import com.lightbot.service.McpClientService;
 import com.lightbot.service.McpServerService;
 import com.lightbot.util.RedisUtil;
@@ -19,6 +20,7 @@ import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper;
 import io.modelcontextprotocol.spec.McpClientTransport;
 import io.modelcontextprotocol.spec.McpSchema;
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,15 +52,47 @@ public class McpClientServiceImpl implements McpClientService {
     private final McpServerService mcpServerService;
     private final RedisUtil redisUtil;
     private final ObjectMapper objectMapper;
+    private final CacheInvalidationBroadcaster cacheInvalidationBroadcaster;
 
     /** Redis 缓存 key 前缀 */
     private static final String MCP_TOOLS_CACHE_KEY = "lightbot:mcp:tools:";
+
+    /** 多实例广播的缓存域标识：mcpClient（按 serverId 索引） */
+    private static final String CACHE_TYPE_MCP_CLIENT = "mcpClient";
 
     /** 客户端缓存：serverId → McpSyncClient */
     private final ConcurrentHashMap<Long, McpSyncClient> clientCache = new ConcurrentHashMap<>();
 
     /** ToolCallback 缓存：serverId → List<ToolCallback>（已过滤 disabled_tools） */
     private final ConcurrentHashMap<Long, List<ToolCallback>> callbackCache = new ConcurrentHashMap<>();
+
+    @PostConstruct
+    void registerCacheInvalidation() {
+        // 多实例失效：其他实例广播 mcpClient 失效时，本实例同步清理本地 client/callback 缓存（不触发 Redis 删除，避免循环）
+        cacheInvalidationBroadcaster.register(CACHE_TYPE_MCP_CLIENT, key -> {
+            if (key == null) {
+                callbackCache.clear();
+                clientCache.forEach((id, client) -> closeQuietly(client, id));
+                clientCache.clear();
+            } else {
+                Long serverId = Long.parseLong(key);
+                callbackCache.remove(serverId);
+                McpSyncClient client = clientCache.remove(serverId);
+                if (client != null) {
+                    closeQuietly(client, serverId);
+                }
+            }
+        });
+    }
+
+    /** 关闭 MCP 客户端连接，异常仅打日志不抛出 */
+    private void closeQuietly(McpSyncClient client, Long serverId) {
+        try {
+            client.close();
+        } catch (Exception e) {
+            log.warn("[MCP] 关闭客户端失败: serverId={}, error={}", serverId, e.getMessage());
+        }
+    }
 
     @Override
     public List<McpSchema.Tool> testConnection(Long mcpServerId) {
@@ -214,7 +248,10 @@ public class McpClientServiceImpl implements McpClientService {
         // 2. 清除 Redis 缓存
         String cacheKey = MCP_TOOLS_CACHE_KEY + mcpServerId;
         redisUtil.delete(cacheKey);
-        log.info("[MCP] 已清除Redis缓存: serverId={}", mcpServerId);
+
+        // 3. 多实例广播：其他实例同步清理本地 client/callback 缓存
+        cacheInvalidationBroadcaster.broadcast(CACHE_TYPE_MCP_CLIENT, String.valueOf(mcpServerId));
+        log.info("[MCP] 已清除Redis缓存并广播失效: serverId={}", mcpServerId);
     }
 
     @Override

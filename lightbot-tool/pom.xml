@@ -36,5 +36,10 @@
             <artifactId>groovy-jsr223</artifactId>
             <version>4.0.26</version>
         </dependency>
+        <!-- JSqlParser：SQL AST 解析，PgSqlTool 仅允许 SELECT 的权威校验；版本由父 pom dependencyManagement 统一锁定到 4.6 -->
+        <dependency>
+            <groupId>com.github.jsqlparser</groupId>
+            <artifactId>jsqlparser</artifactId>
+        </dependency>
     </dependencies>
 </project>

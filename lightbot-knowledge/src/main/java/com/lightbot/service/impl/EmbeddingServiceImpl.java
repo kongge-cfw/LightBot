@@ -18,7 +18,7 @@ import com.lightbot.util.MilvusUtil;
 import com.lightbot.util.RerankerUtil;
 import com.lightbot.util.VectorUtil;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import org.springframework.transaction.annotation.Transactional;
@@ -46,9 +46,10 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
     private final MilvusUtil milvusUtil;
     private final DocumentMapper documentMapper;
     private final ChunkService chunkService;
-    private final KnowledgeService knowledgeService;
     private final RerankerUtil rerankerUtil;
     private final GraphRetrievalUtil graphRetrievalUtil;
+    /** 延迟解析：KnowledgeServiceImpl 反向依赖 EmbeddingService，ObjectProvider 取 bean 时打破构造期循环 */
+    private final ObjectProvider<KnowledgeService> knowledgeServiceProvider;
 
     private static final String SEARCH_MODE_VECTOR = "vector";
     private static final String SEARCH_MODE_KEYWORD = "keyword";
@@ -62,13 +63,13 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
 
     public EmbeddingServiceImpl(EmbeddingMapper embeddingMapper, MilvusUtil milvusUtil,
                                 DocumentMapper documentMapper, ChunkService chunkService,
-                                @Lazy KnowledgeService knowledgeService, RerankerUtil rerankerUtil,
-                                GraphRetrievalUtil graphRetrievalUtil) {
+                                ObjectProvider<KnowledgeService> knowledgeServiceProvider,
+                                RerankerUtil rerankerUtil, GraphRetrievalUtil graphRetrievalUtil) {
         this.embeddingMapper = embeddingMapper;
         this.milvusUtil = milvusUtil;
         this.documentMapper = documentMapper;
         this.chunkService = chunkService;
-        this.knowledgeService = knowledgeService;
+        this.knowledgeServiceProvider = knowledgeServiceProvider;
         this.rerankerUtil = rerankerUtil;
         this.graphRetrievalUtil = graphRetrievalUtil;
     }
@@ -371,7 +372,7 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
             return false;
         }
         return routingCache.computeIfAbsent(knowledgeId, id -> {
-            Knowledge knowledge = knowledgeService.getById(id);
+            Knowledge knowledge = knowledgeServiceProvider.getObject().getById(id);
             return knowledge != null && knowledge.getType() == KnowledgeType.MILVUS;
         });
     }

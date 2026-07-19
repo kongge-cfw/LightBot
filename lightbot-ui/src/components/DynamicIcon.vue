@@ -5,7 +5,7 @@
 
 <script setup>
 import { computed } from 'vue'
-import * as AntIcons from '@ant-design/icons-vue'
+import { resolveIcon } from '../utils/iconRegistry'
 
 const props = defineProps({
   // Ant Design 图标组件名，如 GlobalOutlined
@@ -14,7 +14,7 @@ const props = defineProps({
   fallback: { type: String, default: '' },
 })
 
-const iconComp = computed(() => (props.name ? AntIcons[props.name] : null) || null)
+const iconComp = computed(() => resolveIcon(props.name))
 const fallbackLetter = computed(() => (props.fallback || '?')[0].toUpperCase())
 </script>
 

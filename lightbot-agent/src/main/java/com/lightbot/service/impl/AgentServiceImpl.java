@@ -62,6 +62,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -148,13 +149,31 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         return agent;
     }
 
-    @Override
-    public Agent clone(Long id) {
-        // 1. 校验源Agent存在性
-        Agent source = getById(id);
-        if (source == null) {
+    /**
+     * 校验当前登录用户对 Agent 的访问权（owner / 默认 Agent / 管理员）
+     *
+     * @param id Agent ID
+     * @return 已通过校验的 Agent 实体
+     */
+    private Agent checkOwnership(Long id) {
+        Agent agent = getById(id);
+        if (agent == null) {
             throw new BizException(ErrorCode.AGENT_NOT_FOUND);
         }
+        long currentUserId = StpUtil.getLoginIdAsLong();
+        boolean isAdmin = StpUtil.hasRole("admin");
+        boolean isOwner = Objects.equals(agent.getUserId(), currentUserId);
+        boolean isDefault = Boolean.TRUE.equals(agent.getIsDefault());
+        if (!isAdmin && !isOwner && !isDefault) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        return agent;
+    }
+
+    @Override
+    public Agent clone(Long id) {
+        // 1. 校验源Agent存在性 + 所有权
+        Agent source = checkOwnership(id);
 
         // 2. 生成唯一名称：原名 + "(副本)"，冲突时追加序号
         String baseName = source.getName() + "(副本)";
@@ -195,11 +214,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public Agent update(AgentSaveDTO request) {
-        // 1. 校验存在性
-        Agent existing = getById(request.getId());
-        if (existing == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        // 1. 校验存在性 + 所有权
+        Agent existing = checkOwnership(request.getId());
 
         // 2. 名称变更时校验唯一性
         if (!existing.getName().equals(request.getName())) {
@@ -244,11 +260,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public Map<String, Object> getAgentDetail(Long id) {
-        // 1. 获取 Agent 信息
-        Agent agent = getById(id);
-        if (agent == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        // 1. 获取 Agent 信息 + 所有权校验
+        Agent agent = checkOwnership(id);
 
         // 2. 获取绑定的知识库 ID 列表（转为字符串避免前端 Long 精度丢失）
         List<Long> knowledgeIds = getKnowledgeIds(id);
@@ -303,10 +316,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = {RedisCacheConfig.CACHE_AGENT, RedisCacheConfig.CACHE_AGENT_BINDING}, allEntries = true)
     public void deleteById(Long id) {
-        Agent agent = getById(id);
-        if (agent == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        Agent agent = checkOwnership(id);
         // 1. 级联删除版本记录
         safeRemove(() -> agentVersionService.deleteByAgentId(id), "AgentVersion");
         // 2. 级联删除会话（含消息、ToolCall、Trace）
@@ -319,11 +329,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public String generateSystemPrompt(Long id) {
-        // 1. 校验Agent存在性
-        Agent agent = getById(id);
-        if (agent == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        // 1. 校验Agent存在性 + 所有权
+        Agent agent = checkOwnership(id);
 
         // 2. 构建提示词
         String userMessage = String.format("Agent名称：%s\nAgent描述：%s",
@@ -438,10 +445,11 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public void updateKnowledgeBindings(Long agentId, List<Long> knowledgeIds) {
-        Agent agent = getById(agentId);
-        if (agent == null) {
-            return;
+        // 0. 数量上限校验（业务规则，下沉到 Service）
+        if (knowledgeIds != null && knowledgeIds.size() > 10) {
+            throw new BizException(ErrorCode.AGENT_KNOWLEDGE_LIMIT);
         }
+        Agent agent = checkOwnership(agentId);
         try {
             // 1. 解析现有config
             var configNode = objectMapper.readTree(
@@ -472,7 +480,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public void updateToolBindings(Long agentId, List<Long> toolIds) {
-        writeBindingIdsToConfig(agentId, "tools", toolIds);
+        writeBindingIdsToConfig(agentId, "tools", toolIds, 10, ErrorCode.AGENT_TOOL_LIMIT);
     }
 
     @Override
@@ -493,7 +501,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public void updateMcpServerBindings(Long agentId, List<Long> mcpServerIds) {
-        writeBindingIdsToConfig(agentId, "mcpServers", mcpServerIds);
+        writeBindingIdsToConfig(agentId, "mcpServers", mcpServerIds, 5, ErrorCode.AGENT_MCP_LIMIT);
     }
 
     @Override
@@ -514,7 +522,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public void updateSubAgentBindings(Long agentId, List<Long> subAgentIds) {
-        writeBindingIdsToConfig(agentId, "subagents", subAgentIds);
+        writeBindingIdsToConfig(agentId, "subagents", subAgentIds, 5, ErrorCode.AGENT_SUBAGENT_LIMIT);
     }
 
     @Override
@@ -526,7 +534,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public void updateSkillBindings(Long agentId, List<Long> skillIds) {
-        writeBindingIdsToConfig(agentId, "skills", skillIds);
+        writeBindingIdsToConfig(agentId, "skills", skillIds, 10, ErrorCode.AGENT_SKILL_LIMIT);
     }
 
     /**
@@ -562,12 +570,20 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     /**
      * 写入绑定 ID 到 config（统一存字符串，与 knowledges 字段一致）
+     * <p>所有 update*Bindings 入口共享此方法，集中做数量上限校验 + 所有权校验，避免 4 处重复</p>
+     *
+     * @param agentId Agent ID
+     * @param field   config JSONB 字段名（tools / mcpServers / subagents / skills）
+     * @param ids     待写入的 ID 列表
+     * @param max     业务允许的最大数量
+     * @param limitErrorCode 超限时抛出的错误码
      */
-    private void writeBindingIdsToConfig(Long agentId, String field, List<Long> ids) {
-        Agent agent = getById(agentId);
-        if (agent == null) {
-            return;
+    private void writeBindingIdsToConfig(Long agentId, String field, List<Long> ids,
+                                          int max, ErrorCode limitErrorCode) {
+        if (ids != null && ids.size() > max) {
+            throw new BizException(limitErrorCode);
         }
+        Agent agent = checkOwnership(agentId);
         try {
             var configNode = objectMapper.readTree(
                     agent.getConfig() != null ? agent.getConfig() : "{}");
@@ -586,11 +602,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public String uploadAvatar(Long id, MultipartFile file) {
-        // 1. 校验Agent存在性
-        Agent agent = getById(id);
-        if (agent == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        // 1. 校验Agent存在性 + 所有权
+        Agent agent = checkOwnership(id);
 
         // 2. 校验文件格式（仅允许图片格式）
         String originalName = file.getOriginalFilename();
@@ -636,11 +649,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setDefaultAgent(long agentId) {
-        // 1. 校验Agent存在性
-        Agent agent = getById(agentId);
-        if (agent == null) {
-            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
+        // 1. 校验Agent存在性 + 所有权
+        Agent agent = checkOwnership(agentId);
 
         // 2. 清除该用户其他Agent的默认标记（1 条 SQL）
         long userId = agent.getUserId();
@@ -763,6 +773,11 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public MentionOptionsVO getMentionOptions(Long agentId, Long agentVersionId, String types) {
+        // 0. 所有权校验（agentId 非空时；agentVersionId 单独走快照路径不直接落地 agent 表）
+        if (agentId != null) {
+            checkOwnership(agentId);
+        }
+
         // 1. 解析绑定 ID：agentVersionId 非空优先走版本快照，payload 缺失时 fallback 到 agent 表当前绑定。
         // 草稿版本的 agent_version.config 可能未同步最新绑定（updateKnowledgeBindings 等只写 agent.config），
         // 因此必须 fallback，否则候选会误返回空。

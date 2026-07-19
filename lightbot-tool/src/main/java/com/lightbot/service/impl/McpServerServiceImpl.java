@@ -3,6 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.config.RedisCacheConfig;
 import com.lightbot.dto.McpServerRequestDTO;
@@ -12,17 +13,21 @@ import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.McpServerMapper;
 import com.lightbot.service.McpClientService;
 import com.lightbot.service.McpServerService;
+import com.lightbot.vo.McpToolVO;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * MCP Server 服务实现类
@@ -36,9 +41,21 @@ import java.util.Objects;
 public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer>
         implements McpServerService {
 
-    @Lazy
-    @Autowired
-    private McpClientService mcpClientService;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    /**
+     * 客户端服务反向依赖本服务；按实际 MCP 操作延迟解析，避免 Bean 构造期循环依赖。
+     */
+    private final ObjectProvider<McpClientService> mcpClientServiceProvider;
+
+    /**
+     * 获取 MCP 客户端服务。
+     *
+     * @return MCP 客户端服务
+     */
+    private McpClientService getMcpClientService() {
+        return mcpClientServiceProvider.getObject();
+    }
 
     @Override
     @Cacheable(value = RedisCacheConfig.CACHE_MCP_SERVER, key = "#id", unless = "#result == null")
@@ -107,7 +124,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
         server.setDisabledTools(request.getDisabledTools());
         updateById(server);
         // 配置变更后清除 MCP 客户端缓存，下次对话重新拉取工具
-        mcpClientService.clearCache(server.getId());
+        getMcpClientService().clearCache(server.getId());
         return server;
     }
 
@@ -128,7 +145,7 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
         }
         server.setStatus(enabled ? CommonStatus.ACTIVE : CommonStatus.DISABLED);
         updateById(server);
-        mcpClientService.clearCache(id);
+        getMcpClientService().clearCache(id);
     }
 
     @Override
@@ -145,6 +162,95 @@ public class McpServerServiceImpl extends ServiceImpl<McpServerMapper, McpServer
         }
         // 3. 逻辑删除并清理客户端缓存
         removeById(id);
-        mcpClientService.clearCache(id);
+        getMcpClientService().clearCache(id);
+    }
+
+    @Override
+    public List<McpToolVO> listTools(Long id) {
+        McpServer server = getById(id);
+        if (server == null) {
+            throw new BizException(ErrorCode.MCP_SERVER_NOT_FOUND);
+        }
+        // 1. 从缓存或运行时获取工具列表
+        List<io.modelcontextprotocol.spec.McpSchema.Tool> mcpTools = getMcpClientService().getToolsWithCache(id);
+        // 2. 解析 disabled_tools 集合
+        Set<String> disabledTools = parseDisabledTools(server.getDisabledTools());
+        // 3. 构建 VO 列表，序列化 inputSchema JSON
+        List<McpToolVO> voList = new ArrayList<>();
+        for (io.modelcontextprotocol.spec.McpSchema.Tool tool : mcpTools) {
+            McpToolVO vo = new McpToolVO();
+            vo.setName(tool.name());
+            vo.setDescription(tool.description() != null ? tool.description() : "");
+            vo.setEnabled(!disabledTools.contains(tool.name()));
+            if (tool.inputSchema() != null) {
+                try {
+                    vo.setInputSchema(OBJECT_MAPPER.writeValueAsString(tool.inputSchema()));
+                } catch (Exception e) {
+                    vo.setInputSchema("{}");
+                }
+            }
+            voList.add(vo);
+        }
+        return voList;
+    }
+
+    @Override
+    public List<McpToolVO> refreshTools(Long id) {
+        // 1. 清缓存并重新拉取，返回工具数量
+        int toolCount = getMcpClientService().refreshServer(id);
+        // 2. 同步成功则回写 lastSyncTime
+        if (toolCount >= 0) {
+            McpServer server = getById(id);
+            if (server != null) {
+                server.setLastSyncTime(java.time.LocalDateTime.now());
+                updateById(server);
+            }
+        }
+        // 3. 返回最新工具列表
+        return listTools(id);
+    }
+
+    @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_MCP_SERVER, key = "#id")
+    public void toggleTool(Long id, String toolName) {
+        McpServer server = getById(id);
+        if (server == null) {
+            throw new BizException(ErrorCode.MCP_SERVER_NOT_FOUND);
+        }
+        // 1. 解析现有 disabled_tools
+        Set<String> disabledTools = parseDisabledTools(server.getDisabledTools());
+        // 2. 切换状态：在集合中则移除（启用），否则加入（禁用）
+        if (disabledTools.contains(toolName)) {
+            disabledTools.remove(toolName);
+        } else {
+            disabledTools.add(toolName);
+        }
+        // 3. 回写 JSONB 并清客户端缓存
+        try {
+            server.setDisabledTools(OBJECT_MAPPER.writeValueAsString(new ArrayList<>(disabledTools)));
+            updateById(server);
+            getMcpClientService().clearCache(id);
+            log.info("[MCP] 工具状态切换: serverId={}, tool={}, enabled={}",
+                    id, toolName, !disabledTools.contains(toolName));
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.INTERNAL_ERROR, e);
+        }
+    }
+
+    /**
+     * 解析 disabled_tools JSON 数组为 Set，异常或空值返回空集合
+     */
+    private Set<String> parseDisabledTools(String disabledToolsJson) {
+        if (disabledToolsJson == null || disabledToolsJson.isBlank()) {
+            return new HashSet<>();
+        }
+        try {
+            List<String> list = OBJECT_MAPPER.readValue(disabledToolsJson,
+                    new com.fasterxml.jackson.core.type.TypeReference<>() {});
+            return new HashSet<>(list);
+        } catch (Exception e) {
+            log.warn("[MCP] 解析disabled_tools失败: {}", e.getMessage());
+            return new HashSet<>();
+        }
     }
 }

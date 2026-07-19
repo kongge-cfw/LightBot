@@ -18,12 +18,13 @@
       </button>
     </div>
 
-    <!-- PDF 预览 -->
+    <!-- PDF 预览：sandbox 仅允许同源显示，禁脚本/表单/弹窗，规避 PDF 嵌入式 JS 风险 -->
     <iframe
       v-else-if="isPdf && fileUrl"
       :src="fileUrl"
       class="preview-iframe"
       frameborder="0"
+      sandbox="allow-same-origin"
     ></iframe>
 
     <!-- HTML 预览：优先用已拉取的正文 srcdoc 内联渲染，绕开 MinIO 预签名 URL 的 attachment/Content-Type 头导致的空白页；无正文时才回退到 :src -->

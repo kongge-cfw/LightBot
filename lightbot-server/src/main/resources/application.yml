@@ -25,11 +25,23 @@ spring:
   # PostgreSQL 数据库配置
   # 驱动：org.postgresql.Driver
   # 需要安装 pgvector 扩展用于向量存储
+  # 本机开发凭证直接配置于此文件。
   # ========================================
   datasource:
     url: jdbc:postgresql://localhost:5432/lightbot
-    username: postgres
-    password: postgres
+    username: 'postgres'
+    password: 'postgres'
+    driver-class-name: org.postgresql.Driver
+
+  # ========================================
+  # 只读数据源（供 PgSqlTool 等执行用户 SQL 的工具使用）
+  # 限定权限：仅 SELECT，无 DML/DDL，避免 SQL 注入风险扩散
+  # 未配置时回退到主 datasource
+  # ========================================
+  datasource-readonly:
+    url: jdbc:postgresql://localhost:5432/lightbot
+    username: 'postgres'
+    password: 'postgres'
     driver-class-name: org.postgresql.Driver
 
   # ========================================
@@ -37,16 +49,14 @@ spring:
   # ========================================
   data:
     redis:
-      host: localhost
-      port: 6379
-      password: 123456
-      database: 9
+      host: 'localhost'
+      port: '6379'
+      password: '123456'
+      database: '9'
 
   # ========================================
   # SpringAI 模型配置
-  # api-key 通过环境变量注入（与系统环境变量同名）
-  #   DASHSCOPE_API_KEY  — 通义千问
-  #   OPENAI_API_KEY     — OpenAI / DeepSeek 等兼容 API
+  # api-key 直接配置于此文件。
   # Chat 模型由 ModelFactory 按数据库 model_provider 动态创建；
   # 此处配置供 Embedding 默认值及 OpenAIModelHandler 参考。
   # ========================================
@@ -105,24 +115,24 @@ sa-token:
 # MinIO 对象存储配置
 # 官方文档：https://min.io
 # endpoint：MinIO 服务地址（本地默认 9000 端口）
-# access-key / secret-key：MinIO 访问凭证
+# access-key / secret-key：MinIO 访问凭证。
 # bucket：存储桶名称，首次使用时自动创建
 # ========================================
 minio:
-  endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket: lightbot
+  endpoint: 'http://localhost:9000'
+  access-key: 'minioadmin'
+  secret-key: 'minioadmin'
+  bucket: 'lightbot'
 
 # ========================================
 # Neo4j 图数据库配置（知识图谱）
 # uri：Bolt 协议地址
-# username / password：认证凭证
+# username / password：认证凭证。
 # ========================================
 neo4j:
-  uri: bolt://localhost:7687
-  username: neo4j
-  password: ${NEO4J_PASSWORD:neo4j123}
+  uri: 'bolt://localhost:7687'
+  username: 'neo4j'
+  password: 'neo4j123'
 
 # 系统配置
 lightbot:
@@ -194,17 +204,27 @@ lightbot:
   # token：认证令牌（standalone 模式默认为空）
   # ========================================
   milvus:
-    enabled: true
-    uri: http://localhost:19530
-    token: ""
+    enabled: 'true'
+    uri: 'http://localhost:19530'
+    token: ''
     connect-timeout-ms: 10000
     wait-timeout-ms: 30000
+
+# ========================================
+# CORS 允许的前端源（生产环境必须收紧白名单）
+# 多个用逗号分隔，如：https://a.com,https://b.com
+# ========================================
+  cors:
+    allowed-origins: 'http://localhost:5173,http://localhost:3000'
+    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+    allow-credentials: true
+    max-age: 3600
+
 # ========================================
 # 内置工具 API Key 配置
 # ========================================
   # GitHub API Token（可选，提升 API 速率限制，Code Search API 必需）
   # 获取地址：https://github.com/settings/tokens → Fine-grained tokens
-  # 环境变量：GITHUB_TOKEN
   github:
     token: ${GITHUB_TOKEN:}
   # Tavily 联网搜索 API Key
@@ -226,12 +246,11 @@ lightbot:
 # 访问地址：http://localhost:8080/swagger-ui.html
 # ========================================
 springdoc:
-  # 生产环境设置 SWAGGER_ENABLED=false 禁用 Swagger UI 和 API Docs
-  enabled: ${SWAGGER_ENABLED:true}
+  # 生产环境请改为 false 禁用 Swagger UI 和 API Docs
+  enabled: 'true'
   swagger-ui:
     path: /swagger-ui.html
     tags-sorter: alpha
   api-docs:
     path: /v3/api-docs
-
 

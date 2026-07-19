@@ -3,6 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import cn.dev33.satoken.stp.StpUtil;
 import com.lightbot.common.BizException;
 import com.lightbot.entity.ChatSession;
 import com.lightbot.enums.ErrorCode;
@@ -265,10 +266,9 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     @Override
     public void togglePin(Long sessionId) {
+        // 1. 越权校验：sessionId 必须属于当前登录用户（ensureOwnedByUser 抛 SESSION_NOT_FOUND 兼顾 null/越权两种场景）
+        ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
         ChatSession session = getById(sessionId);
-        if (session == null) {
-            throw new BizException(ErrorCode.SESSION_NOT_FOUND);
-        }
         session.setPinned(Boolean.TRUE.equals(session.getPinned()) ? false : true);
         updateById(session);
         evictSessionCache(sessionId);

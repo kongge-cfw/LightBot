@@ -1,5 +1,6 @@
 package com.lightbot.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -23,6 +24,7 @@ import com.lightbot.service.ToolService;
 
 import java.io.Serializable;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * SubAgent 服务实现
@@ -42,6 +44,29 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
 
     private final ObjectMapper objectMapper;
     private final ToolService toolService;
+
+    /**
+     * 校验当前登录用户对 SubAgent 的访问权（owner / 内置 / 管理员）
+     * <p>内置 SubAgent 为全局共享资源，任何登录用户均可读/调；非内置仅 owner 或 admin 可写</p>
+     *
+     * @param id SubAgent ID
+     * @return 已通过校验的 SubAgent 实体
+     */
+    private SubAgent checkOwnership(Long id) {
+        SubAgent subAgent = getById(id);
+        if (subAgent == null) {
+            throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
+        }
+        boolean isBuiltin = Integer.valueOf(1).equals(subAgent.getIsBuiltin());
+        if (isBuiltin || StpUtil.hasRole("admin")) {
+            return subAgent;
+        }
+        long currentUserId = StpUtil.getLoginIdAsLong();
+        if (!Objects.equals(subAgent.getUserId(), currentUserId)) {
+            throw new BizException(ErrorCode.FORBIDDEN);
+        }
+        return subAgent;
+    }
 
     @Override
     @Cacheable(value = RedisCacheConfig.CACHE_SUBAGENT, key = "#id", unless = "#result == null")
@@ -78,6 +103,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
         subAgent.setModelRetryTimes(resolveModelRetryTimes(request.getModelRetryTimes()));
         subAgent.setEnabled(request.getEnabled() != null ? (request.getEnabled() ? 1 : 0) : 1);
         subAgent.setIsBuiltin(0);
+        subAgent.setUserId(StpUtil.getLoginIdAsLong());
         save(subAgent);
         return subAgent;
     }
@@ -85,11 +111,8 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_SUBAGENT, key = "#request.id")
     public SubAgent update(SubAgentRequestDTO request) {
-        // 1. 校验存在性
-        SubAgent subAgent = getById(request.getId());
-        if (subAgent == null) {
-            throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
-        }
+        // 1. 校验存在性 + 所有权
+        SubAgent subAgent = checkOwnership(request.getId());
         // 2. 内置 SubAgent：仅允许调整模型配置（继承主 Agent / 自选模型），其余字段一律保持原值
         if (Integer.valueOf(1).equals(subAgent.getIsBuiltin())) {
             return updateBuiltinModelConfig(subAgent, request);
@@ -163,10 +186,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_SUBAGENT, key = "#id")
     public void deleteById(Long id) {
-        SubAgent subAgent = getById(id);
-        if (subAgent == null) {
-            throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
-        }
+        SubAgent subAgent = checkOwnership(id);
         if (Integer.valueOf(1).equals(subAgent.getIsBuiltin())) {
             throw new BizException("内置 SubAgent 不可删除");
         }
@@ -175,10 +195,7 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
 
     @Override
     public void setEnabled(Long id, boolean enabled) {
-        SubAgent subAgent = getById(id);
-        if (subAgent == null) {
-            throw new BizException(ErrorCode.SUBAGENT_NOT_FOUND);
-        }
+        SubAgent subAgent = checkOwnership(id);
         subAgent.setEnabled(enabled ? 1 : 0);
         updateById(subAgent);
     }

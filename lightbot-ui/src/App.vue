@@ -1,10 +1,12 @@
 <template>
   <a-config-provider :locale="zhCN" :theme="themeConfig">
-    <router-view v-slot="{ Component, route: r }">
-      <transition name="route-fade" mode="out-in">
-        <component :is="Component" :key="r.matched[0]?.path || r.path" />
-      </transition>
-    </router-view>
+    <ErrorBoundary verbose>
+      <router-view v-slot="{ Component, route: r }">
+        <transition name="route-fade" mode="out-in">
+          <component :is="Component" :key="r.matched[0]?.path || r.path" />
+        </transition>
+      </router-view>
+    </ErrorBoundary>
   </a-config-provider>
 </template>
 
@@ -13,6 +15,7 @@ import { onMounted, onUnmounted } from 'vue'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import { useTheme } from './composables/useTheme'
 import { handleDebugLabShortcut } from './utils/chat/debug/debugLabShortcut'
+import ErrorBoundary from './components/ErrorBoundary.vue'
 
 const { isDark, themeConfig } = useTheme()
 

@@ -29,14 +29,27 @@ public class NashornEngine implements CodeEngine {
     private static final long DEFAULT_TIMEOUT_MS = 5000;
     private static final int MAX_OUTPUT_LENGTH = 10000;
 
-    /** 危险访问模式 */
+    /**
+     * 危险访问模式（L1 黑名单）
+     * <p>覆盖已知绕过模式：</p>
+     * <ul>
+     *   <li>Java 互操作：Java.type / Java.extend / Packages.* / importClass</li>
+     *   <li>反射：Class.forName / Method.invoke / Field.set</li>
+     *   <li>文件系统：java.io.File / RandomAccessFile / nio.file</li>
+     *   <li>反序列化：ObjectInputStream / XMLDecoder</li>
+     * </ul>
+     * <p>严格的 Nashorn 沙盒还需配合 Nashorn ClassFilter（待 L2 改造引入）</p>
+     */
     private static final Pattern DANGEROUS_ACCESS = Pattern.compile(
             "\\b(Java\\.type|Java\\.extend|importClass|importPackage|Packages\\."
                     + "|java\\.lang\\.Runtime|java\\.lang\\.ProcessBuilder"
-                    + "|java\\.io\\.|java\\.net\\.|java\\.nio\\.file\\."
+                    + "|java\\.io\\.(File|FileInputStream|FileOutputStream|RandomAccessFile|ObjectInputStream)"
+                    + "|java\\.net\\.|java\\.nio\\.file\\."
                     + "|javax\\.script\\.ScriptEngineManager|Class\\.forName"
                     + "|System\\.exit|System\\.setOut|System\\.setErr"
-                    + "|ProcessBuilder|ProcessHandle|Desktop)\\b",
+                    + "|ProcessBuilder|ProcessHandle|Desktop"
+                    + "|java\\.beans\\.XMLDecoder"
+                    + "|Reflective|Method\\.invoke|Field\\.set)\\b",
             Pattern.CASE_INSENSITIVE);
 
     @Override

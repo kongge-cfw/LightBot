@@ -27,15 +27,13 @@ import com.lightbot.service.ModelProviderService;
 import com.lightbot.service.TaskService;
 import com.lightbot.util.MilvusUtil;
 import com.lightbot.util.Neo4jUtil;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.neo4j.driver.types.Node;
 import org.neo4j.driver.types.Relationship;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.embedding.EmbeddingRequest;
 import org.springframework.ai.embedding.EmbeddingResponse;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -49,7 +47,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class GraphServiceImpl implements GraphService {
 
     private static final double DEFAULT_MIN_SIMILARITY_SCORE = 0.5;
@@ -66,14 +63,38 @@ public class GraphServiceImpl implements GraphService {
     private final DocumentMapper documentMapper;
     private final ObjectMapper objectMapper;
 
-    @Lazy
-    @Autowired
-    private KnowledgeService knowledgeService;
+    /** 延迟解析：KnowledgeServiceImpl 反向依赖 GraphService，ObjectProvider 取 bean 时打破构造期循环 */
+    private final ObjectProvider<KnowledgeService> knowledgeServiceProvider;
+
+    public GraphServiceImpl(Neo4jUtil neo4jUtil, MilvusUtil milvusUtil, EmbeddingModel embeddingModel,
+                            KnowledgeMemberService permissionHelper, GraphExtractor graphExtractor,
+                            TaskService taskService, ModelProviderService modelProviderService,
+                            KnowledgeGraphMapper knowledgeGraphMapper, GraphDocumentMapper graphDocumentMapper,
+                            DocumentMapper documentMapper, ObjectMapper objectMapper,
+                            ObjectProvider<KnowledgeService> knowledgeServiceProvider) {
+        this.neo4jUtil = neo4jUtil;
+        this.milvusUtil = milvusUtil;
+        this.embeddingModel = embeddingModel;
+        this.permissionHelper = permissionHelper;
+        this.graphExtractor = graphExtractor;
+        this.taskService = taskService;
+        this.modelProviderService = modelProviderService;
+        this.knowledgeGraphMapper = knowledgeGraphMapper;
+        this.graphDocumentMapper = graphDocumentMapper;
+        this.documentMapper = documentMapper;
+        this.objectMapper = objectMapper;
+        this.knowledgeServiceProvider = knowledgeServiceProvider;
+    }
 
     private void checkNeo4jAvailable() {
         if (!neo4jUtil.isAvailable()) {
             throw new BizException(ErrorCode.GRAPH_NEO4J_UNAVAILABLE);
         }
+    }
+
+    /** 解析 KnowledgeService（构造期循环依赖通过 ObjectProvider 延迟到首调） */
+    private KnowledgeService knowledgeService() {
+        return knowledgeServiceProvider.getObject();
     }
 
     // ==================== 抽取 ====================
@@ -90,7 +111,7 @@ public class GraphServiceImpl implements GraphService {
         if (!neo4jUtil.isAvailable()) {
             return null;
         }
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeService().getById(knowledgeId);
         if (knowledge == null) {
             return null;
         }
@@ -100,7 +121,7 @@ public class GraphServiceImpl implements GraphService {
     }
 
     private Long doExtract(Long knowledgeId, GraphExtractDTO request) {
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeService().getById(knowledgeId);
         if (knowledge == null) {
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }
@@ -229,7 +250,7 @@ public class GraphServiceImpl implements GraphService {
         checkNeo4jAvailable();
         permissionHelper.checkPermission(knowledgeId, KnowledgeRole.DEVELOPER);
 
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeService().getById(knowledgeId);
         if (knowledge == null) {
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }
@@ -346,7 +367,7 @@ public class GraphServiceImpl implements GraphService {
             }
             // 文档正在入库且开启了图谱自动抽取，视为即将触发图谱任务
             if (!Boolean.TRUE.equals(stats.getHasRunningTask())) {
-                Knowledge knowledge = knowledgeService.getById(knowledgeId);
+                Knowledge knowledge = knowledgeService().getById(knowledgeId);
                 if (knowledge != null && Boolean.TRUE.equals(knowledge.getGraphEnabled())) {
                     Document doc = documentMapper.selectById(documentId);
                     if (doc != null && doc.getStatus() == DocumentStatus.PROCESSING) {
@@ -363,7 +384,7 @@ public class GraphServiceImpl implements GraphService {
             }
             // 若无运行中图谱任务，检查是否有文档正在入库且开启了自动抽取
             if (!Boolean.TRUE.equals(stats.getHasRunningTask())) {
-                Knowledge knowledge = knowledgeService.getById(knowledgeId);
+                Knowledge knowledge = knowledgeService().getById(knowledgeId);
                 if (knowledge != null && Boolean.TRUE.equals(knowledge.getGraphEnabled())) {
                     long processingCount = documentMapper.selectCount(
                             new LambdaQueryWrapper<Document>()
@@ -411,11 +432,11 @@ public class GraphServiceImpl implements GraphService {
         neo4jUtil.run(cypher, Map.of());
 
         // 重置知识库图谱统计
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeService().getById(knowledgeId);
         if (knowledge != null) {
             knowledge.setNodeCount(0);
             knowledge.setEdgeCount(0);
-            knowledgeService.updateById(knowledge);
+            knowledgeService().updateById(knowledge);
         }
 
         // 重置 KnowledgeGraph 状态
@@ -463,11 +484,11 @@ public class GraphServiceImpl implements GraphService {
             String cypher = "MATCH (n:Entity:`%s`) DETACH DELETE n".formatted(label);
             neo4jUtil.run(cypher, Map.of());
 
-            Knowledge knowledge = knowledgeService.getById(knowledgeId);
+            Knowledge knowledge = knowledgeService().getById(knowledgeId);
             if (knowledge != null) {
                 knowledge.setNodeCount(0);
                 knowledge.setEdgeCount(0);
-                knowledgeService.updateById(knowledge);
+                knowledgeService().updateById(knowledge);
             }
 
             KnowledgeGraph kg = getKnowledgeGraph(knowledgeId);
@@ -912,11 +933,11 @@ public class GraphServiceImpl implements GraphService {
 
     private void updateKnowledgeGraphStats(Long knowledgeId, String label) {
         GraphStatsVO stats = getStatsFromNeo4j(label);
-        Knowledge knowledge = knowledgeService.getById(knowledgeId);
+        Knowledge knowledge = knowledgeService().getById(knowledgeId);
         if (knowledge != null) {
             knowledge.setNodeCount(stats.getNodeCount());
             knowledge.setEdgeCount(stats.getEdgeCount());
-            knowledgeService.updateById(knowledge);
+            knowledgeService().updateById(knowledge);
         }
 
         // 同步更新 KnowledgeGraph 记录

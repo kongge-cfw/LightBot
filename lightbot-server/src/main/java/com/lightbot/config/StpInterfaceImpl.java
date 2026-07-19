@@ -2,7 +2,7 @@ package com.lightbot.config;
 
 import cn.dev33.satoken.stp.StpInterface;
 import com.lightbot.entity.User;
-import com.lightbot.mapper.UserMapper;
+import com.lightbot.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -10,7 +10,7 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Sa-Token 角色/权限数据源：从 users 表读取角色，供 {@code StpUtil.checkRole} 使用。
+ * Sa-Token 角色/权限数据源：从 UserService 读取角色，供 {@code StpUtil.checkRole} 使用。
  *
  * @author finch
  * @since 2026-07-07
@@ -19,7 +19,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class StpInterfaceImpl implements StpInterface {
 
-    private final UserMapper userMapper;
+    private final UserService userService;
 
     /**
      * 返回账号拥有的角色列表
@@ -30,7 +30,7 @@ public class StpInterfaceImpl implements StpInterface {
      */
     @Override
     public List<String> getRoleList(Object loginId, String loginType) {
-        User user = userMapper.selectById(parseLoginId(loginId));
+        User user = userService.getById(parseLoginId(loginId));
         if (user == null || user.getRole() == null) {
             return Collections.emptyList();
         }

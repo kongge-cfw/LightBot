@@ -25,6 +25,11 @@ lightbot-ui/node_modules/
 lightbot-ui/dist/
 lightbot-ui/.env.local
 
+# Env files (containing real credentials, never commit)
+.env
+.env.local
+.env.*.local
+
 # Logs
 *.log
 logs/

@@ -64,7 +64,6 @@
             <ModelSelect
               v-model:provider-id="inst.providerId"
               v-model:model-id="inst.modelId"
-              size="small"
               @change="(m) => onInstModelChange(inst, m)"
             />
           </div>

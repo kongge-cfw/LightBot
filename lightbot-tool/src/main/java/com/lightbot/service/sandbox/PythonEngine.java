@@ -27,10 +27,28 @@ public class PythonEngine implements CodeEngine {
     private static final String RESULT_START_MARKER = "__SANDBOX_RESULT_START__";
     private static final String RESULT_END_MARKER = "__SANDBOX_RESULT_END__";
 
-    /** 危险 import 黑名单 */
+    /**
+     * 危险 import 黑名单（L1 快速过滤，配合 -E -S 启动参数 + 工作目录隔离形成纵深防御）
+     * <p>覆盖已知绕过模式：</p>
+     * <ul>
+     *   <li>直接 import：os/subprocess/socket/http 等</li>
+     *   <li>动态 import：__import__("os")、importlib.import_module("os")</li>
+     *   <li>builtins 提取：globals()["__builtins__"].__import__(...)</li>
+     *   <li>反射绕过：getattr(__builtins__, "__import__")(...)</li>
+     * </ul>
+     */
     private static final Pattern BLOCKED_IMPORTS = Pattern.compile(
-            "\\b(import\\s+(os|subprocess|shutil|socket|http|urllib|ftplib|smtplib|ctypes|sys|signal|multiprocessing|threading)"
-                    + "|from\\s+(os|subprocess|shutil|socket|http|urllib|ftplib|smtplib|ctypes|sys|signal|multiprocessing|threading)\\s+import)");
+            "\\b(import\\s+(os|subprocess|shutil|socket|http|urllib|ftplib|smtplib|ctypes|sys|signal|multiprocessing|threading|importlib|builtins|marshal|imp|pty|platform|asyncio|telnetlib|paramiko)"
+                    + "|from\\s+(os|subprocess|shutil|socket|http|urllib|ftplib|smtplib|ctypes|sys|signal|multiprocessing|threading|importlib|builtins|marshal|imp|pty|platform|asyncio|telnetlib|paramiko)\\s+import)"
+                    + "|__import__\\s*\\("
+                    + "|importlib\\.(import_module|__import__|find_loader|reload)"
+                    + "|__builtins__"
+                    + "|globals\\(\\)\\s*\\["
+                    + "|getattr\\s*\\(\\s*['\"]__import__['\"]"
+                    + "|exec\\s*\\("
+                    + "|eval\\s*\\("
+                    + "|compile\\s*\\("
+                    + "|open\\s*\\([^)]*['\"]w", Pattern.CASE_INSENSITIVE);
 
     /** Python 3 解释器候选路径 */
     private static final String[] PYTHON_CANDIDATES = {"python3", "python"};
@@ -90,10 +108,14 @@ public class PythonEngine implements CodeEngine {
                     .build();
         }
 
-        // 4. 写入临时文件
+        // 4. 创建隔离的临时工作目录 + 写入脚本
+        // 工作目录隔离：子进程在独立空目录内运行，避免读取 JVM 工作目录文件
         File tempFile;
+        File workDir;
         try {
-            tempFile = File.createTempFile("sandbox_", ".py");
+            workDir = Files.createTempDirectory("sandbox_workdir_").toFile();
+            workDir.deleteOnExit();
+            tempFile = new File(workDir, "script.py");
             tempFile.deleteOnExit();
             Files.writeString(tempFile.toPath(), wrappedCode, StandardCharsets.UTF_8);
         } catch (IOException e) {
@@ -107,8 +129,12 @@ public class PythonEngine implements CodeEngine {
 
         try {
             // 5. 启动子进程
-            ProcessBuilder pb = new ProcessBuilder(pythonCmd, "-X", "utf8", tempFile.getAbsolutePath());
+            // -S：禁用 site 模块（屏蔽 site-packages 中的危险模块）
+            // -E：禁用 PYTHON* 环境变量（防止 PYTHONSTARTUP 等注入）
+            // -s：禁用用户 site-packages
+            ProcessBuilder pb = new ProcessBuilder(pythonCmd, "-X", "utf8", "-S", "-E", "-s", tempFile.getAbsolutePath());
             pb.redirectErrorStream(false);
+            pb.directory(workDir);
             Map<String, String> env = pb.environment();
             env.clear();
             env.put("PYTHONUTF8", "1");
@@ -174,6 +200,18 @@ public class PythonEngine implements CodeEngine {
                     .build();
         } finally {
             tempFile.delete();
+            // 清理工作目录（包含可能产生的临时输出文件）
+            File[] leftovers = workDir.listFiles();
+            if (leftovers != null) {
+                for (File f : leftovers) {
+                    if (!f.delete()) {
+                        f.deleteOnExit();
+                    }
+                }
+            }
+            if (!workDir.delete()) {
+                workDir.deleteOnExit();
+            }
         }
     }
 

@@ -299,7 +299,6 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { Graph } from '@antv/g6'
 import {
   SearchOutlined, DeleteOutlined, CompressOutlined, UploadOutlined, DownloadOutlined,
   PlusOutlined, LinkOutlined, ThunderboltOutlined, ClearOutlined, QuestionCircleOutlined
@@ -442,7 +441,7 @@ function formatGraphData(data) {
 }
 
 // ---- 初始化图谱 ----
-function initGraph() {
+async function initGraph() {
   if (!canvasRef.value) return
 
   const width = canvasRef.value.offsetWidth
@@ -454,6 +453,9 @@ function initGraph() {
     try { graphInstance.destroy() } catch { /* ignore */ }
     graphInstance = null
   }
+
+  // G6 体积大（~2.2MB），仅在真正需要渲染图谱时按需加载
+  const { Graph } = await import('@antv/g6')
 
   graphInstance = new Graph({
     container: canvasRef.value,
@@ -609,7 +611,7 @@ async function loadGraphData() {
     graphReady.value = true
     await nextTick()
 
-    initGraph()
+    await initGraph()
     if (graphInstance) {
       const data = formatGraphData(subgraph)
       graphInstance.setData(data)

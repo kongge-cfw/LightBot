@@ -1,5 +1,6 @@
 package com.lightbot.service.impl;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -7,6 +8,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.entity.Message;
+import com.lightbot.entity.ToolCall;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.entity.MessageFeedback;
 import com.lightbot.mapper.MessageFeedbackMapper;
@@ -14,12 +16,14 @@ import com.lightbot.mapper.MessageMapper;
 import com.lightbot.mapper.ToolCallMapper;
 import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.service.ChatAttachmentParsedService;
+import com.lightbot.service.ChatSessionService;
 import com.lightbot.service.MessageService;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.SessionStoragePath;
 import com.lightbot.vo.ConversationSearchResultVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +47,32 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     private final ToolCallMapper toolCallMapper;
     private final MessageFeedbackMapper messageFeedbackMapper;
     private final ChatAttachmentParsedService chatAttachmentParsedService;
+    private final ObjectProvider<ChatSessionService> chatSessionServiceProvider;
+
+    /**
+     * 校验当前登录用户拥有指定 session
+     * <p>Message 无独立 userId 字段，归属通过 chat_session.user_id 反查；ChatSessionServiceImpl
+     * 反向依赖 MessageService，故用 ObjectProvider 打破构造期循环</p>
+     *
+     * @param sessionId 会话 ID
+     */
+    private void requireSessionOwnedByCurrentUser(Long sessionId) {
+        if (sessionId == null) {
+            throw new BizException(ErrorCode.SESSION_NOT_FOUND);
+        }
+        chatSessionServiceProvider.getObject().ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+    }
+
+    /**
+     * 反查 message.sessionId 后校验归属
+     */
+    private void requireMessageOwnedByCurrentUser(Long messageId) {
+        Message message = getById(messageId);
+        if (message == null) {
+            throw new BizException(ErrorCode.MESSAGE_NOT_FOUND);
+        }
+        requireSessionOwnedByCurrentUser(message.getSessionId());
+    }
 
     @Override
     public Page<Message> listBySessionIdPage(Long sessionId, int pageNum, int pageSize) {
@@ -105,8 +135,13 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         if (toolCallId == null || toolCallId <= 0) {
             return null;
         }
-        com.lightbot.entity.ToolCall call = toolCallMapper.selectById(toolCallId);
-        return call != null ? call.getToolOutput() : null;
+        ToolCall call = toolCallMapper.selectById(toolCallId);
+        if (call == null) {
+            return null;
+        }
+        // 越权校验：toolCallId → messageId → sessionId → chat_session.user_id
+        requireMessageOwnedByCurrentUser(call.getMessageId());
+        return call.getToolOutput();
     }
 
     @Override
@@ -161,6 +196,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteMessage(Long messageId, Long sessionId) {
+        // 0. 越权校验：sessionId 必须属于当前登录用户
+        requireSessionOwnedByCurrentUser(sessionId);
         // 1. 加载消息，清理关联的 MinIO 资源
         Message message = getOne(new LambdaQueryWrapper<Message>()
                 .eq(Message::getId, messageId)
@@ -237,6 +274,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         if (msg == null) {
             throw new BizException(ErrorCode.MESSAGE_NOT_FOUND);
         }
+        // 越权校验：通过 sessionId 反查 chat_session.user_id
+        requireSessionOwnedByCurrentUser(msg.getSessionId());
         msg.setStarred(!Boolean.TRUE.equals(msg.getStarred()));
         updateById(msg);
     }

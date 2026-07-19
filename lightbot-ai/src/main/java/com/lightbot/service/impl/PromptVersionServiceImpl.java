@@ -12,8 +12,7 @@ import com.lightbot.service.PromptService;
 import com.lightbot.service.PromptVersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,13 +26,24 @@ import java.util.List;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PromptVersionServiceImpl extends ServiceImpl<PromptVersionMapper, PromptVersion>
         implements PromptVersionService {
 
-    @Lazy
-    @Autowired
-    private PromptService promptService;
+    /** 延迟解析：PromptServiceImpl 反向依赖 PromptVersionService 构成循环，ObjectProvider 在首次调用时取 bean 打破环 */
+    private final ObjectProvider<PromptService> promptServiceProvider;
+
+    public PromptVersionServiceImpl(ObjectProvider<PromptService> promptServiceProvider) {
+        this.promptServiceProvider = promptServiceProvider;
+    }
+
+    /**
+     * 在版本创建流程实际需要提示词实体时再解析服务，避免构造阶段循环依赖。
+     *
+     * @return 提示词服务
+     */
+    private PromptService getPromptService() {
+        return promptServiceProvider.getObject();
+    }
 
     @Override
     @Transactional
@@ -41,6 +51,7 @@ public class PromptVersionServiceImpl extends ServiceImpl<PromptVersionMapper, P
                                  String template, String variables, String modelConfig,
                                  String toolConfig, String status, Long userId) {
         // 1. 校验Prompt存在
+        PromptService promptService = getPromptService();
         Prompt prompt = promptService.lambdaQuery().eq(Prompt::getPromptKey, promptKey).one();
         if (prompt == null) {
             throw new BizException(ErrorCode.PROMPT_NOT_FOUND);

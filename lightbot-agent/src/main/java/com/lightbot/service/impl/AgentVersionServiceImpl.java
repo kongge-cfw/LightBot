@@ -32,8 +32,7 @@ import com.lightbot.workflow.WorkflowConfigParser;
 import com.lightbot.workflow.WorkflowDefinition;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -51,7 +50,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class AgentVersionServiceImpl implements AgentVersionService {
 
     private static final String KIND_WORKFLOW = "workflow";
@@ -65,10 +63,33 @@ public class AgentVersionServiceImpl implements AgentVersionService {
     private final McpServerService mcpServerService;
     private final SubAgentService subAgentService;
     private final SkillService skillService;
+    /** 延迟解析：AgentServiceImpl 反向依赖 AgentVersionService，ObjectProvider 取 bean 时打破构造期循环 */
+    private final ObjectProvider<AgentService> agentServiceProvider;
 
-    @Lazy
-    @Autowired
-    private AgentService agentService;
+    public AgentVersionServiceImpl(AgentMapper agentMapper, AgentVersionMapper agentVersionMapper,
+                                   ObjectMapper objectMapper, KnowledgeService knowledgeService,
+                                   ToolService toolService, McpServerService mcpServerService,
+                                   SubAgentService subAgentService, SkillService skillService,
+                                   ObjectProvider<AgentService> agentServiceProvider) {
+        this.agentMapper = agentMapper;
+        this.agentVersionMapper = agentVersionMapper;
+        this.objectMapper = objectMapper;
+        this.knowledgeService = knowledgeService;
+        this.toolService = toolService;
+        this.mcpServerService = mcpServerService;
+        this.subAgentService = subAgentService;
+        this.skillService = skillService;
+        this.agentServiceProvider = agentServiceProvider;
+    }
+
+    /**
+     * 在实际恢复绑定关系时才解析 AgentService，避免 Spring 创建 Bean 时提前触发循环依赖。
+     *
+     * @return Agent 服务
+     */
+    private AgentService getAgentService() {
+        return agentServiceProvider.getObject();
+    }
 
     @Override
     public Map<String, Object> getWorkflowEditorState(Long agentId) {
@@ -557,6 +578,7 @@ public class AgentVersionServiceImpl implements AgentVersionService {
         agentMapper.updateById(agent);
 
         Long agentId = agent.getId();
+        AgentService agentService = getAgentService();
         agentService.updateKnowledgeBindings(agentId, toLongList(payload.get("knowledgeIds")));
         agentService.updateToolBindings(agentId, toLongList(payload.get("toolIds")));
         agentService.updateMcpServerBindings(agentId, toLongList(payload.get("mcpServerIds")));

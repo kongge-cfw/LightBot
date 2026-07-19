@@ -36,14 +36,27 @@ public class JaninoEngine implements CodeEngine {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** 危险关键字黑名单 */
+    /**
+     * 危险关键字黑名单（L1）
+     * <p>覆盖已知绕过模式：</p>
+     * <ul>
+     *   <li>反射：Class.forName / Method.invoke / Field.set / java.lang.reflect</li>
+     *   <li>进程：Runtime / ProcessBuilder / ProcessHandle</li>
+     *   <li>文件系统：FileInputStream / FileOutputStream / nio.file / nio.channels</li>
+     *   <li>反序列化：ObjectInputStream / XMLDecoder</li>
+     *   <li>JVM 操作：Compiler / Unsafe / System.exit</li>
+     * </ul>
+     */
     private static final Pattern BLOCKED = Pattern.compile(
             "\\b(Runtime|ProcessBuilder|System\\.exit|System\\.setOut|System\\.setErr"
                     + "|Thread|ClassLoader|Class\\.forName|Method\\.invoke|Field\\.set"
                     + "|FileInputStream|FileOutputStream|RandomAccessFile|FileWriter|FileReader"
-                    + "|Socket|ServerSocket|HttpURLConnection|URL\\.openConnection"
+                    + "|ObjectInputStream|ObjectOutputStream|XMLDecoder|XMLEncoder"
+                    + "|Socket|ServerSocket|DatagramSocket|HttpURLConnection|URL\\.openConnection"
                     + "|javax\\.script|java\\.lang\\.reflect|sun\\.misc|java\\.io\\.|java\\.net\\."
-                    + "|ProcessHandle|Desktop|FileSystem|Unsafe|Compiler)\\b");
+                    + "|java\\.nio\\.file|java\\.nio\\.channels"
+                    + "|ProcessHandle|Desktop|FileSystem|Unsafe|Compiler"
+                    + "|ScriptEngineManager|GroovyShell)\\b");
 
     /** 安全 import 前缀 */
     private static final String SAFE_IMPORTS = """

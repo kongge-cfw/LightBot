@@ -339,7 +339,6 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, watch, nextTick, h } from 'vue'
-import { Graph } from '@antv/g6'
 import { useTheme } from '../composables/useTheme'
 import {
   SearchOutlined, RobotOutlined, DeleteOutlined, CompressOutlined, LoadingOutlined, RedoOutlined, ClearOutlined, QuestionCircleOutlined, ThunderboltOutlined, SettingOutlined
@@ -351,6 +350,7 @@ import {
 } from '../api/knowledge'
 import ModelSelect from './ModelSelect.vue'
 import JsonInput from './JsonInput.vue'
+import { sanitizeGraphHtml, escapeHtml } from '../utils/sanitize'
 
 const { isDark } = useTheme()
 
@@ -563,7 +563,7 @@ async function loadGraphData() {
   }
 }
 
-function renderGraph(subgraph, seq) {
+async function renderGraph(subgraph, seq) {
   // 清理旧实例
   if (graphInstance) {
     try { graphInstance.destroy() } catch { /* ignore */ }
@@ -578,6 +578,9 @@ function renderGraph(subgraph, seq) {
     }, 50)
     return
   }
+
+  // G6 体积大（~2.2MB），仅在真正需要渲染图谱时按需加载
+  const { Graph } = await import('@antv/g6')
 
   canvasRef.value.innerHTML = ''
   const width = canvasRef.value.offsetWidth
@@ -764,12 +767,14 @@ async function handleExtractSelected() {
       if (existingIds.length > 0) {
         const nameMap = Object.fromEntries(docList.value.map(d => [String(d.id), d.name]))
         const names = existingIds.map(id => nameMap[id] || `文档${id}`)
-        const docNamesHtml = names.map(n => `<div>· ${n}</div>`).join('')
+        // 文档名来自数据库（用户可控），先转义再拼成 HTML，避免 Modal 内容被注入
+        const docNamesHtml = names.map(n => `<div>· ${escapeHtml(n)}</div>`).join('')
         Modal.confirm({
           title: '已有图谱数据',
           content: h('div', [
             h('p', `以下 ${names.length} 个文档已有知识图谱数据，重新抽取将覆盖：`),
-            h('div', { innerHTML: docNamesHtml }),
+            // 文档名经 escapeHtml 转义，再经 sanitizeGraphHtml 兜底净化
+            h('div', { innerHTML: sanitizeGraphHtml(docNamesHtml) }),
             h('p', '是否继续？')
           ]),
           okText: '继续配置',

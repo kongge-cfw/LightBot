@@ -13,9 +13,9 @@ import com.lightbot.service.EvalEvaluatorService;
 import com.lightbot.service.EvalEvaluatorVersionService;
 import com.lightbot.util.EvalEvaluatorExampleTemplates;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,10 +34,20 @@ import java.util.List;
 public class EvalEvaluatorServiceImpl extends ServiceImpl<EvalEvaluatorMapper, EvalEvaluator>
         implements EvalEvaluatorService {
 
-    private final EvalEvaluatorVersionService evaluatorVersionService;
+    /** 延迟解析：EvalEvaluatorVersionServiceImpl 反向依赖 EvalEvaluatorService，ObjectProvider 取 bean 时打破构造期循环 */
+    private final ObjectProvider<EvalEvaluatorVersionService> evaluatorVersionServiceProvider;
 
-    public EvalEvaluatorServiceImpl(@Lazy EvalEvaluatorVersionService evaluatorVersionService) {
-        this.evaluatorVersionService = evaluatorVersionService;
+    public EvalEvaluatorServiceImpl(ObjectProvider<EvalEvaluatorVersionService> evaluatorVersionServiceProvider) {
+        this.evaluatorVersionServiceProvider = evaluatorVersionServiceProvider;
+    }
+
+    /**
+     * 仅在从示例创建首个版本时解析版本服务，避免构造阶段循环依赖。
+     *
+     * @return 评测器版本服务
+     */
+    private EvalEvaluatorVersionService getEvaluatorVersionService() {
+        return evaluatorVersionServiceProvider.getObject();
     }
 
     @Override
@@ -131,7 +141,7 @@ public class EvalEvaluatorServiceImpl extends ServiceImpl<EvalEvaluatorMapper, E
         EvalEvaluator evaluator = create(name, data.description(), null, userId);
 
         // 4. 创建首个版本（v1）
-        evaluatorVersionService.create(evaluator.getId(), "v1", data.prompt(), data.variables(), data.modelConfig());
+        getEvaluatorVersionService().create(evaluator.getId(), "v1", data.prompt(), data.variables(), data.modelConfig());
 
         return evaluator;
     }

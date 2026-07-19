@@ -9,10 +9,6 @@ import com.lightbot.model.ConfigField;
 import com.lightbot.model.FetchedModel;
 import com.lightbot.model.ModelFactory;
 import com.lightbot.service.ModelProviderService;
-import com.lightbot.service.ModelService;
-import com.lightbot.util.ModelProviderCacheUtil;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -28,9 +24,7 @@ import java.util.List;
 public class ModelProviderController {
 
     private final ModelProviderService modelProviderService;
-    private final ModelService modelService;
     private final ModelFactory modelFactory;
-    private final ModelProviderCacheUtil cacheUtil;
 
     @Operation(summary = "新增模型提供商")
     @PostMapping
@@ -120,22 +114,9 @@ public class ModelProviderController {
 
     @Operation(summary = "获取所有提供商及其模型（按类型过滤）")
     @GetMapping("/with-models")
-    public Result<List<ProviderWithModelsVO>> listWithModels(
+    public Result<List<com.lightbot.service.ModelProviderService.ProviderWithModelsVO>> listWithModels(
             @RequestParam(required = false) String type) {
-        List<ModelProvider> providers = modelProviderService.listAllActive();
-        List<ProviderWithModelsVO> result = new java.util.ArrayList<>();
-        for (ModelProvider p : providers) {
-            List<com.lightbot.entity.Model> models = modelService.listByProviderId(p.getId());
-            if (type != null && !type.isBlank()) {
-                models = models.stream()
-                        .filter(m -> m.getType() != null && type.equalsIgnoreCase(m.getType().getCode()))
-                        .toList();
-            }
-            if (!models.isEmpty()) {
-                result.add(new ProviderWithModelsVO(p.getId(), p.getName(), p.getType(), models));
-            }
-        }
-        return Result.ok(result);
+        return Result.ok(modelProviderService.listWithModels(type));
     }
 
     @Operation(summary = "刷新模型提供商缓存（从数据库重新加载）")
@@ -144,14 +125,4 @@ public class ModelProviderController {
         modelFactory.invalidateAllCache();
         return Result.ok();
     }
-
-    /**
-     * 提供商及其模型列表 VO
-     */
-    public record ProviderWithModelsVO(
-            @JsonSerialize(using = ToStringSerializer.class) Long id,
-            String name,
-            com.lightbot.enums.ModelProviderType type,
-            List<com.lightbot.entity.Model> models
-    ) {}
 }

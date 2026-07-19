@@ -55,6 +55,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.BiConsumer;
 
@@ -1113,6 +1114,23 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
             doc.setMetadata(objectMapper.writeValueAsString(metaMap));
         } catch (Exception e) {
             log.warn("[URL同步] 更新fetchedAt失败: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    public Optional<DocumentStreamVO> serveKnowledgeImage(Long knowledgeId, String filename) {
+        // 1. 拼装 MinIO 对象路径：knowledge/{knowledgeId}/images/{filename}
+        String filePath = String.format("knowledge/%d/images/%s", knowledgeId, filename);
+        try {
+            // 2. stat 获取 contentType，downloadStream 拿输入流；对象不存在或 IO 异常统一返回 empty
+            var stat = minioUtil.statObject(filePath);
+            String contentType = stat.contentType();
+            InputStream is = minioUtil.downloadStream(filePath);
+            String resolved = contentType != null ? contentType : "application/octet-stream";
+            return Optional.of(new DocumentStreamVO(is, filename, resolved));
+        } catch (Exception e) {
+            log.debug("[Knowledge] 图片代理下载失败: filePath={}", filePath, e);
+            return Optional.empty();
         }
     }
 

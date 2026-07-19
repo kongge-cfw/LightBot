@@ -12,6 +12,7 @@ import com.lightbot.entity.MessageFeedback;
 import com.lightbot.interceptor.ApiKeyAuthInterceptor;
 import com.lightbot.service.ChatService;
 import com.lightbot.service.MessageFeedbackService;
+import com.lightbot.service.chat.ChatStreamSseHelper;
 import com.lightbot.service.chat.SseEventBuffer;
 import jakarta.validation.Valid;
 import com.lightbot.dto.ChatAttachmentDTO;
@@ -24,18 +25,11 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
-import reactor.core.Disposable;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.BufferOverflowStrategy;
-import reactor.core.scheduler.Schedulers;
 
-import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @Tag(name = "AI对话", description = "基于通义千问的AI对话接口")
@@ -48,9 +42,7 @@ public class ChatController {
     private final ChatAttachmentService chatAttachmentService;
     private final MessageFeedbackService messageFeedbackService;
     private final SseEventBuffer eventBuffer;
-
-    /** SSE 超时时间：5分钟（长文本生成可能较慢） */
-    private static final long SSE_TIMEOUT = 5 * 60 * 1000L;
+    private final ChatStreamSseHelper chatStreamSseHelper;
 
     @Operation(summary = "同步对话")
     @PostMapping
@@ -58,14 +50,10 @@ public class ChatController {
         return Result.ok(chatService.chat(request));
     }
 
-    /** SSE 心跳前缀（协议注释行） */
-    private static final String HEARTBEAT_PREFIX = ":heartbeat";
-
     /**
      * 流式对话（SSE）
-     * <p>使用 SseEmitter 替代 Flux<String>，避免 Spring MVC Reactor Servlet 桥接层的缓冲问题，
-     * 确保每个 token 到达时立即刷新到客户端。</p>
-     * <p>支持：心跳保活（SSE 注释行）、事件 ID（用于断线重连）、结构化错误事件、事件缓冲（断线恢复）。</p>
+     * <p>SSE 订阅编排（emitter 创建 / 背压 / 心跳 / 事件 ID / 缓冲 / disposal）下沉到
+     * {@link ChatStreamSseHelper}，Controller 仅负责注入 API Key 与获取当前 userId。</p>
      */
     @Operation(summary = "流式对话（SSE）")
     @PostMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -76,93 +64,15 @@ public class ChatController {
         if (apiKeyAttr instanceof com.lightbot.entity.ApiKey apiKey) {
             request.setApiKeyId(apiKey.getId());
         }
-
-        SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-        AtomicInteger eventIdCounter = new AtomicInteger(0);
-
-        // 1.2 事件缓冲：追踪 requestId 和 userId，缓冲每个事件用于断线重连
-        final String[] activeRequestId = {null};
-        final Long[] activeUserId = {null};
-        try { activeUserId[0] = StpUtil.getLoginIdAsLong(); } catch (Exception ignored) {}
-        AtomicReference<Disposable> subscriptionRef = new AtomicReference<>();
-        AtomicBoolean disposed = new AtomicBoolean(false);
-        Runnable disposeSubscription = () -> {
-            if (disposed.compareAndSet(false, true)) {
-                Disposable subscription = subscriptionRef.getAndSet(null);
-                if (subscription != null && !subscription.isDisposed()) {
-                    subscription.dispose();
-                }
-                log.debug("[Chat] SSE subscription disposed: requestId={}", activeRequestId[0]);
-            }
-        };
-
-        // 在 boundedElastic 调度器上订阅 Flux，避免阻塞 Servlet 线程
-        Flux<String> flux = chatService.chatStream(request);
-        Disposable subscription = flux.publishOn(Schedulers.boundedElastic(), 256)
-                .onBackpressureBuffer(512,
-                        dropped -> log.warn("[Chat] SSE 背压丢弃: requestId={}", activeRequestId[0]),
-                        reactor.core.publisher.BufferOverflowStrategy.DROP_OLDEST)
-                .subscribe(
-                        chunk -> {
-                            try {
-                                // 心跳注释行：SSE 协议规定以冒号开头的行为注释，客户端应忽略
-                                if (HEARTBEAT_PREFIX.equals(chunk)) {
-                                    emitter.send(SseEmitter.event().comment("heartbeat"));
-                                    return;
-                                }
-                                // 文本内容中的换行符需要转义，否则SSE解析会丢失
-                                // STATUS/METADATA/DONE 前缀的事件不含换行，无需处理
-                                String safe = chunk.startsWith("[STATUS]") || chunk.startsWith("[METADATA]")
-                                        || chunk.startsWith("[DONE]") || chunk.startsWith("[REQUEST_ID]")
-                                        ? chunk
-                                        : chunk.replace("\n", "\\n");
-                                // 1.2 每个数据事件携带递增 ID，支持前端断线重连时通过 Last-Event-ID 恢复
-                                String eventId = String.valueOf(eventIdCounter.incrementAndGet());
-                                emitter.send(SseEmitter.event().id(eventId).data(safe));
-
-                                // 1.2 缓冲事件：从第一个 [REQUEST_ID] 事件提取 requestId
-                                if (activeRequestId[0] == null && safe.startsWith("[REQUEST_ID]")) {
-                                    activeRequestId[0] = safe.substring(12);
-                                }
-                                if (activeRequestId[0] != null) {
-                                    eventBuffer.bufferEvent(activeRequestId[0],
-                                            Integer.parseInt(eventId), safe, activeUserId[0]);
-                                }
-                            } catch (IOException e) {
-                                disposeSubscription.run();
-                                emitter.complete();
-                                log.debug("[Chat] 客户端断开连接: {}", e.getMessage());
-                            }
-                        },
-                        error -> {
-                            disposeSubscription.run();
-                            emitter.completeWithError(error);
-                        },
-                        () -> {
-                            // 1.2 标记缓冲完成（[DONE] 已发送）
-                            if (activeRequestId[0] != null) {
-                                eventBuffer.markCompleted(activeRequestId[0]);
-                            }
-                            disposeSubscription.run();
-                            emitter.complete();
-                        }
-                );
-        subscriptionRef.set(subscription);
-        if (disposed.get() && !subscription.isDisposed()) {
-            subscription.dispose();
+        // 当前 userId（API Key 路径无 Sa-Token session 时为 null，仅影响断线重连缓冲归属校验）
+        Long userId;
+        try {
+            userId = StpUtil.getLoginIdAsLong();
+        } catch (Exception ignored) {
+            userId = null;
         }
-
-        // 清理回调
-        emitter.onCompletion(disposeSubscription);
-        emitter.onTimeout(() -> {
-            log.debug("[Chat] SSE timeout: requestId={}", activeRequestId[0]);
-            disposeSubscription.run();
-            emitter.complete();
-        });
-        emitter.onError(e -> disposeSubscription.run());
-        emitter.onError(e -> log.warn("[Chat] SSE连接异常: {}", e.getMessage()));
-
-        return emitter;
+        Flux<String> flux = chatService.chatStream(request);
+        return chatStreamSseHelper.subscribe(flux, userId);
     }
 
     /**

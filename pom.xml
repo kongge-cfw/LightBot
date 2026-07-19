@@ -40,6 +40,7 @@
         <pgvector.version>0.1.6</pgvector.version>
         <neo4j.version>5.26.0</neo4j.version>
         <milvus.version>2.6.13</milvus.version>
+        <jsqlparser.version>5.0</jsqlparser.version>
     </properties>
 
     <dependencyManagement>
@@ -95,6 +96,13 @@
                 <groupId>io.milvus</groupId>
                 <artifactId>milvus-sdk-java</artifactId>
                 <version>${milvus.version}</version>
+            </dependency>
+            <!-- 与 mybatis-plus-jsqlparser:3.5.9 对齐到 5.0：该版本的 SelectItem 为具体类，
+                 可避免 PaginationInnerInterceptor 初始化时因 4.6 接口类型导致 InstantiationError。 -->
+            <dependency>
+                <groupId>com.github.jsqlparser</groupId>
+                <artifactId>jsqlparser</artifactId>
+                <version>${jsqlparser.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

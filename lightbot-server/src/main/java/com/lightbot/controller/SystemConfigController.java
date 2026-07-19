@@ -3,20 +3,16 @@ package com.lightbot.controller;
 import com.lightbot.common.Result;
 import com.lightbot.dto.DefaultAiConfigDTO;
 import com.lightbot.dto.DefaultModelsConfigDTO;
-import com.lightbot.util.MinioUtil;
 import jakarta.validation.Valid;
+import com.lightbot.service.HealthService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.service.TokenBudgetService;
 import com.lightbot.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
-import javax.sql.DataSource;
-import java.sql.Connection;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -35,9 +31,7 @@ public class SystemConfigController {
     private final SystemConfigService systemConfigService;
     private final TokenBudgetService tokenBudgetService;
     private final UserService userService;
-    private final DataSource dataSource;
-    private final StringRedisTemplate redisTemplate;
-    private final MinioUtil minioUtil;
+    private final HealthService healthService;
 
     @Operation(summary = "获取默认AI配置（兼容旧接口，等同于默认对话模型）")
     @GetMapping("/default-ai")
@@ -118,48 +112,7 @@ public class SystemConfigController {
     @Operation(summary = "健康检查（公开接口，无需认证）")
     @GetMapping("/health")
     public Result<Map<String, Object>> health() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        Map<String, Object> components = new LinkedHashMap<>();
-        boolean allUp = true;
-
-        // 1. PostgreSQL
-        long start = System.currentTimeMillis();
-        try (Connection conn = dataSource.getConnection()) {
-            conn.isValid(3);
-            components.put("postgresql", Map.of("status", "UP", "responseTime", System.currentTimeMillis() - start + "ms"));
-        } catch (Exception e) {
-            components.put("postgresql", Map.of("status", "DOWN", "error", e.getMessage()));
-            allUp = false;
-        }
-
-        // 2. Redis
-        start = System.currentTimeMillis();
-        try {
-            redisTemplate.getConnectionFactory().getConnection().ping();
-            components.put("redis", Map.of("status", "UP", "responseTime", System.currentTimeMillis() - start + "ms"));
-        } catch (Exception e) {
-            components.put("redis", Map.of("status", "DOWN", "error", e.getMessage()));
-            allUp = false;
-        }
-
-        // 3. MinIO
-        start = System.currentTimeMillis();
-        try {
-            boolean up = minioUtil.checkHealth();
-            if (up) {
-                components.put("minio", Map.of("status", "UP", "responseTime", System.currentTimeMillis() - start + "ms"));
-            } else {
-                components.put("minio", Map.of("status", "DOWN", "error", "Bucket does not exist"));
-                allUp = false;
-            }
-        } catch (Exception e) {
-            components.put("minio", Map.of("status", "DOWN", "error", e.getMessage()));
-            allUp = false;
-        }
-
-        result.put("status", allUp ? "UP" : "DEGRADED");
-        result.put("components", components);
-        return Result.ok(result);
+        return Result.ok(healthService.aggregate());
     }
 
     // ========== Token 预算管理 ==========

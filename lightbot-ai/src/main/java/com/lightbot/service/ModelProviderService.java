@@ -2,6 +2,8 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.vo.ModelProviderPresetVO;
 import com.lightbot.dto.ModelProviderDTO;
 import com.lightbot.entity.ModelProvider;
@@ -69,4 +71,29 @@ public interface ModelProviderService extends IService<ModelProvider> {
      * @return 预设列表
      */
     List<ModelProviderPresetVO> listPresets();
+
+    /**
+     * 拉取所有启用提供商及其模型（按模型类型可选过滤）
+     * <p>Controller 入口的聚合查询，编排逻辑下沉到 Service：
+     * 取消「Controller 内 for 循环 join 构建 VO」的违例</p>
+     *
+     * @param modelType 模型类型 code（chat / embedding / rerank / vision / voice），为空则全部返回
+     * @return 提供商及其模型 VO 列表，过滤后无模型的提供商不返回
+     */
+    List<ProviderWithModelsVO> listWithModels(String modelType);
+
+    /**
+     * 提供商及其模型列表 VO
+     *
+     * @param id      提供商 ID
+     * @param name    提供商名称
+     * @param type    提供商类型
+     * @param models  模型列表
+     */
+    record ProviderWithModelsVO(
+            @JsonSerialize(using = ToStringSerializer.class) Long id,
+            String name,
+            com.lightbot.enums.ModelProviderType type,
+            List<com.lightbot.entity.Model> models
+    ) {}
 }

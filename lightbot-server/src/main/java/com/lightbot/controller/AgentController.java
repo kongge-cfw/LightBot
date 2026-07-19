@@ -1,7 +1,6 @@
 package com.lightbot.controller;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.lightbot.common.BizException;
 import com.lightbot.common.Result;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentPublishDTO;
@@ -13,7 +12,6 @@ import com.lightbot.vo.WorkflowExampleVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.McpServer;
 import com.lightbot.entity.Tool;
-import com.lightbot.enums.ErrorCode;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -111,9 +109,6 @@ public class AgentController {
     public Result<Void> updateKnowledgeBindings(
             @PathVariable Long id,
             @RequestBody List<String> knowledgeIds) {
-        if (knowledgeIds != null && knowledgeIds.size() > 10) {
-            throw new BizException(ErrorCode.AGENT_KNOWLEDGE_LIMIT);
-        }
         agentService.updateKnowledgeBindings(id, parseBindingIdStrings(knowledgeIds));
         return Result.ok();
     }
@@ -129,9 +124,6 @@ public class AgentController {
     public Result<Void> updateToolBindings(
             @PathVariable Long id,
             @RequestBody List<String> toolIds) {
-        if (toolIds != null && toolIds.size() > 10) {
-            throw new BizException(ErrorCode.AGENT_TOOL_LIMIT);
-        }
         agentService.updateToolBindings(id, parseBindingIdStrings(toolIds));
         return Result.ok();
     }
@@ -163,9 +155,6 @@ public class AgentController {
     public Result<Void> updateMcpServerBindings(
             @PathVariable Long id,
             @RequestBody List<String> mcpServerIds) {
-        if (mcpServerIds != null && mcpServerIds.size() > 5) {
-            throw new BizException(ErrorCode.AGENT_MCP_LIMIT);
-        }
         agentService.updateMcpServerBindings(id, parseBindingIdStrings(mcpServerIds));
         return Result.ok();
     }
@@ -189,9 +178,6 @@ public class AgentController {
     public Result<Void> updateSubAgentBindings(
             @PathVariable Long id,
             @RequestBody List<String> subAgentIds) {
-        if (subAgentIds != null && subAgentIds.size() > 5) {
-            throw new BizException(ErrorCode.AGENT_SUBAGENT_LIMIT);
-        }
         agentService.updateSubAgentBindings(id, parseBindingIdStrings(subAgentIds));
         return Result.ok();
     }
@@ -208,9 +194,6 @@ public class AgentController {
     public Result<Void> updateSkillBindings(
             @PathVariable Long id,
             @RequestBody List<String> skillIds) {
-        if (skillIds != null && skillIds.size() > 10) {
-            throw new BizException(ErrorCode.AGENT_SKILL_LIMIT);
-        }
         agentService.updateSkillBindings(id, parseBindingIdStrings(skillIds));
         return Result.ok();
     }

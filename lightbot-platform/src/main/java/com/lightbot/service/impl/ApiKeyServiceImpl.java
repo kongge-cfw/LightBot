@@ -36,6 +36,11 @@ public class ApiKeyServiceImpl extends ServiceImpl<ApiKeyMapper, ApiKey>
 
     private static final String KEY_PREFIX = "lbkey_";
     private static final String RATE_LIMIT_KEY_PREFIX = "lightbot:apikey:rate:";
+    /**
+     * 待 flush 到 DB 的 API Key 用量缓冲 key（Redis Hash）
+     * field: apiKeyId  value: 自上次 flush 以来的累计调用次数（仅用于触发 last_used_at 刷新）
+     */
+    private static final String USAGE_DIRTY_KEY = "lightbot:apikey:usage:dirty";
 
     @Autowired
     private RedisUtil redisUtil;
@@ -140,9 +145,48 @@ public class ApiKeyServiceImpl extends ServiceImpl<ApiKeyMapper, ApiKey>
         if (apiKey.getExpiresAt() != null && LocalDateTime.now().isAfter(apiKey.getExpiresAt())) {
             return null;
         }
-        // 异步更新最近使用时间
-        baseMapper.updateLastUsedAt(apiKey.getId());
+        // 仅累加 Redis 计数，定时任务批量 flush 到 DB（避免每请求一次 UPDATE 抢行锁）
+        try {
+            redisUtil.hashIncrement(USAGE_DIRTY_KEY, String.valueOf(apiKey.getId()), 1L);
+        } catch (Exception e) {
+            // Redis 异常不影响鉴权，下次 flush 会兜底
+            log.warn("[API Key] 累计用量到 Redis 失败 apiKeyId={}, 放行: {}", apiKey.getId(), e.getMessage());
+        }
         return apiKey;
+    }
+
+    /**
+     * 定时批量 flush：把 Redis 累计的 API Key 调用次数回写到 DB 的 last_used_at
+     * <p>每 5 分钟跑一次，批量 UPDATE 避开高 QPS 场景下的行锁竞争</p>
+     */
+    @org.springframework.scheduling.annotation.Scheduled(fixedDelay = 5 * 60 * 1000L, initialDelay = 60 * 1000L)
+    public void flushLastUsedAt() {
+        Map<String, String> dirty;
+        try {
+            dirty = redisUtil.hashEntries(USAGE_DIRTY_KEY);
+        } catch (Exception e) {
+            log.warn("[API Key] 读取 Redis 用量缓冲失败，跳过本次 flush: {}", e.getMessage());
+            return;
+        }
+        if (dirty == null || dirty.isEmpty()) {
+            return;
+        }
+        // 先删除 dirty key（HGETALL + DEL 非原子，但 last_used_at 非关键数据，少量误差可接受）
+        String[] fields = dirty.keySet().toArray(new String[0]);
+        redisUtil.hashDelete(USAGE_DIRTY_KEY, fields);
+        for (String idStr : fields) {
+            try {
+                Long id = Long.valueOf(idStr);
+                baseMapper.updateLastUsedAt(id);
+            } catch (NumberFormatException ex) {
+                log.warn("[API Key] flush 跳过非法 id: {}", idStr);
+            } catch (Exception ex) {
+                log.warn("[API Key] flush last_used_at 失败 id={}: {}", idStr, ex.getMessage());
+            }
+        }
+        if (log.isDebugEnabled()) {
+            log.debug("[API Key] flush 完成，共 {} 个 Key", fields.length);
+        }
     }
 
     /**

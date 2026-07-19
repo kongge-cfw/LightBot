@@ -34,15 +34,31 @@ public class GroovyEngine implements CodeEngine {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    /** 危险访问模式 */
+    /**
+     * 危险访问模式（L1 黑名单）
+     * <p>覆盖已知绕过模式：</p>
+     * <ul>
+     *   <li>静态调用：Runtime.getRuntime / ProcessBuilder / Desktop</li>
+     *   <li>反射绕过：Class.forName / Method.invoke / Field.set</li>
+     *   <li>Groovy 元编程：GroovyShell / GroovyClassLoader / Eval.me</li>
+     *   <li>字符串拼接调用 execute()：单字符拼接后调进程执行</li>
+     *   <li>反序列化攻击：ObjectInputStream / XMLDecoder</li>
+     * </ul>
+     */
     private static final Pattern DANGEROUS_ACCESS = Pattern.compile(
             "\\b(Runtime\\.getRuntime|ProcessBuilder|ProcessHandle|Desktop"
                     + "|java\\.lang\\.Runtime|java\\.lang\\.ProcessBuilder"
-                    + "|java\\.io\\.|java\\.net\\.|java\\.nio\\.file\\."
+                    + "|java\\.io\\.(File|FileInputStream|FileOutputStream|RandomAccessFile|ObjectInputStream|ObjectOutputStream)"
+                    + "|java\\.net\\.|java\\.nio\\.file\\."
                     + "|javax\\.script\\.ScriptEngineManager|Class\\.forName"
                     + "|System\\.exit|System\\.setOut|System\\.setErr"
                     + "|groovy\\.util\\.Eval|GroovyShell|GroovyClassLoader"
-                    + "|Reflective|Method\\.invoke|Field\\.set)\\b",
+                    + "|Reflective|Method\\.invoke|Field\\.set"
+                    + "|java\\.beans\\.XMLDecoder"
+                    + "|\\*+\\s*createTempFile|\\.delete\\(\\))\\b"
+                    // 拦截字符串结果调用 execute() —— Groovy 字符串注入执行进程的常见模式
+                    + "|\"[^\"]*\"\\.execute\\(|'[^\']*'\\.execute\\("
+                    + "|\\b(execute|exec)\\(\\s*['\"]",
             Pattern.CASE_INSENSITIVE);
 
     @Override

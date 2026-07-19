@@ -1,4 +1,5 @@
 import request from '../utils/request'
+import { streamFetch } from '../utils/sseFetch'
 
 export function chat(data) {
   return request.post('/chat', data)
@@ -11,7 +12,12 @@ export function chat(data) {
  * @param {AbortSignal} signal - 取消信号
  * @param {Object} options - 配置项 { maxRetries, retryDelay, onReconnecting }
  */
-export async function chatStream(data, { onChunk, onStatus, onMetadata, onToolEvent, onRequestId, onDone }, signal, options = {}) {
+export async function chatStream(
+  data,
+  { onChunk, onStatus, onMetadata, onToolEvent, onRequestId, onDone },
+  signal,
+  options = {}
+) {
   const { maxRetries = 3, retryDelay = 2000, onReconnecting } = options
   // SSE 场景必须直读 localStorage：fetch 早于 Pinia store 水合，从 store 取 token 可能为 null
   const token = localStorage.getItem('token')
@@ -35,27 +41,12 @@ export async function chatStream(data, { onChunk, onStatus, onMetadata, onToolEv
       receivedDone = true
       onDone?.(meta)
     },
-    onEventId: (id) => { lastEventId = id },
+    onEventId: (id) => {
+      lastEventId = id
+    },
   }
 
   async function attempt() {
-    const response = await fetch('/api/chat/stream', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token || '',
-      },
-      body: JSON.stringify(data),
-      signal,
-    })
-
-    if (!response.ok) {
-      throw new Error(`流式请求失败: ${response.status}`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder('utf-8')
-    let buffer = ''
     let doneFired = false
     const fireDone = (meta) => {
       if (!doneFired) {
@@ -65,22 +56,16 @@ export async function chatStream(data, { onChunk, onStatus, onMetadata, onToolEv
     }
 
     try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) {
-          if (buffer.trim()) {
-            processSseLines(buffer, { ...trackingCallbacks, onDone: fireDone })
-          }
-          fireDone()
-          break
-        }
-        buffer += decoder.decode(value, { stream: true })
-        const lastNewline = buffer.lastIndexOf('\n')
-        if (lastNewline === -1) continue
-        const complete = buffer.substring(0, lastNewline)
-        buffer = buffer.substring(lastNewline + 1)
-        processSseLines(complete, { ...trackingCallbacks, onDone: fireDone })
-      }
+      await streamFetch('/api/chat/stream', {
+        method: 'POST',
+        token,
+        body: data,
+        signal,
+        onLines: (text) => {
+          processSseLines(text, { ...trackingCallbacks, onDone: fireDone })
+        },
+      })
+      fireDone()
     } catch (err) {
       // 用户主动停止：不触发 onDone，由 Chat.vue 统一处理中断收尾
       if (err.name === 'AbortError') {
@@ -113,7 +98,7 @@ export async function chatStream(data, { onChunk, onStatus, onMetadata, onToolEv
       }
 
       const delay = retryDelay * Math.pow(2, retries - 1)
-      await new Promise(resolve => setTimeout(resolve, delay))
+      await new Promise((resolve) => setTimeout(resolve, delay))
     }
   }
 }
@@ -190,11 +175,18 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
       if (content.startsWith('[DONE]')) {
         const jsonStr = content.substring(6).trim()
         if (jsonStr) {
-          try { onDone?.(JSON.parse(jsonStr)) } catch { onDone?.() }
+          try {
+            onDone?.(JSON.parse(jsonStr))
+          } catch {
+            onDone?.()
+          }
         } else {
           onDone?.()
         }
-        if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }
+        if (currentEventId) {
+          onEventId?.(currentEventId)
+          currentEventId = null
+        }
         continue
       }
       if (content) {
@@ -207,24 +199,45 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
             // 不是 JSON，作为普通状态消息处理
           }
           if (parsed && typeof parsed === 'object' && parsed.type) {
-            if (parsed.type === 'tool_call' || parsed.type === 'tool_result' || parsed.type === 'tool_status' || parsed.type === 'tool_complete' || parsed.type === 'reasoning_content'
-                || parsed.type === 'workflow_node_start' || parsed.type === 'workflow_node_complete'
-                || parsed.type === 'workflow_node_retry' || parsed.type === 'workflow_node_failure'
-                || parsed.type === 'workflow_complete' || parsed.type === 'workflow_llm_chunk'
-                || parsed.type === 'workflow_confirm_required' || parsed.type === 'workflow_suspended'
-                || parsed.type === 'sensitive_block'
-                || parsed.type === 'skill_active' || parsed.type === 'subagent_call' || parsed.type === 'subagent_result'
-                || parsed.type === 'subagent_token' || parsed.type === 'subagent_tool_call' || parsed.type === 'subagent_tool_result'
-                || parsed.type === 'subagent_error' || parsed.type === 'subagent_error_retry'
-                || parsed.type === 'subagent_batch_start' || parsed.type === 'subagent_task_start'
-                || parsed.type === 'subagent_task_done' || parsed.type === 'subagent_batch_done'
-                || parsed.type === 'subagent_batch_update'
-                || parsed.type === 'todos_updated'
-                || parsed.type === 'error' || parsed.type === 'error_retry') {
+            if (
+              parsed.type === 'tool_call' ||
+              parsed.type === 'tool_result' ||
+              parsed.type === 'tool_status' ||
+              parsed.type === 'tool_complete' ||
+              parsed.type === 'reasoning_content' ||
+              parsed.type === 'workflow_node_start' ||
+              parsed.type === 'workflow_node_complete' ||
+              parsed.type === 'workflow_node_retry' ||
+              parsed.type === 'workflow_node_failure' ||
+              parsed.type === 'workflow_complete' ||
+              parsed.type === 'workflow_llm_chunk' ||
+              parsed.type === 'workflow_confirm_required' ||
+              parsed.type === 'workflow_suspended' ||
+              parsed.type === 'sensitive_block' ||
+              parsed.type === 'skill_active' ||
+              parsed.type === 'subagent_call' ||
+              parsed.type === 'subagent_result' ||
+              parsed.type === 'subagent_token' ||
+              parsed.type === 'subagent_tool_call' ||
+              parsed.type === 'subagent_tool_result' ||
+              parsed.type === 'subagent_error' ||
+              parsed.type === 'subagent_error_retry' ||
+              parsed.type === 'subagent_batch_start' ||
+              parsed.type === 'subagent_task_start' ||
+              parsed.type === 'subagent_task_done' ||
+              parsed.type === 'subagent_batch_done' ||
+              parsed.type === 'subagent_batch_update' ||
+              parsed.type === 'todos_updated' ||
+              parsed.type === 'error' ||
+              parsed.type === 'error_retry'
+            ) {
               onToolEvent?.(parsed)
             }
             // 结构化事件但 type 未识别：丢弃，避免把原始 JSON 当状态文本飘字展示
-            if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }
+            if (currentEventId) {
+              onEventId?.(currentEventId)
+              currentEventId = null
+            }
             continue
           }
           onStatus?.(statusContent)
@@ -235,7 +248,10 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
         } else {
           onChunk?.(decodeSseTextContent(content))
         }
-        if (currentEventId) { onEventId?.(currentEventId); currentEventId = null }
+        if (currentEventId) {
+          onEventId?.(currentEventId)
+          currentEventId = null
+        }
       }
     }
   }
@@ -243,7 +259,7 @@ export function processSseLines(text, { onChunk, onStatus, onMetadata, onToolEve
 
 export function getRagReferences(sessionId, agentId, question) {
   return request.get('/chat/rag-references', {
-    params: { sessionId, agentId, question }
+    params: { sessionId, agentId, question },
   })
 }
 

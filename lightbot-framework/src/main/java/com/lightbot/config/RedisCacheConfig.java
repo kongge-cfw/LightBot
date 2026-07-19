@@ -12,6 +12,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
 
@@ -96,5 +97,19 @@ public class RedisCacheConfig {
                 .withInitialCacheConfigurations(configMap)
                 .transactionAware()
                 .build();
+    }
+
+    /**
+     * Redis Pub/Sub 监听容器（供 CacheInvalidationBroadcaster 订阅失效频道）
+     * <p>Spring Boot 不自动提供该 Bean，需显式声明；线程安全，单例即可</p>
+     *
+     * @param connectionFactory Redis 连接工厂
+     * @return 容器
+     */
+    @Bean
+    public RedisMessageListenerContainer redisMessageListenerContainer(RedisConnectionFactory connectionFactory) {
+        RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        return container;
     }
 }

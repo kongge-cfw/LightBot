@@ -355,6 +355,14 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public User getById(Long id) {
+        if (id == null) {
+            return null;
+        }
+        return userMapper.selectById(id);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public UserDTO initAdmin(String username, String password, String nickname) {
         // 1. 系统级校验：仅无用户时允许初始化
