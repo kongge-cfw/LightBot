@@ -23,8 +23,8 @@
       </div>
     </div>
 
-    <a-spin :spinning="loading" style="min-height: 400px; display: block;">
-    <div class="provider-grid">
+    <CardGridSkeleton v-if="loading && !list.length" />
+    <div v-else class="provider-grid">
       <EntityCard
         v-for="s in list"
         :key="s.id"
@@ -79,7 +79,6 @@
         </div>
       </EntityCard>
     </div>
-    </a-spin>
 
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :width="560" :footer="null" :maskClosable="false">
@@ -370,6 +369,7 @@ import { message, Modal } from 'ant-design-vue'
 import { getMcpServers, createMcpServer, updateMcpServer, deleteMcpServer, testMcpServer, getMcpServerTools, refreshMcpServerTools, toggleMcpTool, setMcpServerEnabled } from '../api/mcp'
 import JsonInput from '../components/JsonInput.vue'
 import EntityCard from '../components/EntityCard.vue'
+import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
 import { truncateText } from '../utils/format'

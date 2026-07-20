@@ -43,8 +43,8 @@
       </div>
     </div>
 
-    <a-spin :spinning="loading">
-    <div class="agent-grid">
+    <CardGridSkeleton v-if="loading && !list.length" />
+    <div v-else class="agent-grid">
       <EntityCard
         v-for="a in list"
         :key="a.id"
@@ -101,7 +101,6 @@
         <p v-else>还没有 Agent，点击右上角创建一个吧</p>
       </div>
     </div>
-    </a-spin>
 
     <!-- 创建/编辑弹窗 -->
     <a-modal
@@ -182,6 +181,7 @@ import FeedbackHistory from './FeedbackHistory.vue'
 import { loadAgentStatusLabels, formatAgentStatus } from '../utils/agentStatus'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
+import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import { resolveAgentBindingType } from '../utils/bindingTheme'
 
 const router = useRouter()

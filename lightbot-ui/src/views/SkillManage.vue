@@ -30,8 +30,8 @@
       </div>
     </div>
 
-    <a-spin :spinning="loading" style="min-height: 400px; display: block;">
-    <div class="card-grid">
+    <CardGridSkeleton v-if="loading && !list.length" />
+    <div v-else class="card-grid">
       <EntityCard
         v-for="s in list"
         :key="s.id"
@@ -85,7 +85,6 @@
         {{ searchText ? '没有匹配的 Skill' : '暂无 Skill，点击右上角新增' }}
       </div>
     </div>
-    </a-spin>
 
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :width="720" :footer="null" :maskClosable="false">
@@ -208,6 +207,7 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutli
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
+import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
 import { getSkills, createSkill, updateSkill, deleteSkill, setSkillEnabled, exportSkillZip } from '../api/skill'

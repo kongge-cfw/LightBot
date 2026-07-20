@@ -51,7 +51,8 @@ export default defineConfig({
       // CSP 先用宽松版（允许 unsafe-inline / unsafe-eval），后续按 Report-Only 收集后收紧
       'Content-Security-Policy': [
         "default-src 'self'",
-        "img-src 'self' data: blob: https:",
+        // img-src 放行 MinIO 开发地址（localhost:9000）；生产环境 MinIO 走 https 或反代后可移除该白名单
+        "img-src 'self' data: blob: https: http://localhost:9000",
         "media-src 'self' data: blob:",
         "style-src 'self' 'unsafe-inline'",
         "script-src 'self' 'unsafe-inline' 'unsafe-eval'",

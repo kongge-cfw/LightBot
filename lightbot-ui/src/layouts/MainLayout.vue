@@ -93,8 +93,9 @@
               </template>
             </a-dropdown>
           </div>
-          <div v-if="sessionLoading && sessions.length > 0" class="session-loading-more">
+          <div v-if="sessionLoading" class="session-loading-more">
             <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
+            <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
           </div>
           <div v-if="sessionHasMore && !sessionLoading" ref="sessionLoadMoreRef" class="session-load-more-sentinel"></div>
           <div v-if="sessions.length === 0 && !sessionLoading" class="session-empty">暂无对话</div>
@@ -886,8 +887,14 @@ watch(sessionLoadMoreRef, (el) => {
 }
 .session-loading-more {
   display: flex;
+  align-items: center;
   justify-content: center;
+  gap: 6px;
   padding: 8px 0;
+}
+.session-loading-text {
+  font-size: 12px;
+  color: var(--color-mute);
 }
 .session-load-more-sentinel {
   height: 1px;

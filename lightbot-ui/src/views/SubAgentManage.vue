@@ -1,8 +1,8 @@
 <template>
   <div class="subagent-manage">
     <!-- 卡片列表 -->
-    <a-spin :spinning="loading" style="min-height: 400px; display: block;">
-    <div class="card-grid">
+    <CardGridSkeleton v-if="loading && !list.length" />
+    <div v-else class="card-grid">
       <EntityCard
         v-for="s in list"
         :key="s.id"
@@ -55,7 +55,6 @@
         <p>暂无 SubAgent，点击右上角创建</p>
       </div>
     </div>
-    </a-spin>
 
     <!-- 新增/编辑弹窗 -->
     <a-modal
@@ -274,6 +273,7 @@ import { RobotOutlined, EditOutlined, DeleteOutlined, ToolOutlined, QuestionCirc
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
+import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
 import { getSubAgents, createSubAgent, updateSubAgent, deleteSubAgent, setSubAgentEnabled } from '../api/subagent'

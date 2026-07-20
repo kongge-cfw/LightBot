@@ -66,6 +66,7 @@ import { ref, nextTick, watch } from 'vue'
 import { SearchOutlined, PushpinFilled } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { searchConversations } from '@/api/chatSession'
+import { formatTime } from '@/utils/format'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -121,18 +122,6 @@ function onPick(item) {
   emit('update:open', false)
 }
 
-function formatTime(t) {
-  if (!t) return ''
-  try {
-    const d = new Date(t.replace(/-/g, '/'))
-    if (Number.isNaN(d.getTime())) return t
-    const pad = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
-  } catch {
-    return t
-  }
-}
-
 function escapeHtml(str) {
   if (!str) return ''
   return String(str)
@@ -163,6 +152,18 @@ defineExpose({ runSearch })
 }
 .conv-search-input {
   margin-bottom: 12px;
+}
+.conv-search-input .ant-input-affix-wrapper {
+  border-top-right-radius: 6px;
+  border-bottom-right-radius: 6px;
+}
+.conv-search-input .ant-input-group > .ant-input-group-addon:last-child {
+  padding-left: 8px;
+  background: transparent;
+}
+.conv-search-input .ant-input-search-button {
+  border-top-left-radius: 6px;
+  border-bottom-left-radius: 6px;
 }
 .conv-search-body {
   max-height: 60vh;
