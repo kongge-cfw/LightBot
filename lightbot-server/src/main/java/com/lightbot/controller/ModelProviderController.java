@@ -45,6 +45,8 @@ public class ModelProviderController {
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable Long id) {
         modelProviderService.deleteById(id);
+        // 删除后清除该 provider 的 ChatModel 缓存，避免残留实例被后续请求复用
+        modelFactory.invalidateCache(id);
         return Result.ok();
     }
 

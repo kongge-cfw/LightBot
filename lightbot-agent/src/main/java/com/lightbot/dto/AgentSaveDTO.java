@@ -25,7 +25,7 @@ public class AgentSaveDTO {
     @Schema(description = "Agent名称")
     private String name;
 
-    @Size(max = 50, message = "Agent描述不超过50字")
+    @Size(max = 500, message = "Agent描述不超过500字")
     @Schema(description = "Agent描述")
     private String description;
 

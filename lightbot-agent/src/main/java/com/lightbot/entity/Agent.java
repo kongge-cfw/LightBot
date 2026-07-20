@@ -41,7 +41,7 @@ public class Agent {
 
     @TableField("description")
     @Schema(description = "Agent描述")
-    @Size(max = 50, message = "Agent描述不超过50字")
+    @Size(max = 500, message = "Agent描述不超过500字")
     private String description;
 
     @TableField("system_prompt")

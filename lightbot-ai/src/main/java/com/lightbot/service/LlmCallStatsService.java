@@ -1,8 +1,8 @@
 package com.lightbot.service;
 
+import com.lightbot.util.RedisUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -23,7 +23,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class LlmCallStatsService {
 
-    private final StringRedisTemplate stringRedisTemplate;
+    private final RedisUtil redisUtil;
 
     private static final String KEY_PREFIX = "lightbot:llm:stats:";
     private static final long KEY_TTL_DAYS = 7;
@@ -46,12 +46,13 @@ public class LlmCallStatsService {
      */
     public void recordSuccess(Long userId, int promptTokens, int completionTokens, long latencyMs) {
         String key = buildKey(userId);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_CALLS, 1);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_SUCCESS_CALLS, 1);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_PROMPT_TOKENS, promptTokens);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_COMPLETION_TOKENS, completionTokens);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_LATENCY_MS, latencyMs);
-        stringRedisTemplate.expire(key, Duration.ofDays(KEY_TTL_DAYS));
+        // Hash 累计：totalCalls / successCalls / 各类 Token / 延迟，写完刷新 TTL（7 天）
+        redisUtil.hashIncrement(key, FIELD_TOTAL_CALLS, 1);
+        redisUtil.hashIncrement(key, FIELD_SUCCESS_CALLS, 1);
+        redisUtil.hashIncrement(key, FIELD_TOTAL_PROMPT_TOKENS, promptTokens);
+        redisUtil.hashIncrement(key, FIELD_TOTAL_COMPLETION_TOKENS, completionTokens);
+        redisUtil.hashIncrement(key, FIELD_TOTAL_LATENCY_MS, latencyMs);
+        redisUtil.expire(key, Duration.ofDays(KEY_TTL_DAYS));
     }
 
     /**
@@ -62,10 +63,10 @@ public class LlmCallStatsService {
      */
     public void recordFailure(Long userId, long latencyMs) {
         String key = buildKey(userId);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_CALLS, 1);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_FAIL_CALLS, 1);
-        stringRedisTemplate.opsForHash().increment(key, FIELD_TOTAL_LATENCY_MS, latencyMs);
-        stringRedisTemplate.expire(key, Duration.ofDays(KEY_TTL_DAYS));
+        redisUtil.hashIncrement(key, FIELD_TOTAL_CALLS, 1);
+        redisUtil.hashIncrement(key, FIELD_FAIL_CALLS, 1);
+        redisUtil.hashIncrement(key, FIELD_TOTAL_LATENCY_MS, latencyMs);
+        redisUtil.expire(key, Duration.ofDays(KEY_TTL_DAYS));
     }
 
     /**
@@ -76,16 +77,16 @@ public class LlmCallStatsService {
      */
     public Map<String, Object> getStats(Long userId) {
         String key = buildKey(userId);
-        Map<Object, Object> entries = stringRedisTemplate.opsForHash().entries(key);
+        Map<String, String> entries = redisUtil.hashEntries(key);
 
         Map<String, Object> stats = new HashMap<>();
-        stats.put("totalCalls", parseLong(entries.get(FIELD_TOTAL_CALLS)));
+        long totalCalls = parseLong(entries.get(FIELD_TOTAL_CALLS));
+        stats.put("totalCalls", totalCalls);
         stats.put("successCalls", parseLong(entries.get(FIELD_SUCCESS_CALLS)));
         stats.put("failCalls", parseLong(entries.get(FIELD_FAIL_CALLS)));
         stats.put("totalPromptTokens", parseLong(entries.get(FIELD_TOTAL_PROMPT_TOKENS)));
         stats.put("totalCompletionTokens", parseLong(entries.get(FIELD_TOTAL_COMPLETION_TOKENS)));
 
-        long totalCalls = parseLong(entries.get(FIELD_TOTAL_CALLS));
         long totalLatency = parseLong(entries.get(FIELD_TOTAL_LATENCY_MS));
         stats.put("avgLatencyMs", totalCalls > 0 ? totalLatency / totalCalls : 0);
         stats.put("date", LocalDate.now().toString());
@@ -97,10 +98,10 @@ public class LlmCallStatsService {
         return KEY_PREFIX + "user:" + userId + ":" + LocalDate.now();
     }
 
-    private long parseLong(Object value) {
+    private long parseLong(String value) {
         if (value == null) return 0L;
         try {
-            return Long.parseLong(value.toString());
+            return Long.parseLong(value);
         } catch (NumberFormatException e) {
             return 0L;
         }

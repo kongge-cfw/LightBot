@@ -77,6 +77,12 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
     /** 批量 Embedding 每批大小（受 Embedding API 限制，通常 50-200） */
     private static final int EMBED_BATCH_SIZE = 50;
 
+    /** 批量上传文件数上限 */
+    private static final int MAX_BATCH_UPLOAD_COUNT = 50;
+
+    /** 批量上传总字节数上限 500MB */
+    private static final long MAX_BATCH_UPLOAD_BYTES = 500L * 1024 * 1024;
+
     private final MinioUtil minioUtil;
     private final TikaUtil tikaUtil;
     private final OcrUtil ocrUtil;
@@ -174,6 +180,16 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
 
     @Override
     public List<Document> uploadDocuments(Long knowledgeId, List<MultipartFile> files, boolean ocrEnabled, String force) {
+        // 批量上传硬上限：文件数 ≤ 50、总大小 ≤ 500MB，避免单请求耗尽 MinIO/DB/内存资源
+        if (files != null && files.size() > MAX_BATCH_UPLOAD_COUNT) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "批量上传文件数不能超过 " + MAX_BATCH_UPLOAD_COUNT + " 个");
+        }
+        long totalBytes = files == null ? 0L
+                : files.stream().mapToLong(MultipartFile::getSize).sum();
+        if (totalBytes > MAX_BATCH_UPLOAD_BYTES) {
+            throw new BizException(ErrorCode.PARAM_INVALID,
+                    "批量上传总大小不能超过 " + (MAX_BATCH_UPLOAD_BYTES / 1024 / 1024) + "MB");
+        }
         List<Document> results = new ArrayList<>();
         for (MultipartFile file : files) {
             results.add(uploadDocument(knowledgeId, file, ocrEnabled, force));

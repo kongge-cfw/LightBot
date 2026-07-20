@@ -23,6 +23,7 @@ public enum ErrorCode {
     INTERNAL_ERROR(10004, "服务器内部错误", HttpStatus.INTERNAL_SERVER_ERROR),
     RATE_LIMITED(10005, "请求过于频繁，请稍后再试", HttpStatus.TOO_MANY_REQUESTS),
     SSRF_BLOCKED(10006, "不允许访问内网/私有地址", HttpStatus.BAD_REQUEST),
+    PARAM_INVALID(10007, "参数校验失败: %s", HttpStatus.BAD_REQUEST),
 
     // ========== 用户模块 ==========
     USER_NOT_FOUND(20001, "用户不存在", HttpStatus.UNAUTHORIZED),

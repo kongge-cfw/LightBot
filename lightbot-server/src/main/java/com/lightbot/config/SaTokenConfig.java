@@ -5,6 +5,7 @@ import cn.dev33.satoken.router.SaRouter;
 import cn.dev33.satoken.stp.StpUtil;
 import com.lightbot.enums.UserRole;
 import com.lightbot.interceptor.ApiKeyAuthInterceptor;
+import com.lightbot.interceptor.PageSizeLimitInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -23,6 +24,7 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class SaTokenConfig implements WebMvcConfigurer {
 
     private final ApiKeyAuthInterceptor apiKeyAuthInterceptor;
+    private final PageSizeLimitInterceptor pageSizeLimitInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
@@ -40,7 +42,12 @@ public class SaTokenConfig implements WebMvcConfigurer {
                 )
                 .order(0);
 
-        // 2. Sa-Token 拦截器
+        // 2. 分页参数上限拦截器（早于业务，避免恶意大分页打 DB）
+        registry.addInterceptor(pageSizeLimitInterceptor)
+                .addPathPatterns("/api/**")
+                .order(1);
+
+        // 3. Sa-Token 拦截器
         registry.addInterceptor(new SaInterceptor(handle -> {
             // 日志/任务监控接口：需要登录 + ADMIN 角色
             SaRouter.match("/api/logs/**").check(r -> {
@@ -62,7 +69,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             SaRouter.match("GET", "/api/system-config/health").stop();
             // 其余接口：API Key 已认证则跳过 Sa-Token 检查
             checkLoginOrApiKey();
-        })).addPathPatterns("/api/**").order(1);
+        })).addPathPatterns("/api/**").order(2);
     }
 
     /**

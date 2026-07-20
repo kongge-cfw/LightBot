@@ -5,8 +5,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -63,14 +65,10 @@ public class RedisUtil {
         stringRedisTemplate.delete(CANCEL_SIGNAL_PREFIX + taskId);
     }
 
-    // ==================== 通用缓存 ====================
+    // ==================== 通用 String 操作 ====================
 
     /**
-     * 设置缓存（带过期时间）
-     *
-     * @param key     缓存key
-     * @param value   缓存值
-     * @param timeout 过期时间（秒）
+     * 设置缓存（带过期时间，秒）
      */
     public void set(String key, String value, long timeout) {
         stringRedisTemplate.opsForValue().set(key, value, timeout, TimeUnit.SECONDS);
@@ -86,7 +84,7 @@ public class RedisUtil {
     /**
      * 获取缓存
      *
-     * @return 缓存值，不存在返回null
+     * @return 缓存值，不存在返回 null
      */
     public String get(String key) {
         return stringRedisTemplate.opsForValue().get(key);
@@ -116,15 +114,51 @@ public class RedisUtil {
         return val != null ? val : 1L;
     }
 
+    /**
+     * 自增指定步长
+     */
+    public long increment(String key, long delta) {
+        Long val = stringRedisTemplate.opsForValue().increment(key, delta);
+        return val != null ? val : delta;
+    }
+
+    /**
+     * 设置 key 的过期时间（秒）
+     */
+    public boolean expire(String key, long timeoutSeconds) {
+        return Boolean.TRUE.equals(stringRedisTemplate.expire(key, timeoutSeconds, TimeUnit.SECONDS));
+    }
+
+    /**
+     * 设置 key 的过期时间（Duration）
+     */
+    public boolean expire(String key, Duration timeout) {
+        return Boolean.TRUE.equals(stringRedisTemplate.expire(key, timeout));
+    }
+
     // ==================== Hash 操作 ====================
-    // 用于 API Key 用量累计、批量计数等场景，避免每请求一次 DB UPDATE
+    // 用于 API Key 用量累计、LLM 调用统计、批量计数等场景，避免每请求一次 DB UPDATE
+
+    /**
+     * 写入 Hash 单个字段（覆盖）
+     */
+    public void hashPut(String key, String field, String value) {
+        stringRedisTemplate.opsForHash().put(key, field, value);
+    }
+
+    /**
+     * 读取 Hash 单个字段
+     *
+     * @return 字段值；key/field 不存在返回 null
+     */
+    public String hashGet(String key, String field) {
+        Object val = stringRedisTemplate.opsForHash().get(key, field);
+        return val != null ? String.valueOf(val) : null;
+    }
 
     /**
      * Hash 字段自增
      *
-     * @param key   Redis key
-     * @param field Hash 字段名
-     * @param delta 自增量
      * @return 自增后的值
      */
     public long hashIncrement(String key, String field, long delta) {
@@ -135,7 +169,6 @@ public class RedisUtil {
     /**
      * 获取 Hash 全部字段（快照）
      *
-     * @param key Redis key
      * @return field → value 映射；key 不存在返回空 Map
      */
     public Map<String, String> hashEntries(String key) {
@@ -143,7 +176,7 @@ public class RedisUtil {
         if (raw == null || raw.isEmpty()) {
             return java.util.Collections.emptyMap();
         }
-        Map<String, String> result = new java.util.HashMap<>(raw.size());
+        Map<String, String> result = new HashMap<>(raw.size());
         for (Map.Entry<Object, Object> e : raw.entrySet()) {
             result.put(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
         }
@@ -153,8 +186,6 @@ public class RedisUtil {
     /**
      * 删除 Hash 中的字段
      *
-     * @param key    Redis key
-     * @param fields 待删除字段
      * @return 实际删除数量
      */
     public long hashDelete(String key, String... fields) {
@@ -169,13 +200,62 @@ public class RedisUtil {
         return val != null ? val : 0L;
     }
 
+    // ==================== ZSet 操作 ====================
+    // 用于排行榜、按时间窗口取 Top N、延迟队列等场景
+
+    /**
+     * 向 ZSet 添加成员（分数覆盖）
+     *
+     * @return true=新增；false=已存在仅更新分数
+     */
+    public boolean zAdd(String key, String member, double score) {
+        return Boolean.TRUE.equals(stringRedisTemplate.opsForZSet().add(key, member, score));
+    }
+
+    /**
+     * ZSet 成员分数自增
+     *
+     * @return 自增后的分数
+     */
+    public double zIncrementScore(String key, String member, double delta) {
+        Double val = stringRedisTemplate.opsForZSet().incrementScore(key, member, delta);
+        return val != null ? val : delta;
+    }
+
+    /**
+     * 按分数区间取成员（升序）
+     *
+     * @param min 分数下限（含）
+     * @param max 分数上限（含）
+     * @return 成员集合，含分数
+     */
+    public Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> zRangeByScore(
+            String key, double min, double max) {
+        return stringRedisTemplate.opsForZSet().rangeByScoreWithScores(key, min, max);
+    }
+
+    /**
+     * 按分数区间取成员（降序，取 Top N）
+     */
+    public Set<org.springframework.data.redis.core.ZSetOperations.TypedTuple<String>> zReverseRangeByScore(
+            String key, double min, double max, long offset, long count) {
+        return stringRedisTemplate.opsForZSet().reverseRangeByScoreWithScores(key, min, max, offset, count);
+    }
+
+    /**
+     * 移除 ZSet 中的成员
+     *
+     * @return 实际删除数量
+     */
+    public long zRemove(String key, String... members) {
+        Long val = stringRedisTemplate.opsForZSet().remove(key, (Object[]) members);
+        return val != null ? val : 0L;
+    }
+
     // ==================== Pub/Sub ====================
 
     /**
      * 向指定频道发布消息（多实例广播缓存失效等场景）
-     *
-     * @param channel 频道名
-     * @param message 消息体
      */
     public void convertAndSend(String channel, String message) {
         stringRedisTemplate.convertAndSend(channel, message);

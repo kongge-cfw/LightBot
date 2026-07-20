@@ -443,7 +443,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':knowledgeIds'")
     public void updateKnowledgeBindings(Long agentId, List<Long> knowledgeIds) {
         // 0. 数量上限校验（业务规则，下沉到 Service）
         if (knowledgeIds != null && knowledgeIds.size() > 10) {
@@ -478,7 +478,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':toolIds'")
     public void updateToolBindings(Long agentId, List<Long> toolIds) {
         writeBindingIdsToConfig(agentId, "tools", toolIds, 10, ErrorCode.AGENT_TOOL_LIMIT);
     }
@@ -499,7 +499,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':mcpServerIds'")
     public void updateMcpServerBindings(Long agentId, List<Long> mcpServerIds) {
         writeBindingIdsToConfig(agentId, "mcpServers", mcpServerIds, 5, ErrorCode.AGENT_MCP_LIMIT);
     }
@@ -520,7 +520,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':subAgentIds'")
     public void updateSubAgentBindings(Long agentId, List<Long> subAgentIds) {
         writeBindingIdsToConfig(agentId, "subagents", subAgentIds, 5, ErrorCode.AGENT_SUBAGENT_LIMIT);
     }
@@ -532,7 +532,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':skillIds'")
     public void updateSkillBindings(Long agentId, List<Long> skillIds) {
         writeBindingIdsToConfig(agentId, "skills", skillIds, 10, ErrorCode.AGENT_SKILL_LIMIT);
     }
