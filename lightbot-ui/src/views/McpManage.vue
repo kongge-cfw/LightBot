@@ -363,6 +363,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
 </template>
 
 <script setup>
+defineOptions({ name: 'McpManage' })
 defineProps({ hideHeader: Boolean })
 import { ref, reactive, watch, onMounted, computed, h } from 'vue'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApiOutlined, ToolOutlined, QuestionCircleOutlined, SyncOutlined, EyeOutlined, CopyOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons-vue'

@@ -208,6 +208,33 @@ public class DocumentVersionServiceImpl extends ServiceImpl<DocumentVersionMappe
         log.info("[文档版本] 已清理文档所有版本: documentId={}, count={}", documentId, versions.size());
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteByDocumentIds(java.util.Collection<Long> documentIds) {
+        if (documentIds == null || documentIds.isEmpty()) {
+            return;
+        }
+        // 1. 一次 IN 查询所有文档的版本记录
+        List<DocumentVersion> versions = list(new LambdaQueryWrapper<DocumentVersion>()
+                .in(DocumentVersion::getDocumentId, documentIds));
+        if (versions.isEmpty()) {
+            return;
+        }
+        // 2. 删 MinIO 文件（IO 异步，逐条 safe delete）
+        for (DocumentVersion v : versions) {
+            if (v.getStoragePath() != null) {
+                try {
+                    minioUtil.delete(v.getStoragePath());
+                } catch (Exception e) {
+                    log.warn("[文档版本] 删除版本文件失败: path={}, error={}", v.getStoragePath(), e.getMessage());
+                }
+            }
+        }
+        // 3. 一次 IN 删 DB 记录
+        remove(new LambdaQueryWrapper<DocumentVersion>().in(DocumentVersion::getDocumentId, documentIds));
+        log.info("[文档版本] 批量清理版本: documentCount={}, versionCount={}", documentIds.size(), versions.size());
+    }
+
     private String calculateContentHash(String content) {
         try {
             MessageDigest md = MessageDigest.getInstance("MD5");

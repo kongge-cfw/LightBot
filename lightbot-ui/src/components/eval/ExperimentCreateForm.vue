@@ -87,7 +87,7 @@
 
     <!-- Step 4: 配置评估器 -->
     <div v-show="currentStep === 3">
-      <div v-for="(ev, idx) in createForm.evaluators" :key="idx" class="evaluator-config-block">
+      <div v-for="(ev, idx) in createForm.evaluators" :key="ev.evaluatorId || ev.id || idx" class="evaluator-config-block">
         <div class="evaluator-config-header">
           <span class="evaluator-config-title">评估器 {{ idx + 1 }}</span>
           <a-tooltip v-if="createForm.evaluators.length > 1" title="移除">

@@ -507,7 +507,7 @@
         </div>
 
         <div v-if="uploadMode === 'file' && uploadFiles.length > 0" class="upload-file-list">
-          <div v-for="(file, i) in uploadFiles" :key="i" class="upload-file-item">
+          <div v-for="(file, i) in uploadFiles" :key="(file.uid || file.name) + '-' + i" class="upload-file-item">
             <span class="upload-file-name">{{ file.name }}</span>
             <span class="upload-file-status" :class="file._status">
               {{ file._status === 'uploading' ? '上传中...' : file._status === 'success' ? '上传成功' : file._status === 'error' ? '上传失败' : '' }}
@@ -538,7 +538,7 @@
           <a-collapse ghost class="url-advanced-collapse">
             <a-collapse-panel key="url-advanced" header="高级配置">
               <a-form-item label="自定义请求头" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
-                <div v-for="(h, i) in urlHeaders" :key="i" class="url-header-row">
+                <div v-for="(h, i) in urlHeaders" :key="(h.key || 'header') + '-' + i" class="url-header-row">
                   <a-input v-model:value="h.key" placeholder="Header Name" style="width: 35%" size="small" />
                   <a-input v-model:value="h.value" placeholder="Header Value" style="width: 50%" size="small" />
                   <DeleteOutlined class="url-header-delete" @click="urlHeaders.splice(i, 1)" />
@@ -560,7 +560,7 @@
 
         <!-- URL 列表 -->
         <div v-if="uploadMode === 'url' && urlList.length > 0" class="url-list">
-          <div v-for="(item, i) in urlList" :key="i" class="url-item">
+          <div v-for="(item, i) in urlList" :key="(item.url || 'url') + '-' + i" class="url-item">
             <div class="url-status-col">
               <CheckCircleOutlined v-if="item.status === 'success'" class="url-icon success" />
               <CloseCircleOutlined v-else-if="item.status === 'error'" class="url-icon error" />
@@ -716,7 +716,7 @@
         <div v-if="previewChunksList.length > 0" class="preview-chunks">
           <div class="preview-header">分块预览（共 {{ previewChunksList.length }} 块）</div>
           <div class="preview-list">
-            <div v-for="(chunk, i) in previewChunksList" :key="i" class="preview-item">
+            <div v-for="(chunk, i) in previewChunksList" :key="'chunk-' + i" class="preview-item">
               <div class="preview-item-header">#{{ i + 1 }} (约 {{ Math.round(chunk.length * 1.2) }} tokens)</div>
               <div class="preview-item-content">{{ chunk.length > 200 ? chunk.substring(0, 200) + '...' : chunk }}</div>
             </div>
@@ -988,6 +988,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'KnowledgeDetail' })
 import { ref, reactive, computed, h, nextTick, onMounted, onUnmounted, watch, defineAsyncComponent } from 'vue'
 import { renderMarkdownSync } from '@/utils/markdown_preview'
 import { sanitizeHtml } from '@/utils/sanitize'

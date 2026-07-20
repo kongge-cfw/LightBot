@@ -79,7 +79,9 @@ public interface MessageMapper extends BaseMapper<Message> {
 
     /**
      * 跨会话按关键词搜索消息：返回每条命中消息 + 所属会话基础信息（标题/agent/置顶/最后消息时间）。
-     * <p>限当前用户的会话，关键字使用 ILIKE 不区分大小写模糊匹配</p>
+     * <p>限当前用户的会话，关键字使用 ILIKE 不区分大小写模糊匹配。
+     * 前导通配符 '%kw%' 无法走 B-tree，依赖 LIMIT 兜底限制扫描规模（v3.1 2.1.3 短期方案）。
+     * 消息量 > 5w 后启用 pg_trgm + GIN 索引（gin_trgm_ops）让 ILIKE 走索引，详见 backend-optimization-v3.1.md</p>
      */
     @Select("""
             SELECT m.id           AS messageId,

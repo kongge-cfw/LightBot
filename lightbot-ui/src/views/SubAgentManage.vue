@@ -344,11 +344,13 @@ const providerNameMap = computed(() => {
   return map
 })
 
-// 下拉选项懒加载标记：首次打开新增/编辑弹窗时才加载工具与提供商列表，避免进入页面就发请求
+// 下拉选项懒加载标记：首次打开新增/编辑弹窗时才加载提供商列表，避免进入页面就发请求
 let optionsLoaded = false
 
 onMounted(() => {
+  // 卡片和详情弹窗的工具绑定展示都依赖 toolList（formatToolIds 按 id 查工具名），必须与列表并行预加载，否则会全部回退显示为「[已删除]」
   loadList()
+  loadToolList()
 })
 
 async function loadList() {

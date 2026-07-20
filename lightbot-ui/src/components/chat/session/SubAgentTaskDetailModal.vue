@@ -84,7 +84,7 @@
         <div class="detail-section">
           <div class="detail-section-title">独立子线程</div>
           <div v-if="threadMessages.length" class="thread-messages">
-            <div v-for="(item, index) in threadMessages" :key="index" class="thread-message" :class="`role-${item.type}`">
+            <div v-for="(item, index) in threadMessages" :key="item.id || item.messageId || index" class="thread-message" :class="`role-${item.type}`">
               <span class="thread-role">{{ roleLabel(item.type) }}</span>
               <pre class="thread-content">{{ threadContent(item) }}</pre>
             </div>

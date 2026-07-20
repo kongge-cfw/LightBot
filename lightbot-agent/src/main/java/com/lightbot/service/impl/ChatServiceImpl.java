@@ -1541,11 +1541,9 @@ public class ChatServiceImpl implements ChatService {
                 return timeoutSeconds;
             }
             long maxReadTimeout = timeoutSeconds;
-            for (String subName : subNames) {
-                com.lightbot.entity.SubAgent subAgent = subAgentService.getByName(subName);
-                if (subAgent == null) {
-                    continue;
-                }
+            // 一次 IN 查询所有 SubAgent，替代循环内 N 次 getByName（v3.1 2.2.3）
+            List<com.lightbot.entity.SubAgent> subAgents = subAgentService.listByNameIn(subNames);
+            for (com.lightbot.entity.SubAgent subAgent : subAgents) {
                 int readTimeout = subAgent.getReadTimeoutSeconds() != null
                         ? Math.max(10, Math.min(300, subAgent.getReadTimeoutSeconds()))
                         : (int) TOOL_EXECUTION_TIMEOUT_SECONDS;

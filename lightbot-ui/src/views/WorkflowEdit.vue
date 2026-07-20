@@ -256,6 +256,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'WorkflowEdit' })
 import { ref, onMounted, onUnmounted, computed, shallowRef, triggerRef, nextTick, watch, markRaw, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVueFlow, applyNodeChanges, applyEdgeChanges, addEdge } from '@vue-flow/core'

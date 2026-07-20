@@ -162,7 +162,7 @@
             </template>
             <template v-if="column.key === 'evaluatorName'">
               <template v-if="record.evaluatorNameList?.length">
-                <template v-for="(name, i) in record.evaluatorNameList.slice(0, 2)" :key="i">
+                <template v-for="(name, i) in record.evaluatorNameList.slice(0, 2)" :key="name + '-' + i">
                   <a v-if="record.evaluatorIdList?.[i]" @click.stop="router.push(`/app/eval/evaluators/${record.evaluatorIdList[i]}`)">{{ name }}</a>
                   <span v-else>{{ name }}</span>
                   <span v-if="i < Math.min(1, record.evaluatorNameList.length - 1)" style="color: var(--color-mute);">、</span>
@@ -404,7 +404,7 @@
 
       <!-- Step 4: 配置评估器 -->
       <div v-show="experimentStep === 3">
-        <div v-for="(ev, idx) in experimentForm.evaluators" :key="idx" class="evaluator-config-block">
+        <div v-for="(ev, idx) in experimentForm.evaluators" :key="ev.evaluatorId || ev.id || idx" class="evaluator-config-block">
           <div class="evaluator-config-header">
             <span class="evaluator-config-title">评估器 {{ idx + 1 }}</span>
             <a-tooltip v-if="experimentForm.evaluators.length > 1" title="移除">

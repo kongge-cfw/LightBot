@@ -610,6 +610,46 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
         knowledgeServiceProvider.getObject().updateStats(doc.getKnowledgeId(), -1, -chunkCount, -tokenCount);
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int deleteByKnowledgeIdCascade(Long knowledgeId) {
+        // 1. 一次查询该知识库下所有文档（含 chunkCount/tokenCount，用于 stats 一次性递减）
+        List<Document> docs = listByKnowledgeIdInternal(knowledgeId);
+        if (docs.isEmpty()) {
+            return 0;
+        }
+        List<Long> docIds = docs.stream().map(Document::getId).toList();
+
+        // 2. 逐文档 safe delete MinIO 文件（IO 异步，不阻塞事务）
+        for (Document doc : docs) {
+            safeDeleteMinio(doc.getFilePath(), "原始文件");
+            safeDeleteMinio(doc.getMarkdownPath(), "Markdown文件");
+            deleteDocxImages(knowledgeId, doc.getName());
+        }
+
+        // 3. 一次 IN 删 document_versions（MinIO + DB）
+        documentVersionServiceProvider.getObject().deleteByDocumentIds(docIds);
+
+        // 4. 一次按 knowledgeId 删 embedding（PG + Milvus，内部已封装）
+        embeddingService.deleteByKnowledgeId(knowledgeId);
+
+        // 5. 一次 IN 删 chunk（按 docIds）
+        chunkService.remove(new LambdaQueryWrapper<Chunk>().in(Chunk::getDocumentId, docIds));
+
+        // 6. 一次 IN 删 document
+        removeByIds(docIds);
+
+        // 7. 一次性递减 stats（汇总 chunkCount/tokenCount，比 N 次更新少 N-1 次写）
+        int totalChunks = docs.stream()
+                .mapToInt(d -> d.getChunkCount() != null ? d.getChunkCount() : 0)
+                .sum();
+        long totalTokens = docs.stream()
+                .mapToLong(d -> d.getTokenCount() != null ? d.getTokenCount() : 0)
+                .sum();
+        knowledgeServiceProvider.getObject().updateStats(knowledgeId, -docs.size(), -totalChunks, -totalTokens);
+        return docs.size();
+    }
+
     /**
      * 安全删除 MinIO 文件（异常不阻断主流程）
      */

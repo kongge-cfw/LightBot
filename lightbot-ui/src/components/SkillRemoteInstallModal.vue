@@ -119,7 +119,7 @@
           <p style="font-size: 13px; color: var(--color-mute); margin-bottom: 12px">
             以下 {{ previews.length }} 个 Skill 将被安装：
           </p>
-          <div v-for="(preview, idx) in previews" :key="idx" class="preview-card" :class="{ 'preview-installed': committing && idx < commitProgress, 'preview-installing': committing && idx === commitProgress }">
+          <div v-for="(preview, idx) in previews" :key="(preview.slug || 'skill') + '-' + idx" class="preview-card" :class="{ 'preview-installed': committing && idx < commitProgress, 'preview-installing': committing && idx === commitProgress }">
             <div class="preview-header">
               <span class="preview-slug">{{ preview.slug }}</span>
               <span v-if="committing && idx < commitProgress" class="preview-status-tag done">已安装</span>

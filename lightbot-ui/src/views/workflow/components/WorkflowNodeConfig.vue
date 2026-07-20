@@ -291,7 +291,7 @@
     <template v-if="node.type === 'input'">
       <div class="config-section">
         <div class="config-section-title">输出参数</div>
-        <div v-for="(param, idx) in node.data.outputParams" :key="idx" class="param-row">
+        <div v-for="(param, idx) in node.data.outputParams" :key="(param.key || 'param') + '-' + idx" class="param-row">
           <a-input v-model:value="param.key" placeholder="参数名" @change="emitSync" />
           <a-select v-model:value="param.type" style="width: 100px" @change="emitSync">
             <a-select-option value="String">String</a-select-option>
@@ -355,7 +355,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="变量列表">
-          <div v-for="(v, idx) in groupVariables" :key="idx" class="param-row">
+          <div v-for="(v, idx) in groupVariables" :key="(v.value || 'var') + '-' + idx" class="param-row">
             <a-input v-model:value="v.value" placeholder="{{变量引用}}" @change="emitSync" />
             <a-button type="text" danger @click="removeGroupVar(idx)"><DeleteOutlined /></a-button>
           </div>
@@ -385,7 +385,7 @@
         <template #label>
           <ConfigFieldLabel label="提取参数定义" />
         </template>
-        <div v-for="(p, idx) in node.data.extractParams" :key="idx" class="extract-param-row">
+        <div v-for="(p, idx) in node.data.extractParams" :key="(p.key || 'extract') + '-' + idx" class="extract-param-row">
           <a-input v-model:value="p.key" placeholder="参数 key" @change="emitSync" />
           <a-input v-model:value="p.desc" placeholder="描述" @change="emitSync" />
           <a-switch v-model:checked="p.required" checked-children="必填" un-checked-children="可选" @change="emitSync" />

@@ -60,7 +60,7 @@
       title="模板预览"
       :width="640"
       :footer="null"
-      :maskClosable="true"
+      :maskClosable="false"
     >
       <div v-if="previewingTemplate" class="preview-content">
         <div class="preview-header">

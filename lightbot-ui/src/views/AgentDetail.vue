@@ -1510,13 +1510,13 @@
             <div class="preview-field" v-if="userSensitiveWordsPreview.length > 0">
               <label>用户敏感词列表</label>
               <div class="preview-value">
-                <div v-for="(w, i) in userSensitiveWordsPreview" :key="i" class="preview-tag danger">{{ w }}</div>
+                <div v-for="(w, i) in userSensitiveWordsPreview" :key="w + '-' + i" class="preview-tag danger">{{ w }}</div>
               </div>
             </div>
             <div class="preview-field" v-if="sensitiveWordsPreview.length > 0">
               <label>AI敏感词列表</label>
               <div class="preview-value">
-                <div v-for="(w, i) in sensitiveWordsPreview" :key="i" class="preview-tag danger">{{ w }}</div>
+                <div v-for="(w, i) in sensitiveWordsPreview" :key="w + '-' + i" class="preview-tag danger">{{ w }}</div>
               </div>
             </div>
           </div>
@@ -1533,7 +1533,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="(v, i) in promptVariablesPreview" :key="i">
+                  <tr v-for="(v, i) in promptVariablesPreview" :key="v.key || i">
                     <td><code>{{ v.key }}</code></td>
                     <td>{{ v.label || '-' }}</td>
                     <td>{{ v.defaultValue || '-' }}</td>
@@ -1685,6 +1685,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'AgentDetail' })
 import { ref, reactive, computed, onMounted, watch, h } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { ArrowLeftOutlined, SaveOutlined, CloseOutlined, SearchOutlined, CheckOutlined, MessageOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined, LoadingOutlined, UndoOutlined, ToolOutlined, QuestionCircleOutlined, ApiOutlined, DeleteOutlined, BookOutlined, RobotOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined, HistoryOutlined, InfoCircleOutlined, IdcardOutlined, RightOutlined, DownOutlined, DatabaseOutlined, CloudServerOutlined } from '@ant-design/icons-vue'

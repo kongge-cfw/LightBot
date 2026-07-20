@@ -50,7 +50,7 @@
       <div class="info-card">
         <div class="info-label">评估器</div>
         <div class="info-value" v-if="experiment?.evaluatorNameList?.length">
-          <div v-for="(name, i) in experiment.evaluatorNameList" :key="i" class="evaluator-info-item">
+          <div v-for="(name, i) in experiment.evaluatorNameList" :key="(experiment.evaluatorIdList?.[i] || name) + '-' + i" class="evaluator-info-item">
             <a-tag v-if="experiment.evaluatorVersionList?.[i]" color="blue" size="small">{{ experiment.evaluatorVersionList[i] }}</a-tag>
             <a @click="router.push(`/app/eval/evaluators/${experiment.evaluatorIdList?.[i]}`)">{{ name }}</a>
           </div>
@@ -241,7 +241,7 @@
           <a-form-item label="变量映射">
             <a-textarea v-model:value="editForm.variableMapping" :rows="2" placeholder='JSON: {"input":"user_input"}' />
           </a-form-item>
-          <div v-for="(ev, idx) in editForm.evaluators" :key="idx" class="evaluator-config-block">
+          <div v-for="(ev, idx) in editForm.evaluators" :key="ev.evaluatorId || ev.id || idx" class="evaluator-config-block">
             <div class="evaluator-config-header">
               <span class="evaluator-config-title">评估器 {{ idx + 1 }}</span>
               <a-tooltip v-if="editForm.evaluators.length > 1" title="移除">

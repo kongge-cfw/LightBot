@@ -68,6 +68,14 @@ public interface MessageService extends IService<Message> {
     void deleteBySessionId(Long sessionId);
 
     /**
+     * 批量删除多个会话下的所有消息（一次 IN 查询 + 一次 IN 删，避免 N+1）。
+     * <p>同时级联清理 tool_calls / message_feedback / MinIO 附件，单次调用替代 N 次 {@link #deleteBySessionId}</p>
+     *
+     * @param sessionIds 会话ID集合
+     */
+    void deleteBySessionIds(java.util.Collection<Long> sessionIds);
+
+    /**
      * 删除单条消息（物理删除）
      *
      * @param messageId 消息ID

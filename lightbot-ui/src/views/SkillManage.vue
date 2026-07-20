@@ -201,6 +201,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'SkillManage' })
 defineProps({ hideHeader: Boolean })
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'

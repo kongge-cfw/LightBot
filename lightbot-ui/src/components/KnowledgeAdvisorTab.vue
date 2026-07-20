@@ -2,7 +2,6 @@
   <div class="knowledge-advisor-tab">
     <!-- 顶部工具栏 -->
     <div class="advisor-toolbar">
-      <span class="advisor-toolbar-title">反馈调优建议</span>
       <div class="advisor-toolbar-right">
         <span class="advisor-toolbar-label">统计窗口</span>
         <a-select
@@ -325,17 +324,12 @@ onMounted(loadAll)
 
 .advisor-toolbar {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-bottom: 12px;
   flex-wrap: wrap;
   gap: 8px;
   flex-shrink: 0;
-}
-
-.advisor-toolbar-title {
-  font-size: 16px;
-  font-weight: 600;
 }
 
 .advisor-toolbar-right {
@@ -441,8 +435,8 @@ onMounted(loadAll)
   align-items: center;
   gap: 12px;
   padding: 14px 16px;
-  background: var(--card-bg, #fff);
-  border: 1px solid var(--border-color, #f0f0f0);
+  background: var(--color-canvas-soft);
+  border: 1px solid var(--color-hairline);
   border-radius: 8px;
   min-width: 0;
 }
@@ -459,31 +453,39 @@ onMounted(loadAll)
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--primary-bg, #e6f4ff);
-  color: var(--primary-color, #1677ff);
+  background: var(--color-link-bg-soft);
+  color: #1677ff;
   font-size: 18px;
   font-weight: 600;
 }
 
+[data-theme="dark"] .advisor-card-icon {
+  color: #60a5fa;
+}
+
 .advisor-card-icon.dislike {
-  background: #fff1f0;
-  color: #cf1322;
+  background: var(--color-error-bg);
+  color: var(--color-error);
 }
 
 .advisor-card-icon.rate {
-  background: #f6ffed;
-  color: #389e0d;
+  background: var(--color-success-bg);
+  color: var(--color-success);
   font-size: 13px;
 }
 
 .advisor-card-icon.ref {
-  background: #fff7e6;
-  color: #d46b08;
+  background: var(--color-warn-bg);
+  color: var(--color-warning);
 }
 
 .advisor-card-icon.sleep {
-  background: #f9f0ff;
+  background: var(--color-purple-bg);
   color: #722ed1;
+}
+
+[data-theme="dark"] .advisor-card-icon.sleep {
+  color: #a78bfa;
 }
 
 .advisor-card-body {
@@ -508,7 +510,7 @@ onMounted(loadAll)
 
 .advisor-card-label {
   font-size: 12px;
-  color: var(--text-secondary, #999);
+  color: var(--color-body);
 }
 
 .advisor-card-tag {

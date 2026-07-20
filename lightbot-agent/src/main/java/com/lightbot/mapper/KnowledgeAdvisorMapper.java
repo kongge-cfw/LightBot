@@ -38,7 +38,8 @@ public interface KnowledgeAdvisorMapper {
                      THEN m.metadata->'ragReferences' ELSE '[]'::jsonb END
             ) AS ref
             LEFT JOIN message_feedback mf ON mf.message_id = m.id
-            WHERE ref->>'knowledgeId' = #{knowledgeId}
+            WHERE m.metadata->'ragReferences' @> jsonb_build_array(jsonb_build_object('knowledgeId', #{knowledgeId}))
+              AND ref->>'knowledgeId' = #{knowledgeId}
             """)
     Map<String, Object> summaryFeedback(@Param("knowledgeId") String knowledgeId);
 
@@ -62,7 +63,8 @@ public interface KnowledgeAdvisorMapper {
                      THEN m.metadata->'ragReferences' ELSE '[]'::jsonb END
             ) AS ref
             LEFT JOIN message_feedback mf ON mf.message_id = m.id
-            WHERE ref->>'knowledgeId' = #{knowledgeId}
+            WHERE m.metadata->'ragReferences' @> jsonb_build_array(jsonb_build_object('knowledgeId', #{knowledgeId}))
+              AND ref->>'knowledgeId' = #{knowledgeId}
               AND ref->>'chunkId' ~ '^[0-9]+$'
             GROUP BY ref->>'chunkId'
             HAVING COUNT(DISTINCT mf.id) FILTER (WHERE mf.rating = 'dislike') > 0
@@ -92,7 +94,8 @@ public interface KnowledgeAdvisorMapper {
                     CASE WHEN jsonb_typeof(m.metadata->'ragReferences') = 'array'
                          THEN m.metadata->'ragReferences' ELSE '[]'::jsonb END
                 ) AS ref
-                WHERE ref->>'knowledgeId' = #{knowledgeId}
+                WHERE m.metadata->'ragReferences' @> jsonb_build_array(jsonb_build_object('knowledgeId', #{knowledgeId}))
+                  AND ref->>'knowledgeId' = #{knowledgeId}
                   AND ref->>'chunkId' ~ '^[0-9]+$'
                 GROUP BY ref->>'chunkId'
             )
@@ -133,7 +136,8 @@ public interface KnowledgeAdvisorMapper {
                     CASE WHEN jsonb_typeof(m.metadata->'ragReferences') = 'array'
                          THEN m.metadata->'ragReferences' ELSE '[]'::jsonb END
                 ) AS ref
-                WHERE ref->>'knowledgeId' = #{knowledgeId}
+                WHERE m.metadata->'ragReferences' @> jsonb_build_array(jsonb_build_object('knowledgeId', #{knowledgeId}))
+                  AND ref->>'knowledgeId' = #{knowledgeId}
                   AND ref->>'chunkId' ~ '^[0-9]+$'
                 GROUP BY ref->>'chunkId'
             )

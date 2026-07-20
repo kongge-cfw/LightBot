@@ -278,6 +278,17 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
     }
 
     /**
+     * 批量删除多个会话下的所有调用链记录（一次 IN，替代 N 次循环）
+     */
+    @Override
+    public void deleteBySessionIds(java.util.Collection<Long> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return;
+        }
+        remove(new LambdaQueryWrapper<LlmTrace>().in(LlmTrace::getSessionId, sessionIds));
+    }
+
+    /**
      * 批量删除调用链记录（物理删除）
      */
     @Override

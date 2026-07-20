@@ -4,7 +4,7 @@
     title="从模板导入"
     :width="960"
     :footer="null"
-    :maskClosable="true"
+    :maskClosable="false"
   >
     <div class="template-import-lr">
       <!-- 左侧：模板列表 -->

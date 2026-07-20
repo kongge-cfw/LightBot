@@ -192,7 +192,14 @@
 
     <!-- 主内容区 -->
     <main class="main-content">
-      <router-view :key="route.path.startsWith('/app/chat') ? '/app/chat' : route.path" />
+      <router-view v-slot="{ Component, route: r }">
+        <keep-alive :include="cachedRouteNames">
+          <component
+            :is="Component"
+            :key="r.path.startsWith('/app/chat') ? '/app/chat' : r.path"
+          />
+        </keep-alive>
+      </router-view>
     </main>
 
   </div>
@@ -237,6 +244,10 @@ import AvatarFrame from '../components/AvatarFrame.vue'
 import LevelTag from '../components/LevelTag.vue'
 import ConversationSearchModal from '../components/chat/modals/ConversationSearchModal.vue'
 import { sseFetch } from '../utils/sseFetch'
+
+// 启用 KeepAlive 缓存的页面：本地状态较多（长表单、编辑器、画布），切走再回来不丢失
+// 对应组件已通过 defineOptions 声明 name 以便 :include 匹配
+const cachedRouteNames = ['AgentDetail', 'KnowledgeDetail', 'WorkflowEdit', 'McpManage', 'SkillManage']
 
 const route = useRoute()
 const router = useRouter()

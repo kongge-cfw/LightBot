@@ -195,6 +195,28 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
 
     @Override
     @Transactional(rollbackFor = Exception.class)
+    public void deleteBySessionIds(java.util.Collection<Long> sessionIds) {
+        if (sessionIds == null || sessionIds.isEmpty()) {
+            return;
+        }
+        // 1. 一次 IN 查询拉取所有 session 下的消息，统一清理 MinIO 资源
+        List<Message> messages = list(new LambdaQueryWrapper<Message>()
+                .in(Message::getSessionId, sessionIds));
+        cleanupMinioResources(messages);
+        // 2. 一次 IN 删 tool_calls（messageIds 为空时跳过，避免无意义全表 SQL）
+        List<Long> messageIds = messages.stream().map(Message::getId).toList();
+        if (!messageIds.isEmpty()) {
+            toolCallMapper.deleteByMessageIds(messageIds);
+            // 3. 一次 IN 删 message_feedback
+            messageFeedbackMapper.delete(new LambdaQueryWrapper<MessageFeedback>()
+                    .in(MessageFeedback::getMessageId, messageIds));
+        }
+        // 4. 一次 IN 删 message
+        remove(new LambdaQueryWrapper<Message>().in(Message::getSessionId, sessionIds));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteMessage(Long messageId, Long sessionId) {
         // 0. 越权校验：sessionId 必须属于当前登录用户
         requireSessionOwnedByCurrentUser(sessionId);

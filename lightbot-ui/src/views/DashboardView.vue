@@ -1,5 +1,35 @@
 <template>
   <div class="dashboard">
+    <!-- 骨架屏 -->
+    <div v-if="loading" class="dashboard-skeleton">
+      <!-- 顶部统计卡片骨架 -->
+      <div class="stats-overview">
+        <div class="stat-card" v-for="i in 4" :key="i">
+          <div class="sk-block sk-icon"></div>
+          <div class="sk-info">
+            <div class="sk-block sk-line sk-value"></div>
+            <div class="sk-block sk-line sk-label"></div>
+          </div>
+        </div>
+      </div>
+      <!-- 对话趋势面板骨架 -->
+      <div class="trend-row">
+        <div class="panel panel-trend">
+          <div class="sk-block sk-line sk-title"></div>
+          <div class="sk-block sk-chart"></div>
+        </div>
+      </div>
+      <!-- 三列网格骨架 -->
+      <div class="dashboard-grid">
+        <div class="panel" v-for="i in 3" :key="i">
+          <div class="sk-block sk-line sk-title"></div>
+          <div class="sk-block sk-line sk-row" v-for="j in 3" :key="j"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 真实内容 -->
+    <template v-else>
     <!-- 顶部统计概览 -->
     <div class="stats-overview">
       <div class="stat-card">
@@ -170,6 +200,7 @@
       </div>
     </div>
 
+    </template>
   </div>
 </template>
 
@@ -183,6 +214,7 @@ const basic = ref({})
 const agentStats = ref({})
 const knowledgeStats = ref({})
 const chatStats = ref({})
+const loading = ref(false)
 
 const trendQuickDays = [7, 14, 30]
 const trendDays = ref(7)
@@ -350,17 +382,22 @@ function disabledTrendDate(current) {
 }
 
 async function loadAll() {
-  const [b, a, k] = await Promise.all([
-    getDashboardBasic().catch(() => ({ data: {} })),
-    getDashboardAgents().catch(() => ({ data: {} })),
-    getDashboardKnowledge().catch(() => ({ data: {} })),
-  ])
-  basic.value = b.data || {}
-  agentStats.value = a.data || {}
-  knowledgeStats.value = k.data || {}
-  await loadChatStats()
-  await nextTick()
-  updateTrendContainerWidth()
+  loading.value = true
+  try {
+    const [b, a, k] = await Promise.all([
+      getDashboardBasic().catch(() => ({ data: {} })),
+      getDashboardAgents().catch(() => ({ data: {} })),
+      getDashboardKnowledge().catch(() => ({ data: {} })),
+    ])
+    basic.value = b.data || {}
+    agentStats.value = a.data || {}
+    knowledgeStats.value = k.data || {}
+    await loadChatStats()
+    await nextTick()
+    updateTrendContainerWidth()
+  } finally {
+    loading.value = false
+  }
 }
 
 onMounted(() => {
@@ -387,6 +424,68 @@ onUnmounted(() => {
   flex-direction: column;
   overflow: hidden;
   background: var(--color-canvas-soft);
+}
+
+/* ===== 骨架屏 ===== */
+.dashboard-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+}
+.sk-block {
+  background: linear-gradient(
+    90deg,
+    var(--color-canvas-soft-2) 0%,
+    var(--color-hairline-strong) 50%,
+    var(--color-canvas-soft-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: sk-shimmer 2.4s ease-in-out infinite;
+  border-radius: 6px;
+}
+@keyframes sk-shimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+.sk-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sk-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.sk-line {
+  height: 14px;
+  border-radius: 4px;
+}
+.sk-value {
+  width: 80px;
+  height: 24px;
+}
+.sk-label {
+  width: 48px;
+  height: 12px;
+}
+.sk-title {
+  width: 120px;
+  height: 18px;
+  margin-bottom: 16px;
+}
+.sk-chart {
+  flex: 1;
+  min-height: 200px;
+  border-radius: 8px;
+}
+.sk-row {
+  width: 100%;
+  height: 18px;
+  margin-bottom: 12px;
 }
 
 /* ===== 顶部统计概览 ===== */

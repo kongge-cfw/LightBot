@@ -177,6 +177,14 @@ public class SubAgentServiceImpl extends ServiceImpl<SubAgentMapper, SubAgent>
     }
 
     @Override
+    public List<SubAgent> listByNameIn(java.util.Collection<String> names) {
+        if (names == null || names.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return list(new LambdaQueryWrapper<SubAgent>().in(SubAgent::getName, names));
+    }
+
+    @Override
     public List<SubAgent> listEnabled() {
         return list(new LambdaQueryWrapper<SubAgent>()
                 .eq(SubAgent::getEnabled, 1)

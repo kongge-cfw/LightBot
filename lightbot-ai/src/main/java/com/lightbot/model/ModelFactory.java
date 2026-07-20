@@ -326,10 +326,15 @@ public class ModelFactory {
 
     /**
      * 联网拉取提供商下可用的模型列表
+     * <p>5 分钟级 Redis 缓存：相同 providerId 的列表短期复用，避免配置 Agent 时反复联网（v3.1 2.3.2）。
+     * provider 更新 / 删除时由 ModelProviderServiceImpl 调 invalidateProviderModelsCache 主动 evict</p>
      *
      * @param providerId 模型提供商ID
      * @return 模型信息列表（含类型推断）
      */
+    @org.springframework.cache.annotation.Cacheable(value = com.lightbot.config.RedisCacheConfig.CACHE_PROVIDER_MODELS,
+                                                     key = "#providerId",
+                                                     unless = "#result == null")
     public List<FetchedModel> fetchModels(Long providerId) {
         ModelProvider provider = resolveProvider(providerId);
         ModelProviderHandler handler = getHandler(provider.getType());
@@ -337,6 +342,17 @@ public class ModelFactory {
         return handler.fetchModels(provider).stream()
                 .filter(distinctByKey(FetchedModel::getModelId))
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 失效指定 provider 的模型列表缓存（provider 更新/删除后调用）
+     *
+     * @param providerId 模型提供商ID
+     */
+    @org.springframework.cache.annotation.CacheEvict(value = com.lightbot.config.RedisCacheConfig.CACHE_PROVIDER_MODELS,
+                                                     key = "#providerId")
+    public void invalidateProviderModelsCache(Long providerId) {
+        log.info("[ModelFactory] invalidate provider models cache: providerId={}", providerId);
     }
 
     private static <T> java.util.function.Predicate<T> distinctByKey(java.util.function.Function<? super T, ?> keyExtractor) {

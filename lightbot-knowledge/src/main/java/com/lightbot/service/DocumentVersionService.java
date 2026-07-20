@@ -52,4 +52,11 @@ public interface DocumentVersionService {
      * @param documentId 文档ID
      */
     void deleteByDocumentId(Long documentId);
+
+    /**
+     * 批量删除多个文档的所有版本记录及 MinIO 文件（一次 IN 查询 + 一次 IN 删，替代 N 次循环）
+     *
+     * @param documentIds 文档ID集合
+     */
+    void deleteByDocumentIds(java.util.Collection<Long> documentIds);
 }

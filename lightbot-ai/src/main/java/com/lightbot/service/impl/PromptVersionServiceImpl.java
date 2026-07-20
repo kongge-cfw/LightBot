@@ -3,6 +3,7 @@ package com.lightbot.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
+import com.lightbot.config.RedisCacheConfig;
 import com.lightbot.entity.Prompt;
 import com.lightbot.entity.PromptVersion;
 import com.lightbot.enums.ErrorCode;
@@ -13,6 +14,8 @@ import com.lightbot.service.PromptVersionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +49,8 @@ public class PromptVersionServiceImpl extends ServiceImpl<PromptVersionMapper, P
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = RedisCacheConfig.CACHE_PROMPT_VERSION, allEntries = true)
     public PromptVersion create(String promptKey, String version, String versionDesc,
                                  String template, String variables, String modelConfig,
                                  String toolConfig, String status, Long userId) {
@@ -101,6 +105,9 @@ public class PromptVersionServiceImpl extends ServiceImpl<PromptVersionMapper, P
     }
 
     @Override
+    @Cacheable(value = RedisCacheConfig.CACHE_PROMPT_VERSION,
+               key = "#promptKey + ':' + #version",
+               unless = "#result == null")
     public PromptVersion getByKeyAndVersion(String promptKey, String version) {
         return lambdaQuery()
                 .eq(PromptVersion::getPromptKey, promptKey)
@@ -117,6 +124,7 @@ public class PromptVersionServiceImpl extends ServiceImpl<PromptVersionMapper, P
     }
 
     @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_PROMPT_VERSION, allEntries = true)
     public void deleteByPromptKey(String promptKey) {
         remove(new LambdaQueryWrapper<PromptVersion>().eq(PromptVersion::getPromptKey, promptKey));
         log.info("[PromptVersion] 批量删除: promptKey={}", promptKey);

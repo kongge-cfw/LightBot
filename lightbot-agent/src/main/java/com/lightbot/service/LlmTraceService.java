@@ -79,6 +79,13 @@ public interface LlmTraceService extends IService<LlmTrace> {
     void deleteBySessionId(Long sessionId);
 
     /**
+     * 批量删除多个会话下的所有调用链记录（一次 IN 查询，替代 N 次 deleteBySessionId）
+     *
+     * @param sessionIds 会话ID集合
+     */
+    void deleteBySessionIds(java.util.Collection<Long> sessionIds);
+
+    /**
      * 批量删除调用链记录（物理删除）
      *
      * @param ids 主键ID列表

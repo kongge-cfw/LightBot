@@ -154,7 +154,7 @@
             <div v-if="inst.messages.length === 0" class="debug-empty">
               填写参数配置后点击运行，调试 Prompt 效果
             </div>
-            <div v-for="(msg, i) in inst.messages" :key="i" :class="['debug-msg-row', msg.role, { 'is-error': msg._error }]">
+            <div v-for="(msg, i) in inst.messages" :key="msg.id || msg._id || i" :class="['debug-msg-row', msg.role, { 'is-error': msg._error }]">
               <!-- AI 调用失败：专用报错样式 -->
               <div v-if="msg._error" class="prompt-error-block">
                 <div class="prompt-error-header">

@@ -130,6 +130,16 @@ public interface DocumentService extends IService<Document> {
     void deleteDocument(Long documentId);
 
     /**
+     * 按知识库级联删除所有文档（一次 IN 删 embedding / chunk / document_version / document，
+     * 替代 N 次 {@link #deleteDocument} 循环；MinIO 文件仍逐条 safe delete）。
+     * <p>调用方应已确认 knowledgeId 权限；图谱 / QaPair / Milvus collection 由调用方自行级联</p>
+     *
+     * @param knowledgeId 知识库ID
+     * @return 被删除的文档数（用于 stats 递减）
+     */
+    int deleteByKnowledgeIdCascade(Long knowledgeId);
+
+    /**
      * 获取文档下载信息（预签名URL + 文件类型）
      *
      * @param documentId 文档ID

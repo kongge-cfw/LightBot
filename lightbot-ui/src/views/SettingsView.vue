@@ -160,7 +160,7 @@
           </a-form-item>
           <a-form-item label="副标题轮播">
             <div class="subtitle-list">
-              <div v-for="(sub, idx) in landing.subtitles" :key="idx" class="subtitle-row">
+              <div v-for="(sub, idx) in landing.subtitles" :key="(sub || 'subtitle') + '-' + idx" class="subtitle-row">
                 <a-input v-model:value="landing.subtitles[idx]" placeholder="副标题" style="flex:1" :maxlength="30" show-count />
                 <button class="btn-icon-danger" @click="landing.subtitles.splice(idx, 1)">
                   <DeleteOutlined />
@@ -189,7 +189,7 @@
               </button>
             </div>
             <div v-show="featuresExpanded" class="feature-list">
-              <div v-for="(feat, idx) in landing.features" :key="idx" class="feature-card">
+              <div v-for="(feat, idx) in landing.features" :key="(feat.title || feat.icon || 'feature') + '-' + idx" class="feature-card">
                 <div class="feature-card-header">
                   <span class="feature-index">#{{ idx + 1 }}</span>
                   <div class="feature-card-actions">

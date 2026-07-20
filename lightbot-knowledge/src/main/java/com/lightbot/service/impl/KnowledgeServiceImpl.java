@@ -185,14 +185,12 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
             throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
         }
 
-        // 3. 级联删除所有子文档（含 MinIO 文件、向量、分片、版本快照、图谱）
-        List<Document> documents = documentService.listByKnowledgeIdInternal(id);
-        for (Document doc : documents) {
-            try {
-                documentService.deleteDocument(doc.getId());
-            } catch (Exception e) {
-                log.warn("[知识库删除] 级联删除文档失败: documentId={}, error={}", doc.getId(), e.getMessage());
-            }
+        // 3. 级联删除所有子文档（一次 IN 删 chunk/embedding/document_versions/document + MinIO 文件，
+        //    替代 N 次 deleteDocument 循环；图谱/QaPair 由步骤 4/5 按知识库整体级联）
+        try {
+            documentService.deleteByKnowledgeIdCascade(id);
+        } catch (Exception e) {
+            log.warn("[知识库删除] 级联批量删除文档失败: knowledgeId={}, error={}", id, e.getMessage());
         }
 
         // 4. 级联删除问答对（含 Milvus 向量）

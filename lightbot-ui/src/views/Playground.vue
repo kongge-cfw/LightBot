@@ -186,7 +186,7 @@
               <RobotOutlined class="chat-empty-icon" />
               <p>在下方输入框中发送消息开始测试</p>
             </div>
-            <div v-for="(msg, i) in inst.messages" :key="i" :class="['chat-msg', msg.role]">
+            <div v-for="(msg, i) in inst.messages" :key="msg.id || msg._id || i" :class="['chat-msg', msg.role]">
               <div class="msg-avatar" v-if="msg.role === 'assistant'">AI</div>
               <div class="msg-body">
                 <MarkdownPreview v-if="msg.role === 'assistant' && msg._md" :content="msg.content" :finalized="true" />

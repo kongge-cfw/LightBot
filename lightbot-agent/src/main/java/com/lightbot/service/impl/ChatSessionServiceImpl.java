@@ -311,14 +311,10 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         if (ids == null || ids.isEmpty()) {
             return;
         }
-        // 1. 批量物理删除消息
-        for (Long id : ids) {
-            messageService.deleteBySessionId(id);
-        }
-        // 2. 批量物理删除调用链记录
-        for (Long id : ids) {
-            llmTraceService.deleteBySessionId(id);
-        }
+        // 1. 一次 IN 删所有 session 下的 message（含级联 tool_calls / feedback / MinIO）
+        messageService.deleteBySessionIds(ids);
+        // 2. 一次 IN 删所有 session 下的 llm_trace
+        llmTraceService.deleteBySessionIds(ids);
         // 3. 批量物理删除会话
         removeByIds(ids);
         // 4. 清除缓存

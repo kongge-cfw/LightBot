@@ -58,7 +58,7 @@ public interface EmbeddingMapper extends BaseMapper<Embedding> {
             "FROM embedding e " +
             "JOIN chunk c ON e.chunk_id = c.id " +
             "JOIN document d ON c.document_id = d.id " +
-            "WHERE c.knowledge_id = #{knowledgeId} AND d.deleted = 0 " +
+            "WHERE c.knowledge_id = #{knowledgeId} AND d.deleted = 0 AND c.status = 'vectorized' " +
             "ORDER BY e.vector <=> #{vector}::vector LIMIT #{topK}")
     List<Map<String, Object>> searchSimilar(@Param("vector") String vector,
                                              @Param("knowledgeId") Long knowledgeId,
@@ -81,7 +81,7 @@ public interface EmbeddingMapper extends BaseMapper<Embedding> {
             "FROM embedding e " +
             "JOIN chunk c ON e.chunk_id = c.id " +
             "JOIN document d ON c.document_id = d.id " +
-            "WHERE c.knowledge_id = #{knowledgeId} AND d.deleted = 0 " +
+            "WHERE c.knowledge_id = #{knowledgeId} AND d.deleted = 0 AND c.status = 'vectorized' " +
             "AND (1 - (e.vector <=> #{vector}::vector)) >= #{threshold} " +
             "ORDER BY e.vector <=> #{vector}::vector LIMIT #{topK}")
     List<Map<String, Object>> searchSimilarWithThreshold(@Param("vector") String vector,

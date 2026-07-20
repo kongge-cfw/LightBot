@@ -119,7 +119,7 @@
     :width="720"
     centered
     :footer="null"
-    :maskClosable="true"
+    :maskClosable="false"
   >
     <div v-if="versionContentLoading" class="version-loading">
       <LoadingOutlined spin /> 加载中...

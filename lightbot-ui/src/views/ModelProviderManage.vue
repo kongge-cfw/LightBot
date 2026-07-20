@@ -117,7 +117,7 @@
     </a-modal>
 
     <!-- 提供商预设弹窗 -->
-    <a-modal v-model:open="presetModalVisible" title="选择提供商预设" :width="760" :footer="null" :maskClosable="true">
+    <a-modal v-model:open="presetModalVisible" title="选择提供商预设" :width="760" :footer="null" :maskClosable="false">
       <div class="preset-modal-desc">系统预设一些 OpenAI-compatible 提供商模板，应用后会覆盖当前基础配置。</div>
       <div class="preset-list">
         <button

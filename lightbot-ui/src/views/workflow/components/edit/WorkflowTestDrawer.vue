@@ -56,7 +56,7 @@
       <template v-if="testMode === 'conversation'">
         <div class="test-chat-box">
           <div v-if="!testMessages.length" class="test-chat-empty">暂无对话，在下方输入并发送</div>
-          <div v-for="(msg, i) in testMessages" :key="i" :class="['test-chat-msg', msg.role]">
+          <div v-for="(msg, i) in testMessages" :key="msg.id || msg._id || i" :class="['test-chat-msg', msg.role]">
             <span class="test-chat-role">{{ msg.role === 'user' ? '用户' : '助手' }}</span>
             <div class="test-chat-content">{{ msg.content }}</div>
           </div>

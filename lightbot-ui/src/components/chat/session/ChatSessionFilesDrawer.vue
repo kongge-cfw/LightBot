@@ -4,7 +4,7 @@
     :open="open"
     title="会话文件"
     :width="480"
-    :mask-closable="true"
+    :mask-closable="false"
     destroy-on-close
     @update:open="$emit('update:open', $event)"
     @afterOpenChange="$emit('after-open-change', $event)"

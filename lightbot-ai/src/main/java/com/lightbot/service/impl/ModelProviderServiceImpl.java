@@ -59,6 +59,8 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
 
     private final ModelProviderCacheUtil cacheUtil;
     private final ObjectMapper objectMapper;
+    /** 延迟解析：ModelProviderServiceImpl 不直接依赖 ModelFactory（避免循环依赖），ObjectProvider 在首次调用时取 bean */
+    private final org.springframework.beans.factory.ObjectProvider<com.lightbot.model.ModelFactory> modelFactoryProvider;
 
     @Override
     public ModelProvider create(ModelProviderDTO request) {
@@ -102,6 +104,8 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
         // 3. 同步缓存
         cacheUtil.cacheProvider(provider);
         syncAllProvidersCache();
+        // 4. 失效该 provider 的联网模型列表缓存（baseUrl/凭证变更后旧列表不再适用）
+        modelFactoryProvider.ifAvailable(mf -> mf.invalidateProviderModelsCache(request.getId()));
         return provider;
     }
 
@@ -125,6 +129,8 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
         // 同步缓存
         cacheUtil.evictProvider(id);
         syncAllProvidersCache();
+        // 失效该 provider 的联网模型列表缓存，避免删除后仍命中旧列表
+        modelFactoryProvider.ifAvailable(mf -> mf.invalidateProviderModelsCache(id));
     }
 
     @Override

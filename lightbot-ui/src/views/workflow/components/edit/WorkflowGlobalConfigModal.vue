@@ -20,7 +20,7 @@
         <a-switch v-model:checked="config.history_config.history_switch" />
       </a-form-item>
       <a-divider>会话变量（conversation_params）</a-divider>
-      <div v-for="(param, idx) in config.variable_config.conversation_params" :key="idx" class="conv-param-row">
+      <div v-for="(param, idx) in config.variable_config.conversation_params" :key="(param.key || 'param') + '-' + idx" class="conv-param-row">
         <a-input v-model:value="param.key" placeholder="变量名" style="flex:1" />
         <a-input v-model:value="param.default_value" placeholder="默认值" style="flex:1" />
         <a-button type="text" danger @click="$emit('remove-param', idx)"><DeleteOutlined /></a-button>

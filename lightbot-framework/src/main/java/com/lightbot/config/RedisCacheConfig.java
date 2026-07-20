@@ -43,6 +43,8 @@ public class RedisCacheConfig {
     public static final String CACHE_SKILL = "skill";
     public static final String CACHE_AGENT_BINDING = "agentBinding";
     public static final String CACHE_PROMPT = "prompt";
+    public static final String CACHE_PROMPT_VERSION = "promptVersion";
+    public static final String CACHE_PROVIDER_MODELS = "providerModels";
     public static final String CACHE_SYSTEM_CONFIG = "systemConfig";
     public static final String CACHE_EVAL_DATASET = "evalDataset";
     public static final String CACHE_EVAL_EVALUATOR = "evalEvaluator";
@@ -73,7 +75,8 @@ public class RedisCacheConfig {
         // TTL 分级说明：
         // - 12h：极少变更的配置类（systemConfig）
         // - 8h ：工具/能力类，变更频率低（tool/mcpServer/subagent/skill）
-        // - 2h ：常规业务实体，变更频率中等（agent/knowledge/agentBinding/prompt/evalDataset/evalEvaluator）
+        // - 2h ：常规业务实体，变更频率中等（agent/knowledge/agentBinding/prompt/promptVersion/evalDataset/evalEvaluator）
+        // - 5m ：联网拉的模型列表，TTL 短避免远端更新滞后（providerModels）
         // - 30m：实验运行态，进度频繁变更（evalExperiment）
         // - 30s：Dashboard 统计，需要近实时
         Map<String, RedisCacheConfiguration> configMap = Map.ofEntries(
@@ -85,6 +88,8 @@ public class RedisCacheConfig {
                 Map.entry(CACHE_SKILL,           defaultConfig.entryTtl(Duration.ofHours(8))),
                 Map.entry(CACHE_AGENT_BINDING,  defaultConfig.entryTtl(Duration.ofHours(2))),
                 Map.entry(CACHE_PROMPT,         defaultConfig.entryTtl(Duration.ofHours(2))),
+                Map.entry(CACHE_PROMPT_VERSION, defaultConfig.entryTtl(Duration.ofHours(2))),
+                Map.entry(CACHE_PROVIDER_MODELS, defaultConfig.entryTtl(Duration.ofMinutes(5))),
                 Map.entry(CACHE_SYSTEM_CONFIG,  defaultConfig.entryTtl(Duration.ofHours(12))),
                 Map.entry(CACHE_EVAL_DATASET,   defaultConfig.entryTtl(Duration.ofHours(2))),
                 Map.entry(CACHE_EVAL_EVALUATOR, defaultConfig.entryTtl(Duration.ofHours(2))),
