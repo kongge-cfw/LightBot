@@ -9,6 +9,11 @@
       <div class="error-actions">
         <button class="btn-primary" @click="handleRetry">重试</button>
         <button class="btn-secondary" @click="handleReload">刷新页面</button>
+        <button class="btn-secondary" @click="copyErrorInfo">
+          <CheckOutlined v-if="copied" />
+          <CopyOutlined v-else />
+          {{ copied ? '已复制' : '复制报错' }}
+        </button>
       </div>
     </div>
   </div>
@@ -16,6 +21,7 @@
 
 <script setup>
 import { ref, computed, onErrorCaptured } from 'vue'
+import { CheckOutlined, CopyOutlined } from '@ant-design/icons-vue'
 import { captureException } from '../utils/errorReport'
 
 const props = defineProps({
@@ -28,6 +34,9 @@ const props = defineProps({
 const emit = defineEmits(['error'])
 
 const error = ref(null)
+const capturedContext = ref(null)
+const copied = ref(false)
+let copiedResetTimer = null
 
 const friendlyMessage = computed(() => props.message || '当前组件渲染失败，可尝试重试或刷新页面')
 const errorDetail = computed(() => {
@@ -38,12 +47,13 @@ const errorDetail = computed(() => {
 
 onErrorCaptured((err, instance, info) => {
   error.value = err
-  // 上报到监控 + 触发上游 hook（如局部错误需要全局通知）
-  captureException(err, {
+  capturedContext.value = {
     source: 'errorCaptured',
     info,
     componentTag: instance?.$options?.__name || instance?.$options?.name,
-  })
+  }
+  // 上报到监控 + 触发上游 hook（如局部错误需要全局通知）
+  captureException(err, capturedContext.value)
   emit('error', err, info)
   // 返回 false 阻止错误继续向上冒泡（外层 ErrorBoundary 不会重复捕获）
   return false
@@ -51,10 +61,61 @@ onErrorCaptured((err, instance, info) => {
 
 function handleRetry() {
   error.value = null
+  capturedContext.value = null
 }
 
 function handleReload() {
   location.reload()
+}
+
+// 组装完整报错信息（含时间/URL/组件/堆栈），用户复制后开发者可直接定位
+function buildFullErrorText() {
+  const err = error.value
+  if (!err) return ''
+  const lines = [
+    `Time: ${new Date().toISOString()}`,
+    `URL: ${location.href}`,
+  ]
+  if (capturedContext.value?.componentTag) {
+    lines.push(`Component: ${capturedContext.value.componentTag}`)
+  }
+  if (capturedContext.value?.info) {
+    lines.push(`Info: ${capturedContext.value.info}`)
+  }
+  lines.push(`Message: ${err.message || String(err)}`)
+  if (err.stack) {
+    lines.push(`Stack:\n${err.stack}`)
+  }
+  return lines.join('\n')
+}
+
+async function copyErrorInfo() {
+  const text = buildFullErrorText()
+  if (!text) return
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text)
+    } else {
+      // 降级方案：用临时 textarea + execCommand 兼容旧浏览器/非 HTTPS
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textarea)
+    }
+    copied.value = true
+    if (copiedResetTimer) clearTimeout(copiedResetTimer)
+    copiedResetTimer = setTimeout(() => {
+      copied.value = false
+      copiedResetTimer = null
+    }, 2000)
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.error('[ErrorBoundary] 复制失败:', e)
+  }
 }
 </script>
 
@@ -124,6 +185,9 @@ function handleReload() {
 
 .btn-primary,
 .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   padding: 6px 16px;
   border-radius: var(--radius-pill, 100px);
   font-size: 13px;

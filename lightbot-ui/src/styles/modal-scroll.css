@@ -1,0 +1,29 @@
+/**
+ * 弹窗滚动条统一规则
+ *
+ * 默认给 .ant-modal-body 设置最大高度 + 垂直滚动条，避免内容撑爆弹窗。
+ * - 已有 :body-style="{ maxHeight/overflow }" 内联样式的弹窗：内联样式优先级更高，自动覆盖默认规则
+ * - 完全没有 body-style 的弹窗：使用此默认值，超出高度自动出滚动条
+ *
+ * 预留 200px 给 modal 头部/底部/外边距，确保 viewport 底部不被遮挡
+ */
+.ant-modal-body {
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.ant-modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ant-modal-body::-webkit-scrollbar-thumb {
+  background: #d4d4d8;
+  border-radius: 3px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.ant-modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
