@@ -250,6 +250,11 @@
               <KnowledgeGraphTab :knowledge-id="knowledgeId" :doc-total="docPagination.total" />
             </div>
           </a-tab-pane>
+          <a-tab-pane key="advisor" tab="反馈调优">
+            <div v-if="activeTab === 'advisor'" class="rag-section">
+              <KnowledgeAdvisorTab :knowledge-id="knowledgeId" />
+            </div>
+          </a-tab-pane>
           <a-tab-pane key="qa-pairs" tab="问答对">
             <div class="rag-section" style="position: relative;">
               <QAPairsTab
@@ -1021,6 +1026,7 @@ import RAGEvaluationTab from '../components/eval/RAGEvaluationTab.vue'
 import EvaluationBenchmarks from '../components/eval/EvaluationBenchmarks.vue'
 import KnowledgeGraphTab from '../components/KnowledgeGraphTab.vue'
 import QAPairsTab from '../components/QAPairsTab.vue'
+import KnowledgeAdvisorTab from '../components/KnowledgeAdvisorTab.vue'
 import QueryParamsModal from '../components/QueryParamsModal.vue'
 const DocumentEditorModal = defineAsyncComponent(() =>
   import('../components/DocumentEditor/DocumentEditorModal.vue')

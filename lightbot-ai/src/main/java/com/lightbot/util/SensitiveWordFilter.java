@@ -1,19 +1,25 @@
 package com.lightbot.util;
 
 import com.lightbot.constant.ConfigKeys;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.regex.Pattern;
 
 /**
  * 敏感词过滤：用户输入拦截 + AI 输出替换/拦截
+ * <p>底层基于 {@link SensitiveWordTrie} DFA 单次扫描，5000 词字典下耗时 &lt;1ms；
+ * 流式场景由 {@link StreamState} 持有累积文本跨 chunk 复用过滤结果</p>
+ *
+ * @author finch
+ * @since 2026-05-23
  */
 @Slf4j
-public final class SensitiveWordFilter {
+@NoArgsConstructor(access = AccessLevel.PRIVATE)
+public class SensitiveWordFilter {
 
     public static final String STRATEGY_REPLACE = "replace";
     public static final String STRATEGY_BLOCK = "block";
@@ -25,17 +31,9 @@ public final class SensitiveWordFilter {
     public static final String AI_BLOCK_MESSAGE = "【安全提示】回复内容包含敏感信息，已停止输出。";
 
     /**
-     * 敏感词正则缓存：word → 编译后的 Pattern
-     * <p>缓存规模由业务约束：每个 Agent 的敏感词列表在 config 中配置，数量有限（通常几十个），
-     * 因此 ConcurrentHashMap 无界缓存在实际场景中不会造成内存压力，无需引入 Caffeine 等有界缓存。</p>
-     */
-    private static final ConcurrentHashMap<String, Pattern> PATTERN_CACHE = new ConcurrentHashMap<>();
-
-    private SensitiveWordFilter() {
-    }
-
-    /**
-     * 流式 AI 输出：按累积全文过滤后，仅返回相对已下发内容的增量
+     * 流式 AI 输出过滤状态：累积全文并对每个 chunk 复算过滤结果
+     * <p>每个 chunk 到达后对累积文本做一次 DFA 扫描，与已下发长度比较得到本 chunk 应下发的增量；
+     * 单次扫描复杂度 O(n * L)（L 为最长敏感词长度），相比早期 Pattern.compile 循环已大幅降低</p>
      */
     public static final class StreamState {
         private final Map<String, Object> configMap;
@@ -88,7 +86,9 @@ public final class SensitiveWordFilter {
         if (words.isEmpty()) {
             return FilterResult.unchanged(text);
         }
-        String matched = findFirstMatch(text, words);
+        // DFA 单次扫描定位首个命中词，O(n*L) 替代早期逐词 Pattern.compile 的 O(n*m)
+        SensitiveWordTrie trie = new SensitiveWordTrie(words);
+        String matched = trie.findFirst(text);
         if (matched != null) {
             log.warn("[SensitiveWord] 用户输入拦截 agentId={}, sessionId={}, matchedWord={}",
                     agentId, sessionId, matched);
@@ -121,8 +121,10 @@ public final class SensitiveWordFilter {
         String replaceText = configMap.get(ConfigKeys.Agent.SENSITIVE_FILTER_REPLACE_TEXT) != null
                 ? configMap.get(ConfigKeys.Agent.SENSITIVE_FILTER_REPLACE_TEXT).toString() : "***";
 
+        // DFA 单次扫描可同时支持 block/replace 两种策略：findFirst 定位、replaceAll 全量替换
+        SensitiveWordTrie trie = new SensitiveWordTrie(words);
         if (STRATEGY_BLOCK.equalsIgnoreCase(strategy)) {
-            String matched = findFirstMatch(text, words);
+            String matched = trie.findFirst(text);
             if (matched != null) {
                 log.warn("[SensitiveWord] AI输出拦截 agentId={}, sessionId={}, matchedWord={}, strategy=block",
                         agentId, sessionId, matched);
@@ -131,26 +133,12 @@ public final class SensitiveWordFilter {
             return FilterResult.unchanged(text);
         }
 
-        String result = text;
-        boolean matched = false;
-        String firstMatched = null;
-        for (String word : words) {
-            if (word == null || word.isBlank()) {
-                continue;
-            }
-            String replaced = replaceIgnoreCase(result, word, replaceText);
-            if (!replaced.equals(result)) {
-                if (firstMatched == null) {
-                    firstMatched = word;
-                }
-                matched = true;
-                result = replaced;
-            }
-        }
-        if (matched) {
+        String replaced = trie.replaceAll(text, replaceText);
+        if (!replaced.equals(text)) {
+            String firstMatched = trie.findFirst(text);
             log.info("[SensitiveWord] AI输出替换 agentId={}, sessionId={}, matchedWord={}, strategy=replace",
                     agentId, sessionId, firstMatched);
-            return new FilterResult(result, true, false, firstMatched, "ai_output_replace");
+            return new FilterResult(replaced, true, false, firstMatched, "ai_output_replace");
         }
         return FilterResult.unchanged(text);
     }
@@ -187,15 +175,6 @@ public final class SensitiveWordFilter {
         return "true".equalsIgnoreCase(s) || "1".equals(s) || "yes".equalsIgnoreCase(s);
     }
 
-    private static String findFirstMatch(String text, List<String> words) {
-        for (String word : words) {
-            if (word != null && !word.isBlank() && containsIgnoreCase(text, word)) {
-                return word;
-            }
-        }
-        return null;
-    }
-
     private static List<String> parseWords(Object raw) {
         if (raw == null) {
             return List.of();
@@ -220,20 +199,6 @@ public final class SensitiveWordFilter {
             return words;
         }
         return List.of();
-    }
-
-    private static boolean containsIgnoreCase(String text, String word) {
-        return getPattern(word).matcher(text).find();
-    }
-
-    private static String replaceIgnoreCase(String text, String word, String replacement) {
-        return getPattern(word).matcher(text)
-                .replaceAll(java.util.regex.Matcher.quoteReplacement(replacement));
-    }
-
-    private static Pattern getPattern(String word) {
-        return PATTERN_CACHE.computeIfAbsent(word,
-                w -> Pattern.compile(Pattern.quote(w), Pattern.CASE_INSENSITIVE));
     }
 
     public record FilterResult(String text, boolean filtered, boolean blocked, String matchedWord, String scope) {

@@ -57,4 +57,13 @@ public interface WorkflowTestRunService extends IService<WorkflowTestRun> {
      * 按 runId 查 DB 主键
      */
     Long findIdByRunId(String runId);
+
+    /**
+     * 按保留期清理过期测试运行记录（物理删除）
+     * <p>定时任务调用，避免 workflow_test_run 表无限增长</p>
+     *
+     * @param retentionDays 保留天数（早于该天数的数据将被删除）
+     * @return 删除记录数
+     */
+    int cleanupByAge(int retentionDays);
 }

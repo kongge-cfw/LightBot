@@ -3,6 +3,7 @@ package com.lightbot.service.sandbox;
 import com.lightbot.common.BizException;
 import com.lightbot.enums.ErrorCode;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -12,7 +13,8 @@ import java.util.Map;
 
 /**
  * 代码执行引擎注册表
- * <p>按语言查找可用引擎，自动降级。同语言多个引擎时按注入顺序选首选。</p>
+ * <p>按语言查找可用引擎，自动降级。同语言多个引擎时按 {@code @Order} 优先级选首选
+ * （GraalVM 优先级高于 Nashorn / subprocess PythonEngine）。</p>
  *
  * @author finch
  * @since 2026-06-24
@@ -24,7 +26,10 @@ public class EngineRegistry {
     private final Map<String, List<CodeEngine>> engines = new LinkedHashMap<>();
 
     public EngineRegistry(List<CodeEngine> allEngines) {
-        for (CodeEngine engine : allEngines) {
+        // 按 @Order 排序：高优先级（Ordered.HIGHEST_PRECEDENCE）排在前
+        List<CodeEngine> sorted = new ArrayList<>(allEngines);
+        AnnotationAwareOrderComparator.sort(sorted);
+        for (CodeEngine engine : sorted) {
             String lang = normalizeLanguage(engine.language());
             engines.computeIfAbsent(lang, k -> new ArrayList<>()).add(engine);
         }

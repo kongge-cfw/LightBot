@@ -13,6 +13,10 @@
     <artifactId>lightbot-tool</artifactId>
     <name>LightBot Tool</name>
 
+    <properties>
+        <graalvm.version>24.2.1</graalvm.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.lightbot</groupId>
@@ -40,6 +44,42 @@
         <dependency>
             <groupId>com.github.jsqlparser</groupId>
             <artifactId>jsqlparser</artifactId>
+        </dependency>
+
+        <!-- ===== GraalVM Polyglot 沙盒（替换 Nashorn，可选 Python）=====
+             纯 Java 内嵌，无需 OS 安装解释器；Context 级资源限制 + HostAccess.NONE 形成强隔离
+             默认仅启用 JS（替换 Nashorn）；Python (GraalPy) 因 artifact 在不同 mirror 不稳定，
+             不在 pom 强制声明，需启用时手动加入（GraalVmPythonEngine 会自动检测并启用）：
+             <dependency>
+                 <groupId>org.graalvm.polyglot</groupId>
+                 <artifactId>polyglot</artifactId>
+                 <version>${graalvm.version}</version>
+             </dependency>
+             <dependency>
+                 <groupId>org.graalvm.python</groupId>
+                 <artifactId>python-language</artifactId>
+                 <version>${graalvm.version}</version>
+             </dependency>
+             <dependency>
+                 <groupId>org.graalvm.python</groupId>
+                 <artifactId>python-resource</artifactId>
+                 <version>${graalvm.version}</version>
+             </dependency>
+        -->
+        <dependency>
+            <groupId>org.graalvm.polyglot</groupId>
+            <artifactId>polyglot</artifactId>
+            <version>${graalvm.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js-language</artifactId>
+            <version>${graalvm.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.graalvm.js</groupId>
+            <artifactId>js-scriptengine</artifactId>
+            <version>${graalvm.version}</version>
         </dependency>
     </dependencies>
 </project>

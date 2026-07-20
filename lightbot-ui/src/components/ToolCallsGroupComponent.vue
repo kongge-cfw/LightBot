@@ -55,7 +55,7 @@
           <span class="event-label">
             <component :is="resolveEventIcon(evt)" class="event-tool-icon" /> <strong>{{ resolveDisplayName(evt) }}</strong> 执行完成
           </span>
-          <span v-if="evt.resultTotalLength && !evt.result" class="result-size-hint">
+          <span v-if="evt.resultTotalLength" class="result-size-hint">
             {{ formatLength(evt.resultTotalLength) }}
           </span>
           <button v-if="evt.toolCallId || evt.result" class="result-toggle"

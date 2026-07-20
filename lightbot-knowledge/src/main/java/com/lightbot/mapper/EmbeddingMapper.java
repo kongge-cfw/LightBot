@@ -20,10 +20,13 @@ public interface EmbeddingMapper extends BaseMapper<Embedding> {
 
     /**
      * 设置 HNSW ef_search 参数（仅对当前事务生效）
-     * <p>提升召回率：ef_search=100 约增加 10-20ms 延迟，召回率从 ~90% 提升到 ~98%</p>
+     * <p>提升召回率：ef_search=100 约增加 10-20ms 延迟，召回率从 ~90% 提升到 ~98%。
+     * 参数透传：由调用方按 query_params.hnsw_ef_search 决定值，默认 100</p>
+     *
+     * @param efSearch HNSW 检索时的 ef 取值（取值范围 [topK, 1000]）
      */
-    @Select("SET LOCAL hnsw.ef_search = 100")
-    void setHnswEfSearch();
+    @Select("SET LOCAL hnsw.ef_search = #{efSearch}")
+    void setHnswEfSearch(@Param("efSearch") int efSearch);
 
     /**
      * 存储向量（pgvector ::vector 类型转换需原生SQL）

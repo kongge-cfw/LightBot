@@ -55,6 +55,15 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
     private static final String SEARCH_MODE_KEYWORD = "keyword";
     private static final String SEARCH_MODE_HYBRID = "hybrid";
 
+    /** pgvector HNSW 默认 ef_search，与 sql/ 建索引时的 ef_construction 对齐 */
+    private static final int DEFAULT_HNSW_EF_SEARCH = 100;
+    /** Milvus HNSW 默认 ef（向量检索候选队列大小） */
+    private static final int DEFAULT_MILVUS_SEARCH_EF = 100;
+    /** PPR 迭代次数：>10 收敛稳定，过大延迟线性增长 */
+    private static final int DEFAULT_PPR_ITERATIONS = 15;
+    /** RRF 平滑常量：标准值 60，越小越偏向高排名项 */
+    private static final int DEFAULT_RRF_K = 60;
+
     /** Milvus 集合存在性缓存，避免每次检索前 RPC 调用 hasCollection */
     private final ConcurrentHashMap<Long, Boolean> collectionExistsCache = new ConcurrentHashMap<>();
 
@@ -195,8 +204,9 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
     private List<Map<String, Object>> searchPgvector(Long knowledgeId, float[] queryVector,
                                                       int topK, double threshold,
                                                       Map<String, Object> queryParams) {
-        // 设置 ef_search 提升召回率（SET LOCAL 仅对当前事务生效）
-        embeddingMapper.setHnswEfSearch();
+        // 设置 ef_search 提升召回率（SET LOCAL 仅对当前事务生效），透传 query_params.hnsw_ef_search
+        int hnswEf = getIntParam(queryParams, "hnsw_ef_search", DEFAULT_HNSW_EF_SEARCH);
+        embeddingMapper.setHnswEfSearch(Math.max(hnswEf, topK));
         String searchMode = queryParams != null && queryParams.get("search_mode") instanceof String s
                 ? s : SEARCH_MODE_VECTOR;
 
@@ -271,7 +281,8 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
         List<Map<String, Object>> keywordResults = embeddingMapper.searchByFullText(
                 queryText, knowledgeId, recallTopK);
 
-        return rrfFusion(vectorResults, keywordResults, vectorWeight, keywordWeight, topK, threshold);
+        return rrfFusion(vectorResults, keywordResults, vectorWeight, keywordWeight, topK, threshold,
+                getIntParam(params, "rrf_k", DEFAULT_RRF_K));
     }
 
     /**
@@ -283,13 +294,13 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
      * @param keywordWeight  关键词结果权重
      * @param topK           返回数量
      * @param threshold      RRF 分数阈值（低于此值不返回，0 表示不过滤）
+     * @param k              RRF 平滑常量（建议 60，越小结果越偏向高排名项）
      * @return 融合后的结果列表
      */
     private List<Map<String, Object>> rrfFusion(List<Map<String, Object>> vectorResults,
                                                  List<Map<String, Object>> keywordResults,
                                                  float vectorWeight, float keywordWeight,
-                                                 int topK, double threshold) {
-        int k = 60; // RRF 常量
+                                                 int topK, double threshold, int k) {
         // chunkId → [rrfScore, bestOriginalScore, sourceRow]
         Map<Long, double[]> scoreMap = new LinkedHashMap<>();
         Map<Long, Map<String, Object>> sourceMap = new LinkedHashMap<>();
@@ -427,7 +438,10 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
                         topK, vectorWeight, bm25Weight, bm25TopK, dropRatioSearch);
             }
             default -> {
-                results = milvusUtil.searchVector(knowledgeId, queryVector, topK, threshold);
+                // 透传 query_params.milvus_search_ef 控制召回精度（HNSW ef 参数）
+                int milvusEf = getIntParam(queryParams, "milvus_search_ef", DEFAULT_MILVUS_SEARCH_EF);
+                results = milvusUtil.searchVector(knowledgeId, queryVector, topK, threshold,
+                        Math.max(milvusEf, topK));
             }
         }
 
@@ -519,11 +533,14 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
         int graphTopK = getIntParam(queryParams, "graph_top_k", 5);
         double graphWeight = getFloatParam(queryParams, "graph_weight", 0.3f);
         double pprDamping = getFloatParam(queryParams, "ppr_damping", 0.85f);
+        int pprIterations = getIntParam(queryParams, "ppr_iterations", DEFAULT_PPR_ITERATIONS);
+        int rrfK = getIntParam(queryParams, "rrf_k", DEFAULT_RRF_K);
 
         try {
+            String queryText = getQueryParam(queryParams, "query_text", "");
             List<Map<String, Object>> graphResults = graphRetrievalUtil.search(
-                    knowledgeId, queryVector, graphEntityTopK, graphTripleTopK,
-                    graphMaxNodes, graphTopK, pprDamping);
+                    knowledgeId, queryVector, queryText, graphEntityTopK, graphTripleTopK,
+                    graphMaxNodes, graphTopK, pprDamping, pprIterations);
 
             if (graphResults.isEmpty()) {
                 return results;
@@ -535,7 +552,7 @@ public class EmbeddingServiceImpl extends ServiceImpl<EmbeddingMapper, Embedding
             }
 
             // RRF 融合：常规结果权重=1.0，图检索结果权重=graphWeight
-            return rrfFusion(results, graphResults, 1.0f, (float) graphWeight, topK, 0);
+            return rrfFusion(results, graphResults, 1.0f, (float) graphWeight, topK, 0, rrfK);
         } catch (Exception e) {
             log.error("[Embedding] 图检索异常，返回常规结果: {}", e.getMessage(), e);
             return results;

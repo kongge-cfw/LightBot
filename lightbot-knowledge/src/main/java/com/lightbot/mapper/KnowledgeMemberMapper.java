@@ -27,7 +27,7 @@ public interface KnowledgeMemberMapper extends BaseMapper<KnowledgeMember> {
     @Select("SELECT km.id, km.knowledge_id, km.user_id, km.role, km.create_time, " +
             "u.username, u.nickname, u.avatar " +
             "FROM knowledge_member km " +
-            "LEFT JOIN users u ON km.user_id = u.id " +
+            "INNER JOIN users u ON km.user_id = u.id AND u.deleted = 0 " +
             "WHERE km.knowledge_id = #{knowledgeId}")
     List<KnowledgeMemberVO> listMemberVOs(@Param("knowledgeId") Long knowledgeId);
 }

@@ -51,11 +51,45 @@ public class GraphRetrievalUtil {
                                              int graphEntityTopK, int graphTripleTopK,
                                              int graphMaxNodes, int graphTopK,
                                              double pprDamping) {
+        return search(knowledgeId, queryVector, null, graphEntityTopK, graphTripleTopK,
+                graphMaxNodes, graphTopK, pprDamping, PPR_ITERATIONS);
+    }
+
+    /**
+     * 图检索主入口（可配 PPR 迭代次数）
+     *
+     * @param pprIterations PPR 迭代次数（建议 15-20，越大收敛越慢但精度越高）
+     */
+    public List<Map<String, Object>> search(Long knowledgeId, float[] queryVector,
+                                             int graphEntityTopK, int graphTripleTopK,
+                                             int graphMaxNodes, int graphTopK,
+                                             double pprDamping, int pprIterations) {
+        return search(knowledgeId, queryVector, null, graphEntityTopK, graphTripleTopK,
+                graphMaxNodes, graphTopK, pprDamping, pprIterations);
+    }
+
+    /**
+     * 图检索主入口（支持查询文本作为额外种子来源）
+     * <p>双路种子召回：Milvus 向量相似实体 + Neo4j 实体名包含匹配。
+     * 文本匹配覆盖向量召回漏掉的"查询中明示但嵌入差异大"的实体，提升图谱参与度</p>
+     *
+     * @param queryText     查询文本（用于实体名匹配，可为 null）
+     * @param pprIterations PPR 迭代次数
+     */
+    public List<Map<String, Object>> search(Long knowledgeId, float[] queryVector, String queryText,
+                                             int graphEntityTopK, int graphTripleTopK,
+                                             int graphMaxNodes, int graphTopK,
+                                             double pprDamping, int pprIterations) {
         // 1. Milvus 向量检索种子实体和三元组
         List<Map<String, Object>> seedEntities = milvusUtil.searchEntities(knowledgeId, queryVector, graphEntityTopK);
         List<Map<String, Object>> seedTriples = milvusUtil.searchTriples(knowledgeId, queryVector, graphTripleTopK);
 
-        if (seedEntities.isEmpty() && seedTriples.isEmpty()) {
+        // 1.1 文本匹配补充种子：queryText 命中 Neo4j 实体名时作为额外种子，权重固定 0.5（介于向量分数 0-1 之间）
+        List<Map<String, Object>> textMatchEntities = queryText != null && !queryText.isBlank()
+                ? queryEntitiesByName(knowledgeId, queryText, graphEntityTopK)
+                : List.of();
+
+        if (seedEntities.isEmpty() && seedTriples.isEmpty() && textMatchEntities.isEmpty()) {
             log.info("[GraphRetrieval] 无种子实体/三元组, knowledgeId={}", knowledgeId);
             return List.of();
         }
@@ -75,6 +109,12 @@ public class GraphRetrievalUtil {
             seedWeights.merge(sourceId, score, Math::max);
             seedWeights.merge(targetId, score, Math::max);
         }
+        // 文本匹配实体作为补充种子（已存在的 ID 取最大权重，不覆盖向量原始分数）
+        for (Map<String, Object> entity : textMatchEntities) {
+            Long id = (Long) entity.get("id");
+            double score = ((Number) entity.get("score")).doubleValue();
+            seedWeights.merge(id, score, Math::max);
+        }
 
         // 3. Neo4j 查询 2-hop 子图
         String label = Neo4jUtil.kbLabel(knowledgeId);
@@ -90,7 +130,7 @@ public class GraphRetrievalUtil {
         }
 
         // 4. PPR 迭代
-        Map<Long, Double> pprScores = ppr(seedWeights, adjacency, pprDamping, PPR_ITERATIONS);
+        Map<Long, Double> pprScores = ppr(seedWeights, adjacency, pprDamping, pprIterations);
 
         // 5. Neo4j 查询三元组关系
         Set<Long> topEntityIds = pprScores.entrySet().stream()
@@ -103,6 +143,61 @@ public class GraphRetrievalUtil {
 
         // 6. 构建结果
         return buildResults(pprScores, entityDescriptions, triples, graphTopK);
+    }
+
+    /**
+     * 按实体名匹配查询 Neo4j 实体作为补充种子
+     * <p>CONTAINS 模糊匹配：query 中的关键词命中实体名时返回，覆盖向量召回漏掉的明示实体</p>
+     *
+     * @param knowledgeId 知识库ID
+     * @param queryText   查询文本
+     * @param topK        最大返回数
+     * @return 实体列表（id, name, score=0.5 固定权重）
+     */
+    private List<Map<String, Object>> queryEntitiesByName(Long knowledgeId, String queryText, int topK) {
+        if (queryText == null || queryText.isBlank()) {
+            return List.of();
+        }
+        // 简单分词：按空格/标点切分后取长度 >= 2 的 token，避免单字噪声
+        String[] tokens = queryText.split("[\\s,，。.;；、？?！!！]+");
+        List<String> keywords = new ArrayList<>();
+        for (String t : tokens) {
+            String trimmed = t.trim();
+            if (trimmed.length() >= 2) {
+                keywords.add(trimmed);
+            }
+        }
+        if (keywords.isEmpty()) {
+            return List.of();
+        }
+
+        String label = Neo4jUtil.kbLabel(knowledgeId);
+        // 任一 keyword 命中实体名（name TOLOWER CONTAINS TOLOWER(keyword)）
+        String cypher = """
+            MATCH (n:Entity:`%s`)
+            WHERE any(kw IN $keywords WHERE toLower(n.name) CONTAINS toLower(kw))
+            RETURN n.id AS id, n.name AS name
+            LIMIT $topK
+            """.formatted(label);
+
+        try {
+            List<org.neo4j.driver.Record> records = neo4jUtil.query(cypher,
+                    Map.of("keywords", keywords, "topK", topK));
+            List<Map<String, Object>> results = new ArrayList<>(records.size());
+            for (org.neo4j.driver.Record record : records) {
+                if (record.get("id").isNull()) continue;
+                Map<String, Object> entity = new LinkedHashMap<>();
+                entity.put("id", Long.parseLong(record.get("id").asString()));
+                entity.put("name", record.get("name").isNull() ? "" : record.get("name").asString());
+                // 文本匹配权重固定 0.5：低于向量余弦相似度上限 1.0，但高于常规阈值 0.5 的边界，确保进入种子集
+                entity.put("score", 0.5);
+                results.add(entity);
+            }
+            return results;
+        } catch (Exception e) {
+            log.warn("[GraphRetrieval] 实体名匹配查询失败, knowledgeId={}, error={}", knowledgeId, e.getMessage());
+            return List.of();
+        }
     }
 
     /**

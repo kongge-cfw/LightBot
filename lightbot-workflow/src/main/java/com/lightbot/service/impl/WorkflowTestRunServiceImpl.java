@@ -126,6 +126,18 @@ public class WorkflowTestRunServiceImpl extends ServiceImpl<WorkflowTestRunMappe
         return record != null ? record.getId() : null;
     }
 
+    /**
+     * 按保留期清理过期测试运行记录（物理删除）
+     */
+    @Override
+    public int cleanupByAge(int retentionDays) {
+        if (retentionDays <= 0) {
+            return 0;
+        }
+        LocalDateTime threshold = LocalDateTime.now().minusDays(retentionDays);
+        return baseMapper.deleteByStartTimeBefore(threshold);
+    }
+
     private WorkflowTestRun getByRunId(String runId) {
         if (!StringUtils.hasText(runId)) {
             return null;

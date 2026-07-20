@@ -285,4 +285,16 @@ public class LlmTraceServiceImpl extends ServiceImpl<LlmTraceMapper, LlmTrace>
         if (ids == null || ids.isEmpty()) return;
         removeByIds(ids);
     }
+
+    /**
+     * 按保留期清理过期调用链记录（物理删除）
+     */
+    @Override
+    public int cleanupByAge(int retentionDays) {
+        if (retentionDays <= 0) {
+            return 0;
+        }
+        LocalDateTime threshold = LocalDateTime.now().minusDays(retentionDays);
+        return baseMapper.deleteByCreateTimeBefore(threshold);
+    }
 }

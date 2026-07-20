@@ -15,7 +15,9 @@ import org.springframework.util.StringUtils;
 import com.lightbot.mapper.ToolMapper;
 import com.lightbot.service.ToolService;
 import com.lightbot.service.port.DefaultAgentIdProvider;
+import com.lightbot.util.ToolInputSchemaValidator;
 import com.lightbot.util.ToolIoSchemaUtil;
+import com.lightbot.util.ValidatingToolCallback;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.metadata.ToolMetadata;
@@ -53,6 +55,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
     private final ApiToolExecutionService apiToolExecutionService;
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider;
+    private final ToolInputSchemaValidator toolInputSchemaValidator;
 
     /** 启动时扫描缓存的内置 ToolCallback 列表 */
     private volatile List<ToolCallback> cachedBuiltinCallbacks;
@@ -61,12 +64,14 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                            com.lightbot.util.ToolArgsSanitizer toolArgsSanitizer,
                            ApiToolExecutionService apiToolExecutionService,
                            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
-                           ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider) {
+                           ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider,
+                           ToolInputSchemaValidator toolInputSchemaValidator) {
         this.applicationContext = applicationContext;
         this.toolArgsSanitizer = toolArgsSanitizer;
         this.apiToolExecutionService = apiToolExecutionService;
         this.objectMapper = objectMapper;
         this.defaultAgentIdProvider = defaultAgentIdProvider;
+        this.toolInputSchemaValidator = toolInputSchemaValidator;
     }
 
     @Override
@@ -257,7 +262,8 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 result.add(new ApiToolCallback(tool, apiToolExecutionService, objectMapper));
             }
         }
-        return result;
+        // 4. 包装 Schema 校验装饰器，LLM 误传参数时拦截并回喂结构化错误
+        return wrapValidators(result);
     }
 
     @Override
@@ -290,7 +296,20 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 result.add(new ApiToolCallback(tool, apiToolExecutionService, objectMapper));
             }
         }
-        return result;
+        // 4. 包装 Schema 校验装饰器
+        return wrapValidators(result);
+    }
+
+    /**
+     * 为每个 ToolCallback 包装 Schema 校验装饰器
+     */
+    private List<ToolCallback> wrapValidators(List<ToolCallback> callbacks) {
+        if (callbacks == null || callbacks.isEmpty()) {
+            return List.of();
+        }
+        return callbacks.stream()
+                .map(cb -> (ToolCallback) new ValidatingToolCallback(cb, toolInputSchemaValidator))
+                .toList();
     }
 
     /**

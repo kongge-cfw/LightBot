@@ -24,6 +24,17 @@ public class RagParamResolver {
     public static final int DEFAULT_TOP_K = 5;
     public static final double DEFAULT_THRESHOLD = 0.5;
 
+    /** 默认 HNSW 检索 ef：覆盖 pgvector hnsw.ef_search 与 Milvus HNSW ef */
+    public static final int DEFAULT_HNSW_EF = 100;
+    /** 默认 PPR 迭代次数 */
+    public static final int DEFAULT_PPR_ITERATIONS = 15;
+    /** 默认 RRF 平滑常量 */
+    public static final int DEFAULT_RRF_K = 60;
+    /** 默认图检索权重（RRF 中图结果的相对权重） */
+    public static final double DEFAULT_GRAPH_WEIGHT = 0.3;
+    /** 默认 PPR 阻尼系数 */
+    public static final double DEFAULT_PPR_DAMPING = 0.85;
+
     /**
      * 解析 TopK 参数
      * 优先级：overrides > queryParams > config > 默认值
@@ -95,5 +106,41 @@ public class RagParamResolver {
         } catch (Exception e) {
             return Map.of();
         }
+    }
+
+    /**
+     * 通用整型参数解析
+     * <p>覆盖 hnsw_ef_search / milvus_search_ef / ppr_iterations / rrf_k 等检索调优参数</p>
+     *
+     * @param overrides   覆盖参数（Agent 级别）
+     * @param queryParams 查询参数（知识库级别）
+     * @param key         参数 key
+     * @param defaultVal  默认值
+     * @return 解析后的值
+     */
+    public int resolveInt(Map<String, Object> overrides, Map<String, Object> queryParams,
+                          String key, int defaultVal) {
+        if (overrides != null && overrides.get(key) instanceof Number n) {
+            return n.intValue();
+        }
+        if (queryParams != null && queryParams.get(key) instanceof Number n) {
+            return n.intValue();
+        }
+        return defaultVal;
+    }
+
+    /**
+     * 通用浮点参数解析
+     * <p>覆盖 ppr_damping / graph_weight / vector_weight / keyword_weight 等融合权重参数</p>
+     */
+    public double resolveDouble(Map<String, Object> overrides, Map<String, Object> queryParams,
+                                String key, double defaultVal) {
+        if (overrides != null && overrides.get(key) instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (queryParams != null && queryParams.get(key) instanceof Number n) {
+            return n.doubleValue();
+        }
+        return defaultVal;
     }
 }

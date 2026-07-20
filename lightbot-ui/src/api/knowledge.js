@@ -276,3 +276,17 @@ export function vectorizeQAPair(qaPairId) {
 export function batchVectorizeQAPairs(qaPairIds) {
   return request.post('/knowledge/qa-pairs/batch-vectorize', qaPairIds)
 }
+
+// ========== 知识库 Advisor（反馈聚合 + 调优建议） ==========
+
+export function getAdvisorSummary(knowledgeId, windowDays = 14) {
+  return request.get(`/knowledge/${knowledgeId}/advisor/summary`, { params: { windowDays } })
+}
+
+export function getAdvisorLowRatedChunks(knowledgeId, limit = 10) {
+  return request.get(`/knowledge/${knowledgeId}/advisor/low-rated-chunks`, { params: { limit } })
+}
+
+export function getAdvisorSleepingChunks(knowledgeId, days = 14, limit = 10) {
+  return request.get(`/knowledge/${knowledgeId}/advisor/sleeping-chunks`, { params: { days, limit } })
+}

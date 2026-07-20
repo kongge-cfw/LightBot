@@ -65,6 +65,9 @@ public class MilvusUtil {
     /** 重连最小间隔（毫秒） */
     private static final long RECONNECT_INTERVAL_MS = 60_000;
 
+    /** Milvus HNSW 查询默认 ef（与 pgvector hnsw.ef_search 默认值对齐） */
+    private static final int DEFAULT_SEARCH_EF = 100;
+
     /**
      * 获取客户端（懒初始化，失败后支持重试）
      */
@@ -616,6 +619,23 @@ public class MilvusUtil {
      */
     public List<Map<String, Object>> searchVector(Long knowledgeId, float[] queryVector,
                                                    int topK, double threshold) {
+        return searchVector(knowledgeId, queryVector, topK, threshold, DEFAULT_SEARCH_EF);
+    }
+
+    /**
+     * 向量检索（COSINE 相似度，可指定 HNSW ef 参数）
+     * <p>HNSW 索引查询时的 ef 取值，控制候选队列大小：ef 越大召回越高、延迟越大。
+     * 参数透传：由调用方按 query_params.milvus_search_ef 决定值，默认 100</p>
+     *
+     * @param knowledgeId 知识库ID
+     * @param queryVector 查询向量
+     * @param topK        返回数量
+     * @param threshold   相似度阈值（低于此值不返回）
+     * @param ef          HNSW 检索 ef 参数（取值范围 [topK, 1000]）
+     * @return 检索结果列表，每项包含 chunk_id, content, document_id, score
+     */
+    public List<Map<String, Object>> searchVector(Long knowledgeId, float[] queryVector,
+                                                   int topK, double threshold, int ef) {
         String collName = collectionName(knowledgeId);
 
         SearchReq req = SearchReq.builder()
@@ -624,6 +644,7 @@ public class MilvusUtil {
                 .annsField("embedding")
                 .topK(topK)
                 .metricType(IndexParam.MetricType.COSINE)
+                .searchParams(Map.of("params", String.format(Locale.ROOT, "{\"ef\":%d}", ef)))
                 .outputFields(List.of("id", "document_id", "content"))
                 .build();
 

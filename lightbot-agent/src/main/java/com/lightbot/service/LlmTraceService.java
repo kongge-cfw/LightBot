@@ -84,4 +84,13 @@ public interface LlmTraceService extends IService<LlmTrace> {
      * @param ids 主键ID列表
      */
     void deleteByIds(List<Long> ids);
+
+    /**
+     * 按保留期清理过期调用链记录（物理删除）
+     * <p>定时任务调用，避免 llm_trace 表无限增长</p>
+     *
+     * @param retentionDays 保留天数（早于该天数的数据将被删除）
+     * @return 删除记录数
+     */
+    int cleanupByAge(int retentionDays);
 }
