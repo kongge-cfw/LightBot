@@ -34,10 +34,13 @@
           style="width: 220px"
           @change="handleSearch"
         >
-          <template #prefix><SearchOutlined /></template>
+          <template #prefix>
+            <LoadingOutlined v-if="currentLoading" />
+            <SearchOutlined v-else />
+          </template>
         </a-input>
         <button class="btn-outline" @click="handleRefresh">
-          <ReloadOutlined /> 刷新
+          <ReloadOutlined :spin="currentLoading" /> 刷新
         </button>
         <button v-if="activeTab === 'skills'" class="btn-skill-action" style="background: #7c3aed" @click="skillRef?.openImportModal()">
           <UploadOutlined /> ZIP 导入
@@ -51,10 +54,11 @@
       </div>
     </div>
     <div class="tab-content scroll-area-y">
-      <McpManage v-show="activeTab === 'mcp'" ref="mcpRef" hide-header />
-      <SkillManage v-show="activeTab === 'skills'" ref="skillRef" hide-header />
-      <ToolManage v-show="activeTab === 'tools'" ref="toolRef" hide-header />
-      <SubAgentManage v-show="activeTab === 'subagents'" ref="subAgentRef" hide-header />
+      <!-- v-if 懒加载：未激活的 tab 不挂载子组件，避免首次进入并发所有子组件的 onMounted 请求 -->
+      <McpManage v-if="activeTab === 'mcp'" ref="mcpRef" hide-header />
+      <SkillManage v-if="activeTab === 'skills'" ref="skillRef" hide-header />
+      <ToolManage v-if="activeTab === 'tools'" ref="toolRef" hide-header />
+      <SubAgentManage v-if="activeTab === 'subagents'" ref="subAgentRef" hide-header />
     </div>
   </div>
 </template>
@@ -62,7 +66,7 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PlusOutlined, SearchOutlined, UploadOutlined, CloudDownloadOutlined, ReloadOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, SearchOutlined, UploadOutlined, CloudDownloadOutlined, ReloadOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 import McpManage from './McpManage.vue'
 import SkillManage from './SkillManage.vue'
 import ToolManage from './ToolManage.vue'
@@ -87,6 +91,15 @@ const addBtnText = computed(() => {
 const searchPlaceholder = computed(() => {
   const map = { mcp: '搜索 MCP Server...', skills: '搜索 Skill...', tools: '搜索工具...', subagents: '搜索 SubAgent...' }
   return map[activeTab.value] || '搜索...'
+})
+
+// 当前激活 tab 子组件的 loading 状态：刷新按钮 spin 与搜索框 loading 共用，让用户看到"操作已生效"
+const currentLoading = computed(() => {
+  const target = activeTab.value === 'mcp' ? mcpRef.value
+    : activeTab.value === 'skills' ? skillRef.value
+    : activeTab.value === 'tools' ? toolRef.value
+    : subAgentRef.value
+  return !!target?.loading
 })
 
 function handleAdd() {

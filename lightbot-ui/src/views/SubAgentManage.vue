@@ -1,8 +1,8 @@
 <template>
   <div class="subagent-manage">
     <!-- 卡片列表 -->
-    <CardGridSkeleton v-if="loading && !list.length" />
-    <div v-else class="card-grid">
+    <a-spin :spinning="loading" style="min-height: 300px; display: block;">
+    <div class="card-grid">
       <EntityCard
         v-for="s in list"
         :key="s.id"
@@ -55,6 +55,7 @@
         <p>暂无 SubAgent，点击右上角创建</p>
       </div>
     </div>
+    </a-spin>
 
     <!-- 新增/编辑弹窗 -->
     <a-modal
@@ -273,7 +274,6 @@ import { RobotOutlined, EditOutlined, DeleteOutlined, ToolOutlined, QuestionCirc
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
-import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
 import { getSubAgents, createSubAgent, updateSubAgent, deleteSubAgent, setSubAgentEnabled } from '../api/subagent'
@@ -344,10 +344,11 @@ const providerNameMap = computed(() => {
   return map
 })
 
+// 下拉选项懒加载标记：首次打开新增/编辑弹窗时才加载工具与提供商列表，避免进入页面就发请求
+let optionsLoaded = false
+
 onMounted(() => {
   loadList()
-  loadToolList()
-  loadProviders()
 })
 
 async function loadList() {
@@ -390,7 +391,11 @@ function refresh() {
   loadList()
 }
 
-function openDialog() {
+async function openDialog() {
+  if (!optionsLoaded) {
+    await Promise.all([loadToolList(), loadProviders()])
+    optionsLoaded = true
+  }
   editingId.value = null
   inheritModel.value = true
   staleToolOptions.value = []
@@ -398,7 +403,11 @@ function openDialog() {
   dialogVisible.value = true
 }
 
-function openEditDialog(record) {
+async function openEditDialog(record) {
+  if (!optionsLoaded) {
+    await Promise.all([loadToolList(), loadProviders()])
+    optionsLoaded = true
+  }
   editingId.value = record.id
   inheritModel.value = !record.modelId
   staleToolOptions.value = []
@@ -556,7 +565,7 @@ function formatToolIds(toolIdsJson) {
   }
 }
 
-defineExpose({ openDialog, search, refresh })
+defineExpose({ openDialog, search, refresh, loading })
 </script>
 
 <style scoped>

@@ -57,7 +57,7 @@ function filterOption(input, option) {
 async function loadAgents() {
   loading.value = true
   try {
-    const res = await getAgents({ pageSize: 200 })
+    const res = await getAgents({ pageSize: 100 })
     agents.value = (res.data?.records || res.data || []).map(a => ({
       id: String(a.id),
       name: a.name,

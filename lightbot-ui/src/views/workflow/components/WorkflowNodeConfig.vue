@@ -928,7 +928,7 @@ const appComponentOutputMappings = computed(() => {
 async function loadPublishedWorkflowAgents() {
   subWorkflowAgentsLoading.value = true
   try {
-    const res = await getAgents({ pageNum: 1, pageSize: 200, agentType: 'workflow' })
+    const res = await getAgents({ pageNum: 1, pageSize: 100, agentType: 'workflow' })
     const records = res.data?.records || res.data || []
     const currentId = String(route.params.agentId || '')
     publishedWorkflowAgents.value = records.filter(
@@ -1328,7 +1328,7 @@ async function loadModelOptionsForDisplay() {
 async function loadMcpServers() {
   mcpServersLoading.value = true
   try {
-    const res = await getMcpServers({ pageNum: 1, pageSize: 200 })
+    const res = await getMcpServers({ pageNum: 1, pageSize: 100 })
     mcpServers.value = res.data?.records || res.data || []
   } catch (e) {
     mcpServers.value = []

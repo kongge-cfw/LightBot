@@ -29,8 +29,8 @@
       </div>
     </div>
 
-    <CardGridSkeleton v-if="loading && !list.length" />
-    <div v-else class="card-grid">
+    <a-spin :spinning="loading" style="min-height: 300px; display: block;">
+    <div class="card-grid">
       <EntityCard
         v-for="item in list"
         :key="item.id"
@@ -62,6 +62,7 @@
         <p v-else>还没有 Prompt，点击右上角创建一个吧</p>
       </div>
     </div>
+    </a-spin>
 
     <!-- 创建/编辑弹窗 -->
     <a-modal
@@ -112,7 +113,6 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import TagInput from '../components/TagInput.vue'
 import EntityCard from '../components/EntityCard.vue'
-import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import { getPrompts, createPrompt, updatePrompt, deletePrompt } from '../api/prompt'
 import { useDebouncedWatch } from '../composables/useDebounce'
 

@@ -30,8 +30,8 @@
       </div>
     </div>
 
-    <CardGridSkeleton v-if="loading && !list.length" />
-    <div v-else class="card-grid">
+    <a-spin :spinning="loading" style="min-height: 300px; display: block;">
+    <div class="card-grid">
       <EntityCard
         v-for="s in list"
         :key="s.id"
@@ -85,6 +85,7 @@
         {{ searchText ? '没有匹配的 Skill' : '暂无 Skill，点击右上角新增' }}
       </div>
     </div>
+    </a-spin>
 
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :width="720" :footer="null" :maskClosable="false">
@@ -207,7 +208,6 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutli
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
-import CardGridSkeleton from '../components/common/CardGridSkeleton.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
 import { getSkills, createSkill, updateSkill, deleteSkill, setSkillEnabled, exportSkillZip } from '../api/skill'
@@ -264,7 +264,7 @@ async function loadData() {
 async function loadOptions() {
   try {
     const [toolRes, mcpRes] = await Promise.all([
-      getTools({ pageNum: 1, pageSize: 200 }),
+      getTools({ pageNum: 1, pageSize: 100 }),
       getMcpServers({ pageNum: 1, pageSize: 100 }),
     ])
     toolList.value = toolRes.data.records || []
@@ -282,7 +282,13 @@ async function loadOptions() {
   }
 }
 
-function openDialog(row) {
+async function openDialog(row) {
+  // 首次打开 dialog 才加载目录（tools/mcp 下拉），列表页初始化时不发请求
+  if (!optionsLoaded) {
+    await loadOptions()
+    optionsLoaded = true
+  }
+
   staleToolOptions.value = []
   staleMcpOptions.value = []
 
@@ -427,8 +433,10 @@ async function handleExport(row) {
   }
 }
 
-onMounted(async () => {
-  await loadOptions()
+// 目录（tools/mcp 下拉）懒加载标志：首次 openDialog 才加载，避免列表页初始化时多发请求
+let optionsLoaded = false
+
+onMounted(() => {
   loadData()
 })
 
@@ -452,7 +460,7 @@ function openRemoteInstallModal() {
   remoteInstallVisible.value = true
 }
 
-defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallModal })
+defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallModal, loading })
 </script>
 
 <style scoped>

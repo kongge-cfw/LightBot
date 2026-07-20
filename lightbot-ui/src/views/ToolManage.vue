@@ -39,7 +39,7 @@
       </div>
     </div>
 
-    <a-spin :spinning="loading" style="min-height: 400px; display: block;">
+    <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <div class="provider-grid">
       <EntityCard
         v-for="t in list"
@@ -856,7 +856,7 @@ const outputColumns = [
   { title: '说明', dataIndex: 'desc' },
 ]
 
-defineExpose({ openDialog, search, refresh })
+defineExpose({ openDialog, search, refresh, loading })
 </script>
 
 <style scoped>

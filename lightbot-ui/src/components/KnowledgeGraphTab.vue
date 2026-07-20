@@ -736,7 +736,7 @@ async function openDocPicker() {
   docListLoading.value = true
   selectedDocIds.value = []
   try {
-    const res = await getDocuments(props.knowledgeId, { pageNum: 1, pageSize: 500 })
+    const res = await getDocuments(props.knowledgeId, { pageNum: 1, pageSize: 200 })
     docList.value = (res.data?.records || []).filter(d => d.status === 'completed' || d.status?.code === 'completed')
   } catch (e) {
     console.error('[知识图谱] 加载文档列表失败', e)

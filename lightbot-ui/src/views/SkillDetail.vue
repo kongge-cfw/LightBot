@@ -523,7 +523,7 @@ async function loadSkill() {
 async function loadOptions() {
   try {
     const [toolRes, mcpRes, skillRes] = await Promise.all([
-      getTools({ pageNum: 1, pageSize: 200 }),
+      getTools({ pageNum: 1, pageSize: 100 }),
       getMcpServers({ pageNum: 1, pageSize: 100 }),
       getEnabledSkills(),
     ])

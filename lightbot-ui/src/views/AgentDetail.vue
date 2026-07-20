@@ -2836,7 +2836,7 @@ function mergeToolsIntoCatalog(incoming) {
 
 async function loadToolList(toolType) {
   try {
-    const params = { pageNum: 1, pageSize: 200 }
+    const params = { pageNum: 1, pageSize: 100 }
     if (toolType) params.toolType = toolType
     const res = await getTools(params)
     const incoming = (res.data?.records || []).map(normalizeToolRecord)

@@ -18,8 +18,12 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class PageSizeLimitInterceptor implements HandlerInterceptor {
 
-    /** 全局 pageSize 上限，覆盖列表/分页接口 */
-    public static final int MAX_PAGE_SIZE = 100;
+    /**
+     * 全局 pageSize 上限，覆盖列表/分页接口
+     * <p>200 兼容下拉/绑定等"加载全部"业务场景（最大节点数约 100-200），
+     * 同时挡住 pageSize=1000/10000 等恶意大分页对 DB 的打宽</p>
+     */
+    public static final int MAX_PAGE_SIZE = 200;
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {

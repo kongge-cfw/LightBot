@@ -210,8 +210,8 @@ let replayGeneration = 0
 async function loadResources() {
   try {
     const [knowledgeRes, toolRes] = await Promise.all([
-      getKnowledgeList({ pageNum: 1, pageSize: 200 }),
-      getTools({ pageNum: 1, pageSize: 200 }),
+      getKnowledgeList({ pageNum: 1, pageSize: 100 }),
+      getTools({ pageNum: 1, pageSize: 100 }),
     ])
     knowledgeList.value = knowledgeRes.data?.records || knowledgeRes.data || []
     tools.value = toolRes.data?.records || toolRes.data || []
