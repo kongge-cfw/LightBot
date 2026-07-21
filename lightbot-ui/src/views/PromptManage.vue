@@ -1,36 +1,28 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Prompt</h1>
-        <p class="page-desc">测试和调试你的AI提示词</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索 Prompt Key..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-outline" @click="router.push('/app/playground')">
+    <LbManageHeader
+      title="Prompt"
+      desc="测试和调试你的AI提示词"
+      v-model="searchText"
+      search-placeholder="搜索 Prompt Key..."
+      :refresh-disabled="loading"
+      create-text="新建 Prompt"
+      @refresh="loadData"
+      @create="openDialog()"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
+        <button class="lb-btn" @click="router.push('/app/playground')">
           <PlayCircleOutlined /> Playground
         </button>
-        <button class="btn-outline" @click="router.push('/app/prompt-templates')">
+        <button class="lb-btn" @click="router.push('/app/prompt-templates')">
           <SettingOutlined /> 管理模板
         </button>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新建 Prompt
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
-    <div class="card-grid">
+    <LbEntityGrid :min-card-width="320">
       <EntityCard
         v-for="item in list"
         :key="item.id"
@@ -51,17 +43,15 @@
           </a-tooltip>
         </template>
         <p class="card-desc">{{ item.description || '暂无描述' }}</p>
-        <div class="card-tags" v-if="item.tags">
-          <a-tag v-for="tag in item.tags.split(',')" :key="tag" color="blue">{{ tag.trim() }}</a-tag>
-        </div>
+        <LbTagList v-if="item.tags" :tags="item.tags" />
       </EntityCard>
 
-      <div v-if="list.length === 0 && !loading" class="empty-state">
-        <FileTextOutlined class="empty-icon" />
-        <p v-if="searchText">没有匹配的 Prompt</p>
-        <p v-else>还没有 Prompt，点击右上角创建一个吧</p>
-      </div>
-    </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="FileTextOutlined"
+        :title="searchText ? '没有匹配的 Prompt' : '还没有 Prompt，点击右上角创建一个吧'"
+      />
+    </LbEntityGrid>
     </a-spin>
 
     <!-- 创建/编辑弹窗 -->
@@ -89,15 +79,11 @@
           <TagInput v-model="form.tags" />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
   </div>
 </template>
@@ -113,6 +99,11 @@ import {
 import { message, Modal } from 'ant-design-vue'
 import TagInput from '../components/TagInput.vue'
 import EntityCard from '../components/EntityCard.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
+import LbTagList from '../components/common/LbTagList.vue'
+import LbEntityGrid from '../components/common/LbEntityGrid.vue'
 import { getPrompts, createPrompt, updatePrompt, deletePrompt } from '../api/prompt'
 import { useDebouncedWatch } from '../composables/useDebounce'
 
@@ -267,11 +258,6 @@ function handleDelete(id) {
   font-size: 13px;
 }
 .btn-cancel:hover { border-color: var(--color-link); color: var(--color-link); }
-.card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 16px;
-}
 .card-version-badge {
   position: absolute;
   top: -6px;

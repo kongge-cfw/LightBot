@@ -74,11 +74,11 @@
                 <span class="card-time">{{ formatTime(item.createTime) }}</span>
               </div>
             </div>
-            <div v-if="datasets.length === 0 && !datasetsLoading" class="empty-state">
-              <DatabaseOutlined class="empty-icon" />
-              <p v-if="searchText">没有匹配的评测集</p>
-              <p v-else>还没有评测集，点击右上角创建一个吧</p>
-            </div>
+            <LbEmptyState
+              v-if="datasets.length === 0 && !datasetsLoading"
+              :icon="DatabaseOutlined"
+              :title="searchText ? '没有匹配的评测集' : '还没有评测集，点击右上角创建一个吧'"
+            />
           </div>
         </a-spin>
       </div>
@@ -113,11 +113,11 @@
                 <a-tag v-for="tag in item.tags.split(',')" :key="tag" color="purple">{{ tag.trim() }}</a-tag>
               </div>
             </div>
-            <div v-if="evaluators.length === 0 && !evaluatorsLoading" class="empty-state">
-              <AuditOutlined class="empty-icon" />
-              <p v-if="searchText">没有匹配的评估器</p>
-              <p v-else>还没有评估器，点击右上角创建一个吧</p>
-            </div>
+            <LbEmptyState
+              v-if="evaluators.length === 0 && !evaluatorsLoading"
+              :icon="AuditOutlined"
+              :title="searchText ? '没有匹配的评估器' : '还没有评估器，点击右上角创建一个吧'"
+            />
           </div>
         </a-spin>
       </div>
@@ -223,15 +223,11 @@
           <a-textarea v-model:value="datasetForm.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="datasetDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleDatasetSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="datasetDialogVisible = false"
+        @confirm="handleDatasetSubmit"
+      />
     </a-modal>
 
     <!-- 评估器 创建/编辑弹窗 -->
@@ -253,15 +249,11 @@
           <TagInput v-model="evaluatorForm.tags" />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="evaluatorDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleEvaluatorSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="evaluatorDialogVisible = false"
+        @confirm="handleEvaluatorSubmit"
+      />
     </a-modal>
 
     <!-- 示例评测集弹窗 -->
@@ -433,18 +425,17 @@
         <div v-if="experimentForm.evaluators.length >= 5" style="margin-top: 4px; font-size: 12px; color: var(--color-mute); text-align: center;">最多添加5个评估器</div>
       </div>
 
-      <div class="dialog-footer">
-        <div>
-          <button v-if="experimentStep > 0" class="btn-cancel" @click="experimentStep--">上一步</button>
-        </div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="experimentDialogVisible = false">取消</button>
-          <button v-if="experimentStep < 3" class="btn-primary-sm" @click="nextExperimentStep">下一步</button>
-          <button v-else class="btn-primary-sm" :disabled="submitting" @click="handleExperimentSubmit">
-            {{ submitting ? '创建中...' : '创建实验' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        :confirm-text="experimentStep < 3 ? '下一步' : '创建实验'"
+        :loading-text="experimentStep < 3 ? '下一步' : '创建中...'"
+        @cancel="experimentDialogVisible = false"
+        @confirm="experimentStep < 3 ? nextExperimentStep() : handleExperimentSubmit()"
+      >
+        <template #left>
+          <button v-if="experimentStep > 0" class="lb-btn" @click="experimentStep--">上一步</button>
+        </template>
+      </LbDialogFooter>
     </a-modal>
   </div>
 </template>
@@ -459,6 +450,8 @@ import {
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import TagInput from '../components/TagInput.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import {
   getEvalDatasets, createEvalDataset, updateEvalDataset, deleteEvalDataset,
   listEvalDatasetExamples, createFromEvalDatasetExample,

@@ -1,19 +1,16 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">Agent</h1>
-        <p class="page-desc">创建和管理 AI Agent，配置系统提示词和行为</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索 Agent 名称..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
+    <LbManageHeader
+      title="Agent"
+      desc="创建和管理 AI Agent，配置系统提示词和行为"
+      v-model="searchText"
+      search-placeholder="搜索 Agent 名称..."
+      :refresh-disabled="loading"
+      create-text="新建 Agent"
+      @refresh="loadData"
+      @create="openDialog()"
+    >
+      <template #filters>
         <a-select
           v-model:value="filterAgentType"
           placeholder="全部类型"
@@ -24,24 +21,21 @@
           <a-select-option value="chat">对话型</a-select-option>
           <a-select-option value="workflow">工作流型</a-select-option>
         </a-select>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
+      </template>
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
         <a-tooltip title="示例工作流">
-          <button class="btn-outline" @click="openExampleModal">
+          <button class="lb-btn" @click="openExampleModal">
             <ExperimentOutlined />
           </button>
         </a-tooltip>
         <a-tooltip title="消息反馈记录">
-          <button class="btn-outline" @click="feedbackOpen = true">
+          <button class="lb-btn" @click="feedbackOpen = true">
             <LikeOutlined />
           </button>
         </a-tooltip>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新建 Agent
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <div class="agent-grid">
@@ -95,11 +89,11 @@
         </template>
       </EntityCard>
 
-      <div v-if="list.length === 0 && !loading" class="empty-state">
-        <RobotOutlined class="empty-icon" />
-        <p v-if="searchText">没有匹配的 Agent</p>
-        <p v-else>还没有 Agent，点击右上角创建一个吧</p>
-      </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="RobotOutlined"
+        :title="searchText ? '没有匹配的 Agent' : '还没有 Agent，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -182,6 +176,8 @@ import FeedbackHistory from './FeedbackHistory.vue'
 import { loadAgentStatusLabels, formatAgentStatus } from '../utils/agentStatus'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { resolveAgentBindingType } from '../utils/bindingTheme'
 
 const router = useRouter()
@@ -232,6 +228,8 @@ async function loadData() {
 let searchDebounceTimer = null
 watch(searchText, () => {
   clearTimeout(searchDebounceTimer)
+  // 立刻置 loading，避免 debounce 的 300ms 窗口期里 list=[] + loading=false 触发空状态闪现
+  loading.value = true
   searchDebounceTimer = setTimeout(() => loadData(), 300)
 })
 

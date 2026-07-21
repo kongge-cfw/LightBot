@@ -94,17 +94,20 @@
         <div class="detail-content-title">Prompt 内容</div>
         <a-textarea :value="detailVersion.template" :rows="12" readonly class="template-editor" />
       </div>
-      <div class="dialog-footer">
-        <div class="dialog-footer-left">
-          <button class="btn-outline-sm" @click="restoreVersion(detailVersion)">
+      <LbDialogFooter
+        cancel-text="关闭"
+        hide-confirm
+        @cancel="detailVisible = false"
+      >
+        <template #left>
+          <button class="lb-btn" @click="restoreVersion(detailVersion)">
             <RollbackOutlined /> 恢复到编辑区
           </button>
-          <button class="btn-outline-sm" @click="compareWithPrevious(detailVersion)">
+          <button class="lb-btn" @click="compareWithPrevious(detailVersion)">
             <SwapOutlined /> 与前版本对比
           </button>
-        </div>
-        <button class="btn-cancel" @click="detailVisible = false">关闭</button>
-      </div>
+        </template>
+      </LbDialogFooter>
     </a-modal>
 
     <!-- 版本对比弹窗 -->
@@ -179,6 +182,7 @@ import {
 import { message } from 'ant-design-vue'
 import { getPromptVersions } from '../api/prompt'
 import { formatTime } from '../utils/format'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 
 const route = useRoute()
 const router = useRouter()

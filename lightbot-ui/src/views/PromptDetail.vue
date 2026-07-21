@@ -8,9 +8,7 @@
         </button>
         <h1 class="page-title"><span v-if="latestVersion" class="version-badge">{{ latestVersion }}</span>{{ promptKey }}</h1>
         <p class="page-desc" v-if="prompt?.description">{{ prompt.description }}</p>
-        <div class="prompt-tags" v-if="prompt?.tags">
-          <a-tag v-for="tag in prompt.tags.split(',')" :key="tag" color="blue" size="small">{{ tag.trim() }}</a-tag>
-        </div>
+        <LbTagList v-if="prompt?.tags" :tags="prompt.tags" />
       </div>
       <div class="header-actions">
         <button class="btn-outline-sm" @click="router.push(`/app/prompts/${promptKey}/versions`)">
@@ -249,15 +247,12 @@
           </a-radio-group>
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="versionDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handlePublishVersion">
-            {{ submitting ? '提交中...' : '发布' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        confirm-text="发布"
+        @cancel="versionDialogVisible = false"
+        @confirm="handlePublishVersion"
+      />
     </a-modal>
   </div>
 </template>
@@ -278,6 +273,8 @@ import { getProviderConfigFields } from '../api/modelProvider'
 import ModelSelect from '../components/ModelSelect.vue'
 import TemplateImportModalLR from '../components/TemplateImportModalLR.vue'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbTagList from '../components/common/LbTagList.vue'
 import { copyToClipboard } from '../utils/clipboard'
 
 const route = useRoute()

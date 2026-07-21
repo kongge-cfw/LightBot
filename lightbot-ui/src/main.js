@@ -8,6 +8,7 @@ import './styles/admin-page.css'
 import './styles/provider-card.css'
 import './styles/ui-utils.css'
 import './styles/modal-scroll.css'
+import './styles/lb-components.css'
 
 import App from './App.vue'
 import router from './router'

@@ -180,15 +180,14 @@
       spellcheck="false"
       placeholder='{"key": "value"}'
     />
-    <div class="dialog-footer">
-      <div></div>
-      <div class="dialog-footer-right">
-        <button class="btn-cancel" @click="testDialogVisible = false">关闭</button>
-        <button class="btn-primary-sm" :disabled="testLoading" @click="handleTest">
-          {{ testLoading ? '执行中...' : '执行测试' }}
-        </button>
-      </div>
-    </div>
+    <LbDialogFooter
+      cancel-text="关闭"
+      confirm-text="执行测试"
+      loading-text="执行中..."
+      :loading="testLoading"
+      @cancel="testDialogVisible = false"
+      @confirm="handleTest"
+    />
     <a-divider v-if="testResult !== null" />
     <div v-if="testResult !== null" class="test-result">
       <div class="test-result-label">执行结果</div>
@@ -309,6 +308,7 @@ import { ref, computed, watch } from 'vue'
 import { SettingOutlined, QuestionCircleOutlined, PlayCircleOutlined, EyeOutlined, SwapOutlined, CodeOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { getTools, testTool as testToolApi, getToolExampleParams } from '../api/tool'
+import LbDialogFooter from './common/LbDialogFooter.vue'
 
 const props = defineProps({
   placement: { type: String, default: 'top' }

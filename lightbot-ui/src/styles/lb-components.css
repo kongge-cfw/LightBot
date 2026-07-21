@@ -1,0 +1,289 @@
+/**
+ * Lb* 通用组件共享样式
+ *
+ * 收纳所有 components/common/Lb*.vue 组件需要跨组件复用的样式：
+ * - .lb-btn 按钮系统（primary / default / outline / sm）
+ * - .lb-dialog-footer 弹窗底部
+ * - .lb-entity-grid 卡片网格容器
+ * - .lb-empty 空状态
+ * - .lb-route-* 路由切换动画
+ * - .lb-list-* TransitionGroup 列表动画
+ *
+ * 注意：组件自身的 scoped CSS 留在 .vue 文件内，本文件只放会被多个组件/页面
+ * 共享的 utility 样式，避免重复定义。
+ */
+
+/* ========== 按钮系统（与 admin-page.css .btn-* 并存，新代码用 .lb-btn） ========== */
+.lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: transparent;
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  color: var(--color-ink);
+  cursor: pointer;
+  transition: all var(--duration-fast, 0.15s) ease;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.lb-btn:hover:not(:disabled) {
+  border-color: var(--color-link);
+  color: var(--color-link);
+}
+.lb-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lb-btn--primary {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 500;
+}
+.lb-btn--primary:hover:not(:disabled) {
+  background: #27272a;
+  border-color: #27272a;
+  color: var(--color-on-primary);
+}
+[data-theme="dark"] .lb-btn--primary {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+[data-theme="dark"] .lb-btn--primary:hover:not(:disabled) {
+  background: #3f3f46;
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.lb-btn--sm {
+  padding: 6px 14px;
+  font-size: 12px;
+}
+.lb-btn--block {
+  width: 100%;
+}
+
+/* ========== 弹窗底部 ========== */
+.lb-dialog-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16px;
+  gap: 8px;
+}
+.lb-dialog-footer__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.lb-dialog-footer__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ========== 卡片网格容器 ========== */
+.lb-entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--lb-grid-min, 280px), 1fr));
+  gap: var(--space-md);
+}
+
+/* ========== 空状态 ========== */
+.lb-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--color-mute);
+}
+.lb-empty__icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  display: block;
+  color: var(--color-mute);
+}
+.lb-empty__title {
+  font-size: 14px;
+  margin: 0 0 4px;
+  color: var(--color-body);
+}
+.lb-empty__desc {
+  font-size: 13px;
+  margin: 0;
+  color: var(--color-mute);
+}
+
+/* ========== 统计卡片 ========== */
+.lb-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+  border-radius: var(--radius-md);
+  padding: 18px 20px;
+}
+.lb-stat-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  color: #fff;
+  flex-shrink: 0;
+}
+.lb-stat-card__value {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--color-ink);
+}
+.lb-stat-card__label {
+  font-size: 12px;
+  color: var(--color-mute);
+  margin-top: 2px;
+}
+
+/* ========== JSON 展示 ========== */
+.lb-json-viewer {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  background: var(--color-canvas);
+  color: var(--color-text-code);
+  padding: 8px 12px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-hairline);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-x: auto;
+  margin: 0;
+}
+
+/* ========== 详情页头部 ========== */
+.lb-detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  gap: 16px;
+}
+.lb-detail-header__main {
+  flex: 1;
+  min-width: 0;
+}
+.lb-detail-header__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  background: transparent;
+  border: none;
+  color: var(--color-mute);
+  font-size: 13px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+.lb-detail-header__back:hover {
+  color: var(--color-link);
+}
+.lb-detail-header__title {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.lb-detail-header__desc {
+  font-size: 14px;
+  color: var(--color-mute);
+}
+.lb-detail-header__tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.lb-detail-header__extra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* ========== 管理页头部 ========== */
+.lb-manage-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 32px;
+  gap: 16px;
+}
+.lb-manage-header__title {
+  flex: 1;
+  min-width: 0;
+}
+.lb-manage-header__title h1 {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-ink);
+  margin-bottom: 4px;
+}
+.lb-manage-header__title p {
+  font-size: 14px;
+  color: var(--color-mute);
+}
+.lb-manage-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+/* ========== 标签列表 ========== */
+.lb-tag-list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.lb-tag-list--empty {
+  font-size: 12px;
+  color: var(--color-mute);
+}
+
+/* ========== 路由切换动画（供 2.3.1 使用，预先放好） ========== */
+.lb-route-enter-active,
+.lb-route-leave-active {
+  transition: opacity var(--duration-fast, 0.15s) ease, transform var(--duration-fast, 0.15s) ease;
+}
+.lb-route-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+.lb-route-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* ========== TransitionGroup 列表动画（供 2.3.2 使用，预先放好） ========== */
+.lb-list-enter-active,
+.lb-list-leave-active {
+  transition: all var(--duration-base, 0.24s) ease;
+}
+.lb-list-enter-from {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+.lb-list-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+.lb-list-leave-active {
+  position: absolute;
+}
+.lb-list-move {
+  transition: transform var(--duration-base, 0.24s) ease;
+}

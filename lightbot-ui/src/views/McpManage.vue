@@ -1,27 +1,18 @@
 <template>
   <div class="page">
-    <div v-if="!hideHeader" class="page-header">
-      <div>
-        <h1 class="page-title">MCP Server</h1>
-        <p class="page-desc">管理 MCP (Model Context Protocol) 服务</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索 Server 名称..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新增 Server
-        </button>
-      </div>
-    </div>
+    <LbManageHeader
+      v-if="!hideHeader"
+      title="MCP Server"
+      desc="管理 MCP (Model Context Protocol) 服务"
+      v-model="searchText"
+      search-placeholder="搜索 Server 名称..."
+      :refresh-disabled="loading"
+      create-text="新增 Server"
+      @refresh="loadData"
+      @create="openDialog()"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <div class="provider-grid">
@@ -78,6 +69,12 @@
           </div>
         </div>
       </EntityCard>
+
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="ApiOutlined"
+        :title="searchText ? '没有匹配的 MCP Server' : '还没有 MCP Server，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -134,15 +131,11 @@
           </a-form-item>
         </template>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
 
     <!-- 配置指南弹窗 -->
@@ -249,16 +242,17 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
           </a-descriptions>
         </template>
       </div>
-      <div class="dialog-footer">
-        <div class="dialog-footer-left">
-          <button v-if="detailRow" class="btn-cancel" @click="detailVisible = false; openDialog(detailRow)">
+      <LbDialogFooter
+        cancel-text="关闭"
+        hide-confirm
+        @cancel="detailVisible = false"
+      >
+        <template #left>
+          <button v-if="detailRow" class="lb-btn" @click="detailVisible = false; openDialog(detailRow)">
             <EditOutlined /> 编辑
           </button>
-        </div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="detailVisible = false">关闭</button>
-        </div>
-      </div>
+        </template>
+      </LbDialogFooter>
     </a-modal>
 
     <!-- 工具列表抽屉 -->
@@ -373,6 +367,9 @@ import JsonInput from '../components/JsonInput.vue'
 import EntityCard from '../components/EntityCard.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { truncateText } from '../utils/format'
 import { copyToClipboard } from '../utils/clipboard'
 
@@ -483,6 +480,8 @@ async function loadData() {
 let searchDebounceTimer = null
 watch(searchText, () => {
   clearTimeout(searchDebounceTimer)
+  // 立刻置 loading，避免 debounce 的 300ms 窗口期里 list=[] + loading=false 触发空状态闪现
+  loading.value = true
   searchDebounceTimer = setTimeout(() => loadData(), 300)
 })
 
@@ -728,6 +727,22 @@ defineExpose({ openDialog, search, refresh, loading })
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
+}
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--color-mute);
+}
+.empty-icon {
+  font-size: 48px;
+  color: #d4d4d8;
+  margin-bottom: 12px;
+  display: block;
+}
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
 }
 .builtin-badge {
   position: absolute;

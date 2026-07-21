@@ -1,19 +1,16 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.back()">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">{{ evaluator?.name || '评估器详情' }}</h1>
-        <p class="page-desc">{{ evaluator?.description || '' }}</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn-primary-sm" @click="openVersionDialog()">
+    <LbDetailHeader
+      :title="evaluator?.name || '评估器详情'"
+      :desc="evaluator?.description || ''"
+      @back="router.back()"
+    >
+      <template #extra>
+        <button class="lb-btn lb-btn--primary" @click="openVersionDialog()">
           <PlusOutlined /> 新建版本
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <div class="content-grid">
       <!-- 左侧：版本列表 -->
@@ -123,11 +120,11 @@
           <div class="detail-col">
             <div class="detail-section">
               <div class="detail-label">变量定义</div>
-              <pre class="detail-pre">{{ formatJson(detailVersion.variables) }}</pre>
+              <LbJsonViewer :value="detailVersion.variables" />
             </div>
             <div class="detail-section">
               <div class="detail-label">模型配置</div>
-              <pre class="detail-pre">{{ formatJson(detailVersion.modelConfig) }}</pre>
+              <LbJsonViewer :value="detailVersion.modelConfig" />
             </div>
           </div>
         </div>
@@ -179,15 +176,11 @@
           />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="versionDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleCreateVersion">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="versionDialogVisible = false"
+        @confirm="handleCreateVersion"
+      />
     </a-modal>
   </div>
 </template>
@@ -198,6 +191,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { PlusOutlined, ArrowLeftOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import ModelSelect from '../components/ModelSelect.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
+import LbJsonViewer from '../components/common/LbJsonViewer.vue'
 import {
   getEvaluator,
   getEvaluatorVersions, createEvaluatorVersion,
@@ -380,15 +376,6 @@ function truncate(str, len) {
 function openVersionDetail(v) {
   detailVersion.value = v
   versionDetailVisible.value = true
-}
-
-function formatJson(str) {
-  if (!str) return '-'
-  try {
-    return JSON.stringify(JSON.parse(str), null, 2)
-  } catch {
-    return str
-  }
 }
 
 function parseModelConfig(version) {

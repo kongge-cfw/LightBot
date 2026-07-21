@@ -67,39 +67,41 @@
                 <SearchOutlined />
               </span>
             </a-tooltip>
-            <DownOutlined v-if="sessionsCollapsed" class="collapse-icon" />
-            <UpOutlined v-else class="collapse-icon" />
+            <DownOutlined class="collapse-icon" :class="{ 'is-expanded': !sessionsCollapsed }" />
           </div>
         </div>
-        <div v-show="!sessionsCollapsed" class="session-list" ref="sessionListRef">
-          <div
-            v-for="s in sessions"
-            :key="s.id"
-            :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
-            @click="switchSession(s)"
-          >
-            <span class="session-title">{{ s.title || '新对话' }}</span>
-            <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
-            <a-dropdown :trigger="['click']" placement="bottomRight">
-              <EllipsisOutlined class="session-more" @click.stop />
-              <template #overlay>
-                <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
-                  <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
-                  <a-menu-item key="rename">重命名</a-menu-item>
-                  <a-menu-item key="export">导出</a-menu-item>
-                  <a-menu-divider />
-                  <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
-                </a-menu>
-              </template>
-            </a-dropdown>
+        <CollapseTransition :open="!sessionsCollapsed">
+          <div class="session-list" ref="sessionListRef">
+            <div
+              v-for="s in sessions"
+              :key="s.id"
+              :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
+              @click="switchSession(s)"
+            >
+              <span class="session-title">{{ s.title || '新对话' }}</span>
+              <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
+              <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
+              <a-dropdown :trigger="['click']" placement="bottomRight">
+                <EllipsisOutlined class="session-more" @click.stop />
+                <template #overlay>
+                  <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
+                    <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
+                    <a-menu-item key="rename">重命名</a-menu-item>
+                    <a-menu-item key="export">导出</a-menu-item>
+                    <a-menu-divider />
+                    <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
+                  </a-menu>
+                </template>
+              </a-dropdown>
+            </div>
+            <div v-if="sessionLoading" class="session-loading-more">
+              <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
+              <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
+            </div>
+            <div v-if="sessionHasMore && !sessionLoading" ref="sessionLoadMoreRef" class="session-load-more-sentinel"></div>
+            <div v-if="sessions.length === 0 && !sessionLoading" class="session-empty">暂无对话</div>
           </div>
-          <div v-if="sessionLoading" class="session-loading-more">
-            <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
-            <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
-          </div>
-          <div v-if="sessionHasMore && !sessionLoading" ref="sessionLoadMoreRef" class="session-load-more-sentinel"></div>
-          <div v-if="sessions.length === 0 && !sessionLoading" class="session-empty">暂无对话</div>
-        </div>
+        </CollapseTransition>
       </div>
 
       <!-- 重命名弹窗 -->
@@ -243,7 +245,9 @@ import { getSessions, updateSessionTitle, deleteSession, togglePinSession, expor
 import AvatarFrame from '../components/AvatarFrame.vue'
 import LevelTag from '../components/LevelTag.vue'
 import ConversationSearchModal from '../components/chat/modals/ConversationSearchModal.vue'
+import CollapseTransition from '../components/common/CollapseTransition.vue'
 import { sseFetch } from '../utils/sseFetch'
+import { formatRelativeTime } from '../utils/format'
 
 // 启用 KeepAlive 缓存的页面：本地状态较多（长表单、编辑器、画布），切走再回来不丢失
 // 对应组件已通过 defineOptions 声明 name 以便 :include 匹配
@@ -821,7 +825,11 @@ watch(sessionLoadMoreRef, (el) => {
 }
 .collapse-icon {
   font-size: 10px;
-  transition: transform 0.2s;
+  color: var(--color-mute);
+  transition: transform 0.24s ease;
+}
+.collapse-icon.is-expanded {
+  transform: rotate(180deg);
 }
 .session-list {
   display: flex;
@@ -867,6 +875,12 @@ watch(sessionLoadMoreRef, (el) => {
 .session-item--pinned .session-title {
   color: var(--sidebar-text-bright);
   font-weight: 500;
+}
+.session-time {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--color-mute);
+  white-space: nowrap;
 }
 .session-pin-icon {
   flex-shrink: 0;

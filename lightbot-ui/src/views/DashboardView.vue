@@ -32,34 +32,10 @@
     <template v-else>
     <!-- 顶部统计概览 -->
     <div class="stats-overview">
-      <div class="stat-card">
-        <div class="stat-icon agent-icon"><RobotOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ basic.agentCount ?? '-' }}</div>
-          <div class="stat-label">Agent</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon knowledge-icon"><DatabaseOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ basic.knowledgeCount ?? '-' }}</div>
-          <div class="stat-label">知识库</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon session-icon"><MessageOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ basic.sessionCount ?? '-' }}</div>
-          <div class="stat-label">对话会话</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon message-icon"><FileTextOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ basic.messageCount ?? '-' }}</div>
-          <div class="stat-label">消息总数</div>
-        </div>
-      </div>
+      <LbStatCard :icon="RobotOutlined" accent="blue" :value="basic.agentCount ?? '-'" label="Agent" />
+      <LbStatCard :icon="DatabaseOutlined" accent="green" :value="basic.knowledgeCount ?? '-'" label="知识库" />
+      <LbStatCard :icon="MessageOutlined" accent="purple" :value="basic.sessionCount ?? '-'" label="对话会话" />
+      <LbStatCard :icon="FileTextOutlined" accent="orange" :value="basic.messageCount ?? '-'" label="消息总数" />
     </div>
 
     <!-- 对话趋势（整行） -->
@@ -209,6 +185,7 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { RobotOutlined, DatabaseOutlined, MessageOutlined, FileTextOutlined } from '@ant-design/icons-vue'
 import { getDashboardBasic, getDashboardAgents, getDashboardKnowledge, getDashboardChat } from '../api/dashboard'
+import LbStatCard from '../components/common/LbStatCard.vue'
 
 const basic = ref({})
 const agentStats = ref({})

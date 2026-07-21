@@ -6,6 +6,7 @@
     :footer="null"
     :maskClosable="false"
   >
+    <div class="dialog-scroll-body">
     <div class="create-prompt-info">
       <p>将当前配置创建为新的 Prompt，包含模板内容、模型配置。</p>
     </div>
@@ -48,16 +49,16 @@
         </div>
       </div>
     </div>
-
-    <div class="dialog-footer">
-      <div></div>
-      <div class="dialog-footer-right">
-        <button class="btn-cancel" @click="visible = false">取消</button>
-        <button class="btn-primary-sm" :disabled="submitting || !form.promptKey" @click="handleSubmit">
-          {{ submitting ? '创建中...' : '创建' }}
-        </button>
-      </div>
     </div>
+
+    <LbDialogFooter
+      :loading="submitting"
+      :confirm-disabled="!form.promptKey"
+      confirm-text="创建"
+      loading-text="创建中..."
+      @cancel="visible = false"
+      @confirm="handleSubmit"
+    />
   </a-modal>
 </template>
 
@@ -65,6 +66,7 @@
 import { ref, reactive, watch, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import TagInput from './TagInput.vue'
+import LbDialogFooter from './common/LbDialogFooter.vue'
 import { createPrompt, createPromptVersion } from '../api/prompt'
 
 const props = defineProps({
@@ -168,6 +170,13 @@ watch(visible, (val) => {
 </script>
 
 <style scoped>
+.dialog-scroll-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 8px);
+  scrollbar-gutter: stable;
+}
+
 .create-prompt-info {
   background: var(--color-canvas-soft-2);
   padding: 12px;
@@ -212,7 +221,8 @@ watch(visible, (val) => {
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 12px;
   background: var(--color-canvas);
-  padding: 8px;
+  /* padding-right 多预留 scrollbar 宽度，避免内容贴着滚动条 */
+  padding: 8px calc(16px + var(--scroll-content-gap, 8px)) 8px 8px;
   border-radius: 6px;
   border: 1px solid var(--color-hairline);
   white-space: pre-wrap;
@@ -220,7 +230,6 @@ watch(visible, (val) => {
   max-height: 100px;
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding-right: calc(8px + var(--scroll-content-gap, 8px));
 }
 
 .preview-vars {

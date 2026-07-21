@@ -1,38 +1,30 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">评测集</h1>
-        <p class="page-desc">创建和管理评测数据集</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索评测集名称..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
+    <LbManageHeader
+      title="评测集"
+      desc="创建和管理评测数据集"
+      v-model="searchText"
+      search-placeholder="搜索评测集名称..."
+      :refresh-disabled="loading"
+      create-text="新建评测集"
+      @refresh="loadData"
+      @create="openDialog()"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
         <a-tooltip title="示例评测集">
-          <button class="btn-outline" @click="openExampleModal">
+          <button class="lb-btn" @click="openExampleModal">
             <SnippetsOutlined />
           </button>
         </a-tooltip>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新建评测集
-        </button>
-        <button class="btn-outline" @click="router.push('/app/eval/evaluators')">
+        <button class="lb-btn" @click="router.push('/app/eval/evaluators')">
           <AuditOutlined /> 评估器
         </button>
-        <button class="btn-outline" @click="router.push('/app/eval/experiments')">
+        <button class="lb-btn" @click="router.push('/app/eval/experiments')">
           <ExperimentOutlined /> 实验
         </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading">
     <div class="card-grid">
@@ -62,11 +54,11 @@
         </template>
       </EntityCard>
 
-      <div v-if="list.length === 0 && !loading" class="empty-state">
-        <DatabaseOutlined class="empty-icon" />
-        <p v-if="searchText">没有匹配的评测集</p>
-        <p v-else>还没有评测集，点击右上角创建一个吧</p>
-      </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="DatabaseOutlined"
+        :title="searchText ? '没有匹配的评测集' : '还没有评测集，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -86,15 +78,11 @@
           <a-textarea v-model:value="form.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
 
     <!-- 示例评测集弹窗 -->
@@ -134,6 +122,9 @@ import {
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import EntityCard from '../components/EntityCard.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import {
   getEvalDatasets, createEvalDataset, updateEvalDataset, deleteEvalDataset,
   listEvalDatasetExamples, createFromEvalDatasetExample,

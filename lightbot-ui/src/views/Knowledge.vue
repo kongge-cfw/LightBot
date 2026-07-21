@@ -1,30 +1,22 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">知识库</h1>
-        <p class="page-desc">管理知识库，上传文档，基于 RAG 进行问答</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索知识库名称..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-outline" @click="router.push('/app/graph')">
+    <LbManageHeader
+      title="知识库"
+      desc="管理知识库，上传文档，基于 RAG 进行问答"
+      v-model="searchText"
+      search-placeholder="搜索知识库名称..."
+      :refresh-disabled="loading"
+      create-text="新建知识库"
+      @refresh="loadData"
+      @create="openCreateModal"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
+        <button class="lb-btn" @click="router.push('/app/graph')">
           <ApartmentOutlined /> 知识图谱
         </button>
-        <button class="btn-primary" @click="openCreateModal">
-          <PlusOutlined /> 新建知识库
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading">
     <div class="knowledge-grid">
@@ -79,11 +71,11 @@
         </div>
       </EntityCard>
 
-      <div v-if="list.length === 0 && !loading" class="empty-state">
-        <DatabaseOutlined class="empty-icon" />
-        <p v-if="searchText">没有匹配的知识库</p>
-        <p v-else>还没有知识库，点击右上角创建一个吧</p>
-      </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="DatabaseOutlined"
+        :title="searchText ? '没有匹配的知识库' : '还没有知识库，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -138,6 +130,8 @@ import { message, Modal } from 'ant-design-vue'
 import { getKnowledgeList, createKnowledge, deleteKnowledge } from '../api/knowledge'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { truncateText } from '../utils/format'
 
 const router = useRouter()
@@ -182,6 +176,8 @@ async function loadData() {
 let searchDebounceTimer = null
 watch(searchText, () => {
   clearTimeout(searchDebounceTimer)
+  // 立刻置 loading，避免 debounce 的 300ms 窗口期里 list=[] + loading=false 触发空状态闪现
+  loading.value = true
   searchDebounceTimer = setTimeout(() => loadData(), 300)
 })
 

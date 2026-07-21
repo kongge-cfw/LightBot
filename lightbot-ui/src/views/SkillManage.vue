@@ -1,34 +1,28 @@
 <template>
   <div class="page">
-    <div v-if="!hideHeader" class="page-header">
-      <div>
-        <h1 class="page-title">Skill 库</h1>
-        <p class="page-desc">全局可复用的 Skill：编排提示词 + 依赖工具/MCP，可在 Agent 详情中按需启用</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索 Skill 名称 / slug..."
-          allow-clear
-          style="width: 240px"
-          @pressEnter="loadData"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新增 Skill
-        </button>
-        <button class="btn-primary" style="background: #7c3aed" @click="importModalVisible = true">
+    <LbManageHeader
+      v-if="!hideHeader"
+      title="Skill 库"
+      desc="全局可复用的 Skill：编排提示词 + 依赖工具/MCP，可在 Agent 详情中按需启用"
+      v-model="searchText"
+      :search-width="240"
+      search-placeholder="搜索 Skill 名称 / slug..."
+      :refresh-disabled="loading"
+      create-text="新增 Skill"
+      @refresh="loadData"
+      @search-enter="loadData"
+      @create="openDialog()"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
+        <button class="lb-btn lb-btn--primary" style="background: #7c3aed" @click="importModalVisible = true">
           <UploadOutlined /> ZIP 导入
         </button>
-        <button class="btn-primary" style="background: #0369a1" @click="remoteInstallVisible = true">
+        <button class="lb-btn lb-btn--primary" style="background: #0369a1" @click="remoteInstallVisible = true">
           <CloudDownloadOutlined /> 远程安装
         </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <div class="card-grid">
@@ -81,9 +75,11 @@
         </div>
       </EntityCard>
 
-      <div v-if="list.length === 0 && !loading" class="empty-tip">
-        {{ searchText ? '没有匹配的 Skill' : '暂无 Skill，点击右上角新增' }}
-      </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="BookOutlined"
+        :title="searchText ? '没有匹配的 Skill' : '还没有 Skill，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -141,15 +137,11 @@
         </a-form-item>
       </a-form>
       </div>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
 
     <!-- ZIP 导入弹窗 -->
@@ -205,12 +197,15 @@ defineOptions({ name: 'SkillManage' })
 defineProps({ hideHeader: Boolean })
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, UploadOutlined, ExportOutlined, CloudDownloadOutlined, MoreOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, UploadOutlined, ExportOutlined, CloudDownloadOutlined, MoreOutlined, BookOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import EntitySelectOption from '../components/EntitySelectOption.vue'
 import EntityCard from '../components/EntityCard.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { getSkills, createSkill, updateSkill, deleteSkill, setSkillEnabled, exportSkillZip } from '../api/skill'
 import { getTools } from '../api/tool'
 import { getMcpServers } from '../api/mcp'
@@ -244,6 +239,8 @@ const form = reactive({
 let searchDebounceTimer = null
 watch(searchText, () => {
   clearTimeout(searchDebounceTimer)
+  // 立刻置 loading，避免 debounce 的 300ms 窗口期里 list=[] + loading=false 触发空状态闪现
+  loading.value = true
   searchDebounceTimer = setTimeout(() => loadData(), 300)
 })
 
@@ -680,11 +677,21 @@ defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallMo
   color: var(--color-mute);
 }
 
-.empty-tip {
+.empty-state {
   grid-column: 1 / -1;
   text-align: center;
   padding: 48px 24px;
   color: var(--color-mute);
+}
+.empty-icon {
+  font-size: 48px;
+  color: #d4d4d8;
+  margin-bottom: 12px;
+  display: block;
+}
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
 }
 
 .dialog-footer {

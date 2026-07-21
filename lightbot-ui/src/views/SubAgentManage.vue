@@ -52,7 +52,8 @@
 
       <div v-if="list.length === 0 && !loading" class="empty-state">
         <RobotOutlined class="empty-icon" />
-        <p>暂无 SubAgent，点击右上角创建</p>
+        <p v-if="searchText">没有匹配的 SubAgent</p>
+        <p v-else>还没有 SubAgent，点击右上角创建一个吧</p>
       </div>
     </div>
     </a-spin>
@@ -254,16 +255,17 @@
         </div>
       </div>
       </div>
-      <div class="dialog-footer">
-        <div class="dialog-footer-left">
-          <button v-if="currentDetail" class="btn-cancel" @click="detailVisible = false; openEditDialog(currentDetail)">
+      <LbDialogFooter
+        cancel-text="关闭"
+        hide-confirm
+        @cancel="detailVisible = false"
+      >
+        <template #left>
+          <button v-if="currentDetail" class="lb-btn" @click="detailVisible = false; openEditDialog(currentDetail)">
             <EditOutlined /> 编辑
           </button>
-        </div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="detailVisible = false">关闭</button>
-        </div>
-      </div>
+        </template>
+      </LbDialogFooter>
     </a-modal>
   </div>
 </template>
@@ -280,6 +282,7 @@ import { getSubAgents, createSubAgent, updateSubAgent, deleteSubAgent, setSubAge
 import { getTools } from '../api/tool'
 import { getProvidersWithModels } from '../api/modelProvider'
 import ModelSelect from '../components/ModelSelect.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 import { truncateText } from '../utils/format'
 import { getToolTypeLabel } from '../utils/bindingTheme'
 

@@ -197,15 +197,13 @@
             </div>
           </a-radio>
         </a-radio-group>
-        <div class="dialog-footer">
-          <div></div>
-          <div class="dialog-footer-right">
-            <button class="btn-cancel" @click="restartDialogVisible = false">取消</button>
-            <button class="btn-primary-sm" :disabled="restartSubmitting" @click="handleRestartConfirm">
-              {{ restartMode === 'direct' ? (restartSubmitting ? '重启中...' : '确认重启') : '下一步' }}
-            </button>
-          </div>
-        </div>
+        <LbDialogFooter
+          :loading="restartSubmitting"
+          :confirm-text="restartMode === 'direct' ? '确认重启' : '下一步'"
+          :loading-text="restartMode === 'direct' ? '重启中...' : '下一步'"
+          @cancel="restartDialogVisible = false"
+          @confirm="handleRestartConfirm"
+        />
       </div>
 
       <div v-if="restartStep === 1">
@@ -269,15 +267,16 @@
         </a-form>
         </div>
         </a-spin>
-        <div class="dialog-footer">
-          <button class="btn-cancel" @click="restartStep = 0">上一步</button>
-          <div class="dialog-footer-right">
-            <button class="btn-cancel" @click="restartDialogVisible = false">取消</button>
-            <button class="btn-primary-sm" :disabled="restartSubmitting" @click="handleEditSubmit">
-              {{ restartSubmitting ? '提交中...' : '更新并重新评测' }}
-            </button>
-          </div>
-        </div>
+        <LbDialogFooter
+          :loading="restartSubmitting"
+          confirm-text="更新并重新评测"
+          @cancel="restartDialogVisible = false"
+          @confirm="handleEditSubmit"
+        >
+          <template #left>
+            <button class="lb-btn" @click="restartStep = 0">上一步</button>
+          </template>
+        </LbDialogFooter>
       </div>
     </a-modal>
 
@@ -333,6 +332,7 @@ import { getEvalDatasets, getEvalDatasetVersions } from '../api/evalDataset'
 import { getPrompts, getPromptVersions } from '../api/prompt'
 import { getEvaluators, getEvaluatorVersions } from '../api/evaluator'
 import { formatTime } from '../utils/format'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 
 const route = useRoute()
 const router = useRouter()

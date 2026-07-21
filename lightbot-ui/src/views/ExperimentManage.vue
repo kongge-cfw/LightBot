@@ -1,30 +1,22 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">实验管理</h1>
-        <p class="page-desc">创建和管理 Prompt 评测实验</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索实验名称..."
-          allow-clear
-          style="width: 220px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-outline" @click="router.push('/app/eval/datasets')">
+    <LbManageHeader
+      title="实验管理"
+      desc="创建和管理 Prompt 评测实验"
+      v-model="searchText"
+      search-placeholder="搜索实验名称..."
+      :refresh-disabled="loading"
+      create-text="创建实验"
+      @refresh="loadData"
+      @create="openCreateDialog()"
+    >
+      <template #searchPrefix><SearchOutlined /></template>
+      <template #actions>
+        <button class="lb-btn" @click="router.push('/app/eval/datasets')">
           <ArrowLeftOutlined /> 返回评测
         </button>
-        <button class="btn-primary" @click="openCreateDialog()">
-          <PlusOutlined /> 创建实验
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <a-table
       :dataSource="list"
@@ -121,6 +113,7 @@ import {
 import { useDebouncedWatch } from '../composables/useDebounce'
 import { formatTime } from '../utils/format'
 import ExperimentCreateForm from '../components/eval/ExperimentCreateForm.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
 
 const router = useRouter()
 const list = ref([])

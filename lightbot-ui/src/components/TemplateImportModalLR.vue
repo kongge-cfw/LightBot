@@ -76,18 +76,17 @@
       </div>
     </div>
 
-    <div class="dialog-footer">
-      <div class="dialog-footer-left">
+    <LbDialogFooter
+      confirm-text="导入模板"
+      :confirm-disabled="!selectedTemplate"
+      @cancel="visible = false"
+      @confirm="handleImport"
+    >
+      <template #left>
         <span class="template-count">共 {{ templates.length }} 个模板</span>
         <span class="template-tip">仅导入提示词内容，不导入模型配置</span>
-      </div>
-      <div class="dialog-footer-right">
-        <button class="btn-cancel" @click="visible = false">取消</button>
-        <button class="btn-primary-sm" :disabled="!selectedTemplate" @click="handleImport">
-          导入模板
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbDialogFooter>
   </a-modal>
 </template>
 
@@ -97,6 +96,7 @@ import { useRouter } from 'vue-router'
 import { SearchOutlined, SettingOutlined, FileTextOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { getPromptTemplates, getPromptTemplate } from '../api/prompt'
+import LbDialogFooter from './common/LbDialogFooter.vue'
 
 const router = useRouter()
 const props = defineProps({

@@ -11,34 +11,10 @@
 
     <!-- 顶部统计卡片 -->
     <div v-if="activeTab !== 'tool'" class="stats-overview">
-      <div class="stat-card">
-        <div class="stat-icon total-icon"><BarChartOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ overview.totalCount ?? '-' }}</div>
-          <div class="stat-label">总请求数</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon token-icon"><ThunderboltOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ formatTokens(overview.totalTokens) }}</div>
-          <div class="stat-label">总Token</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon duration-icon"><ClockCircleOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ formatDuration(overview.avgDurationMs) }}</div>
-          <div class="stat-label">平均耗时</div>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon tool-icon"><ToolOutlined /></div>
-        <div class="stat-info">
-          <div class="stat-value">{{ overview.totalToolCalls ?? '-' }}</div>
-          <div class="stat-label">工具调用</div>
-        </div>
-      </div>
+      <LbStatCard :icon="BarChartOutlined" accent="blue" :value="overview.totalCount ?? '-'" label="总请求数" />
+      <LbStatCard :icon="ThunderboltOutlined" accent="purple" :value="formatTokens(overview.totalTokens)" label="总Token" />
+      <LbStatCard :icon="ClockCircleOutlined" accent="teal" :value="formatDuration(overview.avgDurationMs)" label="平均耗时" />
+      <LbStatCard :icon="ToolOutlined" accent="orange" :value="overview.totalToolCalls ?? '-'" label="工具调用" />
     </div>
 
     <!-- 对话/工作流 筛选栏 -->
@@ -578,6 +554,7 @@ import { message, Modal } from 'ant-design-vue'
 import MediaAttachmentThumb from '../components/MediaAttachmentThumb.vue'
 import MentionTextRenderer from '../components/MentionTextRenderer.vue'
 import ObservabilitySubAgentTree from '../components/observability/ObservabilitySubAgentTree.vue'
+import LbStatCard from '../components/common/LbStatCard.vue'
 import { getTraces, getTraceDetail, getTraceOverview, deleteTraces } from '../api/observability'
 import { getToolCalls, deleteToolCalls } from '../api/toolCall'
 import { formatTime, formatJson } from '../utils/format'

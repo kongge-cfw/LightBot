@@ -1,22 +1,19 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.back()">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">{{ dataset?.name || '评测集详情' }}</h1>
-        <p class="page-desc">{{ dataset?.description || '' }}</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn-outline-sm" @click="openVersionDialog()">
+    <LbDetailHeader
+      :title="dataset?.name || '评测集详情'"
+      :desc="dataset?.description || ''"
+      @back="router.back()"
+    >
+      <template #extra>
+        <button class="lb-btn" @click="openVersionDialog()">
           <HistoryOutlined /> 新建版本
         </button>
-        <button class="btn-primary-sm" @click="openItemDialog()">
+        <button class="lb-btn lb-btn--primary" @click="openItemDialog()">
           <PlusOutlined /> 添加数据项
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <div class="content-grid">
       <!-- 左侧：数据项列表 -->
@@ -105,15 +102,11 @@
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="versionDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleCreateVersion">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="versionDialogVisible = false"
+        @confirm="handleCreateVersion"
+      />
     </a-modal>
 
     <!-- 添加数据项弹窗 -->
@@ -141,15 +134,11 @@
           />
         </a-form-item>
       </a-form>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="itemDialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleCreateItem">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="itemDialogVisible = false"
+        @confirm="handleCreateItem"
+      />
     </a-modal>
 
     <!-- 版本数据项详情弹窗 -->
@@ -186,6 +175,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { PlusOutlined, ArrowLeftOutlined, HistoryOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { formatDate as formatTime } from '../utils/format'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 import {
   getEvalDataset,
   getEvalDatasetVersions, createEvalDatasetVersion, getEvalDatasetVersionItems,

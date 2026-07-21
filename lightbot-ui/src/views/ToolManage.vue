@@ -1,19 +1,18 @@
 <template>
   <div class="page">
-    <div v-if="!hideHeader" class="page-header">
-      <div>
-        <h1 class="page-title">工具管理</h1>
-        <p class="page-desc">管理 Agent 可使用的工具（Tool）</p>
-      </div>
-      <div class="page-header-actions">
-        <a-input
-          v-model:value="searchText"
-          placeholder="搜索工具名称..."
-          allow-clear
-          style="width: 180px"
-        >
-          <template #prefix><SearchOutlined /></template>
-        </a-input>
+    <LbManageHeader
+      v-if="!hideHeader"
+      title="工具管理"
+      desc="管理 Agent 可使用的工具（Tool）"
+      v-model="searchText"
+      :search-width="180"
+      search-placeholder="搜索工具名称..."
+      :refresh-disabled="loading"
+      create-text="新增工具"
+      @refresh="loadData"
+      @create="openDialog()"
+    >
+      <template #filters>
         <a-select
           v-model:value="toolTypeFilter"
           placeholder="工具类型"
@@ -30,14 +29,9 @@
         >
           <a-select-option v-for="t in allTags" :key="t" :value="t">{{ t }}</a-select-option>
         </a-select>
-        <button class="btn-outline" @click="loadData" :disabled="loading">
-          <ReloadOutlined :spin="loading" /> 刷新
-        </button>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新增工具
-        </button>
-      </div>
-    </div>
+      </template>
+      <template #searchPrefix><SearchOutlined /></template>
+    </LbManageHeader>
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <div class="provider-grid">
@@ -91,9 +85,11 @@
           </a-tooltip>
         </div>
       </EntityCard>
-      <div v-if="list.length === 0 && !loading" class="empty-tip">
-        {{ searchText ? '没有匹配的工具' : '暂无工具，点击右上角新增' }}
-      </div>
+      <LbEmptyState
+        v-if="list.length === 0 && !loading"
+        :icon="ToolOutlined"
+        :title="searchText ? '没有匹配的工具' : '还没有工具，点击右上角创建一个吧'"
+      />
     </div>
     </a-spin>
 
@@ -271,15 +267,11 @@
         </template>
       </a-form>
       </div>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
 
     <!-- 测试工具弹窗 -->
@@ -329,15 +321,14 @@
       </template>
       </div>
       </a-spin>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="testDialogVisible = false">关闭</button>
-          <button class="btn-primary-sm" :disabled="testLoading" @click="handleTest">
-            {{ testLoading ? '执行中...' : '执行测试' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        cancel-text="关闭"
+        confirm-text="执行测试"
+        loading-text="执行中..."
+        :loading="testLoading"
+        @cancel="testDialogVisible = false"
+        @confirm="handleTest"
+      />
     </a-modal>
 
     <!-- 工具详情弹窗 -->
@@ -471,16 +462,21 @@
         </template>
       </div>
 
-      <div class="dialog-footer">
-        <div class="dialog-footer-left">
-          <button v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'" class="btn-cancel" @click="detailVisible = false; openDialog(detailTool)">
+      <LbDialogFooter
+        cancel-text="关闭"
+        hide-confirm
+        @cancel="detailVisible = false"
+      >
+        <template #left>
+          <button
+            v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'"
+            class="lb-btn"
+            @click="detailVisible = false; openDialog(detailTool)"
+          >
             <EditOutlined /> 编辑
           </button>
-        </div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="detailVisible = false">关闭</button>
-        </div>
-      </div>
+        </template>
+      </LbDialogFooter>
     </a-modal>
 
   </div>
@@ -489,7 +485,7 @@
 <script setup>
 defineProps({ hideHeader: Boolean })
 import { ref, reactive, watch, onMounted, h, computed } from 'vue'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined, LockOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined, LockOutlined, RightOutlined, ThunderboltOutlined, ToolOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { getTools, createTool, updateTool, deleteTool, testTool, setToolEnabled } from '../api/tool'
 import { getToolTypes } from '../api/enum'
@@ -497,6 +493,9 @@ import JsonInput from '../components/JsonInput.vue'
 import EntityCard from '../components/EntityCard.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
 import IconPicker from '../components/IconPicker.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
+import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { truncateText } from '../utils/format'
 
 function getPopupContainer() {
@@ -726,6 +725,8 @@ async function loadToolTypes() {
 let searchDebounceTimer = null
 watch(searchText, () => {
   clearTimeout(searchDebounceTimer)
+  // 立刻置 loading，避免 debounce 的 300ms 窗口期里 list=[] + loading=false 触发空状态闪现
+  loading.value = true
   searchDebounceTimer = setTimeout(() => loadData(), 300)
 })
 watch(toolTypeFilter, () => loadData())
@@ -1023,11 +1024,20 @@ defineExpose({ openDialog, search, refresh, loading })
   border: 1px solid var(--color-purple-border);
   max-width: 200px;
 }
-.empty-tip {
+.empty-state {
   grid-column: 1 / -1;
   text-align: center;
   padding: 48px 24px;
   color: var(--color-mute);
+}
+.empty-icon {
+  font-size: 48px;
+  color: #d4d4d8;
+  margin-bottom: 12px;
+  display: block;
+}
+.empty-state p {
+  margin: 0;
   font-size: 14px;
 }
 .param-hint {

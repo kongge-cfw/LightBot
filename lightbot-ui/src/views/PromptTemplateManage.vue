@@ -43,9 +43,7 @@
             <button class="btn-icon danger" @click="handleDelete(t.id)"><DeleteOutlined /></button>
           </a-tooltip>
         </template>
-        <div class="card-tags" v-if="t.tags">
-          <a-tag v-for="tag in t.tags.split(',').slice(0, 3)" :key="tag" color="blue" size="small">{{ tag.trim() }}</a-tag>
-        </div>
+        <LbTagList v-if="t.tags" :tags="t.tags" :max="3" />
       </EntityCard>
       <div v-if="filteredTemplates.length === 0 && !loading" class="empty-state">
         <FileTextOutlined class="empty-icon" />
@@ -126,15 +124,11 @@
         </a-form-item>
       </a-form>
       </div>
-      <div class="dialog-footer">
-        <div></div>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
-          </button>
-        </div>
-      </div>
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      />
     </a-modal>
   </div>
 </template>
@@ -150,6 +144,8 @@ import { message, Modal } from 'ant-design-vue'
 import TagInput from '../components/TagInput.vue'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbTagList from '../components/common/LbTagList.vue'
 import { buildModelConfigJson, parseModelConfigJson } from '../utils/modelSelect'
 import {
   getPromptTemplates, createPromptTemplate, updatePromptTemplate, deletePromptTemplate

@@ -1,19 +1,19 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">模型管理</h1>
-        <p class="page-desc">管理 AI 模型提供商的 API 配置</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn-refresh" :disabled="refreshing" @click="handleRefreshCache">
+    <LbManageHeader
+      title="模型管理"
+      desc="管理 AI 模型提供商的 API 配置"
+      :searchable="false"
+      :show-refresh="false"
+      create-text="新增提供商"
+      @create="openDialog()"
+    >
+      <template #actions>
+        <button class="lb-btn" :disabled="refreshing" @click="handleRefreshCache">
           <SyncOutlined :class="{ spinning: refreshing }" /> 刷新缓存
         </button>
-        <button class="btn-primary" @click="openDialog()">
-          <PlusOutlined /> 新增提供商
-        </button>
-      </div>
-    </div>
+      </template>
+    </LbManageHeader>
 
     <div class="provider-grid">
       <div v-for="p in list" :key="p.id" :class="['provider-card', { disabled: p.status?.code === 'disabled' || p.status === 'disabled' }]">
@@ -103,17 +103,17 @@
         </template>
         </a-form>
       </div>
-      <div class="dialog-footer">
-        <button class="btn-check" :disabled="checking" @click="handleCheck">
-          {{ checking ? '检查中...' : '检查连通性' }}
-        </button>
-        <div class="dialog-footer-right">
-          <button class="btn-cancel" @click="dialogVisible = false">取消</button>
-          <button class="btn-primary-sm" :disabled="submitting" @click="handleSubmit">
-            {{ submitting ? '提交中...' : '确定' }}
+      <LbDialogFooter
+        :loading="submitting"
+        @cancel="dialogVisible = false"
+        @confirm="handleSubmit"
+      >
+        <template #left>
+          <button class="lb-btn" :disabled="checking" @click="handleCheck">
+            {{ checking ? '检查中...' : '检查连通性' }}
           </button>
-        </div>
-      </div>
+        </template>
+      </LbDialogFooter>
     </a-modal>
 
     <!-- 提供商预设弹窗 -->
@@ -299,6 +299,8 @@ import { getModelProviders, createModelProvider, updateModelProvider, deleteMode
 import { getModelProviderTypes, getModelTypes } from '../api/enum'
 import { getModelsByProvider, createModel, deleteModel } from '../api/model'
 import JsonInput from '../components/JsonInput.vue'
+import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbManageHeader from '../components/common/LbManageHeader.vue'
 
 const list = ref([])
 const providerTypes = ref([])

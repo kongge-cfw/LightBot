@@ -1,30 +1,32 @@
 <template>
   <div class="skill-detail-page">
     <!-- 顶部导航栏 -->
-    <div class="detail-header">
-      <button class="btn-back" @click="goBack">
-        <ArrowLeftOutlined /> 返回
-      </button>
-      <div class="header-info">
-        <h1 class="header-title">{{ skill.displayName || skill.name || 'Skill 详情' }}</h1>
-        <div class="header-tags">
-          <span v-if="skill.slug" class="tag tag-slug">{{ skill.slug }}</span>
-          <a-tag :color="skill.status === 'disabled' ? 'default' : 'success'">
-            {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
-          </a-tag>
-          <a-tag v-if="skill.isBuiltin === 1" color="blue">内置</a-tag>
-          <span v-if="skill.version" class="tag tag-version">v{{ skill.version }}</span>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="btn-outline" @click="handleExport">
+    <LbDetailHeader
+      :title="skill.displayName || skill.name || 'Skill 详情'"
+      @back="goBack"
+    >
+      <template #tags>
+        <span v-if="skill.slug" class="tag tag-slug">{{ skill.slug }}</span>
+        <a-tag :color="skill.status === 'disabled' ? 'default' : 'success'">
+          {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
+        </a-tag>
+        <a-tag v-if="skill.isBuiltin === 1" color="blue">内置</a-tag>
+        <span v-if="skill.version" class="tag tag-version">v{{ skill.version }}</span>
+      </template>
+      <template #extra>
+        <button class="lb-btn" @click="handleExport">
           <ExportOutlined /> 导出
         </button>
-        <button v-if="skill.isBuiltin !== 1" class="btn-outline danger" @click="handleDelete">
+        <button
+          v-if="skill.isBuiltin !== 1"
+          class="lb-btn"
+          style="color: var(--color-error); border-color: var(--color-error);"
+          @click="handleDelete"
+        >
           <DeleteOutlined /> 删除
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <!-- Tab 内容 -->
     <a-spin :spinning="loading" tip="加载中..." style="flex:1; min-height:0; display:flex; flex-direction:column;">
@@ -395,6 +397,7 @@ import { getEnabledSkills } from '../api/skill'
 import { truncateText } from '../utils/format'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
