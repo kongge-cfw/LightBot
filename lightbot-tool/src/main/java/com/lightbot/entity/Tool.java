@@ -94,6 +94,14 @@ public class Tool {
     @Schema(description = "状态")
     private CommonStatus status;
 
+    @TableField("rate_limit_enabled")
+    @Schema(description = "是否启用限流")
+    private Boolean rateLimitEnabled;
+
+    @TableField(value = "rate_limit_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "限流配置 JSON：{\"limit\":10,\"window\":\"MINUTE|HOUR|DAY\"}")
+    private String rateLimitConfig;
+
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

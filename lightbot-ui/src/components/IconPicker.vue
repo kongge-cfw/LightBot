@@ -7,6 +7,7 @@
     :filter-option="filterOption"
     :get-popup-container="getPopupContainer"
     :dropdown-match-select-width="360"
+    :disabled="disabled"
     style="width: 100%"
     @change="onChange"
   >
@@ -28,6 +29,7 @@ import { ICON_OPTIONS } from '../utils/iconOptions'
 
 const props = defineProps({
   value: { type: String, default: '' },
+  disabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:value'])
 

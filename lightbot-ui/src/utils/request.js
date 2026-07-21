@@ -74,13 +74,34 @@ const request = axios.create({
   ],
 })
 
+// Trace ID 透传：后端响应头 X-Trace-Id 写入 sessionStorage，下次请求回写便于前后端日志关联
+const TRACE_ID_HEADER = 'X-Trace-Id'
+const TRACE_ID_STORAGE_KEY = 'lightbot:traceId'
+
 request.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
     config.headers['Authorization'] = token
   }
+  const lastTraceId = sessionStorage.getItem(TRACE_ID_STORAGE_KEY)
+  if (lastTraceId) {
+    config.headers[TRACE_ID_HEADER] = lastTraceId
+  }
   return config
 })
+
+/**
+ * 从响应头捕获 traceId 写入 sessionStorage
+ * 后端 TraceIdFilter 在每个响应都带 X-Trace-Id，axios header 自动小写化
+ * @param {object} headers axios response headers
+ */
+function captureTraceId(headers) {
+  if (!headers) return
+  const traceId = headers[TRACE_ID_HEADER.toLowerCase()] || headers[TRACE_ID_HEADER]
+  if (traceId) {
+    sessionStorage.setItem(TRACE_ID_STORAGE_KEY, traceId)
+  }
+}
 
 /** HTTP状态码对应的用户友好提示 */
 const HTTP_STATUS_MSG = {
@@ -109,6 +130,7 @@ function buildLoginTarget() {
 
 request.interceptors.response.use(
   (response) => {
+    captureTraceId(response.headers)
     const res = response.data
     if (res.code && res.code !== 200) {
       // 业务错误（HTTP 200 但 code !== 200）：使用后端返回的 message
@@ -124,6 +146,7 @@ request.interceptors.response.use(
     return res
   },
   (error) => {
+    captureTraceId(error.response?.headers)
     const status = error.response?.status
 
     // 无响应（后端未启动/网络断开）→ 跳 Landing 页，URL 携带 redirect 便于恢复

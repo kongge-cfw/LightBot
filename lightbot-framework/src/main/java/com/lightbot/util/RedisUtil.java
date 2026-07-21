@@ -3,10 +3,12 @@ package com.lightbot.util;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -134,6 +136,35 @@ public class RedisUtil {
      */
     public boolean expire(String key, Duration timeout) {
         return Boolean.TRUE.equals(stringRedisTemplate.expire(key, timeout));
+    }
+
+    // ==================== 限流（固定窗口） ====================
+    // 用于工具维度限流等场景，按 (维度, key) Redis 计数 + Lua 原子 INCR/EXPIRE
+
+    private static final DefaultRedisScript<Long> RATE_LIMIT_SCRIPT;
+    static {
+        RATE_LIMIT_SCRIPT = new DefaultRedisScript<>();
+        // 第一次进入窗口时设置过期；后续仅 INCR。返回当前累计计数。
+        RATE_LIMIT_SCRIPT.setScriptText(
+                "local c = redis.call('INCR', KEYS[1]) " +
+                "if c == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end " +
+                "return c"
+        );
+        RATE_LIMIT_SCRIPT.setResultType(Long.class);
+    }
+
+    /**
+     * 固定窗口限流原子计数：返回当前窗口内的累计调用次数
+     * <p>第一次进入窗口（key 不存在）时同时设置 TTL，避免独立 EXPIRE 漏设导致 key 永驻。
+     * 调用方拿到 count 后自行判定是否超过阈值。</p>
+     *
+     * @param key            限流 Key（建议已包含 userId/toolName/window 维度）
+     * @param windowSeconds  窗口大小（秒）
+     * @return 当前窗口内的累计计数（含本次）
+     */
+    public long rateLimitIncrement(String key, long windowSeconds) {
+        Long val = stringRedisTemplate.execute(RATE_LIMIT_SCRIPT, List.of(key), String.valueOf(windowSeconds));
+        return val != null ? val : 1L;
     }
 
     // ==================== Hash 操作 ====================

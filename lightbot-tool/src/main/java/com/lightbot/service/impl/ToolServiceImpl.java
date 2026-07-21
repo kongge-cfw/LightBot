@@ -18,6 +18,8 @@ import com.lightbot.service.port.DefaultAgentIdProvider;
 import com.lightbot.util.ToolInputSchemaValidator;
 import com.lightbot.util.ToolIoSchemaUtil;
 import com.lightbot.util.ValidatingToolCallback;
+import com.lightbot.util.ToolRateLimiter;
+import com.lightbot.util.RateLimitedToolCallback;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.metadata.ToolMetadata;
@@ -56,6 +58,7 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
     private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
     private final ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider;
     private final ToolInputSchemaValidator toolInputSchemaValidator;
+    private final ToolRateLimiter toolRateLimiter;
 
     /** 启动时扫描缓存的内置 ToolCallback 列表 */
     private volatile List<ToolCallback> cachedBuiltinCallbacks;
@@ -65,13 +68,15 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                            ApiToolExecutionService apiToolExecutionService,
                            com.fasterxml.jackson.databind.ObjectMapper objectMapper,
                            ObjectProvider<DefaultAgentIdProvider> defaultAgentIdProvider,
-                           ToolInputSchemaValidator toolInputSchemaValidator) {
+                           ToolInputSchemaValidator toolInputSchemaValidator,
+                           ToolRateLimiter toolRateLimiter) {
         this.applicationContext = applicationContext;
         this.toolArgsSanitizer = toolArgsSanitizer;
         this.apiToolExecutionService = apiToolExecutionService;
         this.objectMapper = objectMapper;
         this.defaultAgentIdProvider = defaultAgentIdProvider;
         this.toolInputSchemaValidator = toolInputSchemaValidator;
+        this.toolRateLimiter = toolRateLimiter;
     }
 
     @Override
@@ -109,6 +114,8 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         tool.setAuthType(request.getAuthType());
         tool.setAuthConfig(request.getAuthConfig());
         tool.setTags(request.getTags());
+        tool.setRateLimitEnabled(Boolean.TRUE.equals(request.getRateLimitEnabled()));
+        tool.setRateLimitConfig(request.getRateLimitConfig());
         tool.setStatus(CommonStatus.ACTIVE);
         save(tool);
         return tool;
@@ -125,14 +132,22 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         if (tool.getToolType() == ToolType.KNOWLEDGE) {
             throw new BizException(ErrorCode.TOOL_NOT_EDITABLE);
         }
-        // 3. 名称变更时校验唯一性
+        // 3. 内置工具仅允许编辑限流相关字段（由注册器自动管理其他字段，用户改动会被覆盖）
+        if (tool.getToolType() == ToolType.BUILTIN) {
+            tool.setRateLimitEnabled(Boolean.TRUE.equals(request.getRateLimitEnabled()));
+            tool.setRateLimitConfig(request.getRateLimitConfig());
+            updateById(tool);
+            return tool;
+        }
+        // 4. 自定义 API 工具：全字段更新
+        // 4.1 名称变更时校验唯一性
         if (!tool.getName().equals(request.getName())) {
             long count = count(new LambdaQueryWrapper<Tool>().eq(Tool::getName, request.getName()));
             if (count > 0) {
                 throw new BizException(ErrorCode.TOOL_NAME_EXISTS);
             }
         }
-        // 4. 更新字段
+        // 4.2 更新字段
         tool.setName(request.getName());
         tool.setDisplayName(request.getDisplayName());
         tool.setIcon(request.getIcon());
@@ -146,6 +161,8 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
         tool.setAuthType(request.getAuthType());
         tool.setAuthConfig(request.getAuthConfig());
         tool.setTags(request.getTags());
+        tool.setRateLimitEnabled(Boolean.TRUE.equals(request.getRateLimitEnabled()));
+        tool.setRateLimitConfig(request.getRateLimitConfig());
         tool.setStatus(request.getStatus());
         updateById(tool);
         return tool;
@@ -250,7 +267,9 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 .map(cb -> cb.getToolDefinition().name())
                 .collect(Collectors.toSet());
 
-        // 3. 过滤出 Agent 绑定的工具
+        // 3. 过滤出 Agent 绑定的工具，按 name 索引 Tool 元数据（用于限流装饰）
+        Map<String, Tool> toolByName = tools.stream()
+                .collect(Collectors.toMap(Tool::getName, t -> t, (a, b) -> a));
         List<ToolCallback> result = new ArrayList<>();
         for (Tool tool : tools) {
             if (allCallbackNames.contains(tool.getName())) {
@@ -262,8 +281,8 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 result.add(new ApiToolCallback(tool, apiToolExecutionService, objectMapper));
             }
         }
-        // 4. 包装 Schema 校验装饰器，LLM 误传参数时拦截并回喂结构化错误
-        return wrapValidators(result);
+        // 4. 包装 Schema 校验 + 限流装饰器
+        return wrapDecorators(result, toolByName);
     }
 
     @Override
@@ -284,7 +303,9 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 .map(cb -> cb.getToolDefinition().name())
                 .collect(Collectors.toSet());
 
-        // 3. 过滤出 Agent 绑定的工具
+        // 3. 过滤出 Agent 绑定的工具，按 name 索引 Tool 元数据（用于限流装饰）
+        Map<String, Tool> toolByName = tools.stream()
+                .collect(Collectors.toMap(Tool::getName, t -> t, (a, b) -> a));
         List<ToolCallback> result = new ArrayList<>();
         for (Tool tool : tools) {
             if (allCallbackNames.contains(tool.getName())) {
@@ -296,19 +317,29 @@ public class ToolServiceImpl extends ServiceImpl<ToolMapper, Tool>
                 result.add(new ApiToolCallback(tool, apiToolExecutionService, objectMapper));
             }
         }
-        // 4. 包装 Schema 校验装饰器
-        return wrapValidators(result);
+        // 4. 包装 Schema 校验 + 限流装饰器
+        return wrapDecorators(result, toolByName);
     }
 
     /**
-     * 为每个 ToolCallback 包装 Schema 校验装饰器
+     * 为每个 ToolCallback 包装 Schema 校验装饰器，并在开启限流时再包一层限流装饰器
+     * <p>装饰顺序：限流（外）→ Schema 校验 → 原始回调（内）。
+     * 限流先于参数校验拦截，避免被限流的请求仍触发参数解析消耗资源。</p>
      */
-    private List<ToolCallback> wrapValidators(List<ToolCallback> callbacks) {
+    private List<ToolCallback> wrapDecorators(List<ToolCallback> callbacks, Map<String, Tool> toolByName) {
         if (callbacks == null || callbacks.isEmpty()) {
             return List.of();
         }
         return callbacks.stream()
-                .map(cb -> (ToolCallback) new ValidatingToolCallback(cb, toolInputSchemaValidator))
+                .map(cb -> {
+                    ToolCallback validating = new ValidatingToolCallback(cb, toolInputSchemaValidator);
+                    Tool tool = toolByName.get(cb.getToolDefinition().name());
+                    if (tool != null && Boolean.TRUE.equals(tool.getRateLimitEnabled())
+                            && tool.getRateLimitConfig() != null && !tool.getRateLimitConfig().isBlank()) {
+                        return (ToolCallback) new RateLimitedToolCallback(validating, toolRateLimiter, tool.getRateLimitConfig());
+                    }
+                    return validating;
+                })
                 .toList();
     }
 

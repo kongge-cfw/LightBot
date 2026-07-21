@@ -68,7 +68,7 @@ function handleReload() {
   location.reload()
 }
 
-// 组装完整报错信息（含时间/URL/组件/堆栈），用户复制后开发者可直接定位
+// 组装完整报错信息（含时间/URL/组件/堆栈/traceId），用户复制后开发者可直接定位
 function buildFullErrorText() {
   const err = error.value
   if (!err) return ''
@@ -76,6 +76,10 @@ function buildFullErrorText() {
     `Time: ${new Date().toISOString()}`,
     `URL: ${location.href}`,
   ]
+  const lastTraceId = sessionStorage.getItem('lightbot:traceId')
+  if (lastTraceId) {
+    lines.push(`TraceId: ${lastTraceId}`)
+  }
   if (capturedContext.value?.componentTag) {
     lines.push(`Component: ${capturedContext.value.componentTag}`)
   }

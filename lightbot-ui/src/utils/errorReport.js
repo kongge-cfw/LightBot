@@ -6,6 +6,8 @@
 
 const BUFFER_KEY = 'lightbot:errorLog'
 const BUFFER_MAX = 50
+// 与 request.js 约定的 sessionStorage 键名，用于读取最近一次后端 traceId
+const TRACE_ID_KEY = 'lightbot:traceId'
 
 /**
  * 上报异常到监控平台
@@ -24,6 +26,8 @@ export function captureException(err, context = {}) {
       msg: err?.message || String(err),
       stack: err?.stack?.split('\n').slice(0, 5).join('\n'),
       url: location.href,
+      // 附带最近一次请求的后端 traceId，便于排查"前端报错 + 后端日志"关联场景
+      traceId: sessionStorage.getItem(TRACE_ID_KEY) || null,
       context,
     }
     const arr = JSON.parse(localStorage.getItem(BUFFER_KEY) || '[]')

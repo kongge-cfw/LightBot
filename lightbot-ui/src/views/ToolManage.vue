@@ -105,13 +105,13 @@
           <a-input v-model:value="form.name" placeholder="如：http_request（英文，唯一标识）（不超过30字）" :maxlength="30" show-count :disabled="form.toolType === 'builtin'" />
         </a-form-item>
         <a-form-item label="显示名称">
-          <a-input v-model:value="form.displayName" placeholder="如：HTTP 请求（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.displayName" placeholder="如：HTTP 请求（不超过30字）" :maxlength="30" show-count :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="图标">
-          <IconPicker v-model:value="form.icon" />
+          <IconPicker v-model:value="form.icon" :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="工具用途说明（不超过50字）" :maxlength="50" show-count />
+          <a-textarea v-model:value="form.description" :rows="2" placeholder="工具用途说明（不超过50字）" :maxlength="50" show-count :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="标签">
           <a-select
@@ -121,8 +121,25 @@
             placeholder="输入标签后回车（最多3个）"
             :token-separators="[',']"
             :options="tagSuggestions.map(t => ({ value: t }))"
+            :disabled="isBuiltin"
           />
           <div class="form-hint">标签用于分类筛选，最多 3 个</div>
+        </a-form-item>
+        <!-- 限流配置：所有工具类型均可编辑（内置工具亦如此） -->
+        <a-form-item label="启用限流">
+          <a-switch v-model:checked="form.rateLimitEnabled" />
+          <span class="form-hint-inline">按 (用户, 工具) 维度限制调用频率，超限返回提示让模型改用其他方式</span>
+        </a-form-item>
+        <a-form-item v-if="form.rateLimitEnabled" label="限流配置">
+          <div class="rate-limit-row">
+            <a-input-number v-model:value="form.rateLimitLimit" :min="1" :max="100000" style="width: 140px" />
+            <span class="rate-limit-text">次 / 每</span>
+            <a-select v-model:value="form.rateLimitWindow" style="width: 120px">
+              <a-select-option value="MINUTE">分钟</a-select-option>
+              <a-select-option value="HOUR">小时</a-select-option>
+              <a-select-option value="DAY">天</a-select-option>
+            </a-select>
+          </div>
         </a-form-item>
         <a-form-item label="工具类型" required>
           <a-select v-model:value="form.toolType" style="width: 100%" :disabled="form.id && form.toolType === 'builtin'">
@@ -174,10 +191,13 @@
             <JsonInput v-model="form.authConfig" :rows="2" placeholder='JSON 格式，如：{"apiKey":"xxx"}' />
           </a-form-item>
         </template>
-        <!-- 高级选项折叠区 -->
-        <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
+        <!-- 高级选项折叠区（内置工具无高级配置可编辑） -->
+        <div v-if="!isBuiltin" class="advanced-toggle" @click="showAdvanced = !showAdvanced">
           <span>高级选项</span>
           <RightOutlined :class="['toggle-icon', { expanded: showAdvanced }]" />
+        </div>
+        <div v-if="isBuiltin" class="builtin-hint">
+          <LockOutlined /> 内置工具由系统注册，仅支持编辑限流配置
         </div>
         <template v-if="showAdvanced">
           <a-form-item>
@@ -378,6 +398,24 @@
             </div>
           </div>
 
+          <!-- 限流配置 -->
+          <div class="detail-section">
+            <div class="detail-section-header"><ThunderboltOutlined /> 限流配置</div>
+            <div class="detail-info-grid">
+              <div class="detail-info-item">
+                <span class="detail-info-label">启用状态</span>
+                <span class="detail-info-value">
+                  <a-tag v-if="detailTool.rateLimitEnabled" color="green">已启用</a-tag>
+                  <a-tag v-else>未启用</a-tag>
+                </span>
+              </div>
+              <div class="detail-info-item" v-if="detailTool.rateLimitEnabled">
+                <span class="detail-info-label">限流阈值</span>
+                <span class="detail-info-value">{{ formatRateLimitConfig(detailTool.rateLimitConfig) }}</span>
+              </div>
+            </div>
+          </div>
+
           <!-- 参数说明 -->
           <div class="detail-section" v-if="detailTool.inputSchema && detailTool.inputSchema !== '{}'">
             <div class="detail-section-header"><UnorderedListOutlined /> 参数说明</div>
@@ -435,7 +473,7 @@
 
       <div class="dialog-footer">
         <div class="dialog-footer-left">
-          <button v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'builtin' && (detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'" class="btn-cancel" @click="detailVisible = false; openDialog(detailTool)">
+          <button v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'" class="btn-cancel" @click="detailVisible = false; openDialog(detailTool)">
             <EditOutlined /> 编辑
           </button>
         </div>
@@ -450,8 +488,8 @@
 
 <script setup>
 defineProps({ hideHeader: Boolean })
-import { ref, reactive, watch, onMounted, h } from 'vue'
-import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined, LockOutlined } from '@ant-design/icons-vue'
+import { ref, reactive, watch, onMounted, h, computed } from 'vue'
+import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, PlayCircleOutlined, TagsOutlined, FileTextOutlined, UnorderedListOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined, QuestionCircleOutlined, SwapOutlined, CodeOutlined, LockOutlined, RightOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { getTools, createTool, updateTool, deleteTool, testTool, setToolEnabled } from '../api/tool'
 import { getToolTypes } from '../api/enum'
@@ -483,7 +521,13 @@ const form = reactive({
   toolType: 'api', endpointUrl: '', authType: 'none',
   inputSchema: '{}', outputSchema: '{}', outputExample: '{}', authConfig: '{}', config: '{}',
   tags: [],
+  rateLimitEnabled: false,
+  rateLimitLimit: 10,
+  rateLimitWindow: 'MINUTE',
 })
+
+// 内置工具只允许编辑限流相关配置（其他字段一律锁定）
+const isBuiltin = computed(() => form.toolType === 'builtin')
 
 const testDialogVisible = ref(false)
 const testToolName = ref('')
@@ -547,6 +591,33 @@ function parseToolConfig(tool) {
   } catch {
     return {}
   }
+}
+
+/**
+ * 解析限流配置 JSON，返回 {limit, window}；非法时给默认值（10 次/分钟）
+ */
+function parseRateLimitConfig(cfg) {
+  const fallback = { limit: 10, window: 'MINUTE' }
+  if (!cfg) return fallback
+  try {
+    const parsed = typeof cfg === 'string' ? JSON.parse(cfg) : cfg
+    return {
+      limit: Number.isFinite(parsed?.limit) && parsed.limit > 0 ? parsed.limit : fallback.limit,
+      window: ['MINUTE', 'HOUR', 'DAY'].includes(parsed?.window) ? parsed.window : fallback.window,
+    }
+  } catch {
+    return fallback
+  }
+}
+
+const windowLabels = { MINUTE: '分钟', HOUR: '小时', DAY: '天' }
+
+/**
+ * 详情页展示限流配置文案：如 "10 次 / 分钟"
+ */
+function formatRateLimitConfig(cfg) {
+  const { limit, window } = parseRateLimitConfig(cfg)
+  return `${limit} 次 / 每${windowLabels[window] || window}`
 }
 
 function hasOutputExample(tool) {
@@ -673,6 +744,7 @@ function openDialog(row) {
         outputExampleStr = row.outputExample
       }
     }
+    const rateLimit = parseRateLimitConfig(row.rateLimitConfig)
     Object.assign(form, {
       ...row,
       toolType: row.toolType?.code || row.toolType || 'api',
@@ -680,6 +752,9 @@ function openDialog(row) {
       tags: parseTags(row.tags),
       outputExample: outputExampleStr,
       config: JSON.stringify(config),
+      rateLimitEnabled: row.rateLimitEnabled === true,
+      rateLimitLimit: rateLimit.limit,
+      rateLimitWindow: rateLimit.window,
     })
   } else {
     Object.assign(form, {
@@ -687,14 +762,22 @@ function openDialog(row) {
       toolType: 'api', endpointUrl: '', authType: 'none',
       inputSchema: '{}', outputSchema: '{}', outputExample: '{}', authConfig: '{}', config: '{}',
       tags: [],
+      rateLimitEnabled: false,
+      rateLimitLimit: 10,
+      rateLimitWindow: 'MINUTE',
     })
   }
+  // 内置工具无高级配置可编辑，强制收起
+  showAdvanced.value = false
   dialogVisible.value = true
 }
 
 async function handleSubmit() {
   if (!form.name.trim()) return message.warning('请输入工具标识')
   if (form.toolType === 'api' && !form.endpointUrl?.trim()) return message.warning('API 类型必须填写端点地址')
+  if (form.rateLimitEnabled && (!form.rateLimitLimit || form.rateLimitLimit < 1)) {
+    return message.warning('限流次数必须为正整数')
+  }
   submitting.value = true
   try {
     const data = {
@@ -713,6 +796,10 @@ async function handleSubmit() {
       authConfig: form.authConfig,
       tags: JSON.stringify(form.tags || []),
       status: form.status,
+      rateLimitEnabled: form.rateLimitEnabled,
+      rateLimitConfig: form.rateLimitEnabled
+        ? JSON.stringify({ limit: form.rateLimitLimit, window: form.rateLimitWindow })
+        : null,
     }
     if (form.id) {
       await updateTool(data)
@@ -977,6 +1064,32 @@ defineExpose({ openDialog, search, refresh, loading })
   color: var(--color-mute);
   margin-top: 4px;
   line-height: 1.4;
+}
+.form-hint-inline {
+  font-size: 12px;
+  color: var(--color-mute);
+  margin-left: 8px;
+}
+.rate-limit-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rate-limit-text {
+  font-size: 13px;
+  color: var(--color-body);
+}
+.builtin-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  margin: 8px 0;
+  font-size: 12px;
+  color: var(--color-mute);
+  background: var(--color-bg-soft, rgba(0, 0, 0, 0.02));
+  border-radius: 4px;
+  border-left: 3px solid var(--color-primary);
 }
 .field-help-icon {
   margin-left: 4px;

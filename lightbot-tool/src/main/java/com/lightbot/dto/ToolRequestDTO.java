@@ -55,5 +55,11 @@ public class ToolRequestDTO {
     /** 工具标签（JSON数组字符串） */
     private String tags;
 
+    /** 是否启用限流：true 时按 rateLimitConfig 在 (userId, toolName) 维度限流 */
+    private Boolean rateLimitEnabled;
+
+    /** 限流配置 JSON：{"limit":10,"window":"MINUTE|HOUR|DAY"} */
+    private String rateLimitConfig;
+
     private CommonStatus status;
 }
