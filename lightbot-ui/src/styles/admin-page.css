@@ -29,7 +29,10 @@
   gap: 12px;
 }
 
-/* 按钮 */
+/* 按钮
+   注意：新代码请使用 lb-components.css 的 .lb-btn 系列，或直接用 <a-button>；
+   useTheme.js 已统一 Button.borderRadius=100（pill）。历史 .btn-* 类保留兼容，
+   圆角/视觉以现有调用的 39 个文件为准，不批量替换避免视觉退化。 */
 .btn-primary {
   display: flex;
   align-items: center;

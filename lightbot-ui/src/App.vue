@@ -64,28 +64,11 @@ body {
   overflow: hidden;
 }
 
-/* Ant Design 主题覆盖 - Vercel 风格 */
-.ant-btn-primary {
-  background: var(--color-primary) !important;
-  border-color: var(--color-primary) !important;
-  border-radius: var(--radius-pill) !important;
-  font-weight: 500;
-  box-shadow: none !important;
-}
+/* Ant Design 主题 token 已在 useTheme.js 的 themeConfig 中统一配置
+   （colorPrimary / borderRadius / Button.borderRadius 等）；
+   此处仅保留 token 无法覆盖的兜底规则，避免视觉退化 */
 
-.ant-btn-primary:hover {
-  background: #27272a !important;
-  border-color: #27272a !important;
-}
-
-[data-theme="dark"] .ant-btn-primary {
-  border-color: rgba(255, 255, 255, 0.15) !important;
-}
-[data-theme="dark"] .ant-btn-primary:hover {
-  background: #3f3f46 !important;
-  border-color: rgba(255, 255, 255, 0.25) !important;
-}
-
+/* Button disabled 兜底：darkAlgorithm 派生的 disabled 灰度偏亮，回归原项目视觉 */
 .ant-btn-primary:disabled,
 .ant-btn-primary.ant-btn-disabled {
   background: var(--color-canvas-soft-2) !important;
@@ -103,9 +86,8 @@ body {
   color: rgba(255, 255, 255, 0.35) !important;
 }
 
-.ant-btn-default {
-  border-radius: var(--radius-pill) !important;
-  font-weight: 500;
+[data-theme="dark"] .ant-btn-primary {
+  border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 .ant-input,
@@ -127,6 +109,15 @@ body {
 .ant-message .ant-message-notice-content {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-4) !important;
+}
+
+/* Notification 全局定制：项目级通知统一圆角与阴影（token Notification.borderRadiusLG 兜底） */
+.ant-notification-notice {
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-4) !important;
+}
+.ant-notification-notice-message {
+  font-weight: 600;
 }
 
 /* 表格表头禁止换行 */

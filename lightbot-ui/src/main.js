@@ -1,6 +1,6 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { message } from 'ant-design-vue'
+import { message, notification } from 'ant-design-vue'
 import 'ant-design-vue/dist/reset.css'
 import './styles/variables.css'
 import './styles/code-block-scrollbar.css'
@@ -15,7 +15,9 @@ import router from './router'
 import { captureException, installGlobalErrorHandlers } from './utils/errorReport'
 
 // 限制全局最多显示3条消息提示，防止堆叠
-message.config({ maxCount: 3 })
+message.config({ maxCount: 3, duration: 2 })
+// 通知右上角，最多堆叠3条，默认4秒消失
+notification.config({ placement: 'topRight', duration: 4, maxCount: 3, top: '64px' })
 
 const app = createApp(App)
 

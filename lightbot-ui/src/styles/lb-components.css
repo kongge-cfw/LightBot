@@ -64,6 +64,29 @@
   width: 100%;
 }
 
+/* ========== Tabs 视觉统一（新代码加 .lb-tabs 类即可复用，避免每个 view 复制 40 行 :deep） ========== */
+/* useTheme.js 的 components.Tabs 已统一 inkBarColor/itemSelectedColor；此处仅做轻量视觉调整。
+   历史 view 的 :deep(.ant-tabs-nav) 覆盖保留不动（避免视觉退化）。 */
+.lb-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 16px;
+}
+.lb-tabs :deep(.ant-tabs-tab) {
+  padding: 8px 0;
+  font-size: 14px;
+}
+.lb-tabs :deep(.ant-tabs-ink-bar) {
+  height: 2px;
+  border-radius: 2px;
+}
+
+/* ========== Pagination 视觉统一 ========== */
+/* useTheme.js 已配置 Pagination.itemActiveBg=#171717；此处仅微调尺寸 */
+.lb-pagination :deep(.ant-pagination-item),
+.lb-pagination :deep(.ant-pagination-prev .ant-pagination-item-link),
+.lb-pagination :deep(.ant-pagination-next .ant-pagination-item-link) {
+  border-radius: var(--radius-sm);
+}
+
 /* ========== 弹窗底部 ========== */
 .lb-dialog-footer {
   display: flex;
