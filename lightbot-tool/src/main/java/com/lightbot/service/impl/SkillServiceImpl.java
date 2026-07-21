@@ -84,7 +84,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
     public Skill create(SkillRequestDTO request) {
         // 1. 解析作用域：默认 global
@@ -136,7 +136,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
     public Skill update(SkillRequestDTO request) {
         Skill skill = getById(request.getId());
@@ -206,7 +206,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, key = "#id")
     public void deleteById(Long id) {
         Skill skill = getById(id);
@@ -274,7 +274,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
     public Skill importZipCommit(String draftId, String targetSlug) {
         // 1. 提交草稿到正式目录
@@ -340,7 +340,7 @@ public class SkillServiceImpl extends ServiceImpl<SkillMapper, Skill>
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = RedisCacheConfig.CACHE_SKILL, allEntries = true)
     public Skill commitRemoteSkill(String draftId, String slug) {
         // 1. 提交草稿中指定 slug 的文件到正式目录

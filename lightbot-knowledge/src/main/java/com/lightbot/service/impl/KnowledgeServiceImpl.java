@@ -186,17 +186,14 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         }
 
         // 3. 级联删除所有子文档（一次 IN 删 chunk/embedding/document_versions/document + MinIO 文件，
-        //    替代 N 次 deleteDocument 循环；图谱/QaPair 由步骤 4/5 按知识库整体级联）
-        try {
-            documentService.deleteByKnowledgeIdCascade(id);
-        } catch (Exception e) {
-            log.warn("[知识库删除] 级联批量删除文档失败: knowledgeId={}, error={}", id, e.getMessage());
-        }
+        //    替代 N 次 deleteDocument 循环；图谱/QaPair 由步骤 4/5 按知识库整体级联）。
+        //    失败直接抛：文档与知识库强耦合，吞异常会让主表已删而子表残留，违反 2.4 数据一致性目标。
+        documentService.deleteByKnowledgeIdCascade(id);
 
-        // 4. 级联删除问答对（含 Milvus 向量）
+        // 4. 级联删除问答对（含 Milvus 向量）——可选子系统，软失败不阻塞主流程
         safeRemove(() -> qaPairService.deleteByKnowledgeId(id), "QaPair");
 
-        // 5. 级联删除图谱（Neo4j + DB）
+        // 5. 级联删除图谱（Neo4j + DB）——可选子系统，软失败不阻塞主流程
         safeRemove(() -> graphService.deleteByKnowledgeIdInternal(id), "KnowledgeGraph");
 
         // 6. 逻辑删除知识库

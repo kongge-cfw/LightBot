@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * 模型提供商服务实现类
@@ -116,17 +117,18 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteById(Long id) {
-        if (!removeById(id)) {
+        // 1. 校验存在性（先校验再删，避免级联失败时主表已被删导致脏数据）
+        ModelProvider provider = getById(id);
+        if (provider == null) {
             throw new BizException(ErrorCode.MODEL_PROVIDER_NOT_FOUND);
         }
-        // 级联删除关联模型
-        try {
-            modelService.deleteByProviderId(id);
-        } catch (Exception e) {
-            log.warn("[ModelProvider] 级联删除模型失败, providerId={}, error={}", id, e.getMessage());
-        }
-        // 同步缓存
+        // 2. 级联删除关联模型（与主表删除同一事务，失败回滚）
+        modelService.deleteByProviderId(id);
+        // 3. 主表删除
+        removeById(id);
+        // 4. 同步缓存
         cacheUtil.evictProvider(id);
         syncAllProvidersCache();
         // 失效该 provider 的联网模型列表缓存，避免删除后仍命中旧列表

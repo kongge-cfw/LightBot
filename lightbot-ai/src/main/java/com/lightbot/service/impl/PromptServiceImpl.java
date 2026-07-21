@@ -15,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
 
@@ -78,17 +79,15 @@ public class PromptServiceImpl extends ServiceImpl<PromptMapper, Prompt> impleme
 
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_PROMPT, key = "#id")
+    @Transactional(rollbackFor = Exception.class)
     public void deleteById(Long id) {
         Prompt prompt = getById(id);
         if (prompt == null) {
             throw new BizException(ErrorCode.PROMPT_NOT_FOUND);
         }
-        // 级联删除所有版本
-        try {
-            promptVersionService.deleteByPromptKey(prompt.getPromptKey());
-        } catch (Exception e) {
-            log.warn("[Prompt] 级联删除版本失败, promptKey={}, error={}", prompt.getPromptKey(), e.getMessage());
-        }
+        // 1. 级联删除所有版本（与主表删除同一事务，失败回滚避免子表残留）
+        promptVersionService.deleteByPromptKey(prompt.getPromptKey());
+        // 2. 主表删除
         removeById(id);
     }
 

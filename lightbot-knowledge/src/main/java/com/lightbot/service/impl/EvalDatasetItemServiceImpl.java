@@ -28,7 +28,7 @@ public class EvalDatasetItemServiceImpl extends ServiceImpl<EvalDatasetItemMappe
 
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public EvalDatasetItem create(Long datasetId, String dataContent) {
         EvalDatasetItem item = new EvalDatasetItem();
         item.setDatasetId(datasetId);
@@ -38,7 +38,7 @@ public class EvalDatasetItemServiceImpl extends ServiceImpl<EvalDatasetItemMappe
     }
 
     @Override
-    @Transactional
+    @Transactional(rollbackFor = Exception.class)
     public int batchCreate(Long datasetId, List<String> dataContents) {
         List<EvalDatasetItem> items = new ArrayList<>();
         for (String content : dataContents) {
