@@ -567,10 +567,10 @@ onMounted(loadAll)
   white-space: nowrap;
 }
 
-/* 表格水平滚动条调细（4px） */
+/* 表格水平滚动条调细（4px），滚动条色用项目变量自动适配深色 */
 .advisor-table :deep(.ant-table-body) {
   scrollbar-width: thin;
-  scrollbar-color: #d4d4d8 transparent;
+  scrollbar-color: var(--color-hairline-strong) transparent;
 }
 
 .advisor-table :deep(.ant-table-body::-webkit-scrollbar) {
@@ -579,7 +579,7 @@ onMounted(loadAll)
 }
 
 .advisor-table :deep(.ant-table-body::-webkit-scrollbar-thumb) {
-  background: #d4d4d8;
+  background: var(--color-hairline-strong);
   border-radius: 2px;
 }
 
@@ -591,7 +591,7 @@ onMounted(loadAll)
 .advisor-table :deep(.ant-table-content) {
   overflow-x: auto !important;
   scrollbar-width: thin;
-  scrollbar-color: #d4d4d8 transparent;
+  scrollbar-color: var(--color-hairline-strong) transparent;
 }
 
 .advisor-table :deep(.ant-table-content::-webkit-scrollbar) {
@@ -599,7 +599,7 @@ onMounted(loadAll)
 }
 
 .advisor-table :deep(.ant-table-content::-webkit-scrollbar-thumb) {
-  background: #d4d4d8;
+  background: var(--color-hairline-strong);
   border-radius: 2px;
 }
 

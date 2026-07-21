@@ -92,7 +92,7 @@ watch(() => props.modelValue, (val) => {
   padding-bottom: 32px;
 }
 .json-input-wrapper.json-error :deep(.ant-input) {
-  border-color: #ef4444;
+  border-color: var(--color-error);
 }
 .json-input-actions {
   position: absolute;

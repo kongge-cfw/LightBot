@@ -40,16 +40,18 @@ export function useTheme() {
         borderRadiusLG: 12,
       },
       Tabs: {
-        inkBarColor: '#171717',
-        itemSelectedColor: '#171717',
-        itemHoverColor: '#27272a',
-        itemActiveColor: '#171717',
+        // 浅色模式用近黑高亮，深色模式切到浅色保证对比度
+        inkBarColor: isDark.value ? '#e4e4e7' : '#171717',
+        itemSelectedColor: isDark.value ? '#e4e4e7' : '#171717',
+        itemHoverColor: isDark.value ? '#a1a1aa' : '#27272a',
+        itemActiveColor: isDark.value ? '#e4e4e7' : '#171717',
         titleFontSize: 14,
       },
       Table: {
         headerBg: 'transparent',
         headerSplitColor: 'transparent',
-        rowHoverBg: 'rgba(0,0,0,0.02)',
+        // 浅色用黑色 2% 半透，深色用白色 4% 半透
+        rowHoverBg: isDark.value ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
       },
       Card: {
         borderRadiusLG: 12,
@@ -59,7 +61,9 @@ export function useTheme() {
       Select: { borderRadius: 6 },
       DatePicker: { borderRadius: 6 },
       Pagination: {
-        itemActiveBg: '#171717',
+        // 浅色激活态用近黑底，深色用中灰底；文字始终为反色
+        itemActiveBg: isDark.value ? '#3f3f46' : '#171717',
+        itemActiveColor: isDark.value ? '#e4e4e7' : '#ffffff',
         itemActiveColorDisabled: 'rgba(255,255,255,0.35)',
       },
       Tooltip: {

@@ -4484,7 +4484,7 @@ onMounted(async () => {
   padding: 0px 20px 0;
 }
 .config-panel-tabs :deep(.ant-tabs-nav)::before {
-  border-bottom-color: #f0f0f0;
+  border-bottom-color: var(--color-hairline);
 }
 .config-panel-tabs :deep(.ant-tabs-extra-content) {
   display: flex;

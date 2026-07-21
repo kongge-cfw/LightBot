@@ -1285,9 +1285,9 @@ watch(isDark, () => {
   border-top: 1px solid var(--color-hairline);
 }
 .doc-extract-actions :deep(.ant-btn-primary:disabled) {
-  background: #d4d4d8;
+  background: var(--color-canvas-soft-2);
   border-color: var(--color-hairline);
-  color: #fff;
+  color: var(--color-mute);
 }
 .doc-extract-btn-row {
   display: flex;

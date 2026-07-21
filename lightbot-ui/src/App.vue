@@ -1,5 +1,5 @@
 <template>
-  <a-config-provider :locale="zhCN" :theme="themeConfig">
+  <a-config-provider :locale="zhCN" :theme="themeConfig" :modal="modalDefaults">
     <ErrorBoundary verbose>
       <router-view v-slot="{ Component, route: r }">
         <transition name="route-fade" mode="out-in">
@@ -18,6 +18,12 @@ import { handleDebugLabShortcut } from './utils/chat/debug/debugLabShortcut'
 import ErrorBoundary from './components/ErrorBoundary.vue'
 
 const { isDark, themeConfig } = useTheme()
+
+// antd Modal 全局默认值：强制遮罩点击不关闭（项目规范），新代码无需逐个 :mask-closable="false"
+const modalDefaults = {
+  maskClosable: false,
+  centered: false,
+}
 
 function onGlobalKeydown(e) {
   handleDebugLabShortcut(e)
@@ -202,6 +208,66 @@ body {
 [data-theme="dark"] .web-search-result *,
 [data-theme="dark"] .sandbox-file-result * {
   border-color: var(--color-hairline) !important;
+}
+
+/* ===== 深色模式：antd 组件全局兜底 =====
+   说明：antd 4.x 的部分 alias token（如 Tabs.itemSelectedColor / Pagination.itemActiveBg）
+   在 darkAlgorithm 下会被重新派生（基于 colorPrimary: #171717 → 约 #404040），与深色
+   背景对比度不足。useTheme.js 已显式注入按 isDark 切换的 token 值，但部分场景被
+   darkAlgorithm 覆盖，故在此处加全局 CSS 兜底保证可见性。 */
+
+/* Tabs 选中态文字、hover 态、下划线：深色模式下用浅色保证可见 */
+[data-theme="dark"] .ant-tabs-tab.ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #e4e4e7 !important;
+}
+[data-theme="dark"] .ant-tabs-tab:hover .ant-tabs-tab-btn {
+  color: #d4d4d8 !important;
+}
+[data-theme="dark"] .ant-tabs-ink-bar {
+  background: #e4e4e7 !important;
+}
+[data-theme="dark"] .ant-tabs-nav::before {
+  border-bottom-color: var(--color-hairline) !important;
+}
+
+/* Pagination 激活态：深色模式下用中灰底 + 浅色文字 */
+[data-theme="dark"] .ant-pagination-item-active {
+  background: #3f3f46 !important;
+  border-color: #3f3f46 !important;
+}
+[data-theme="dark"] .ant-pagination-item-active a {
+  color: #e4e4e7 !important;
+}
+
+/* Table hover 行：darkAlgorithm 派生的 hover 色常偏暗，强制轻量高亮 */
+[data-theme="dark"] .ant-table-tbody > tr.ant-table-row:hover > td {
+  background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* Menu 选中态：darkAlgorithm 派生色与背景对比度不足 */
+[data-theme="dark"] .ant-menu-item-selected {
+  color: #e4e4e7 !important;
+}
+[data-theme="dark"] .ant-menu-item-active {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Drawer / Modal 在深色模式下边框、阴影加强 */
+[data-theme="dark"] .ant-modal-content,
+[data-theme="dark"] .ant-drawer-content {
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+}
+
+/* Card 边框：darkAlgorithm 默认边框偏亮，对齐项目 hairline */
+[data-theme="dark"] .ant-card {
+  border-color: var(--color-hairline) !important;
+}
+
+/* Tag 默认色：深色模式下 default tag 文字对比度不足 */
+[data-theme="dark"] .ant-tag {
+  color: #d4d4d8 !important;
+  border-color: var(--color-hairline) !important;
+  background: rgba(255, 255, 255, 0.04) !important;
 }
 
 /* 顶层路由切换：淡入淡出，仅作用于 Landing/Login/MainLayout 等顶层路由 */

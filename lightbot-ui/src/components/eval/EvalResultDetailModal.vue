@@ -305,15 +305,15 @@ watch(() => props.open, (val) => {
 .metrics-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .metrics-col { display: flex; flex-direction: column; gap: 4px; }
 .metrics-row { display: flex; align-items: center; gap: 8px; }
-.metric-label { min-width: 80px; font-size: 12px; color: #666; }
+.metric-label { min-width: 80px; font-size: 12px; color: var(--color-mute); }
 .result-detail-table h4 { margin: 0; }
 .result-detail-table :deep(.ant-table-resize-handle) {
   cursor: col-resize;
 }
 .result-detail-table :deep(.ant-table-resize-handle:hover) {
-  background-color: #1890ff;
+  background-color: var(--color-link);
 }
-.error-text { color: #dc2626; font-size: 13px; word-break: break-all; }
+.error-text { color: var(--color-error); font-size: 13px; word-break: break-all; }
 .cell-ellipsis {
   display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical;
   overflow: hidden; text-overflow: ellipsis; word-break: break-all;
