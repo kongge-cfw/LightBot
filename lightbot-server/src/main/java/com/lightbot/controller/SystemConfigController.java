@@ -4,6 +4,7 @@ import com.lightbot.common.Result;
 import com.lightbot.dto.DefaultAiConfigDTO;
 import com.lightbot.dto.DefaultModelsConfigDTO;
 import jakarta.validation.Valid;
+import cn.dev33.satoken.stp.StpUtil;
 import com.lightbot.service.HealthService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.service.TokenBudgetService;
@@ -140,7 +141,18 @@ public class SystemConfigController {
     @Operation(summary = "获取用户 Token 消耗排行")
     @GetMapping("/token-budget/ranking")
     public Result<List<Map<String, Object>>> getTokenBudgetRanking(
+            @RequestParam(defaultValue = "today") String range,
             @RequestParam(defaultValue = "20") int limit) {
-        return Result.ok(tokenBudgetService.getUserRanking(limit));
+        // 排行榜仅管理员可见，防止普通用户调 API 越权查看他人消耗
+        userService.checkAdmin();
+        return Result.ok(tokenBudgetService.getUserRanking(range, limit));
+    }
+
+    @Operation(summary = "获取本人 Token 用量（今日 + 近 7 天）")
+    @GetMapping("/token-budget/my-usage")
+    public Result<Map<String, Object>> getMyTokenUsage() {
+        // userId 强制从登录态取，前端不可传，杜绝越权（呼应 v3.0 IDOR 修复）
+        Long userId = StpUtil.getLoginIdAsLong();
+        return Result.ok(tokenBudgetService.getMyUsage(userId));
     }
 }

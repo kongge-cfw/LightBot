@@ -314,7 +314,19 @@
     <div class="panel token-ranking-panel">
       <div class="panel-header">
         <h3>用户 Token 消耗排行</h3>
-        <span class="panel-desc panel-desc-right">今日 Top {{ tokenRanking.length }}</span>
+        <a-radio-group
+          v-model:value="rankingRange"
+          button-style="solid"
+          size="small"
+          class="ranking-range-switch"
+          @change="loadTokenRanking"
+        >
+          <a-radio-button value="today">今日</a-radio-button>
+          <a-radio-button value="7d">近 7 天</a-radio-button>
+          <a-radio-button value="14d">近 2 周</a-radio-button>
+          <a-radio-button value="30d">近 1 个月</a-radio-button>
+        </a-radio-group>
+        <span class="panel-desc">{{ rangeLabelMap[rankingRange] }} Top {{ tokenRanking.length }}</span>
         <button class="btn-icon-refresh" @click="loadTokenRanking" :disabled="tokenRankingLoading">
           <SyncOutlined :spin="tokenRankingLoading" />
         </button>
@@ -728,6 +740,9 @@ const tokenSaving = ref(false)
 const tokenConfig = reactive({ singleCallLimit: 32000, userDailyLimit: 1000000, globalDailyLimit: 10000000 })
 const tokenStats = reactive({ globalUsed: 0, globalLimit: 0, date: '' })
 const tokenRanking = ref([])
+// 排行榜时间范围：今日走 Redis（实时），其他走 DB llm_trace 历史聚合
+const rankingRange = ref('today')
+const rangeLabelMap = { today: '今日', '7d': '近 7 天', '14d': '近 2 周', '30d': '近 1 个月' }
 const rankingColumns = [
   { title: '排名', key: 'rank', width: 80, align: 'center' },
   { title: '用户', key: 'user', width: 200, ellipsis: true },
@@ -758,7 +773,7 @@ async function loadTokenStats() {
 async function loadTokenRanking() {
   tokenRankingLoading.value = true
   try {
-    const res = await getTokenBudgetRanking(20)
+    const res = await getTokenBudgetRanking({ range: rankingRange.value, limit: 20 })
     tokenRanking.value = res.data || []
   } finally {
     tokenRankingLoading.value = false
@@ -922,6 +937,10 @@ async function handleDeleteApiKey(key) {
   color: var(--color-mute);
 }
 .panel-desc-right {
+  margin-left: auto;
+}
+/* 排行榜时间范围切换器：推到右侧 */
+.ranking-range-switch {
   margin-left: auto;
 }
 .panel-body {

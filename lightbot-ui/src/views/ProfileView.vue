@@ -241,6 +241,50 @@
           </div>
         </div>
       </a-tab-pane>
+
+      <a-tab-pane key="token" tab="Token 用量">
+        <a-spin :spinning="tokenLoading">
+          <div class="content-grid">
+            <div class="panel">
+              <div class="panel-header">
+                <h3>今日 Token 用量</h3>
+                <span class="panel-desc panel-desc-right">{{ tokenUsage.date }}</span>
+              </div>
+              <div class="panel-body">
+                <div class="token-stat-row">
+                  <div class="token-stat-label">今日已用</div>
+                  <div class="token-stat-value">{{ formatToken(tokenUsage.userUsed) }}</div>
+                  <div class="token-stat-sub">/ {{ formatToken(tokenUsage.userLimit) }}</div>
+                </div>
+                <a-progress
+                  :percent="usagePercent"
+                  :stroke-color="usagePercent > 80 ? '#ef4444' : '#10b981'"
+                />
+                <div class="token-stat-hint">
+                  剩余可用 {{ formatToken(remainingTokens) }} tokens
+                </div>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panel-header">
+                <h3>近 7 天累计</h3>
+                <span class="panel-desc panel-desc-right">含今日</span>
+              </div>
+              <div class="panel-body">
+                <div class="token-stat-row">
+                  <div class="token-stat-label">累计消耗</div>
+                  <div class="token-stat-value">{{ formatToken(tokenUsage.last7dUsed) }}</div>
+                  <div class="token-stat-sub">tokens</div>
+                </div>
+                <div class="token-stat-hint">
+                  按自然日统计：今天 + 前 6 天
+                </div>
+              </div>
+            </div>
+          </div>
+        </a-spin>
+      </a-tab-pane>
     </a-tabs>
 
     <a-modal v-model:open="memoryModalVisible" :title="editingMemoryId ? '编辑长期记忆' : '新增长期记忆'" @ok="handleSaveMemory">
@@ -268,7 +312,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import {
   SaveOutlined,
   LockOutlined,
@@ -283,6 +327,7 @@ import { message, Modal } from 'ant-design-vue'
 import { getMe, updateProfile, changePassword, updateAvatarFrame, uploadAvatar } from '../api/auth'
 import { getUserPreferences, updateUserPreferences } from '../api/userPreference'
 import { listUserMemories, createUserMemory, updateUserMemory, updateUserMemoryStatus, deleteUserMemory } from '../api/userMemory'
+import { getMyTokenUsage } from '../api/tokenBudget'
 import { useUserStore } from '../stores/user'
 import { formatTime } from '../utils/format'
 import AvatarFrame from '../components/AvatarFrame.vue'
@@ -304,6 +349,15 @@ const avatarUrl = ref('')
 const avatarUploading = ref(false)
 const avatarInputRef = ref(null)
 const memories = ref([])
+
+// Token 用量：切到 token tab 时懒加载，避免首屏多发一次请求
+const tokenLoading = ref(false)
+const tokenUsage = reactive({
+  userUsed: 0,
+  userLimit: 0,
+  last7dUsed: 0,
+  date: '',
+})
 
 const frameOptions = [
   { value: '', label: '无' },
@@ -365,6 +419,36 @@ const roleText = computed(() => {
 const roleColor = computed(() => {
   return profileForm.role === 'ADMIN' ? 'red' : 'blue'
 })
+
+// 今日消耗百分比（userLimit 为 0 时显示 0，避免 NaN）
+const usagePercent = computed(() => {
+  if (!tokenUsage.userLimit) return 0
+  return Math.min(100, Math.round((tokenUsage.userUsed / tokenUsage.userLimit) * 100))
+})
+
+const remainingTokens = computed(() => {
+  return Math.max(0, tokenUsage.userLimit - tokenUsage.userUsed)
+})
+
+// 1k 以下显示原数；1k~1m 用 K；1m 以上用 M（与 SettingsView.formatToken 口径一致）
+function formatToken(val) {
+  if (val == null) return '0'
+  if (val >= 1_000_000) return (val / 1_000_000).toFixed(1) + 'M'
+  if (val >= 1_000) return (val / 1_000).toFixed(1) + 'K'
+  return String(val)
+}
+
+async function loadTokenUsage() {
+  tokenLoading.value = true
+  try {
+    const res = await getMyTokenUsage()
+    Object.assign(tokenUsage, res.data || {})
+  } catch (e) {
+    // 错误提示由 request.js 拦截器统一处理，此处仅重置 loading
+  } finally {
+    tokenLoading.value = false
+  }
+}
 
 async function loadProfile() {
   try {
@@ -596,6 +680,13 @@ onMounted(() => {
   loadPreferences()
   loadMemories()
 })
+
+// 切到 token tab 时懒加载：避免首屏多发请求，token 数据低频访问
+watch(activeTab, (val) => {
+  if (val === 'token' && !tokenUsage.date) {
+    loadTokenUsage()
+  }
+})
 </script>
 
 <style scoped>
@@ -657,6 +748,37 @@ onMounted(() => {
   font-size: 13px;
   color: var(--color-mute);
   margin: 4px 0 0;
+}
+.panel-desc-right {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-mute);
+}
+/* Token 用量 tab 专属样式 */
+.token-stat-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.token-stat-label {
+  font-size: 13px;
+  color: var(--color-mute);
+}
+.token-stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.token-stat-sub {
+  font-size: 13px;
+  color: var(--color-mute);
+}
+.token-stat-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--color-mute);
 }
 .btn-primary {
   display: inline-flex;
