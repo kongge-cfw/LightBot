@@ -18,6 +18,12 @@ export function useTheme() {
       fontSize: 14,
       controlHeight: 32,
       wireframe: false,
+      // controlItemBgActive 是 Select / Cascader / DatePicker / Menu 等组件的"选中态背景"全局别名，
+      // 默认从 colorPrimaryBg 派生。本项目 colorPrimary=#171717 会导致派生色为暗灰，
+      // 下拉项选中态在浅色模式下也会变成深色。显式覆盖为蓝色淡背景，与配色一致。
+      controlItemBgActive: isDark.value ? '#0c1a3d' : '#e8f4ff',
+      controlItemBgActiveHover: isDark.value ? '#1e3a5f' : '#d3e5ff',
+      controlItemBgHover: isDark.value ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
       ...(isDark.value
         ? {
             colorBgContainer: '#1a1a1a',
@@ -58,7 +64,10 @@ export function useTheme() {
       },
       Input: { borderRadius: 6 },
       InputNumber: { borderRadius: 6 },
+      // Select 下拉项选中态：由根 token controlItemBgActive 统一覆盖（见上方 token 块）
+      // 选中项的勾选图标 colorPrimary 会保持近黑，文字色由 colorText 派生即可。
       Select: { borderRadius: 6 },
+      Cascader: { borderRadius: 6 },
       DatePicker: { borderRadius: 6 },
       Pagination: {
         // 浅色激活态用近黑底，深色用中灰底；文字始终为反色

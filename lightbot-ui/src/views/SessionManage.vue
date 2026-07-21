@@ -19,6 +19,7 @@
         </button>
         <a-popconfirm
           v-if="selectedRowKeys.length > 0"
+          placement="topLeft"
           :title="`确认删除选中的 ${selectedRowKeys.length} 个会话？`"
           ok-text="确认删除"
           cancel-text="取消"

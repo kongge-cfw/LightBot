@@ -6,9 +6,16 @@
  * - 完全没有 body-style 的弹窗：使用此默认值，超出高度自动出滚动条
  *
  * 预留 200px 给 modal 头部/底部/外边距，确保 viewport 底部不被遮挡
+ *
+ * overflow-x: hidden 必须显式声明：CSS 规范下当 overflow-y 非 visible 时，
+ * overflow-x 的 visible 会被隐式计算为 auto，弹窗内的 a-slider marks 绝对定位
+ * 文字、a-row gutter 负 margin、a-input-number min-width 等几像素溢出都会触发
+ * 横向滚动条。需要横向滚动的弹窗（代码/JSON/SQL 结果）通过 :body-style 显式
+ * 设置 overflow: 'auto' 覆盖。
  */
 .ant-modal-body {
   max-height: calc(100vh - 200px);
+  overflow-x: hidden;
   overflow-y: auto;
   scrollbar-width: thin;
 }

@@ -21,7 +21,7 @@
   gap: 6px;
   padding: 8px 16px;
   background: transparent;
-  border: 1px solid var(--color-hairline);
+  border: 1px solid var(--color-hairline-strong);
   border-radius: var(--radius-pill);
   font-size: 13px;
   color: var(--color-ink);
@@ -109,6 +109,7 @@
 
 /* ========== 卡片网格容器 ========== */
 .lb-entity-grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(var(--lb-grid-min, 280px), 1fr));
   gap: var(--space-md);
@@ -309,4 +310,16 @@
 }
 .lb-list-move {
   transition: transform var(--duration-base, 0.24s) ease;
+}
+
+/* ========== 数字/计数变化动画（2.3.4）==========
+   配合 useCountPop composable 使用：监听数字变化，在元素上短暂添加 .lb-count-pop 触发缩放反馈。
+   keyframes 中 50% 处用 var(--color-link) 让数字短暂着色，凸显"刚刚更新"。 */
+.lb-count-pop {
+  animation: lb-count-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes lb-count-pop {
+  0% { transform: scale(1); }
+  45% { transform: scale(1.18); color: var(--color-link); }
+  100% { transform: scale(1); }
 }

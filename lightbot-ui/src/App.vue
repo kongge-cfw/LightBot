@@ -132,6 +132,12 @@ body {
   white-space: nowrap !important;
 }
 
+/* Pagination size-changer：默认 select 宽度由当前值撑开，pageSize=10 时只容得下"10 条/页"，
+   下拉里的"100 条/页"被挤压。强制 min-width 容下最长的可选项，全局 10 处一并解决。 */
+.ant-pagination-options .ant-select {
+  min-width: 112px;
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;
@@ -252,6 +258,21 @@ body {
   background-color: rgba(255, 255, 255, 0.06) !important;
 }
 
+/* Radio/Checkbox hover 兜底：antd 把 hover 文字/边框色派生自 colorPrimary（#171717），
+   深色模式下近乎黑色，未选中项 hover 时与深色背景重合看不见。强制改为浅色 + 轻底色反馈。 */
+[data-theme="dark"] .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):not(.ant-radio-button-wrapper-disabled):hover,
+[data-theme="dark"] .ant-radio-wrapper:not(.ant-radio-wrapper-checked):not(.ant-radio-wrapper-disabled):hover,
+[data-theme="dark"] .ant-checkbox-wrapper:not(.ant-checkbox-wrapper-checked):not(.ant-checkbox-wrapper-disabled):hover {
+  color: #d4d4d8 !important;
+}
+[data-theme="dark"] .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-checked):not(.ant-radio-button-wrapper-disabled):hover {
+  background-color: rgba(255, 255, 255, 0.06) !important;
+}
+[data-theme="dark"] .ant-radio-wrapper:not(.ant-radio-wrapper-checked):hover .ant-radio-inner,
+[data-theme="dark"] .ant-checkbox-wrapper:not(.ant-checkbox-wrapper-checked):hover .ant-checkbox-inner {
+  border-color: #d4d4d8 !important;
+}
+
 /* Drawer / Modal 在深色模式下边框、阴影加强 */
 [data-theme="dark"] .ant-modal-content,
 [data-theme="dark"] .ant-drawer-content {
@@ -268,6 +289,33 @@ body {
   color: #d4d4d8 !important;
   border-color: var(--color-hairline) !important;
   background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* ===== 下拉项选中态统一（浅/深色通用）=====
+   说明：antd 4.x 的 Select / Cascader / TreeSelect / 内嵌 Select 的下拉项选中态颜色
+   由 colorPrimary 派生，本项目 colorPrimary=#171717 导致选中文字变黑色异常。
+   useTheme.js 已在 Select/Cascader token 中显式覆盖，此处加全局 CSS 兜底
+   保证所有"派生自 Select 的组件"都生效（如 Pagination showSizeChanger 内嵌的 Select）。
+   浅色：淡蓝底 + 蓝字；深色：深蓝底 + 亮蓝字。使用 CSS 变量自动适配双模式。 */
+.ant-select-item-option-selected,
+.ant-cascader-menu-item-selected,
+.ant-tree-select-tree-node-selected {
+  background-color: var(--color-info-bg) !important;
+  color: var(--color-link) !important;
+  font-weight: 500;
+}
+.ant-select-item-option-selected:hover,
+.ant-cascader-menu-item-selected:hover {
+  background-color: var(--color-link-bg-soft) !important;
+}
+.ant-select-item-option-active:not(.ant-select-item-option-selected),
+.ant-cascader-menu-item-active:not(.ant-cascader-menu-item-selected) {
+  background-color: var(--color-info-bg) !important;
+}
+/* Select 已选中项在控件内显示的文字色（即折叠态显示的当前值） */
+.ant-select-multiple .ant-select-selection-item,
+.ant-select-single.ant-select-show-arrow .ant-select-selection-item {
+  color: var(--color-ink);
 }
 
 /* 顶层路由切换：淡入淡出，仅作用于 Landing/Login/MainLayout 等顶层路由 */

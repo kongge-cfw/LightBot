@@ -23,28 +23,30 @@
 
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
     <LbEntityGrid :min-card-width="320">
-      <EntityCard
-        v-for="item in list"
-        :key="item.id"
-        type="prompt"
-        :name="item.promptKey"
-        @click="router.push(`/app/prompts/${item.promptKey}`)"
-      >
-        <template #icon>
-          {{ (item.promptKey || 'P')[0].toUpperCase() }}
-          <span class="card-version-badge" v-if="item.latestVersion">{{ item.latestVersion }}</span>
-        </template>
-        <template #actions>
-          <a-tooltip title="编辑">
-            <button class="btn-icon" @click="openDialog(item)"><EditOutlined /></button>
-          </a-tooltip>
-          <a-tooltip title="删除">
-            <button class="btn-icon danger" @click="handleDelete(item.id)"><DeleteOutlined /></button>
-          </a-tooltip>
-        </template>
-        <p class="card-desc">{{ item.description || '暂无描述' }}</p>
-        <LbTagList v-if="item.tags" :tags="item.tags" />
-      </EntityCard>
+      <TransitionGroup name="lb-list">
+        <EntityCard
+          v-for="item in list"
+          :key="item.id"
+          type="prompt"
+          :name="item.promptKey"
+          @click="router.push(`/app/prompts/${item.promptKey}`)"
+        >
+          <template #icon>
+            {{ (item.promptKey || 'P')[0].toUpperCase() }}
+            <span class="card-version-badge" v-if="item.latestVersion">{{ item.latestVersion }}</span>
+          </template>
+          <template #actions>
+            <a-tooltip title="编辑">
+              <button class="btn-icon" @click="openDialog(item)"><EditOutlined /></button>
+            </a-tooltip>
+            <a-tooltip title="删除">
+              <button class="btn-icon danger" @click="handleDelete(item.id)"><DeleteOutlined /></button>
+            </a-tooltip>
+          </template>
+          <p class="card-desc">{{ item.description || '暂无描述' }}</p>
+          <LbTagList v-if="item.tags" :tags="item.tags" />
+        </EntityCard>
+      </TransitionGroup>
 
       <LbEmptyState
         v-if="list.length === 0 && !loading"

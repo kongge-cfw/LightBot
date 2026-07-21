@@ -72,28 +72,30 @@
         </div>
         <CollapseTransition :open="!sessionsCollapsed">
           <div class="session-list" ref="sessionListRef">
-            <div
-              v-for="s in sessions"
-              :key="s.id"
-              :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
-              @click="switchSession(s)"
-            >
-              <span class="session-title">{{ s.title || '新对话' }}</span>
-              <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
-              <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
-              <a-dropdown :trigger="['click']" placement="bottomRight">
-                <EllipsisOutlined class="session-more" @click.stop />
-                <template #overlay>
-                  <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
-                    <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
-                    <a-menu-item key="rename">重命名</a-menu-item>
-                    <a-menu-item key="export">导出</a-menu-item>
-                    <a-menu-divider />
-                    <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
-                  </a-menu>
-                </template>
-              </a-dropdown>
-            </div>
+            <TransitionGroup name="lb-list">
+              <div
+                v-for="s in sessions"
+                :key="s.id"
+                :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
+                @click="switchSession(s)"
+              >
+                <span class="session-title">{{ s.title || '新对话' }}</span>
+                <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
+                <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
+                <a-dropdown :trigger="['click']" placement="bottomRight">
+                  <EllipsisOutlined class="session-more" @click.stop />
+                  <template #overlay>
+                    <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
+                      <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
+                      <a-menu-item key="rename">重命名</a-menu-item>
+                      <a-menu-item key="export">导出</a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </div>
+            </TransitionGroup>
             <div v-if="sessionLoading" class="session-loading-more">
               <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
               <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
@@ -142,7 +144,7 @@
               v-if="taskBadgeCount"
               :count="taskBadgeCount"
               :number-style="taskBadgeStyle"
-              class="sidebar-task-badge-inline"
+              :class="['sidebar-task-badge-inline', taskBadgePopClass]"
               @click.stop="router.push('/app/tasks')"
             />
             <span class="sidebar-text">
@@ -240,6 +242,7 @@ import {
 import { useUserStore } from '../stores/user'
 import { useTaskStore } from '../stores/task'
 import { useTheme } from '../composables/useTheme'
+import { useCountPop } from '../composables/useCountPop'
 import { Modal, message } from 'ant-design-vue'
 import { getSessions, updateSessionTitle, deleteSession, togglePinSession, exportSession } from '../api/chatSession'
 import AvatarFrame from '../components/AvatarFrame.vue'
@@ -293,6 +296,9 @@ const taskBadgeCount = computed(() => {
   if (taskStore.active <= 0) return 0
   return taskStore.active > 10 ? '10+' : taskStore.active
 })
+
+// 任务徽章数字变化反馈：active 任务数变化时徽章短暂缩放着色
+const taskBadgePopClass = useCountPop(() => taskStore.active)
 
 const taskBadgeStyle = { fontSize: '10px', boxShadow: 'none', backgroundColor: '#f5222d' }
 
@@ -664,6 +670,11 @@ watch(sessionLoadMoreRef, (el) => {
   cursor: pointer;
   flex-shrink: 0;
 }
+/* 数字变化反馈：useCountPop 在元素上加 .lb-count-pop，让徽章本体跟随缩放；
+   ant-badge-count 是数字内层元素，跟随外层动画即可 */
+.sidebar-task-badge-inline.lb-count-pop {
+  animation: lb-count-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
 .sidebar.collapsed .sidebar-task-badge-inline {
   display: none;
 }
@@ -832,6 +843,7 @@ watch(sessionLoadMoreRef, (el) => {
   transform: rotate(180deg);
 }
 .session-list {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;

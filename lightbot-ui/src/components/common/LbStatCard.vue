@@ -4,7 +4,7 @@
       <component :is="icon" v-if="icon" />
     </div>
     <div class="lb-stat-card__info">
-      <div class="lb-stat-card__value">{{ displayValue }}</div>
+      <div class="lb-stat-card__value" :class="valuePopClass">{{ displayValue }}</div>
       <div class="lb-stat-card__label">{{ label }}</div>
     </div>
   </div>
@@ -15,8 +15,10 @@
  * 统计卡片
  * 统一 DashboardView.vue / Observability.vue 中 .stat-card 的重复写法。
  * 渐变色通过 accent prop 预设，也可通过 gradient prop 自定义。
+ * value 为 number 类型时自动监听变化触发 lb-count-pop 反馈动画。
  */
-import { computed } from 'vue'
+import { computed, toRef } from 'vue'
+import { useCountPop } from '../../composables/useCountPop'
 
 const props = defineProps({
   icon: { type: [Object, Function, String], default: null },
@@ -44,6 +46,9 @@ const iconStyle = computed(() => ({
 }))
 
 const displayValue = computed(() => (props.value == null || props.value === '' ? '-' : props.value))
+
+// 数字变化反馈动画（number → number 才触发）
+const valuePopClass = useCountPop(() => props.value)
 </script>
 
 <style scoped>

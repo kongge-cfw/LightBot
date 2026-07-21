@@ -1226,6 +1226,7 @@
               >
                 <span class="tag-avatar" style="background: linear-gradient(135deg, #f59e0b, #d97706)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
                 <span>{{ s.displayName || s.name }}</span>
+                <span v-if="s.isBuiltin === 1" class="binding-builtin-tag">内置</span>
                 <span v-if="s._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="s._disabled" class="binding-disabled-tag">已禁用</span>
                 <button v-if="!isVersionPreview" class="tag-remove" @click="removeSubAgent(s.id)">
@@ -4751,6 +4752,15 @@ onMounted(async () => {
   border-radius: 4px;
   background: var(--color-warn-bg-deep);
   color: #b45309;
+  font-weight: 500;
+}
+.binding-builtin-tag {
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--color-info-bg);
+  color: var(--color-link);
   font-weight: 500;
 }
 .tag-remove {
