@@ -29,12 +29,59 @@ function onGlobalKeydown(e) {
   handleDebugLabShortcut(e)
 }
 
+/**
+ * 滚动时自动关闭 antd 浮动下拉层
+ *
+ * 背景：antd Select/Dropdown/Cascader/DatePicker/TreeSelect 等 popup 默认挂 document.body，
+ * 滚动时既不跟随 trigger 移动也不自动关闭，视觉上"飘在原地"遮挡内容。
+ * 业界主流做法（Element Plus / Vant 等）：滚动时关闭浮动层。
+ *
+ * 实现：监听 scroll 的 capture 阶段（所有嵌套滚动容器都能捕获到），
+ * 检测到有打开的 antd 浮动层时模拟一次 document mousedown，
+ * 触发 antd vc-trigger 的 OutsideClick 关闭逻辑。
+ *
+ * 节流：用 requestAnimationFrame，连续滚动只触发一次关闭。
+ */
+const OPEN_POPUP_SELECTOR = [
+  '.ant-select-dropdown:not(.ant-select-dropdown-hidden)',
+  '.ant-dropdown:not(.ant-dropdown-hidden)',
+  '.ant-cascader-menus:not(.ant-cascader-menus-hidden)',
+  '.ant-cascader-multiple-menu:not(.ant-cascader-multiple-menu-hidden)',
+  '.ant-picker-dropdown:not(.ant-picker-dropdown-hidden)',
+  '.ant-tree-select-dropdown:not(.ant-select-dropdown-hidden)',
+  '.ant-time-picker-panel:not(.ant-time-picker-panel-hidden)',
+  '.ant-tooltip:not(.ant-tooltip-hidden)',
+].join(',')
+
+let scrollRafId = null
+function onGlobalScrollClose(event) {
+  // 滚动来自浮动层自身（如下拉列表内容超出 max-height 用户滚动作出选择）：不关闭
+  if (event.target?.closest?.(
+    '.ant-select-dropdown, .ant-dropdown, .ant-cascader-menus, .ant-cascader-multiple-menu, ' +
+    '.ant-picker-dropdown, .ant-tree-select-dropdown, .ant-time-picker-panel'
+  )) {
+    return
+  }
+  if (scrollRafId) return
+  scrollRafId = requestAnimationFrame(() => {
+    scrollRafId = null
+    if (!document.querySelector(OPEN_POPUP_SELECTOR)) return
+    // antd vc-trigger 监听 document mousedown 关闭 popup
+    // target 设为 document.body 让 OutsideClick 判定 trigger 外关闭
+    document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+  })
+}
+
 onMounted(() => {
   window.addEventListener('keydown', onGlobalKeydown)
+  // capture: true 让所有嵌套滚动容器（modal/drawer body、page scroll）的事件都冒泡到此
+  window.addEventListener('scroll', onGlobalScrollClose, true)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', onGlobalKeydown)
+  window.removeEventListener('scroll', onGlobalScrollClose, true)
+  if (scrollRafId) cancelAnimationFrame(scrollRafId)
 })
 </script>
 
@@ -337,6 +384,36 @@ textarea.ant-input:focus,
   color: #d4d4d8 !important;
   border-color: var(--color-hairline) !important;
   background: rgba(255, 255, 255, 0.04) !important;
+}
+
+/* 浮动下拉层：浅/深色统一补边框 + 阴影
+   - 浅色：antd 默认仅靠 box-shadow 区分浮层，浅色弹窗内嵌的下拉跟 body 白底几乎融合，加 hairline 边框
+   - 深色：colorBgElevated (#222) 跟 body (#111) 对比度偏弱且无边框，跟深色背景视觉融合；
+     补 hairline-strong 边框 + 强阴影拉开层次
+   覆盖：Select / TreeSelect / AutoComplete / Cascader / DatePicker / TimePicker / Dropdown 菜单 */
+.ant-select-dropdown,
+.ant-tree-select-dropdown,
+.ant-cascader-menu,
+.ant-cascader-menus,
+.ant-picker-dropdown,
+.ant-time-picker-panel,
+.ant-dropdown-menu,
+.ant-dropdown-menu-root,
+.ant-autocomplete-dropdown {
+  border: 1px solid var(--color-hairline) !important;
+}
+[data-theme="dark"] .ant-select-dropdown,
+[data-theme="dark"] .ant-tree-select-dropdown,
+[data-theme="dark"] .ant-cascader-menu,
+[data-theme="dark"] .ant-cascader-menus,
+[data-theme="dark"] .ant-picker-dropdown,
+[data-theme="dark"] .ant-time-picker-panel,
+[data-theme="dark"] .ant-dropdown-menu,
+[data-theme="dark"] .ant-dropdown-menu-root,
+[data-theme="dark"] .ant-autocomplete-dropdown {
+  background: #1f1f1f !important;
+  border-color: var(--color-hairline-strong) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
 }
 
 /* ===== 下拉项选中态统一（浅/深色通用）=====

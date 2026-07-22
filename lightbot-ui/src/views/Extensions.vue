@@ -39,16 +39,16 @@
             <SearchOutlined v-else />
           </template>
         </a-input>
-        <button class="btn-outline" @click="handleRefresh">
+        <button class="lb-btn" @click="handleRefresh">
           <ReloadOutlined :spin="currentLoading" /> 刷新
         </button>
-        <button v-if="activeTab === 'skills'" class="btn-skill-action" style="background: #7c3aed" @click="skillRef?.openImportModal()">
+        <button v-if="activeTab === 'skills'" class="lb-btn" @click="skillRef?.openImportModal()">
           <UploadOutlined /> ZIP 导入
         </button>
-        <button v-if="activeTab === 'skills'" class="btn-skill-action" style="background: #0369a1" @click="skillRef?.openRemoteInstallModal()">
+        <button v-if="activeTab === 'skills'" class="lb-btn" @click="skillRef?.openRemoteInstallModal()">
           <CloudDownloadOutlined /> 远程安装
         </button>
-        <button class="btn-primary" @click="handleAdd">
+        <button class="lb-btn lb-btn--primary" @click="handleAdd">
           <PlusOutlined /> {{ addBtnText }}
         </button>
       </div>
@@ -196,55 +196,6 @@ watch(activeTab, (tab) => {
   align-items: center;
   gap: 12px;
   flex-shrink: 0;
-}
-.btn-outline {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 16px;
-  background: transparent;
-  border: 1px solid var(--color-hairline);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: border-color 0.2s;
-}
-.btn-outline:hover {
-  border-color: var(--color-link);
-  color: var(--color-link);
-}
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 10px 20px;
-  background: var(--color-primary);
-  color: #fff;
-  border: none;
-  border-radius: 100px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-primary:hover {
-  background: #27272a;
-}
-.btn-skill-action {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  color: #fff;
-  border: none;
-  border-radius: 100px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-skill-action:hover {
-  opacity: 0.85;
 }
 .tab-content {
   flex: 1;

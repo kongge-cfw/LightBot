@@ -949,7 +949,7 @@
                 class="knowledge-tag tool-tag"
                 :class="{ 'binding-tag--deleted': t._deleted, 'binding-tag--disabled': t._disabled && !t._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #10b981, #059669)"><DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" /></span>
+                <span class="tag-avatar" style="background: var(--gradient-entity-tool)"><DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" /></span>
                 <span>{{ t.displayName || t.name }}</span>
                 <span v-if="t._deleted" class="binding-deleted-tag">已删除</span>
                 <span v-else-if="t._disabled" class="binding-disabled-tag">已禁用</span>
@@ -1053,7 +1053,7 @@
                 class="knowledge-tag"
                 :class="{ 'binding-tag--deleted': k._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #6366f1, #4f46e5)">{{ (k.name || 'K')[0].toUpperCase() }}</span>
+                <span class="tag-avatar" style="background: var(--gradient-entity-knowledge)">{{ (k.name || 'K')[0].toUpperCase() }}</span>
                 <span>{{ k.name }}</span>
                 <span v-if="k._deleted" class="binding-deleted-tag">已删除</span>
                 <button v-if="!isVersionPreview" class="tag-remove" @click="removeKnowledge(k.id)">
@@ -1144,7 +1144,7 @@
                 class="knowledge-tag mcp-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)"><DynamicIcon :name="s.icon" :fallback="s.name" /></span>
+                <span class="tag-avatar" style="background: var(--gradient-entity-mcp)"><DynamicIcon :name="s.icon" :fallback="s.name" /></span>
                 <span class="tag-name-wrap">
                   <span>{{ s.name }}</span>
                   <span v-if="s.isBuiltin === 1" class="binding-inline-badge">内置</span>
@@ -1224,7 +1224,7 @@
                 class="knowledge-tag subagent-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #f59e0b, #d97706)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
+                <span class="tag-avatar" style="background: var(--gradient-entity-skill)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
                 <span>{{ s.displayName || s.name }}</span>
                 <span v-if="s.isBuiltin === 1" class="binding-builtin-tag">内置</span>
                 <span v-if="s._deleted" class="binding-deleted-tag">已删除</span>
@@ -1303,7 +1303,7 @@
                 class="knowledge-tag skill-tag"
                 :class="{ 'binding-tag--deleted': s._deleted, 'binding-tag--disabled': s._disabled && !s._deleted }"
               >
-                <span class="tag-avatar" style="background: linear-gradient(135deg, #ec4899, #db2777)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
+                <span class="tag-avatar" style="background: var(--gradient-entity-subagent)"><DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" /></span>
                 <span class="tag-name-wrap">
                   <span>{{ s.displayName || s.name }}</span>
                   <span v-if="s.isBuiltin === 1" class="binding-inline-badge">内置</span>
@@ -4800,7 +4800,7 @@ onMounted(async () => {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #007cf0, #00dfd8);
+  background: var(--gradient-entity-default);
   color: #fff;
   display: flex;
   align-items: center;
@@ -4812,7 +4812,7 @@ onMounted(async () => {
   position: relative;
 }
 .knowledge-icon {
-  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  background: var(--gradient-entity-knowledge);
 }
 .kb-type-mini-tag {
   font-size: 10px;
@@ -4828,10 +4828,10 @@ onMounted(async () => {
 .kb-type-icon.pg { color: #3b82f6; }
 .kb-type-icon.milvus { color: #8b5cf6; }
 .subagent-icon {
-  background: linear-gradient(135deg, #f59e0b, #d97706);
+  background: var(--gradient-entity-skill);
 }
 .skill-icon {
-  background: linear-gradient(135deg, #ec4899, #db2777) !important;
+  background: var(--gradient-entity-subagent) !important;
 }
 .builtin-badge {
   position: absolute;
@@ -4999,7 +4999,7 @@ onMounted(async () => {
   font-weight: 500;
 }
 .tool-icon-bg {
-  background: linear-gradient(135deg, #10b981, #059669) !important;
+  background: var(--gradient-entity-tool) !important;
 }
 .mcp-tag {
   background: var(--color-purple-bg);
@@ -5007,7 +5007,7 @@ onMounted(async () => {
   color: #7c3aed;
 }
 .mcp-icon-bg {
-  background: linear-gradient(135deg, #7c3aed, #a855f7) !important;
+  background: var(--gradient-entity-mcp) !important;
 }
 .type-filter-bar {
   display: flex;

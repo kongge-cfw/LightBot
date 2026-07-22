@@ -24,7 +24,6 @@
           :filter-option="false"
           :loading="loading"
           allow-clear
-          :dropdownMatchSelectWidth="false"
           option-label-prop="label"
           :popup-class-name="modelSelectDropdownClass"
           @search="onSearch"

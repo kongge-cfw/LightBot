@@ -173,6 +173,17 @@
   --mindmap-text: #1e293b;
   --mindmap-stroke: #e2e8f0;
   --kg-canvas-bg: var(--color-canvas);
+
+  /* 实体图标渐变（v4 2.2.5）
+     AgentDetail 等详情页 tag-avatar / 大图标 / 列表项 icon 统一引用，
+     避免 11 处内联 linear-gradient 散落维护。dark 模式下渐变保留相同色值，
+     因饱和色在深色背景上仍清晰；如未来需要差异化再补 [data-theme="dark"] 覆盖。 */
+  --gradient-entity-default: linear-gradient(135deg, #007cf0, #00dfd8);
+  --gradient-entity-tool: linear-gradient(135deg, #10b981, #059669);
+  --gradient-entity-knowledge: linear-gradient(135deg, #6366f1, #4f46e5);
+  --gradient-entity-mcp: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  --gradient-entity-skill: linear-gradient(135deg, #f59e0b, #d97706);
+  --gradient-entity-subagent: linear-gradient(135deg, #ec4899, #db2777);
 }
 
 /* 深色模式 CSS 变量覆盖 */
