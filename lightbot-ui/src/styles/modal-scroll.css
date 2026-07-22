@@ -5,8 +5,8 @@
  * - 已有 :body-style="{ maxHeight/overflow }" 内联样式的弹窗：内联样式优先级更高，自动覆盖默认规则
  * - 完全没有 body-style 的弹窗：使用此默认值，超出高度自动出滚动条
  *
- * max-height 预留 240px = modal 顶部偏移(100) + header(55) + footer(53) + 安全余量(32)，
- * 确保小屏（如 1366×768 笔记本）下整个弹窗（含 footer 按钮）完全可见，不会被视窗底部裁切。
+ * max-height 预留 260px = modal 顶部偏移(48) + header(55) + footer(53) + 底部安全余量(104)，
+ * 确保小屏（如 1366×768 笔记本）下整个弹窗（含 footer 按钮）完全可见、底部留出呼吸空间。
  *
  * overflow-x: hidden 必须显式声明：CSS 规范下当 overflow-y 非 visible 时，
  * overflow-x 的 visible 会被隐式计算为 auto，弹窗内的 a-slider marks 绝对定位
@@ -20,15 +20,27 @@
  * 不能用 :footer="null" + body 内部 <LbDialogFooter>，否则按钮会被 body padding-right
  * 挤到里面。
  *
+ * 滚动条只在 body 区域出现，footer 自身不会出滚动条。footer 不需要额外加 padding-right
+ * 对齐 body 内容右边——按钮直接按 antd 默认右对齐（16px），不被滚动条影响。
+ *
  * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
   min-height: 80px;
-  max-height: calc(100vh - 240px);
+  max-height: calc(100vh - 260px);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
   padding-right: calc(24px + var(--scroll-content-gap));
+}
+
+/**
+ * 弹窗垂直位置：固定 top: 48px（覆盖 antd 默认 100px），让弹窗在视窗中偏上。
+ * 满高度弹窗（max-height = 100vh - 260px）时，顶部 48px < 底部 ~104px，符合"中间偏上"语义。
+ * 小屏（768）和大屏（1080）视觉一致。
+ */
+.ant-modal {
+  top: 48px;
 }
 
 /**
@@ -45,26 +57,16 @@
 }
 
 /**
- * antd Modal / Drawer footer 按钮右边缘对齐 body 内容右边缘。
- *
- * 背景：.ant-modal-body 加了 scrollbar-gutter: stable 永远预留滚动条空间（8px），
- * gutter 在 padding-right (默认 24px) 内侧额外占位，内容可视区右边缘 = padding-right + gutter = 32px。
- * footer 默认 padding: 10px 16px，按钮右边缘只有 16px，没有 gutter 概念。
- * 结果：body 长内容出滚动条时，footer 按钮比 body 内容右边缘少 16px，
- * 视觉上像"按钮被滚动条挤到旁边"。
- *
- * 修复：footer padding-right 直接设为 32px（body padding-right + scrollbar-size），
- * 按钮右边缘与 body 内容右边缘对齐。
+ * Drawer footer 与 body 内容右边缘对齐（drawer 走自定义 .lb-dialog-footer 时同样需要对齐）。
+ * Modal footer 不加此规则：滚动条只占 body 区域，footer 按钮按 antd 默认 16px 靠右即可。
  */
-.ant-modal-footer,
 .ant-drawer-footer {
   padding-right: calc(var(--scrollbar-size) + 24px);
 }
 
 /**
- * footer 居中弹窗（如 MCP 连接成功提示）。
- * Modal.info 默认 footer 右对齐，这类"纯提示型"弹窗按钮只有一个"知道了"，
- * 居中更对称。同时重置左右 padding 对称，避免上方规则让 footer 右侧多出 gutter 宽度。
+ * footer 居中弹窗（如纯提示型弹窗）。
+ * 这类弹窗按钮只有一个，居中更对称。
  */
 .modal-footer-center .ant-modal-footer {
   text-align: center;

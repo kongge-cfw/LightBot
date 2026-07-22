@@ -363,16 +363,21 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
       v-model:open="testResultVisible"
       :title="testResultData.title"
       :width="480"
-      ok-text="知道了"
       :mask-closable="true"
-      wrap-class-name="modal-footer-center mcp-test-result-modal"
-      @ok="testResultVisible = false"
+      wrap-class-name="mcp-test-result-modal"
     >
       <p v-if="testResultData.summary" class="test-result-summary">{{ testResultData.summary }}</p>
       <ul v-if="testResultData.tools.length" class="test-result-list">
         <li v-for="t in testResultData.tools" :key="t.name">{{ t.name }}</li>
       </ul>
       <div v-if="testResultData.error" class="test-result-error">{{ testResultData.error }}</div>
+      <template #footer>
+        <LbDialogFooter
+          hide-cancel
+          confirm-text="知道了"
+          @confirm="testResultVisible = false"
+        />
+      </template>
     </a-modal>
   </div>
 </template>
@@ -1316,7 +1321,7 @@ defineExpose({ openDialog, search, refresh, loading })
 </style>
 
 <style>
-/* MCP 测试连接结果弹窗：480px 窄宽度下，全局 max-height (100vh - 200px) 让弹窗又窄又高。
+/* MCP 测试连接结果弹窗：480px 窄宽度下，全局 max-height 让弹窗又窄又高。
    限定 50vh 上限，工具列表多时也只占半屏，配合 min-height: 80px 视觉更协调。 */
 .mcp-test-result-modal .ant-modal-body {
   min-height: 80px;

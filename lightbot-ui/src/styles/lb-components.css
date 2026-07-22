@@ -95,6 +95,11 @@
   margin-top: 16px;
   gap: 8px;
 }
+/* LbDialogFooter 放在 a-modal 的 #footer slot 内时，antd 已提供 padding，
+   不再额外加 margin-top，否则按钮会偏下、视觉不对称。 */
+.ant-modal-footer .lb-dialog-footer {
+  margin-top: 0;
+}
 .lb-dialog-footer__left {
   display: flex;
   align-items: center;
