@@ -275,14 +275,17 @@
       </div>
     </div>
 
-    <!-- 文档预览/分块弹窗 -->
+    <!-- 文档预览/分块弹窗：bodyStyle padding:0 让 tabs-nav 通栏背景色填满；
+         minHeight 给弹窗稳定最小高度，避免切换 tab / 加载态导致高度反复跳动。
+         不用 flex 链路传递高度（ant-tabs-tabpane 在 flex 容器中的 stretch 行为不稳定），
+         改为每个 tab-pane-body 自管 max-height + overflow:auto -->
     <a-modal
       v-model:open="docModalVisible"
       :title="currentDoc?.name || '文档详情'"
       :width="900"
       :footer="null"
       centered
-      :bodyStyle="{ padding: '0' }"
+      :bodyStyle="{ padding: '0', minHeight: '460px' }"
     >
       <a-tabs v-model:activeKey="docModalTab" class="doc-modal-tabs">
         <template #rightExtra>
@@ -736,9 +739,8 @@
       </div>
     </a-modal>
 
-    <!-- 编辑知识库弹窗：wrapClassName=lb-modal-compact 关闭 scrollbar-gutter 预留，
-         内容短时无滚动条、字段到右边距对称无空白间隔；maxHeight 保留应对示例问题较多的情况 -->
-    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" wrap-class-name="lb-modal-compact" @ok="handleEdit" :confirm-loading="editSubmitting" :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto' }">
+    <!-- 编辑知识库弹窗 -->
+    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" @ok="handleEdit" :confirm-loading="editSubmitting" :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto' }">
       <a-form :model="editForm" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="editForm.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
@@ -3019,6 +3021,7 @@ onUnmounted(() => {
   border-color: var(--color-hairline);
   color: var(--color-ink);
 }
+/* doc-modal-tabs 只做视觉容器，不参与高度传递 */
 .doc-modal-tabs {
   margin-top: 4px;
 }
@@ -3031,20 +3034,45 @@ onUnmounted(() => {
 .doc-modal-tabs :deep(.ant-tabs-content-holder) {
   padding: 0;
 }
+/* tab-pane-body 自管高度：min-height 给稳定占位（420 + nav 40 ≈ modal minHeight 460），
+   max-height 限制在视口内（260 全局预留 + 40 nav + 20 边距），超出则出滚动条；
+   padding 16/24 让滚动条出现时和字段保持呼吸距离 */
 .tab-pane-body {
-  height: 520px;
+  min-height: 420px;
+  max-height: calc(100vh - 320px);
   overflow: auto;
+  padding: 16px 24px;
 }
+/* 分块列表面板：内部 chunk-list 自己滚，面板本身不滚（保留 min/max-height 继承自 .tab-pane-body） */
 .chunk-list-pane {
-  height: 520px;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
+/* 图谱面板：KnowledgeGraphTab 自管布局，不加 padding 让画布撑满。
+   doc-graph-pane 作为 flex 容器把高度传给组件根（组件内 height:100% 才能生效），
+   并覆盖组件内 min-height（StandaloneGraph 全屏场景需要，modal 里不需要 500/400 兜底）。
+   空状态用绝对定位撑满 canvas-wrapper（kg-canvas-wrapper 是 flex item，
+   其子项 height:100% 解析不稳定，用 inset:0 绝对定位兜底，保证垂直居中生效）*/
 .doc-graph-pane {
-  height: 520px;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
+  padding: 0;
+}
+.doc-graph-pane > :deep(.knowledge-graph-tab) {
+  flex: 1;
+  min-height: 0;
+}
+.doc-graph-pane :deep(.kg-canvas-wrapper) {
+  min-height: 0;
+}
+.doc-graph-pane :deep(.kg-empty) {
+  position: absolute;
+  inset: 0;
+  height: auto;
 }
 .doc-info-pane {
-  height: 520px;
   overflow: auto;
   padding: 16px 24px;
 }
@@ -3090,8 +3118,9 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 4px;
 }
+/* 外层 .tab-pane-body 已统一提供 16/24 padding，此处不再叠加 */
 .text-content-preview {
-  padding: 20px 28px 20px 24px;
+  padding: 0;
 }
 .plain-text {
   font-size: 13px;
@@ -3210,8 +3239,11 @@ onUnmounted(() => {
 }
 
 /* 分块列表 */
+/* chunk-list 在 chunk-list-pane 内 flex:1 撑满剩余高度，自管滚动；
+   padding-right:8px 让滚动条和分块卡片保持距离 */
 .chunk-list {
-  height: 500px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 8px;

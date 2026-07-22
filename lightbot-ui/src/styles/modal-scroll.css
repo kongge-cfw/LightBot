@@ -1,9 +1,14 @@
 /**
  * 弹窗滚动条统一规则
  *
- * 默认给 .ant-modal-body 设置最大高度 + 垂直滚动条，避免内容撑爆弹窗。
- * - 已有 :body-style="{ maxHeight/overflow }" 内联样式的弹窗：内联样式优先级更高，自动覆盖默认规则
- * - 完全没有 body-style 的弹窗：使用此默认值，超出高度自动出滚动条
+ * 核心语义：交给浏览器默认行为。
+ * - 内容未超过 max-height：无滚动条、无预留空位，字段贴 antd 默认 24px 右内边距
+ * - 内容超过 max-height：浏览器自动出滚动条，滚动条挤压内容；24px 内边距天然让
+ *   字段和滚动条之间保持呼吸距离
+ *
+ * 不再使用 scrollbar-gutter: stable：该属性会强制始终预留滚动条轨道（~15px），
+ * 即便内容不溢出也出现"字段与右侧空白间隔"，违背直觉。付出"内容动态增长时
+ * 偶发左移抖动"的代价，换取无滚动条时的紧凑视觉——这是符合预期的 trade-off。
  *
  * max-height 预留 260px = modal 顶部偏移(48) + header(55) + footer(53) + 底部安全余量(104)，
  * 确保小屏（如 1366×768 笔记本）下整个弹窗（含 footer 按钮）完全可见、底部留出呼吸空间。
@@ -14,15 +19,6 @@
  * 横向滚动条。需要横向滚动的弹窗（代码/JSON/SQL 结果）通过 :body-style 显式
  * 设置 overflow: 'auto' 覆盖。
  *
- * padding-right 全局加 --scroll-content-gap（8px）：滚动条与内容之间统一留呼吸距离。
- * 配合 scrollbar-gutter: stable + antd 默认 24px padding，出滚动条时内容到滚动条
- * 距离 = 32px。要求：所有 a-modal 的底部按钮必须用 #footer slot 走 .ant-modal-footer，
- * 不能用 :footer="null" + body 内部 <LbDialogFooter>，否则按钮会被 body padding-right
- * 挤到里面。
- *
- * 滚动条只在 body 区域出现，footer 自身不会出滚动条。footer 不需要额外加 padding-right
- * 对齐 body 内容右边——按钮直接按 antd 默认右对齐（16px），不被滚动条影响。
- *
  * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
@@ -30,8 +26,6 @@
   max-height: calc(100vh - 260px);
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-gutter: stable;
-  padding-right: calc(24px + var(--scroll-content-gap));
 }
 
 /**
@@ -41,24 +35,6 @@
  */
 .ant-modal {
   top: 48px;
-}
-
-/**
- * 紧凑型弹窗（短内容）：通过 wrapClassName="lb-modal-compact" 启用。
- *
- * 应用场景：编辑知识库、新增分类、简单确认等已知内容不会超过 maxHeight 的弹窗。
- * 默认规则 .ant-modal-body 的 scrollbar-gutter: stable 会让浏览器始终预留滚动条轨道
- * （约 8-16px），即便内容不溢出也出"字段与右侧空白间隔"，视觉上像被裁掉一截。
- *
- * 此修饰类关闭 gutter 预留 + 收回 padding-right 到 antd 默认 24px：
- * - 内容不溢出时：无滚动条、无预留空位、字段贴右边距对称
- * - 内容溢出时（罕见）：滚动条覆盖式出现，内容左移 8-16px（trade-off 可接受）
- *
- * 长内容弹窗（可能频繁溢出）不要用此类，保持默认规则避免内容抖动。
- */
-.lb-modal-compact .ant-modal-body {
-  scrollbar-gutter: auto;
-  padding-right: 24px;
 }
 
 /**
