@@ -196,8 +196,8 @@ watch(
     position: relative;
   }
   .task-list-item input[type="checkbox"]:checked {
-    background: #16a34a;
-    border-color: #16a34a;
+    background: var(--green-600);
+    border-color: var(--green-600);
   }
   .task-list-item input[type="checkbox"]:checked::after {
     content: '';
@@ -302,7 +302,7 @@ watch(
     line-height: 1;
   }
   .code-copy-btn:hover { background: var(--gray-25); color: var(--main-700); }
-  .code-copy-btn.is-copied { color: #16a34a; }
+  .code-copy-btn.is-copied { color: var(--green-600); }
   .code-copy-btn-mount {
     display: inline-flex;
     align-items: center;
@@ -442,8 +442,8 @@ watch(
     white-space: pre;
   }
   pre.mermaid.mermaid-render-error {
-    border-color: #fca5a5;
-    color: #b91c1c;
+    border-color: var(--color-error-soft);
+    color: var(--color-error);
   }
 
   /* Shiki 代码高亮块 */

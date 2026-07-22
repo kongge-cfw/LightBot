@@ -63,6 +63,18 @@
   --color-purple-bg: #f5f3ff;
   --color-purple-border: #c4b5fd;
 
+  /* 紫色色阶（文件沙箱 / SubAgent 状态） */
+  --purple-50: #f5f3ff;
+  --purple-100: #ede9fe;
+  --purple-200: #ddd6fe;
+  --purple-300: #c4b5fd;
+  --purple-400: #a78bfa;
+  --purple-500: #8b5cf6;
+  --purple-600: #7c3aed;
+  --purple-700: #6d28d9;
+  --purple-800: #5b21b6;
+  --purple-900: #4c1d95;
+
   /* 文字色扩展 */
   --color-text-dark: #334155;
   --color-text-code: #1e293b;
@@ -207,6 +219,18 @@
   --color-info-bg: #0c1a3d;
   --color-purple-bg: #1e1040;
   --color-purple-border: #4c1d95;
+
+  /* 紫色色阶 - 深色（反转：浅色文字配深色背景） */
+  --purple-50: #1e1040;
+  --purple-100: #2e1065;
+  --purple-200: #3b1882;
+  --purple-300: #4c1d95;
+  --purple-400: #6d28d9;
+  --purple-500: #8b5cf6;
+  --purple-600: #a78bfa;
+  --purple-700: #c4b5fd;
+  --purple-800: #ddd6fe;
+  --purple-900: #ede9fe;
 
   /* 文字色扩展 - 深色 */
   --color-text-dark: #e4e4e7;

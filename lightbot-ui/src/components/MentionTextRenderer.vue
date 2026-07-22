@@ -112,6 +112,12 @@ const parts = computed(() => {
   color: #2563eb;
 }
 
+[data-theme="dark"] .mention-text-renderer .mention-chip {
+  background: rgba(59, 130, 246, 0.28);
+  color: #93c5fd;
+  box-shadow: inset 0 0 0 1px rgba(147, 197, 253, 0.28);
+}
+
 [data-theme="dark"] .mention-text-renderer .mention-chip-knowledge {
   background: rgba(16, 185, 129, 0.28);
   color: #6ee7b7;

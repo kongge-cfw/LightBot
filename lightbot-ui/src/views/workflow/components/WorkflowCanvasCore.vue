@@ -39,7 +39,7 @@
     @edge-mouse-leave="$emit('edge-mouse-leave', $event)"
     @pane-click="$emit('pane-click', $event)"
   >
-    <Background :gap="[20, 20]" pattern-color="#e5e7eb" />
+    <Background :gap="[20, 20]" :pattern-color="patternColor" />
     <Controls v-if="showControls" position="bottom-right" show-zoom show-fit-view />
     <MiniMap
       v-if="showMinimap"
@@ -90,6 +90,7 @@ import { VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
+import { useTheme } from '../../../composables/useTheme'
 import StartNode from '../nodes/StartNode.vue'
 import EndNode from '../nodes/EndNode.vue'
 import LlmNode from '../nodes/LlmNode.vue'
@@ -149,6 +150,9 @@ defineEmits([
   'node-drag-start', 'node-drag', 'node-drag-stop', 'drop',
   'node-click', 'edge-click', 'edge-mouse-enter', 'edge-mouse-move', 'edge-mouse-leave', 'pane-click',
 ])
+
+const { isDark } = useTheme()
+const patternColor = computed(() => (isDark.value ? '#3f3f46' : '#e5e7eb'))
 
 const edgeTypes = markRaw({
   'workflow-bezier': markRaw(WorkflowBezierEdge),

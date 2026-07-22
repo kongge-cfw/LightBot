@@ -128,7 +128,7 @@
             <div style="max-width: 260px">
               <div style="font-weight: 600; margin-bottom: 4px">什么是语义搜索？</div>
               <div>基于向量相似度匹配节点含义，而非精确匹配文字。命中节点按相似度高亮，低于阈值的结果不展示。</div>
-              <div style="margin-top: 6px; color: #bbb">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
+              <div style="margin-top: 6px; color: var(--color-mute)">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
             </div>
           </template>
           <QuestionCircleOutlined class="kg-semantic-help" />
@@ -164,7 +164,7 @@
         <a-spin v-if="loading" tip="加载图谱中..." />
         <template v-else>
           <template v-if="hasRunningTask">
-            <LoadingOutlined style="font-size: 28px; color: #1677ff; margin-bottom: 12px" />
+            <LoadingOutlined style="font-size: 28px; color: var(--blue-500); margin-bottom: 12px" />
             <p>知识图谱抽取任务已提交，请等待</p>
             <a-button size="small" @click="loadGraphData">刷新状态</a-button>
           </template>
@@ -233,7 +233,7 @@
         <a-tooltip :title="extractMode === 'single'
           ? '为每个选中的文档分别创建抽取任务，各自独立生成该文档的知识图谱。可批量选择多个文档同时提交。'
           : '将选中的多个文档内容合并，统一抽取实体关系，构建一个完整的知识库级知识图谱。所有文档的实体和关系会融合在同一张图谱中。'">
-          <QuestionCircleOutlined style="margin-left: 6px; font-size: 14px; color: #999; cursor: help" />
+          <QuestionCircleOutlined style="margin-left: 6px; font-size: 14px; color: var(--color-mute); cursor: help" />
         </a-tooltip>
       </template>
       <div class="doc-extract-content">
@@ -308,7 +308,7 @@
           <template #label>
             并发队列数
             <a-tooltip title="同时并发抽取的协程数量，越大抽取速度越快，但会消耗更多模型 API 并发额度。建议 10-50。">
-              <QuestionCircleOutlined style="margin-left: 4px; font-size: 13px; color: #999; cursor: help" />
+              <QuestionCircleOutlined style="margin-left: 4px; font-size: 13px; color: var(--color-mute); cursor: help" />
             </a-tooltip>
           </template>
           <a-input-number
@@ -323,7 +323,7 @@
           <template #label>
             模型参数 JSON
             <a-tooltip title="传给模型的额外参数，如 temperature、maxTokens 等。不同模型支持的参数不同。">
-              <QuestionCircleOutlined style="margin-left: 4px; font-size: 13px; color: #999; cursor: help" />
+              <QuestionCircleOutlined style="margin-left: 4px; font-size: 13px; color: var(--color-mute); cursor: help" />
             </a-tooltip>
           </template>
           <JsonInput
@@ -356,8 +356,10 @@ import { COLOR_PALETTE, LAYOUT_CONFIG, formatGraphData } from '../composables/us
 const { isDark } = useTheme()
 
 const graphColors = computed(() => isDark.value
-  ? { labelFill: '#ffffff', edgeLabel: '#d1d5db', edgeStroke: '#555', edgeArrow: '#555' }
-  : { labelFill: '#1e293b', edgeLabel: '#6b7280', edgeStroke: '#d1d5db', edgeArrow: '#d1d5db' }
+  ? { labelFill: '#ffffff', edgeLabel: '#d1d5db', edgeStroke: '#555', edgeArrow: '#555',
+      badgeBg: '#3b82f6', badgeText: '#ffffff', nodeStroke: '#1e1f1f', nodeShadow: 'rgba(0,0,0,0.5)' }
+  : { labelFill: '#1e293b', edgeLabel: '#6b7280', edgeStroke: '#d1d5db', edgeArrow: '#d1d5db',
+      badgeBg: '#2563eb', badgeText: '#ffffff', nodeStroke: '#ffffff', nodeShadow: '#d1d5db' }
 )
 
 const props = defineProps({
@@ -533,8 +535,8 @@ async function renderGraph(subgraph, seq) {
           return [{
             text: `${(d.data.score * 100).toFixed(1)}%`,
             placement: 'right-top',
-            backgroundFill: '#2563eb',
-            fill: '#ffffff',
+            backgroundFill: graphColors.value.badgeBg,
+            fill: graphColors.value.badgeText,
             fontSize: 10,
             padding: [2, 5],
             backgroundRadius: 8
@@ -545,9 +547,9 @@ async function renderGraph(subgraph, seq) {
           return Math.min(15 + deg * 5, 50)
         },
         opacity: 0.9,
-        stroke: '#ffffff',
+        stroke: graphColors.value.nodeStroke,
         lineWidth: 1.5,
-        shadowColor: '#d1d5db',
+        shadowColor: graphColors.value.nodeShadow,
         shadowBlur: 4
       },
       palette: {
@@ -1240,7 +1242,7 @@ watch(isDark, () => {
 }
 .doc-extract-batch-hint {
   font-size: 12px;
-  color: #faad14;
+  color: var(--color-warning);
 }
 .doc-extract-list {
   max-height: 400px;

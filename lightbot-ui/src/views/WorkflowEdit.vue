@@ -187,77 +187,80 @@
         />
       </ResizableSidePanel>
     </div>
+
+    <!-- 弹窗 / 抽屉：必须放在根 div 内（antd Modal/Drawer 内部用 Teleport 挂到 body，
+         不影响布局），否则 WorkflowEdit 会变成多根组件，导致外层 <transition mode="out-in">
+         无法绑定 transitionend，leave 卡死 → 切走后主内容区空白 -->
+    <NodeExampleModal
+      v-model:open="nodeExampleVisible"
+      :example="nodeExampleContent"
+      :readonly="isVersionPreview"
+      :allow-apply="nodeExampleAllowApply"
+      @apply="applyNodeExampleConfig"
+    />
+
+    <NodeSingleTestDrawer
+      v-model:open="nodeTestVisible"
+      :agent-id="agentId"
+      :node="selectedNode"
+      :graph-payload="workflowGraphPayload"
+      @test-complete="onNodeTestComplete"
+    />
+
+    <WorkflowNodeHelpModal v-model:open="nodeHelpVisible" />
+
+    <WorkflowGlobalConfigModal
+      v-model:open="globalConfigVisible"
+      :config="globalConfig"
+      @ok="globalConfigVisible = false"
+      @add-param="addConversationParam"
+      @remove-param="removeConversationParam"
+    />
+
+    <WorkflowTestDrawer
+      v-model:open="testVisible"
+      v-model:test-mode="testMode"
+      v-model:test-input="testInput"
+      v-model:test-use-draft="testUseDraft"
+      :test-running="testRunning"
+      :test-streaming="testStreaming"
+      :test-animating="testAnimating"
+      :test-failed-node-id="testFailedNodeId"
+      :test-messages="testMessages"
+      :test-result="testResult"
+      :test-current-node-id="testCurrentNodeId"
+      :test-pending-confirm="testPendingConfirm"
+      :history-list="testHistoryList"
+      :history-loading="testHistoryLoading"
+      :selected-history-run-id="selectedHistoryRunId"
+      :viewing-history="viewingTestHistory"
+      :get-node-title-by-id="getNodeTitleById"
+      @close="onTestDrawerClose"
+      @run="runWorkflowTest"
+      @resume="resumeWorkflowTest"
+      @abandon="abandonWorkflowTest"
+      @clear-conversation="clearTestConversation"
+      @select-node="onTestTimelineNodeSelect"
+      @open-history-run="openTestRunHistory"
+      @delete-history="deleteTestRunHistory"
+      @clear-history="clearTestRunHistory"
+      @refresh-history="loadTestHistoryList"
+      @skip-replay="skipTestHistoryReplay"
+      @back-to-live="backToLiveTest"
+    />
+
+    <WorkflowPublishModal
+      v-model:open="publishModalVisible"
+      v-model:description="publishDescription"
+      :saving="saving"
+      @confirm="confirmPublishWorkflow"
+    />
   </div>
-
-  <NodeExampleModal
-    v-model:open="nodeExampleVisible"
-    :example="nodeExampleContent"
-    :readonly="isVersionPreview"
-    :allow-apply="nodeExampleAllowApply"
-    @apply="applyNodeExampleConfig"
-  />
-
-  <NodeSingleTestDrawer
-    v-model:open="nodeTestVisible"
-    :agent-id="agentId"
-    :node="selectedNode"
-    :graph-payload="workflowGraphPayload"
-    @test-complete="onNodeTestComplete"
-  />
-
-  <WorkflowNodeHelpModal v-model:open="nodeHelpVisible" />
-
-  <WorkflowGlobalConfigModal
-    v-model:open="globalConfigVisible"
-    :config="globalConfig"
-    @ok="globalConfigVisible = false"
-    @add-param="addConversationParam"
-    @remove-param="removeConversationParam"
-  />
-
-  <WorkflowTestDrawer
-    v-model:open="testVisible"
-    v-model:test-mode="testMode"
-    v-model:test-input="testInput"
-    v-model:test-use-draft="testUseDraft"
-    :test-running="testRunning"
-    :test-streaming="testStreaming"
-    :test-animating="testAnimating"
-    :test-failed-node-id="testFailedNodeId"
-    :test-messages="testMessages"
-    :test-result="testResult"
-    :test-current-node-id="testCurrentNodeId"
-    :test-pending-confirm="testPendingConfirm"
-    :history-list="testHistoryList"
-    :history-loading="testHistoryLoading"
-    :selected-history-run-id="selectedHistoryRunId"
-    :viewing-history="viewingTestHistory"
-    :get-node-title-by-id="getNodeTitleById"
-    @close="onTestDrawerClose"
-    @run="runWorkflowTest"
-    @resume="resumeWorkflowTest"
-    @abandon="abandonWorkflowTest"
-    @clear-conversation="clearTestConversation"
-    @select-node="onTestTimelineNodeSelect"
-    @open-history-run="openTestRunHistory"
-    @delete-history="deleteTestRunHistory"
-    @clear-history="clearTestRunHistory"
-    @refresh-history="loadTestHistoryList"
-    @skip-replay="skipTestHistoryReplay"
-    @back-to-live="backToLiveTest"
-  />
-
-  <WorkflowPublishModal
-    v-model:open="publishModalVisible"
-    v-model:description="publishDescription"
-    :saving="saving"
-    @confirm="confirmPublishWorkflow"
-  />
 </template>
 
 <script setup>
 defineOptions({ name: 'WorkflowEdit' })
-import { ref, onMounted, onUnmounted, computed, shallowRef, triggerRef, nextTick, watch, markRaw, provide } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated, onDeactivated, computed, shallowRef, triggerRef, nextTick, watch, markRaw, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useVueFlow, applyNodeChanges, applyEdgeChanges, addEdge } from '@vue-flow/core'
 import { getEdgeInsertCenter } from './workflow/workflowEdgeGeometry'
@@ -345,9 +348,15 @@ import {
   getHandleDisplayName,
   buildEdgeId,
 } from '../views/workflow/workflowConnection'
+import { useTheme } from '../composables/useTheme'
 
 const route = useRoute()
 const router = useRouter()
+const { isDark } = useTheme()
+
+// Vue Flow edge 样式按主题切换：浅色用 slate-400 (#94a3b8)，深色用 slate-500 (#52525b) 保证可见
+const edgeStrokeColor = computed(() => (isDark.value ? '#52525b' : '#94a3b8'))
+const edgeStyle = computed(() => ({ strokeWidth: 2, stroke: edgeStrokeColor.value }))
 const agentId = route.params.agentId
 
 const WORKFLOW_FLOW_ID = 'lightbot-workflow-edit'
@@ -378,12 +387,12 @@ const edgeTypes = markRaw({
   default: markRaw(WorkflowBezierEdge),
 })
 
-const defaultEdgeOptions = {
+const defaultEdgeOptions = computed(() => ({
   type: 'workflow-bezier',
   selectable: true,
   updatable: true,
-  style: { strokeWidth: 2, stroke: '#94a3b8' },
-}
+  style: edgeStyle.value,
+}))
 
 // 状态
 const agent = ref(null)
@@ -498,6 +507,15 @@ const nodePanelHistoryRecorded = ref(false)
 watch([selectedNode, selectedEdge, panelCollapsed, versionVisible], () => {
   if (!versionVisible.value) return
   nextTick(() => clampVersionPanelPosition())
+})
+
+// 主题切换时，把已存在的所有 edge 的 stroke 同步到当前主题色（defaultEdgeOptions 只对新建 edge 生效）
+watch(edgeStrokeColor, (next) => {
+  if (!edges.value?.length) return
+  edges.value = edges.value.map((e) => ({
+    ...e,
+    style: { ...(e.style || {}), stroke: next, strokeWidth: 2 },
+  }))
 })
 
 watch(testVisible, (open) => {
@@ -1055,6 +1073,30 @@ function onKeyDown(event) {
 }
 
 onUnmounted(() => {
+  cleanupWorkflowResources()
+})
+
+/**
+ * KeepAlive 缓存的本组件在切走时不会触发 onUnmounted，必须用 onDeactivated 清理全局监听、
+ * 定时器、SSE；切回时用 onActivated 重新绑定。否则 keydown / ResizeObserver / live test SSE
+ * 会持续在后台运行，且 keydown 的 preventDefault 会污染其他页面的 Delete/Backspace 行为。
+ */
+onDeactivated(() => {
+  cleanupWorkflowResources()
+})
+
+onActivated(() => {
+  window.addEventListener('keydown', onKeyDown)
+  nextTick(() => {
+    if (canvasAreaRef.value && !versionPanelResizeObserver) {
+      versionPanelResizeObserver = new ResizeObserver(() => clampVersionPanelPosition())
+      versionPanelResizeObserver.observe(canvasAreaRef.value)
+    }
+  })
+})
+
+/** 清理全局监听、定时器与 SSE：onUnmounted 与 onDeactivated 共用 */
+function cleanupWorkflowResources() {
   stopLiveTestStream()
   clearTimeout(nodeInternalsTimer)
   window.removeEventListener('keydown', onKeyDown)
@@ -1065,7 +1107,7 @@ onUnmounted(() => {
   versionPanelResizeObserver = null
   clearTimeout(autoSaveTimer)
   clearTimeout(edgeHoverLeaveTimer)
-})
+}
 
 /** 兼容旧数据并补齐默认字段 */
 function migrateWorkflowNode(node) {
@@ -1620,7 +1662,7 @@ function createWorkflowEdgeFromConnection(conn, idSuffix) {
     sourceHandle: normalized.sourceHandle || HANDLE_OUT,
     targetHandle: HANDLE_IN,
     selectable: true,
-    style: { strokeWidth: 2, stroke: '#94a3b8' },
+    style: edgeStyle.value,
   }, idSuffix)
 }
 
@@ -2031,7 +2073,7 @@ function applyEdgePatch(edgeId, patch) {
     ...merged,
     targetHandle: HANDLE_IN,
     selectable: true,
-    style: old.style || { strokeWidth: 2, stroke: '#94a3b8' },
+    style: old.style || edgeStyle.value,
   }
   const next = [...edges.value]
   next[idx] = updated
@@ -2109,7 +2151,7 @@ function onConnect(params) {
     sourceHandle: redirected.sourceHandle || HANDLE_OUT,
     targetHandle: HANDLE_IN,
     selectable: true,
-    style: { strokeWidth: 2, stroke: '#94a3b8' },
+    style: edgeStyle.value,
   }
   edges.value = addEdge(newEdge, [...edges.value])
   scheduleAutoSave()
@@ -3150,7 +3192,7 @@ function goBack() {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #6366f1;
+  background: var(--color-link);
   animation: dot-bounce 1.2s ease-in-out infinite;
 }
 .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
@@ -3467,8 +3509,8 @@ function goBack() {
   text-align: center;
 }
 
-.status-valid { color: #22c55e; font-size: 13px; }
-.status-error { color: #ef4444; font-size: 13px; }
+.status-valid { color: var(--green-500); font-size: 13px; }
+.status-error { color: var(--color-error); font-size: 13px; }
 .status-error.clickable {
   cursor: pointer;
   padding: 4px 8px;

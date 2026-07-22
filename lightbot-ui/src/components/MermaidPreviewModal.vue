@@ -213,5 +213,5 @@ onUnmounted(onPanEnd)
   color: var(--color-mute);
   font-size: 14px;
 }
-.mpm-error { color: #dc2626; }
+.mpm-error { color: var(--color-error); }
 </style>

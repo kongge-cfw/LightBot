@@ -32,17 +32,17 @@
 
         <a-modal v-model:open="showModal" title="文件内容" :footer="null" :width="680"
           :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
-          <div style="display:flex;align-items:center;gap:24px;padding:12px 16px;margin-bottom:20px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">文件路径</span>
-              <span style="font-size:13px;font-weight:500;color:#6d28d9;font-family:'Monaco','Menlo',monospace;word-break:break-all;">{{ data.path }}</span>
+          <div class="sfr-modal-meta">
+            <div class="sfr-modal-meta-item">
+              <span class="sfr-modal-meta-label">文件路径</span>
+              <span class="sfr-modal-meta-value">{{ data.path }}</span>
             </div>
-            <div v-if="data.size != null" style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">文件大小</span>
-              <span style="font-size:14px;font-weight:700;color:#6d28d9;">{{ formatSize(data.size) }}</span>
+            <div v-if="data.size != null" class="sfr-modal-meta-item sfr-modal-meta-item-right">
+              <span class="sfr-modal-meta-label">文件大小</span>
+              <span class="sfr-modal-meta-value sfr-modal-meta-value-strong">{{ formatSize(data.size) }}</span>
             </div>
           </div>
-          <pre style="margin:0;padding:16px;background:#1e1e1e;color:#d4d4d4;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word;border-radius:8px;font-family:'Monaco','Menlo',monospace;">{{ data.content }}</pre>
+          <pre class="sfr-modal-content">{{ data.content }}</pre>
         </a-modal>
       </div>
 
@@ -69,22 +69,22 @@
 
         <a-modal v-model:open="showModal" title="文件列表" :footer="null" :width="720"
           :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
-          <div style="display:flex;align-items:center;gap:24px;padding:12px 16px;margin-bottom:20px;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;">
-            <div style="display:flex;align-items:center;gap:8px;">
-              <FolderOpenOutlined style="font-size:14px;color:#7c3aed;flex-shrink:0;" />
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">目录路径</span>
-              <span style="font-size:13px;font-weight:500;color:#6d28d9;font-family:'Monaco','Menlo',monospace;word-break:break-all;">{{ data.dirPath }}</span>
+          <div class="sfr-modal-meta">
+            <div class="sfr-modal-meta-item">
+              <FolderOpenOutlined class="sfr-modal-meta-icon" />
+              <span class="sfr-modal-meta-label">目录路径</span>
+              <span class="sfr-modal-meta-value">{{ data.dirPath }}</span>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
-              <FileTextOutlined style="font-size:14px;color:#7c3aed;flex-shrink:0;" />
-              <span style="font-size:12px;color:#8b5cf6;white-space:nowrap;">文件总数</span>
-              <span style="font-size:14px;font-weight:700;color:#6d28d9;">{{ data.total }}</span>
+            <div class="sfr-modal-meta-item sfr-modal-meta-item-right">
+              <FileTextOutlined class="sfr-modal-meta-icon" />
+              <span class="sfr-modal-meta-label">文件总数</span>
+              <span class="sfr-modal-meta-value sfr-modal-meta-value-strong">{{ data.total }}</span>
             </div>
           </div>
-          <div style="border:1px solid #ddd6fe;border-radius:8px;background:#fff;">
-            <div v-for="(file, i) in data.files" :key="i" style="display:flex;align-items:center;gap:6px;padding:4px 12px;color:#374151;">
-              <FileTextOutlined style="font-size:12px;color:#a78bfa;flex-shrink:0;" />
-              <span style="font-size:12px;font-family:'Monaco','Menlo',monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ file }}</span>
+          <div class="sfr-modal-list">
+            <div v-for="(file, i) in data.files" :key="i" class="sfr-modal-list-item">
+              <FileTextOutlined class="sfr-modal-list-icon" />
+              <span class="sfr-modal-list-name">{{ file }}</span>
             </div>
           </div>
         </a-modal>
@@ -170,15 +170,15 @@ function formatSize(n) {
 
   // ── 卡片容器 ──
   .sfr-card {
-    border: 1px solid #c4b5fd;
-    border-left: 3px solid #8b5cf6;
+    border: 1px solid var(--purple-300);
+    border-left: 3px solid var(--purple-500);
     border-radius: 8px;
     overflow: hidden;
     background: var(--color-purple-bg);
   }
   .sfr-card-error {
-    border-color: #fca5a5;
-    border-left-color: #ef4444;
+    border-color: var(--color-error-soft);
+    border-left-color: var(--color-error);
     background: var(--color-error-bg);
   }
 
@@ -186,41 +186,41 @@ function formatSize(n) {
   .sfr-header {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 10px;
-    background: var(--color-purple-bg); border-bottom: 1px solid #c4b5fd;
-    font-size: 12px; font-weight: 600; color: #5b21b6;
+    background: var(--color-purple-bg); border-bottom: 1px solid var(--purple-300);
+    font-size: 12px; font-weight: 600; color: var(--purple-800);
   }
   .sfr-header-error {
-    background: var(--color-error-bg); border-bottom-color: #fca5a5; color: #991b1b;
+    background: var(--color-error-bg); border-bottom-color: var(--color-error-soft); color: var(--color-error-deep);
   }
   .sfr-header-icon {
-    font-size: 14px; color: #7c3aed; flex-shrink: 0;
-    &.success { color: #16a34a; }
+    font-size: 14px; color: var(--purple-600); flex-shrink: 0;
+    &.success { color: var(--green-600); }
   }
-  .sfr-header-error .sfr-header-icon { color: #dc2626; }
+  .sfr-header-error .sfr-header-icon { color: var(--color-error); }
 
   .sfr-path {
     font-family: 'Monaco', 'Menlo', monospace;
-    font-size: 11px; color: #6d28d9;
+    font-size: 11px; color: var(--purple-700);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex: 1; min-width: 0;
   }
   .sfr-meta {
-    font-size: 11px; color: #8b5cf6; flex-shrink: 0;
+    font-size: 11px; color: var(--purple-500); flex-shrink: 0;
     font-weight: 400;
   }
   .sfr-badge {
     font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 4px; flex-shrink: 0;
-    &.success { color: #16a34a; background: var(--color-success-bg); }
+    &.success { color: var(--green-600); background: var(--color-success-bg); }
   }
   .sfr-detail-btn {
     appearance: none;
-    border: 1px solid #c4b5fd;
+    border: 1px solid var(--purple-300);
     border-radius: 6px;
     background: var(--color-canvas);
-    color: #7c3aed;
+    color: var(--purple-600);
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 12px; cursor: pointer;
-    padding: 6px 12px; border-radius: 6px; flex-shrink: 0;
+    padding: 6px 12px; flex-shrink: 0;
     font-weight: 500;
     transition: all 0.2s ease;
     &:hover {
@@ -234,7 +234,7 @@ function formatSize(n) {
   // ── 错误内容 ──
   .sfr-error-msg {
     margin: 0; padding: 10px 12px;
-    color: #b91c1c; font-size: 12px; line-height: 1.6;
+    color: var(--color-error-deep); font-size: 12px; line-height: 1.6;
     white-space: pre-wrap; word-break: break-word;
   }
 
@@ -248,16 +248,16 @@ function formatSize(n) {
     font-family: 'Monaco', 'Menlo', monospace;
   }
   .sfr-truncated-hint {
-    padding: 6px 12px; font-size: 11px; color: #8b5cf6;
+    padding: 6px 12px; font-size: 11px; color: var(--purple-500);
     text-align: center;
-    border-top: 1px solid #ddd6fe;
+    border-top: 1px solid var(--purple-200);
     background: var(--color-purple-bg);
   }
 
   // ── list_files ──
   .sfr-empty {
     padding: 16px 12px; text-align: center;
-    color: #a78bfa; font-style: italic;
+    color: var(--purple-400); font-style: italic;
   }
   .sfr-file-list { padding: 4px 0; }
   .sfr-file-item {
@@ -265,30 +265,81 @@ function formatSize(n) {
     padding: 4px 12px; color: var(--gray-700);
     &:hover { background: var(--color-purple-bg); }
   }
-  .sfr-file-icon { font-size: 12px; color: #a78bfa; flex-shrink: 0; }
+  .sfr-file-icon { font-size: 12px; color: var(--purple-400); flex-shrink: 0; }
   .sfr-file-name {
     font-size: 12px; font-family: 'Monaco', 'Menlo', monospace;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   .sfr-more {
-    padding: 6px 12px; font-size: 11px; color: #8b5cf6;
-    text-align: center; border-top: 1px dashed #ddd6fe;
+    padding: 6px 12px; font-size: 11px; color: var(--purple-500);
+    text-align: center; border-top: 1px dashed var(--purple-200);
     background: var(--color-purple-bg);
   }
 
   // ── write_file ──
   .sfr-write-info {
-    padding: 8px 12px; color: #6d28d9; font-size: 12px;
+    padding: 8px 12px; color: var(--purple-700); font-size: 12px;
   }
 
   // ── 兜底 JSON ──
   .sfr-json {
     margin: 0; padding: 10px 12px;
-    background: #1e1e1e; color: #d4d4d4;
+    background: var(--gray-900); color: var(--gray-100);
     font-size: 12px; line-height: 1.5;
     white-space: pre-wrap; word-break: break-word;
     font-family: 'Monaco', 'Menlo', monospace;
   }
 
+  // ── 弹窗内（非 scoped 隔离，但 less 嵌套作用域已覆盖） ──
+  .sfr-modal-meta {
+    display: flex; align-items: center; gap: 24px;
+    padding: 12px 16px; margin-bottom: 20px;
+    background: var(--purple-50);
+    border: 1px solid var(--purple-200);
+    border-radius: 8px;
+  }
+  .sfr-modal-meta-item {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sfr-modal-meta-item-right { margin-left: auto; }
+  .sfr-modal-meta-icon {
+    font-size: 14px; color: var(--purple-600); flex-shrink: 0;
+  }
+  .sfr-modal-meta-label {
+    font-size: 12px; color: var(--purple-500); white-space: nowrap;
+  }
+  .sfr-modal-meta-value {
+    font-size: 13px; font-weight: 500;
+    color: var(--purple-700);
+    font-family: 'Monaco', 'Menlo', monospace;
+    word-break: break-all;
+  }
+  .sfr-modal-meta-value-strong {
+    font-size: 14px; font-weight: 700;
+  }
+  .sfr-modal-content {
+    margin: 0; padding: 16px;
+    background: var(--gray-900); color: var(--gray-100);
+    font-size: 13px; line-height: 1.7;
+    white-space: pre-wrap; word-break: break-word;
+    border-radius: 8px;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
+  .sfr-modal-list {
+    border: 1px solid var(--purple-200);
+    border-radius: 8px;
+    background: var(--color-canvas);
+  }
+  .sfr-modal-list-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 4px 12px; color: var(--color-text-dark);
+  }
+  .sfr-modal-list-icon {
+    font-size: 12px; color: var(--purple-400); flex-shrink: 0;
+  }
+  .sfr-modal-list-name {
+    font-size: 12px; font-family: 'Monaco', 'Menlo', monospace;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
 }
 </style>

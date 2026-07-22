@@ -254,9 +254,11 @@ import CollapseTransition from '../components/common/CollapseTransition.vue'
 import { sseFetch } from '../utils/sseFetch'
 import { formatRelativeTime } from '../utils/format'
 
-// 启用 KeepAlive 缓存的页面：本地状态较多（长表单、编辑器、画布），切走再回来不丢失
+// 启用 KeepAlive 缓存的页面：本地状态较多（长表单、编辑器），切走再回来不丢失
 // 对应组件已通过 defineOptions 声明 name 以便 :include 匹配
-const cachedRouteNames = ['AgentDetail', 'KnowledgeDetail', 'WorkflowEdit', 'McpManage', 'SkillManage']
+// 注：WorkflowEdit 不缓存 —— Vue Flow 内部状态在 keep-alive 切走再回来时容易卡住，
+// 导致后续切到任意侧栏页面 router-view 渲染空白（URL 正常但内容不显示）
+const cachedRouteNames = ['AgentDetail', 'KnowledgeDetail', 'McpManage', 'SkillManage']
 
 const route = useRoute()
 const router = useRouter()

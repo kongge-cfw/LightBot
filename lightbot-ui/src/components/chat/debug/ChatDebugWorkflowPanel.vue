@@ -462,8 +462,8 @@ defineExpose({ validateAndGetMessage, loadScenario, handleFormat })
 
 .debug-scenario-card:hover,
 .debug-scenario-card.active {
-  border-color: #6366f1;
-  box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.12);
+  border-color: var(--color-link);
+  box-shadow: 0 0 0 2px var(--color-link-bg-soft);
 }
 
 .debug-scenario-card.invalid {
@@ -620,6 +620,26 @@ defineExpose({ validateAndGetMessage, loadScenario, handleFormat })
   border-color: #bfdbfe;
   background: #eff6ff;
   color: #1e40af;
+}
+
+/* 深色模式：浅色状态背景在 #111 画布上刺眼且文字对比度不足，
+   统一替换为深色底 + 浅色文字，复用 variables.css 的语义背景变量。 */
+[data-theme="dark"] .debug-validation-item.error {
+  border-color: var(--color-error-deep);
+  background: var(--color-error-bg);
+  color: var(--color-error-deep);
+}
+
+[data-theme="dark"] .debug-validation-item.warning {
+  border-color: var(--color-warning-deep);
+  background: var(--color-warn-bg);
+  color: var(--color-warning-deep);
+}
+
+[data-theme="dark"] .debug-validation-item.info {
+  border-color: var(--color-link);
+  background: var(--color-info-bg);
+  color: var(--color-link-deep);
 }
 
 .issue-severity {

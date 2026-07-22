@@ -148,7 +148,7 @@
           <a-descriptions-item label="消息ID" :span="2">{{ toolDetailRecord.messageId || '-' }}</a-descriptions-item>
           <a-descriptions-item label="调用时间" :span="2">{{ formatTime(toolDetailRecord.createdAt) }}</a-descriptions-item>
           <a-descriptions-item label="错误信息" :span="2" v-if="toolDetailRecord.errorMessage">
-            <span style="color: #ff4d4f">{{ toolDetailRecord.errorMessage }}</span>
+            <span style="color: var(--color-error)">{{ toolDetailRecord.errorMessage }}</span>
           </a-descriptions-item>
         </a-descriptions>
 
@@ -163,7 +163,7 @@
           <div class="detail-label">
             输出结果
             <button class="btn-copy" @click="copyToolOutput">
-              <CheckOutlined v-if="toolOutputCopied" style="color: #52c41a" />
+              <CheckOutlined v-if="toolOutputCopied" style="color: var(--green-500)" />
               <CopyOutlined v-else />
             </button>
           </div>
@@ -193,7 +193,7 @@
             <span class="info-label">Request ID</span>
             <span class="info-value request-id-text">{{ detailTrace.requestId }}</span>
             <button class="btn-copy btn-copy-inline" @click="copyToClipboard(detailTrace.requestId, 'trace_rid')">
-              <CheckOutlined v-if="copiedKey === 'trace_rid'" style="color: #52c41a" />
+              <CheckOutlined v-if="copiedKey === 'trace_rid'" style="color: var(--green-500)" />
               <CopyOutlined v-else />
             </button>
           </div>
@@ -230,7 +230,7 @@
             <div class="error-content-wrap">
               <span class="info-value error-text">{{ detailTrace.errorMessage }}</span>
               <button class="btn-copy btn-copy-inline" @click="copyToClipboard(detailTrace.errorMessage, 'error')">
-                <CheckOutlined v-if="copiedKey === 'error'" style="color: #52c41a" />
+                <CheckOutlined v-if="copiedKey === 'error'" style="color: var(--green-500)" />
                 <CopyOutlined v-else />
                 {{ copiedKey === 'error' ? '已复制' : '复制' }}
               </button>
@@ -246,7 +246,7 @@
             <div class="mi-block-title-row">
               <span class="mi-block-title">本轮用户输入</span>
               <button v-if="traceModelInput.userContent" class="btn-copy-sm" @click="copyToClipboard(traceModelInput.userContent, 'mi_user')">
-                <CheckOutlined v-if="copiedKey === 'mi_user'" style="color: #52c41a" />
+                <CheckOutlined v-if="copiedKey === 'mi_user'" style="color: var(--green-500)" />
                 <CopyOutlined v-else />
               </button>
             </div>
@@ -275,7 +275,7 @@
             <div class="mi-block-title-row">
               <span class="mi-block-title">系统提示词（含工具引导等）</span>
               <button class="btn-copy-sm" @click="copyToClipboard(traceModelInput.systemPrompt, 'mi_sys')">
-                <CheckOutlined v-if="copiedKey === 'mi_sys'" style="color: #52c41a" />
+                <CheckOutlined v-if="copiedKey === 'mi_sys'" style="color: var(--green-500)" />
                 <CopyOutlined v-else />
               </button>
             </div>
@@ -286,7 +286,7 @@
             <div class="mi-block-title-row">
               <span class="mi-block-title">发送给模型的消息（{{ traceModelInput.llmMessages.length }} 条）</span>
               <button class="btn-copy-sm" @click="copyAllLlmMessages()">
-                <CheckOutlined v-if="copiedKey === 'mi_msgs'" style="color: #52c41a" />
+                <CheckOutlined v-if="copiedKey === 'mi_msgs'" style="color: var(--green-500)" />
                 <CopyOutlined v-else />
               </button>
             </div>
@@ -311,7 +311,7 @@
                 <span v-if="m._askUserRole === 'trigger'" class="ask-user-badge trigger-badge">ask_user 触发</span>
                 <span v-if="m._askUserRole === 'response'" class="ask-user-badge response-badge">ask_user 回复</span>
                 <button v-if="m.content" class="btn-copy-sm" @click="copyToClipboard(m.content, 'mi_msg_' + mi)">
-                  <CheckOutlined v-if="copiedKey === 'mi_msg_' + mi" style="color: #52c41a" />
+                  <CheckOutlined v-if="copiedKey === 'mi_msg_' + mi" style="color: var(--green-500)" />
                   <CopyOutlined v-else />
                 </button>
               </div>
@@ -435,7 +435,7 @@
                     <div class="sd-section-title-row">
                       <span class="sd-section-title">思考过程</span>
                       <button class="btn-copy-sm" @click="copyToClipboard(sub.attributes.content, 'reasoning_' + sub.spanId + '_' + si)">
-                        <CheckOutlined v-if="copiedKey === 'reasoning_' + sub.spanId + '_' + si" style="color: #52c41a" />
+                        <CheckOutlined v-if="copiedKey === 'reasoning_' + sub.spanId + '_' + si" style="color: var(--green-500)" />
                         <CopyOutlined v-else />
                       </button>
                     </div>
@@ -446,7 +446,7 @@
                     <div class="sd-section-title-row">
                       <span class="sd-section-title">完整回复</span>
                       <button class="btn-copy-sm" @click="copyToClipboard(sub.attributes.content, 'reply_' + sub.spanId + '_' + si)">
-                        <CheckOutlined v-if="copiedKey === 'reply_' + sub.spanId + '_' + si" style="color: #52c41a" />
+                        <CheckOutlined v-if="copiedKey === 'reply_' + sub.spanId + '_' + si" style="color: var(--green-500)" />
                         <CopyOutlined v-else />
                       </button>
                     </div>
@@ -1235,10 +1235,10 @@ onUnmounted(() => clearTimeout(copyTimer))
   font-size: 20px;
   color: #fff;
 }
-.total-icon { background: linear-gradient(135deg, #1890ff, #096dd9); }
-.token-icon { background: linear-gradient(135deg, #722ed1, #531dab); }
+.total-icon { background: linear-gradient(135deg, var(--blue-500), var(--blue-700)); }
+.token-icon { background: linear-gradient(135deg, var(--purple-700), var(--purple-800)); }
 .duration-icon { background: linear-gradient(135deg, #13c2c2, #08979c); }
-.tool-icon { background: linear-gradient(135deg, #fa8c16, #d46b08); }
+.tool-icon { background: linear-gradient(135deg, var(--color-warning), var(--color-warning-deep)); }
 .stat-value { font-size: 22px; font-weight: 600; line-height: 1.2; }
 .stat-label { font-size: 12px; color: var(--color-mute); margin-top: 2px; }
 
@@ -1275,9 +1275,9 @@ onUnmounted(() => clearTimeout(copyTimer))
 
 /* Token 详情 */
 .token-detail { font-size: 13px; }
-.token-input { color: #1890ff; }
+.token-input { color: var(--color-link); }
 .token-sep { color: var(--color-hairline-strong); margin: 0 3px; }
-.token-output { color: #52c41a; }
+.token-output { color: var(--green-500); }
 
 /* 瀑布图 */
 .waterfall-section { margin-top: 24px; }
@@ -1325,13 +1325,13 @@ onUnmounted(() => clearTimeout(copyTimer))
   transition: opacity 0.2s;
 }
 .wf-bar:hover { opacity: 0.8; }
-.wf-bar-llm { background: linear-gradient(90deg, #1890ff, #40a9ff); }
-.wf-bar-tool { background: linear-gradient(90deg, #faad14, #ffc53d); }
-.wf-bar-rag { background: linear-gradient(90deg, #52c41a, #73d13d); }
-.wf-bar-reasoning { background: linear-gradient(90deg, #722ed1, #9254de); }
+.wf-bar-llm { background: linear-gradient(90deg, var(--blue-500), var(--blue-400)); }
+.wf-bar-tool { background: linear-gradient(90deg, var(--color-warning), var(--color-warning-deep)); }
+.wf-bar-rag { background: linear-gradient(90deg, var(--green-500), var(--green-400)); }
+.wf-bar-reasoning { background: linear-gradient(90deg, var(--purple-700), var(--purple-500)); }
 .wf-bar-reply { background: linear-gradient(90deg, #13c2c2, #36cfc9); }
-.wf-bar-askuser { background: linear-gradient(90deg, #fa8c16, #ffa940); }
-.wf-bar-other { background: linear-gradient(90deg, #bfbfbf, #d9d9d9); }
+.wf-bar-askuser { background: linear-gradient(90deg, var(--color-warning), #ffa940); }
+.wf-bar-other { background: linear-gradient(90deg, var(--gray-400), var(--gray-300)); }
 .wf-duration {
   width: 70px;
   min-width: 70px;
@@ -1340,7 +1340,7 @@ onUnmounted(() => clearTimeout(copyTimer))
   color: var(--color-body);
 }
 .wf-expand-icon { font-size: 10px; color: var(--color-mute); }
-.wf-count { font-size: 10px; color: #fa8c16; margin-left: 4px; font-weight: 500; }
+.wf-count { font-size: 10px; color: var(--color-warning); margin-left: 4px; font-weight: 500; }
 .wf-bar-segment { border-right: 1px solid rgba(255,255,255,0.6); }
 .waterfall-row { cursor: pointer; border-radius: 4px; }
 .waterfall-row:hover { background: var(--color-canvas-soft); }
@@ -1350,14 +1350,14 @@ onUnmounted(() => clearTimeout(copyTimer))
 .span-inline-detail {
   padding: 12px 16px 12px 32px;
   background: var(--color-canvas-soft);
-  border-left: 3px solid #1890ff;
+  border-left: 3px solid var(--color-link);
   margin: 0 0 4px 0;
   border-radius: 0 6px 6px 0;
   animation: slideDown 0.15s ease-out;
 }
 .span-sub-detail {
   padding: 8px 0;
-  border-bottom: 1px dashed #e8e8e8;
+  border-bottom: 1px dashed var(--color-hairline);
 }
 .span-sub-detail:last-child { border-bottom: none; }
 .sd-sub-header {
@@ -1369,8 +1369,8 @@ onUnmounted(() => clearTimeout(copyTimer))
 .sd-sub-index {
   font-size: 11px;
   font-weight: 600;
-  color: #1890ff;
-  background: #e6f7ff;
+  color: var(--color-link);
+  background: var(--color-info-bg);
   padding: 1px 6px;
   border-radius: 4px;
 }
@@ -1405,7 +1405,7 @@ onUnmounted(() => clearTimeout(copyTimer))
   white-space: pre-wrap;
   word-break: break-all;
 }
-.reasoning-box { color: #722ed1; background: #f9f0ff; border-color: #d3adf7; }
+.reasoning-box { color: var(--purple-700); background: var(--color-purple-bg); border-color: var(--purple-300); }
 .sd-json {
   background: var(--color-canvas);
   border: 1px solid var(--color-hairline);
@@ -1439,7 +1439,7 @@ onUnmounted(() => clearTimeout(copyTimer))
   flex-direction: column;
   gap: 8px;
 }
-.error-text { color: #ff4d4f; font-size: 12px; word-break: break-word; white-space: pre-wrap; }
+.error-text { color: var(--color-error); font-size: 12px; word-break: break-word; white-space: pre-wrap; }
 .request-id-text { font-family: 'Geist Mono', Menlo, monospace; font-size: 12px; word-break: break-all; }
 .btn-copy-inline { align-self: flex-start; }
 
@@ -1736,9 +1736,9 @@ onUnmounted(() => clearTimeout(copyTimer))
   padding: 2px;
   display: inline-flex;
   align-items: center;
-  color: #999;
+  color: var(--color-mute);
   font-size: 13px;
-  &:hover { color: #333; }
+  &:hover { color: var(--color-body); }
 }
 
 .detail-pre {
@@ -1767,10 +1767,10 @@ onUnmounted(() => clearTimeout(copyTimer))
   padding: 8px 12px;
   margin-bottom: 12px;
   background: var(--color-warn-bg);
-  border: 1px solid #ffd591;
+  border: 1px solid var(--color-warning-soft);
   border-radius: 6px;
   font-size: 12px;
-  color: #d46b08;
+  color: var(--color-warning-deep);
 }
 .ask-user-icon {
   display: inline-flex;
@@ -1778,15 +1778,15 @@ onUnmounted(() => clearTimeout(copyTimer))
   justify-content: center;
   width: 20px;
   height: 20px;
-  background: #fa8c16;
-  color: #fff;
+  background: var(--color-warning);
+  color: var(--color-on-primary);
   border-radius: 50%;
   font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
 .ask-user-trigger {
-  border-left: 3px solid #fa8c16;
+  border-left: 3px solid var(--color-warning);
   padding-left: 12px;
   background: var(--color-warn-bg);
   border-radius: 0 6px 6px 0;
@@ -1798,6 +1798,9 @@ onUnmounted(() => clearTimeout(copyTimer))
   background: #e6fffb;
   border-radius: 0 6px 6px 0;
 }
+[data-theme="dark"] .ask-user-response {
+  background: rgba(19, 194, 194, 0.12);
+}
 .ask-user-badge {
   font-size: 10px;
   padding: 1px 6px;
@@ -1806,10 +1809,14 @@ onUnmounted(() => clearTimeout(copyTimer))
 }
 .trigger-badge {
   background: var(--color-warn-bg-deep);
-  color: #d46b08;
+  color: var(--color-warning-deep);
 }
 .response-badge {
   background: #b5f5ec;
   color: #006d75;
+}
+[data-theme="dark"] .response-badge {
+  background: rgba(19, 194, 194, 0.24);
+  color: #5ae5e5;
 }
 </style>

@@ -127,15 +127,15 @@ const errorIcon = computed(() => isConnFailed.value ? ApiOutlined : CloseCircleO
 
   // ── 卡片容器 ──
   .opr-card {
-    border: 1px solid #c4b5fd;
-    border-left: 3px solid #8b5cf6;
+    border: 1px solid var(--purple-300);
+    border-left: 3px solid var(--purple-500);
     border-radius: 8px;
     overflow: hidden;
     background: var(--color-purple-bg);
   }
   .opr-card-error {
-    border-color: #fca5a5;
-    border-left-color: #ef4444;
+    border-color: var(--color-error-soft);
+    border-left-color: var(--color-error);
     background: var(--color-error-bg);
   }
 
@@ -143,32 +143,32 @@ const errorIcon = computed(() => isConnFailed.value ? ApiOutlined : CloseCircleO
   .opr-header {
     display: flex; align-items: center; gap: 6px;
     padding: 8px 10px;
-    background: var(--color-purple-bg); border-bottom: 1px solid #c4b5fd;
-    font-size: 12px; font-weight: 600; color: #5b21b6;
+    background: var(--color-purple-bg); border-bottom: 1px solid var(--purple-300);
+    font-size: 12px; font-weight: 600; color: var(--purple-800);
   }
   .opr-header-error {
-    background: var(--color-error-bg); border-bottom-color: #fca5a5; color: #991b1b;
+    background: var(--color-error-bg); border-bottom-color: var(--color-error-soft); color: var(--color-error-deep);
   }
   .opr-header-icon {
-    font-size: 14px; color: #7c3aed; flex-shrink: 0;
+    font-size: 14px; color: var(--purple-600); flex-shrink: 0;
   }
-  .opr-header-error .opr-header-icon { color: #dc2626; }
+  .opr-header-error .opr-header-icon { color: var(--color-error); }
 
   .opr-path {
     font-family: 'Monaco', 'Menlo', monospace;
-    font-size: 11px; color: #6d28d9;
+    font-size: 11px; color: var(--purple-700);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     flex: 1; min-width: 0;
   }
   .opr-meta {
-    font-size: 11px; color: #8b5cf6; flex-shrink: 0; font-weight: 400;
+    font-size: 11px; color: var(--purple-500); flex-shrink: 0; font-weight: 400;
   }
   .opr-detail-btn {
     appearance: none;
-    border: 1px solid #c4b5fd;
+    border: 1px solid var(--purple-300);
     border-radius: 6px;
     background: var(--color-canvas);
-    color: #7c3aed;
+    color: var(--purple-600);
     display: inline-flex; align-items: center; gap: 4px;
     font-size: 12px; cursor: pointer;
     padding: 6px 12px; flex-shrink: 0; font-weight: 500;
@@ -184,13 +184,13 @@ const errorIcon = computed(() => isConnFailed.value ? ApiOutlined : CloseCircleO
   // ── 结果文件行 ──
   .opr-output-row {
     display: flex; align-items: center; gap: 6px;
-    padding: 8px 12px; color: #6d28d9;
-    border-bottom: 1px solid #ddd6fe;
+    padding: 8px 12px; color: var(--purple-700);
+    border-bottom: 1px solid var(--purple-200);
   }
-  .opr-output-icon { font-size: 12px; color: #a78bfa; flex-shrink: 0; }
-  .opr-output-label { font-size: 11px; color: #8b5cf6; flex-shrink: 0; }
+  .opr-output-icon { font-size: 12px; color: var(--purple-400); flex-shrink: 0; }
+  .opr-output-label { font-size: 11px; color: var(--purple-500); flex-shrink: 0; }
   .opr-output-path {
-    font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; color: #6d28d9;
+    font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; color: var(--purple-700);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
@@ -205,102 +205,102 @@ const errorIcon = computed(() => isConnFailed.value ? ApiOutlined : CloseCircleO
   }
   .opr-empty {
     padding: 16px 12px; text-align: center;
-    color: #a78bfa; font-style: italic;
+    color: var(--purple-400); font-style: italic;
   }
   .opr-truncated-hint {
-    padding: 6px 12px; font-size: 11px; color: #8b5cf6;
+    padding: 6px 12px; font-size: 11px; color: var(--purple-500);
     text-align: center;
-    border-top: 1px solid #ddd6fe;
+    border-top: 1px solid var(--purple-200);
     background: var(--color-purple-bg);
   }
 
   // ── 错误内容 ──
   .opr-error-msg {
     margin: 0; padding: 10px 12px;
-    color: #b91c1c; font-size: 12px; line-height: 1.6;
+    color: var(--color-error-deep); font-size: 12px; line-height: 1.6;
     white-space: pre-wrap; word-break: break-word;
   }
 
-  // ── 兜底 JSON ──
+  // ── 兜底 JSON（代码块深色风格保留） ──
   .opr-json {
     margin: 0; padding: 10px 12px;
-    background: #1e1e1e; color: #d4d4d4;
+    background: var(--gray-900); color: var(--gray-100);
     font-size: 12px; line-height: 1.5;
     white-space: pre-wrap; word-break: break-word;
     font-family: 'Monaco', 'Menlo', monospace;
   }
-}
 
-// ── 预览弹窗（非 scoped 父级下的 modal 内容仍受 scoped 属性约束，故保持在组件内） ──
-.opr-modal-meta {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-bottom: 16px;
-}
-.opr-path-chip {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 6px 12px;
-  background: var(--color-purple-bg, #f5f3ff);
-  border: 1px solid #ddd6fe;
-  border-left: 3px solid #8b5cf6;
-  border-radius: 6px;
-}
-.opr-path-chip-icon {
-  font-size: 14px;
-  color: #7c3aed;
-  flex-shrink: 0;
-}
-.opr-path-chip-label {
-  font-size: 11px;
-  font-weight: 600;
-  color: #8b5cf6;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.opr-path-chip-value {
-  font-size: 12px;
-  font-weight: 500;
-  color: #6d28d9;
-  font-family: 'Monaco', 'Menlo', monospace;
-  word-break: break-all;
-  min-width: 0;
-}
-.opr-char-row {
-  display: flex;
-  justify-content: flex-end;
-}
-.opr-char-count {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 3px;
-  padding: 3px 10px;
-  background: #6d28d9;
-  border-radius: 12px;
-}
-.opr-char-count-num {
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  line-height: 1;
-}
-.opr-char-count-unit {
-  font-size: 11px;
-  color: #ddd6fe;
-}
-.opr-modal-preview {
-  margin: 0;
-  padding: 16px;
-  background: #1e1e1e;
-  color: #d4d4d4;
-  font-size: 13px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  border-radius: 8px;
-  font-family: 'Monaco', 'Menlo', monospace;
+  // ── 预览弹窗（slot 内容会被加 data-v-xxx，scoped 样式可命中） ──
+  .opr-modal-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .opr-path-chip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    padding: 6px 12px;
+    background: var(--color-purple-bg);
+    border: 1px solid var(--purple-200);
+    border-left: 3px solid var(--purple-500);
+    border-radius: 6px;
+  }
+  .opr-path-chip-icon {
+    font-size: 14px;
+    color: var(--purple-600);
+    flex-shrink: 0;
+  }
+  .opr-path-chip-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--purple-500);
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .opr-path-chip-value {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--purple-700);
+    font-family: 'Monaco', 'Menlo', monospace;
+    word-break: break-all;
+    min-width: 0;
+  }
+  .opr-char-row {
+    display: flex;
+    justify-content: flex-end;
+  }
+  .opr-char-count {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 3px;
+    padding: 3px 10px;
+    background: var(--purple-700);
+    border-radius: 12px;
+  }
+  .opr-char-count-num {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--color-canvas);
+    line-height: 1;
+  }
+  .opr-char-count-unit {
+    font-size: 11px;
+    color: var(--purple-200);
+  }
+  .opr-modal-preview {
+    margin: 0;
+    padding: 16px;
+    background: var(--gray-900);
+    color: var(--gray-100);
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-radius: 8px;
+    font-family: 'Monaco', 'Menlo', monospace;
+  }
 }
 </style>

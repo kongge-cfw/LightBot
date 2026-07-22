@@ -96,6 +96,34 @@ body {
   border-color: rgba(255, 255, 255, 0.15) !important;
 }
 
+/* Button hover/active 深色模式兜底：
+   colorPrimary=#171717 经 darkAlgorithm 派生的 colorPrimaryHover/colorPrimaryActive 趋近 #000，
+   和 colorBgLayout=#111 画布重合导致 primary 按钮 hover/active 时"消失"。
+   显式提升 hover/active 亮度到中灰区间，并加强白色描边保证可见性。
+   default 按钮 hover 的边框色派生自 colorPrimaryHover（同样趋黑），同步覆盖为浅灰。 */
+[data-theme="dark"] .ant-btn-primary:not(.ant-btn-disabled):not(:disabled):hover,
+[data-theme="dark"] .ant-btn-primary:not(.ant-btn-disabled):not(:disabled):focus {
+  background: #2a2a2a !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .ant-btn-primary:not(.ant-btn-disabled):not(:disabled):active {
+  background: #3f3f46 !important;
+  border-color: rgba(255, 255, 255, 0.35) !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .ant-btn-default:not(.ant-btn-disabled):not(:disabled):hover,
+[data-theme="dark"] .ant-btn-default:not(.ant-btn-disabled):not(:disabled):focus {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: #52525b !important;
+  color: #e4e4e7 !important;
+}
+[data-theme="dark"] .ant-btn-default:not(.ant-btn-disabled):not(:disabled):active {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: #71717a !important;
+  color: #fafafa !important;
+}
+
 .ant-input,
 .ant-input-affix-wrapper,
 .ant-select-selector,
@@ -228,6 +256,18 @@ textarea.ant-input:focus,
 /* 弹窗遮罩层禁止外层滚动，内容仅在 modal body 内滚动 */
 .ant-modal-wrap {
   overflow: hidden !important;
+}
+
+/* Spin 加载动画：antd 默认 dot 色派生自 colorPrimary（本项目 #171717），
+   深色模式下近黑色，在 #111 画布上完全不可见；浅色模式下也偏暗不够醒目。
+   统一改用 link 蓝色，跨主题一致可见。同时把 tip 文字色绑定到 mute，
+   避免 tip 在深色下也是近黑色。 */
+.ant-spin-dot-item {
+  background: var(--color-link) !important;
+}
+.ant-spin-text,
+.ant-spin .ant-spin-tip {
+  color: var(--color-mute) !important;
 }
 
 /* 垂直滚动区域：内容与滚动条保持统一间距 */

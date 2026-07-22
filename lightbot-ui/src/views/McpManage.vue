@@ -37,8 +37,8 @@
             <template #overlay>
               <a-menu>
                 <a-menu-item @click="handleToggleEnabled(s)">
-                  <CheckCircleOutlined v-if="!isDisabled(s)" style="color: #16a34a; margin-right: 6px" />
-                  <CloseCircleOutlined v-else style="color: #a3a3a3; margin-right: 6px" />
+                  <CheckCircleOutlined v-if="!isDisabled(s)" style="color: var(--green-600); margin-right: 6px" />
+                  <CloseCircleOutlined v-else style="color: var(--color-mute); margin-right: 6px" />
                   {{ isDisabled(s) ? '启用' : '禁用' }}
                 </a-menu-item>
                 <a-menu-item @click="handleTest(s)">
@@ -736,7 +736,7 @@ defineExpose({ openDialog, search, refresh, loading })
 }
 .empty-icon {
   font-size: 48px;
-  color: #d4d4d8;
+  color: var(--gray-300);
   margin-bottom: 12px;
   display: block;
 }
@@ -750,8 +750,8 @@ defineExpose({ openDialog, search, refresh, loading })
   right: -4px;
   font-size: 10px;
   padding: 1px 4px;
-  background: #0070f3;
-  color: #fff;
+  background: var(--color-link);
+  color: var(--color-on-primary);
   border-radius: 4px;
   z-index: 1;
 }
@@ -762,14 +762,14 @@ defineExpose({ openDialog, search, refresh, loading })
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid #fff;
+  border: 2px solid var(--color-canvas);
   z-index: 1;
 }
 .status-active {
-  background: #16a34a;
+  background: var(--green-600);
 }
 .status-disabled {
-  background: #a3a3a3;
+  background: var(--gray-400);
 }
 .card-type {
   font-size: 12px;
@@ -800,29 +800,29 @@ defineExpose({ openDialog, search, refresh, loading })
   line-height: 1.4;
 }
 .tag-install {
-  background: #f0f5ff;
-  color: #3b82f6;
-  border: 1px solid #dbeafe;
+  background: var(--blue-50);
+  color: var(--blue-500);
+  border: 1px solid var(--blue-100);
 }
 .tag-npx {
   background: var(--color-success-bg);
-  color: #16a34a;
-  border: 1px solid #dcfce7;
+  color: var(--green-600);
+  border: 1px solid var(--green-100);
 }
 .tag-uvx {
   background: var(--color-warn-bg-deep);
-  color: #d97706;
+  color: var(--color-warning-deep);
   border: 1px solid var(--color-warn-bg-deep);
 }
 .tag-sse {
-  background: #fce7f3;
-  color: #db2777;
-  border: 1px solid #fbcfe8;
+  background: var(--color-error-bg);
+  color: var(--color-error-deep);
+  border: 1px solid var(--color-error-soft);
 }
 .tag-transport {
   background: var(--color-purple-bg);
-  color: #7c3aed;
-  border: 1px solid #ede9fe;
+  color: var(--purple-600);
+  border: 1px solid var(--purple-100);
 }
 .card-body {
   flex: 1;
@@ -863,7 +863,7 @@ defineExpose({ openDialog, search, refresh, loading })
 .btn-primary-sm {
   padding: 6px 14px;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -871,10 +871,10 @@ defineExpose({ openDialog, search, refresh, loading })
   cursor: pointer;
 }
 .btn-primary-sm:hover:not(:disabled) {
-  background: #27272a;
+  background: var(--gray-800);
 }
 .btn-primary-sm:disabled {
-  background: #d4d4d8;
+  background: var(--gray-300);
   cursor: not-allowed;
 }
 .card-footer {
@@ -959,15 +959,15 @@ defineExpose({ openDialog, search, refresh, loading })
 .btn-retry {
   margin-top: 12px;
   padding: 6px 16px;
-  background: #0070f3;
-  color: #fff;
+  background: var(--color-link);
+  color: var(--color-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 13px;
   cursor: pointer;
 }
 .btn-retry:hover {
-  background: #005bb5;
+  background: var(--color-link-deep);
 }
 .tool-item {
   display: flex;
@@ -1052,7 +1052,7 @@ defineExpose({ openDialog, search, refresh, loading })
   width: 5px;
 }
 .detail-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
+  background: var(--gray-300);
   border-radius: 3px;
 }
 .detail-scroll-body::-webkit-scrollbar-track {
@@ -1104,7 +1104,7 @@ defineExpose({ openDialog, search, refresh, loading })
   color: var(--color-link);
 }
 .prop-type {
-  color: #7c3aed;
+  color: var(--purple-600);
   font-size: 12px;
 }
 .prop-desc {
@@ -1159,7 +1159,7 @@ defineExpose({ openDialog, search, refresh, loading })
 }
 .tools-error-title {
   font-size: 14px;
-  color: #ef4444;
+  color: var(--color-error);
   font-weight: 500;
 }
 .tools-error-msg {
@@ -1262,7 +1262,7 @@ defineExpose({ openDialog, search, refresh, loading })
   padding: 1px 5px;
   border-radius: 4px;
   font-size: 12px;
-  color: #e11d48;
+  color: var(--color-error-deep);
 }
 .card-sync-time {
   display: flex;
