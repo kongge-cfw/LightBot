@@ -172,10 +172,7 @@ watch(visible, (val) => {
 
 <style scoped>
 .dialog-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 8px);
-  scrollbar-gutter: stable;
+  /* 滚动由 .ant-modal-body 全局接管，避免双滚动条 */
 }
 
 .create-prompt-info {

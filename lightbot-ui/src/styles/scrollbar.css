@@ -32,7 +32,7 @@
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: var(--scrollbar-size);
-  border: 2px solid transparent;
+  border: 1px solid transparent;
   background-clip: padding-box;
 }
 

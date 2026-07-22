@@ -736,8 +736,9 @@
       </div>
     </a-modal>
 
-    <!-- 编辑知识库弹窗 -->
-    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" @ok="handleEdit" :confirm-loading="editSubmitting" :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto', paddingRight: '24px' }">
+    <!-- 编辑知识库弹窗：wrapClassName=lb-modal-compact 关闭 scrollbar-gutter 预留，
+         内容短时无滚动条、字段到右边距对称无空白间隔；maxHeight 保留应对示例问题较多的情况 -->
+    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" wrap-class-name="lb-modal-compact" @ok="handleEdit" :confirm-loading="editSubmitting" :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto' }">
       <a-form :model="editForm" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="editForm.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
@@ -2335,18 +2336,23 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 页面采用 flex 列布局：header 固定占位 + content-grid 撑满剩余空间
+   外层不再滚动，左右两个 panel 各自管理自己的滚动区域（doc-list / rag-messages），
+   避免"外层页面 + 内层对话"双滚动条 */
 .page {
-  padding: 20px calc(24px + var(--scroll-content-gap)) 20px 24px;
+  padding: 20px 24px;
   height: 100vh;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
 }
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 16px;
+  flex-shrink: 0;
 }
 .btn-back {
   background: none;
@@ -2475,23 +2481,34 @@ onUnmounted(() => {
   opacity: 0.5;
 }
 
+/* content-grid 在 flex 列布局中撑满剩余高度；min-height:0 是 flex 子项可以收缩
+   到内容尺寸以下的关键（否则 grid 会被内部撑高触发外层滚动） */
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 2.5fr) minmax(0, 3fr);
   gap: 15px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
+/* 每个 panel 自己做 flex 列容器：header 固定，中间列表/区域 flex:1 + overflow:auto */
 .panel {
   background: var(--color-canvas);
   border: 1px solid var(--color-hairline);
   border-radius: 8px;
   padding: 16px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
 }
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
+  flex-shrink: 0;
 }
 .panel-header h3 {
   font-size: 16px;
@@ -2503,6 +2520,32 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* ant-tabs 在右侧 panel 内要撑满：把 ant-tabs 链路上各层都设为 flex 列并允许收缩，
+   最终让 .rag-section 的 flex:1 能拿到实际高度。
+   min-height:0 是 flex 子项能否收缩到内容尺寸以下的关键，缺任一层都会断链 */
+.panel > :deep(.ant-tabs) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.panel :deep(.ant-tabs-nav) {
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+.panel :deep(.ant-tabs-content-holder) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.panel :deep(.ant-tabs-content) {
+  height: 100%;
+}
+.panel :deep(.ant-tabs-tabpane-active) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 .doc-search-input {
   width: 180px;
@@ -2557,10 +2600,16 @@ onUnmounted(() => {
   border-color: rgba(255, 255, 255, 0.25);
 }
 
+/* 文档列表本身是左侧 panel 的唯一滚动容器：撑满剩余高度、超出滚动
+   padding-right 留出滚动条与内容的呼吸距离，避免文档名贴着滚动条 */
 .doc-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--scroll-content-gap, 8px);
 }
 .doc-list-min {
   min-height: 120px;
@@ -2659,16 +2708,21 @@ onUnmounted(() => {
   display: flex;
   justify-content: center;
   padding: 8px 0;
+  flex-shrink: 0;
 }
 
-/* RAG & 思维导图共用 */
+/* RAG & 思维导图共用：不再写死 calc(100vh - 220px)，由父级 flex 撑满决定
+   这样 rag-messages 只在自身内容溢出时才出现滚动条，消除外层页面 + 内层对话双滚动条 */
 .rag-section {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 220px);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
 }
 .rag-messages {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;

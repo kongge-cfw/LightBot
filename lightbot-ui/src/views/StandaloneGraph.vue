@@ -126,43 +126,27 @@
           <p class="sg-empty-hint">上传 JSONL 文件或手动创建节点来构建图谱</p>
         </template>
       </div>
-    </div>
 
-    <!-- 节点/边详情抽屉 -->
-    <a-drawer
-      v-model:open="detailVisible"
-      :title="detailTitle"
-      :width="400"
-      :bodyStyle="{ padding: '16px' }"
-    >
-      <template v-if="detailType === 'node' && selectedNode">
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="名称">{{ selectedNode.name }}</a-descriptions-item>
-          <a-descriptions-item label="类型">{{ selectedNode.entityType || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="描述">{{ selectedNode.description || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="来源">{{ selectedNode.source || '-' }}</a-descriptions-item>
-          <a-descriptions-item v-if="selectedNode.score" label="相似度">
-            {{ (selectedNode.score * 100).toFixed(1) }}%
-          </a-descriptions-item>
-        </a-descriptions>
-        <div class="sg-detail-actions">
-          <a-button size="small" @click="openEditNode">编辑</a-button>
-          <a-button size="small" danger @click="confirmDeleteNode">删除节点</a-button>
-        </div>
-      </template>
-      <template v-else-if="detailType === 'edge' && selectedEdge">
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="关系类型">{{ selectedEdge.relationType }}</a-descriptions-item>
-          <a-descriptions-item label="描述">{{ selectedEdge.description || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="权重">{{ selectedEdge.weight ?? '-' }}</a-descriptions-item>
-          <a-descriptions-item label="来源">{{ selectedEdge.source || '-' }}</a-descriptions-item>
-        </a-descriptions>
-        <div class="sg-detail-actions">
-          <a-button size="small" @click="openEditEdge">编辑</a-button>
-          <a-button size="small" danger @click="confirmDeleteEdge">删除关系</a-button>
-        </div>
-      </template>
-    </a-drawer>
+      <!-- 节点/边详情面板：浮在画布右上角，不遮挡节点 -->
+      <LbGraphNodeDetailPanel
+        :visible="detailVisible"
+        :title="detailTitle"
+        :is-edge="detailType === 'edge'"
+        :fields="detailFields"
+        @close="detailVisible = false"
+      >
+        <template #actions>
+          <template v-if="detailType === 'node'">
+            <a-button size="small" @click="openEditNode">编辑</a-button>
+            <a-button size="small" danger @click="confirmDeleteNode">删除节点</a-button>
+          </template>
+          <template v-else-if="detailType === 'edge'">
+            <a-button size="small" @click="openEditEdge">编辑</a-button>
+            <a-button size="small" danger @click="confirmDeleteEdge">删除关系</a-button>
+          </template>
+        </template>
+      </LbGraphNodeDetailPanel>
+    </div>
 
     <!-- 新建/编辑节点弹窗 -->
     <a-modal
@@ -298,7 +282,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import {
   SearchOutlined, DeleteOutlined, CompressOutlined, UploadOutlined, DownloadOutlined,
   PlusOutlined, LinkOutlined, ThunderboltOutlined, ClearOutlined, QuestionCircleOutlined
@@ -312,6 +296,17 @@ import {
   getStandaloneNodeNames, rebuildVectorIndex
 } from '../api/graph'
 import { COLOR_PALETTE, LAYOUT_CONFIG, formatGraphData } from '../composables/useKnowledgeGraphConfig'
+import LbGraphNodeDetailPanel from '../components/common/LbGraphNodeDetailPanel.vue'
+import { useTheme } from '../composables/useTheme'
+
+// ---- 主题适配：与 KnowledgeGraphTab 保持一致，切换深浅色时自动重渲染 ----
+const { isDark } = useTheme()
+const graphColors = computed(() => isDark.value
+  ? { labelFill: '#ffffff', edgeLabel: '#d1d5db', edgeStroke: '#555', edgeArrow: '#555',
+      badgeBg: '#3b82f6', badgeText: '#ffffff', nodeStroke: '#1e1f1f', nodeShadow: 'rgba(0,0,0,0.5)' }
+  : { labelFill: '#1e293b', edgeLabel: '#6b7280', edgeStroke: '#d1d5db', edgeArrow: '#d1d5db',
+      badgeBg: '#2563eb', badgeText: '#ffffff', nodeStroke: '#ffffff', nodeShadow: '#d1d5db' }
+)
 
 // ---- state ----
 const loading = ref(false)
@@ -365,6 +360,30 @@ const detailTitle = computed(() => {
   return '详情'
 })
 
+// 节点/边字段集合：驱动 LbGraphNodeDetailPanel 的 a-descriptions 渲染
+const detailFields = computed(() => {
+  if (detailType.value === 'node' && selectedNode.value) {
+    const n = selectedNode.value
+    return [
+      { label: '名称', value: n.name },
+      { label: '类型', value: n.entityType },
+      { label: '描述', value: n.description },
+      { label: '来源', value: n.source },
+      n.score ? { label: '相似度', value: `${(n.score * 100).toFixed(1)}%` } : null,
+    ].filter(Boolean)
+  }
+  if (detailType.value === 'edge' && selectedEdge.value) {
+    const e = selectedEdge.value
+    return [
+      { label: '关系类型', value: e.relationType },
+      { label: '描述', value: e.description },
+      { label: '权重', value: e.weight },
+      { label: '来源', value: e.source },
+    ]
+  }
+  return []
+})
+
 // ---- 颜色调色板 / 布局 / 数据格式化：见 useKnowledgeGraphConfig ----
 
 // ---- 初始化图谱 ----
@@ -395,7 +414,7 @@ async function initGraph() {
       type: 'circle',
       style: {
         labelText: (d) => d.data.label,
-        labelFill: '#374151',
+        labelFill: graphColors.value.labelFill,
         labelWordWrap: true,
         labelMaxWidth: '300%',
         // 语义搜索命中时以徽标展示相似度，避免拼接进标签导致省略号
@@ -405,8 +424,8 @@ async function initGraph() {
           return [{
             text: `${(d.data.score * 100).toFixed(1)}%`,
             placement: 'right-top',
-            backgroundFill: '#2563eb',
-            fill: '#ffffff',
+            backgroundFill: graphColors.value.badgeBg,
+            fill: graphColors.value.badgeText,
             fontSize: 10,
             padding: [2, 5],
             backgroundRadius: 8
@@ -417,9 +436,9 @@ async function initGraph() {
           return Math.min(15 + deg * 5, 50)
         },
         opacity: 0.9,
-        stroke: '#ffffff',
+        stroke: graphColors.value.nodeStroke,
         lineWidth: 1.5,
-        shadowColor: '#d1d5db',
+        shadowColor: graphColors.value.nodeShadow,
         shadowBlur: 4
       },
       palette: {
@@ -444,21 +463,20 @@ async function initGraph() {
           const len = Math.sqrt(dx * dx + dy * dy) || 1
           return [{ x: mx + (-dy / len) * offset, y: my + (dx / len) * offset }]
         },
-        labelText: (d) => d.data.label,
-        labelFill: '#1f2937',
-        labelBackground: true,
-        labelBackgroundFill: '#f3f4f6',
-        stroke: '#d1d5db',
-        opacity: 0.8,
-        lineWidth: 1.2,
-        endArrow: true
+        labelText: (d) => d.data.label || '',
+        labelFill: graphColors.value.edgeLabel,
+        labelFontSize: 10,
+        stroke: graphColors.value.edgeStroke,
+        lineWidth: 1,
+        endArrow: true,
+        endArrowSize: 6,
+        endArrowFill: graphColors.value.edgeArrow
       }
     },
     behaviors: [
-      { type: 'drag-element', key: 'drag-element', disable: true },
-      'zoom-canvas',
       'drag-canvas',
-      'hover-activate',
+      'zoom-canvas',
+      { type: 'drag-element', key: 'drag-element', disable: true },
       {
         type: 'click-select',
         degree: 1,
@@ -950,6 +968,13 @@ onMounted(() => {
   nextTick(() => setupResizeObserver())
 })
 
+// 切换主题时重新渲染图谱颜色（与 KnowledgeGraphTab 行为一致）
+watch(isDark, () => {
+  if (graphInstance && graphReady.value) {
+    loadGraphData()
+  }
+})
+
 onUnmounted(() => {
   if (resizeObserver && canvasRef.value) {
     resizeObserver.unobserve(canvasRef.value)
@@ -1086,16 +1111,16 @@ onUnmounted(() => {
   flex: 1;
   margin: 0 32px 24px;
   border: 1px solid var(--color-hairline);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   position: relative;
   min-height: 400px;
-  background: var(--color-canvas);
 }
 
 .sg-canvas {
   width: 100%;
   height: 100%;
+  background: var(--kg-canvas-bg);
 }
 
 .sg-fit-btn {
@@ -1121,13 +1146,6 @@ onUnmounted(() => {
 .sg-empty-hint {
   font-size: 13px;
   color: var(--color-mute);
-}
-
-.sg-detail-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
 }
 
 .import-section {

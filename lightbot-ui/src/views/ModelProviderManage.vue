@@ -51,58 +51,56 @@
 
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑提供商' : '新增提供商'" :width="480" :maskClosable="false">
-      <div class="provider-form-scroll">
-        <a-form :model="form" :label-col="{ span: 6 }">
-          <a-form-item label="名称" required>
-            <a-input v-model:value="form.name" placeholder="如：通义千问" :maxlength="30" show-count />
-          </a-form-item>
-          <a-form-item label="类型" required>
-          <a-select v-model:value="form.type" style="width: 100%" placeholder="选择提供商类型">
-            <a-select-option v-for="t in providerTypes" :key="t.value" :value="t.value">
-              {{ t.label }}
-            </a-select-option>
-          </a-select>
+      <a-form :model="form" :label-col="{ span: 6 }">
+        <a-form-item label="名称" required>
+          <a-input v-model:value="form.name" placeholder="如：通义千问" :maxlength="30" show-count />
         </a-form-item>
-        <a-form-item label="API Key">
-          <a-input-password v-model:value="form.apiKey" placeholder="sk-..." />
-        </a-form-item>
-        <a-form-item label="Base URL">
-          <a-input v-model:value="form.baseUrl" placeholder="可选" />
-        </a-form-item>
-        <a-form-item label="提供商预设">
-          <button type="button" class="btn-preset-entry" @click="openPresetModal">选择预设</button>
-          <div class="form-hint">从后端维护的预设中选择，一键覆盖基础配置</div>
-        </a-form-item>
-        <a-form-item label="默认模型">
-          <a-input v-model:value="form.defaultModelId" :placeholder="defaultModelPlaceholder" />
-          <div class="form-hint">用于连通性检查和未指定模型时的兜底模型</div>
-        </a-form-item>
+        <a-form-item label="类型" required>
+        <a-select v-model:value="form.type" style="width: 100%" placeholder="选择提供商类型">
+          <a-select-option v-for="t in providerTypes" :key="t.value" :value="t.value">
+            {{ t.label }}
+          </a-select-option>
+        </a-select>
+      </a-form-item>
+      <a-form-item label="API Key">
+        <a-input-password v-model:value="form.apiKey" placeholder="sk-..." />
+      </a-form-item>
+      <a-form-item label="Base URL">
+        <a-input v-model:value="form.baseUrl" placeholder="可选" />
+      </a-form-item>
+      <a-form-item label="提供商预设">
+        <button type="button" class="btn-preset-entry" @click="openPresetModal">选择预设</button>
+        <div class="form-hint">从后端维护的预设中选择，一键覆盖基础配置</div>
+      </a-form-item>
+      <a-form-item label="默认模型">
+        <a-input v-model:value="form.defaultModelId" :placeholder="defaultModelPlaceholder" />
+        <div class="form-hint">用于连通性检查和未指定模型时的兜底模型</div>
+      </a-form-item>
 
-        <!-- 高级选项 -->
-        <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
-          <span>高级选项</span>
-          <DownOutlined :class="['toggle-icon', { expanded: showAdvanced }]" />
-        </div>
-        <template v-if="showAdvanced">
-          <a-form-item label="请求路径">
-            <a-input v-model:value="form.completionsPath" placeholder="默认 /v1/chat/completions" />
-            <div class="form-hint">OpenAI Chat Completions 路径</div>
-          </a-form-item>
-          <a-form-item label="模型列表URL">
-            <a-input v-model:value="form.modelsEndpoint" placeholder="为空时使用默认地址" />
-            <div class="form-hint">自定义获取模型列表的接口地址</div>
-          </a-form-item>
-          <a-form-item label="额外请求头">
-            <JsonInput v-model="form.headersJson" placeholder='{"Authorization": "Bearer xxx"}' :rows="3" />
-            <div class="form-hint">JSON 格式，为空时不添加额外请求头</div>
-          </a-form-item>
-          <a-form-item label="扩展配置">
-            <JsonInput v-model="form.extraJson" placeholder='{"timeout": 30000}' :rows="3" />
-            <div class="form-hint">JSON 格式的扩展配置</div>
-          </a-form-item>
-        </template>
-        </a-form>
+      <!-- 高级选项 -->
+      <div class="advanced-toggle" @click="showAdvanced = !showAdvanced">
+        <span>高级选项</span>
+        <DownOutlined :class="['toggle-icon', { expanded: showAdvanced }]" />
       </div>
+      <template v-if="showAdvanced">
+        <a-form-item label="请求路径">
+          <a-input v-model:value="form.completionsPath" placeholder="默认 /v1/chat/completions" />
+          <div class="form-hint">OpenAI Chat Completions 路径</div>
+        </a-form-item>
+        <a-form-item label="模型列表URL">
+          <a-input v-model:value="form.modelsEndpoint" placeholder="为空时使用默认地址" />
+          <div class="form-hint">自定义获取模型列表的接口地址</div>
+        </a-form-item>
+        <a-form-item label="额外请求头">
+          <JsonInput v-model="form.headersJson" placeholder='{"Authorization": "Bearer xxx"}' :rows="3" />
+          <div class="form-hint">JSON 格式，为空时不添加额外请求头</div>
+        </a-form-item>
+        <a-form-item label="扩展配置">
+          <JsonInput v-model="form.extraJson" placeholder='{"timeout": 30000}' :rows="3" />
+          <div class="form-hint">JSON 格式的扩展配置</div>
+        </a-form-item>
+      </template>
+      </a-form>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"
@@ -974,8 +972,6 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 400px;
-  overflow-y: auto;
 }
 .model-item {
   display: flex;
@@ -1120,8 +1116,6 @@ onMounted(async () => {
   color: #fff;
 }
 .fetch-model-list {
-  max-height: 360px;
-  overflow-y: auto;
   margin-bottom: 12px;
 }
 .fetch-model-grid {
@@ -1185,14 +1179,6 @@ onMounted(async () => {
   display: flex;
   gap: 8px;
   align-items: center;
-}
-
-/* 提供商表单滚动区 */
-.provider-form-scroll {
-  max-height: min(68vh, 620px);
-  overflow-y: auto;
-  padding-right: 12px;
-  margin-right: -4px;
 }
 
 /* 弹窗底部 */
@@ -1302,10 +1288,6 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
-  max-height: 58vh;
-  overflow-y: auto;
-  padding: 2px 14px 2px 2px;
-  margin-right: -6px;
 }
 .preset-card {
   display: flex;

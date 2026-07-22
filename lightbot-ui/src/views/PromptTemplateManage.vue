@@ -448,10 +448,7 @@ function handleDelete(id) {
 }
 
 .dialog-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 12px);
-  scrollbar-gutter: stable;
+  /* 滚动由 .ant-modal-body 全局接管，避免双滚动条 */
 }
 
 .dialog-footer-right { display: flex; gap: 8px; }

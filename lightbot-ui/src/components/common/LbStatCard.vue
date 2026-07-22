@@ -1,12 +1,25 @@
 <template>
   <div class="lb-stat-card">
-    <div class="lb-stat-card__icon" :style="iconStyle">
-      <component :is="icon" v-if="icon" />
-    </div>
-    <div class="lb-stat-card__info">
-      <div class="lb-stat-card__value" :class="valuePopClass">{{ displayValue }}</div>
-      <div class="lb-stat-card__label">{{ label }}</div>
-    </div>
+    <!-- 骨架屏：icon + value + label 三块 shimmer，与 Dashboard 动画一致 -->
+    <template v-if="loading">
+      <div class="lb-stat-card__icon">
+        <div class="lb-skeleton-block lb-stat-card__sk-icon"></div>
+      </div>
+      <div class="lb-stat-card__info">
+        <div class="lb-skeleton-block lb-stat-card__sk-value"></div>
+        <div class="lb-skeleton-block lb-stat-card__sk-label"></div>
+      </div>
+    </template>
+    <!-- 正常内容 -->
+    <template v-else>
+      <div class="lb-stat-card__icon" :style="iconStyle">
+        <component :is="icon" v-if="icon" />
+      </div>
+      <div class="lb-stat-card__info">
+        <div class="lb-stat-card__value" :class="valuePopClass">{{ displayValue }}</div>
+        <div class="lb-stat-card__label">{{ label }}</div>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -16,8 +29,9 @@
  * 统一 DashboardView.vue / Observability.vue 中 .stat-card 的重复写法。
  * 渐变色通过 accent prop 预设，也可通过 gradient prop 自定义。
  * value 为 number 类型时自动监听变化触发 lb-count-pop 反馈动画。
+ * loading 为 true 时显示 shimmer 骨架屏（icon + value + label 三块）。
  */
-import { computed, toRef } from 'vue'
+import { computed } from 'vue'
 import { useCountPop } from '../../composables/useCountPop'
 
 const props = defineProps({
@@ -30,6 +44,7 @@ const props = defineProps({
     validator: (v) => ['blue', 'purple', 'teal', 'orange', 'green', 'red', 'custom'].includes(v),
   },
   gradient: { type: String, default: '' },
+  loading: { type: Boolean, default: false },
 })
 
 const ACCENT_PRESETS = {
@@ -54,5 +69,19 @@ const valuePopClass = useCountPop(() => props.value)
 <style scoped>
 .lb-stat-card__info {
   min-width: 0;
+}
+.lb-stat-card__sk-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+}
+.lb-stat-card__sk-value {
+  width: 80px;
+  height: 24px;
+  margin-bottom: 8px;
+}
+.lb-stat-card__sk-label {
+  width: 48px;
+  height: 12px;
 }
 </style>

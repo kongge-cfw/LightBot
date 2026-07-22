@@ -205,7 +205,7 @@
             <div v-else class="deps-grid">
               <a-tooltip v-for="t in depTools" :key="t.id" :title="t.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="openToolDetail(t)">
-                  <span class="dep-icon" style="background: linear-gradient(135deg, #10b981, #059669)">
+                  <span class="dep-icon dep-icon--tool">
                     <DynamicIcon :name="t.icon" :fallback="t.displayName || t.name" />
                   </span>
                   <div class="dep-info">
@@ -222,7 +222,7 @@
             <div v-else class="deps-grid">
               <a-tooltip v-for="m in depMcps" :key="m.id" :title="m.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="openMcpDetail(m)">
-                  <span class="dep-icon" style="background: linear-gradient(135deg, #8b5cf6, #7c3aed)">
+                  <span class="dep-icon dep-icon--mcp">
                     <DynamicIcon :name="m.icon" :fallback="m.name" />
                   </span>
                   <div class="dep-info">
@@ -239,7 +239,7 @@
             <div v-else class="deps-grid">
               <a-tooltip v-for="s in depSkills" :key="s.id" :title="s.description" placement="topLeft" :overlay-style="{ maxWidth: '360px' }">
                 <div class="dep-card" @click="router.push('/app/skills/' + s.id)">
-                  <span class="dep-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706)">
+                  <span class="dep-icon dep-icon--skill">
                     <DynamicIcon :name="s.icon" :fallback="s.displayName || s.name" />
                   </span>
                   <div class="dep-info">
@@ -1145,6 +1145,10 @@ onUnmounted(() => {
   font-size: 16px;
   flex-shrink: 0;
 }
+/* 色板映射到全局 entity 渐变 token（variables.css），与按钮 .lb-btn--accent--* 同源 */
+.dep-icon--tool  { background: var(--gradient-entity-tool); }
+.dep-icon--mcp   { background: var(--gradient-entity-mcp); }
+.dep-icon--skill { background: var(--gradient-entity-skill); }
 .dep-icon :deep(.anticon) {
   font-size: 18px;
 }

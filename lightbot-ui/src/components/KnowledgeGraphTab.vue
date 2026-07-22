@@ -184,42 +184,21 @@
           </template>
         </template>
       </div>
-    </div>
 
-    <!-- 节点/边详情面板 -->
-    <a-drawer
-      v-model:open="detailVisible"
-      :title="detailTitle"
-      :width="360"
-      :bodyStyle="{ padding: '16px' }"
-    >
-      <template v-if="detailType === 'node' && selectedNode">
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="名称">{{ selectedNode.name }}</a-descriptions-item>
-          <a-descriptions-item v-if="selectedNode.score != null" label="相似度">
-            {{ (selectedNode.score * 100).toFixed(1) }}%
-          </a-descriptions-item>
-          <a-descriptions-item label="类型">{{ selectedNode.entityType || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="描述">{{ selectedNode.description || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="来源">{{ selectedNode.source || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="文档ID">{{ selectedNode.documentId || '-' }}</a-descriptions-item>
-        </a-descriptions>
-        <div v-if="!props.documentId" class="kg-detail-actions">
-          <a-button size="small" danger @click="confirmDeleteNode">删除节点</a-button>
-        </div>
-      </template>
-      <template v-else-if="detailType === 'edge' && selectedEdge">
-        <a-descriptions :column="1" size="small" bordered>
-          <a-descriptions-item label="关系类型">{{ selectedEdge.relationType }}</a-descriptions-item>
-          <a-descriptions-item label="描述">{{ selectedEdge.description || '-' }}</a-descriptions-item>
-          <a-descriptions-item label="权重">{{ selectedEdge.weight ?? '-' }}</a-descriptions-item>
-          <a-descriptions-item label="来源">{{ selectedEdge.source || '-' }}</a-descriptions-item>
-        </a-descriptions>
-        <div v-if="!props.documentId" class="kg-detail-actions">
-          <a-button size="small" danger @click="confirmDeleteEdge">删除关系</a-button>
-        </div>
-      </template>
-    </a-drawer>
+      <!-- 节点/边详情面板：浮在画布右上角，不遮挡节点 -->
+      <LbGraphNodeDetailPanel
+        :visible="detailVisible"
+        :title="detailTitle"
+        :is-edge="detailType === 'edge'"
+        :fields="detailFields"
+        @close="detailVisible = false"
+      >
+        <template v-if="!props.documentId" #actions>
+          <a-button v-if="detailType === 'node'" size="small" danger @click="confirmDeleteNode">删除节点</a-button>
+          <a-button v-else-if="detailType === 'edge'" size="small" danger @click="confirmDeleteEdge">删除关系</a-button>
+        </template>
+      </LbGraphNodeDetailPanel>
+    </div>
 
     <!-- 文档选择弹窗 -->
     <a-modal
@@ -350,6 +329,7 @@ import {
 } from '../api/knowledge'
 import ModelSelect from './ModelSelect.vue'
 import JsonInput from './JsonInput.vue'
+import LbGraphNodeDetailPanel from './common/LbGraphNodeDetailPanel.vue'
 import { sanitizeGraphHtml, escapeHtml } from '../utils/sanitize'
 import { COLOR_PALETTE, LAYOUT_CONFIG, formatGraphData } from '../composables/useKnowledgeGraphConfig'
 
@@ -441,6 +421,31 @@ const detailTitle = computed(() => {
   if (detailType.value === 'node') return '节点详情'
   if (detailType.value === 'edge') return '关系详情'
   return '详情'
+})
+
+// 节点/边字段集合：驱动 LbGraphNodeDetailPanel 的 a-descriptions 渲染
+const detailFields = computed(() => {
+  if (detailType.value === 'node' && selectedNode.value) {
+    const n = selectedNode.value
+    return [
+      { label: '名称', value: n.name },
+      n.score != null ? { label: '相似度', value: `${(n.score * 100).toFixed(1)}%` } : null,
+      { label: '类型', value: n.entityType },
+      { label: '描述', value: n.description },
+      { label: '来源', value: n.source },
+      { label: '文档ID', value: n.documentId },
+    ].filter(Boolean)
+  }
+  if (detailType.value === 'edge' && selectedEdge.value) {
+    const e = selectedEdge.value
+    return [
+      { label: '关系类型', value: e.relationType },
+      { label: '描述', value: e.description },
+      { label: '权重', value: e.weight },
+      { label: '来源', value: e.source },
+    ]
+  }
+  return []
 })
 
 // ---- 颜色调色板 / 布局 / 数据格式化：见 useKnowledgeGraphConfig ----
@@ -1198,8 +1203,8 @@ watch(isDark, () => {
 
 .kg-fit-btn {
   position: absolute;
-  top: 12px;
   right: 12px;
+  bottom: 12px;
   z-index: 10;
 }
 
@@ -1219,12 +1224,6 @@ watch(isDark, () => {
 .kg-empty-hint {
   font-size: 13px;
   color: var(--color-mute);
-}
-
-.kg-detail-actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
 }
 
 /* 文档选择弹窗 */

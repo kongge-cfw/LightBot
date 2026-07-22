@@ -704,10 +704,7 @@ defineExpose({ openDialog, search, refresh, loading })
   color: #d97706;
 }
 .dialog-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 8px);
-  scrollbar-gutter: stable;
+  /* 滚动由 .ant-modal-body 全局接管，避免双滚动条 */
 }
 .form-hint {
   margin-top: 6px;

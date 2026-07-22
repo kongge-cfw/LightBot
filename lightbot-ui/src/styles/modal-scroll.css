@@ -44,6 +44,24 @@
 }
 
 /**
+ * 紧凑型弹窗（短内容）：通过 wrapClassName="lb-modal-compact" 启用。
+ *
+ * 应用场景：编辑知识库、新增分类、简单确认等已知内容不会超过 maxHeight 的弹窗。
+ * 默认规则 .ant-modal-body 的 scrollbar-gutter: stable 会让浏览器始终预留滚动条轨道
+ * （约 8-16px），即便内容不溢出也出"字段与右侧空白间隔"，视觉上像被裁掉一截。
+ *
+ * 此修饰类关闭 gutter 预留 + 收回 padding-right 到 antd 默认 24px：
+ * - 内容不溢出时：无滚动条、无预留空位、字段贴右边距对称
+ * - 内容溢出时（罕见）：滚动条覆盖式出现，内容左移 8-16px（trade-off 可接受）
+ *
+ * 长内容弹窗（可能频繁溢出）不要用此类，保持默认规则避免内容抖动。
+ */
+.lb-modal-compact .ant-modal-body {
+  scrollbar-gutter: auto;
+  padding-right: 24px;
+}
+
+/**
  * 带 marks 的 slider 在 modal 内：marks label 默认 transform: translateX(-50%)，
  * "首/尾"两个 label 的中心对齐 slider 容器左右边缘，label 半个文字会溢出 slider 容器。
  * slider 默认水平 margin 仅 4px，溢出后 label 紧贴 form-item-control 边缘，

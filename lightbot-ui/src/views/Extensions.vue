@@ -14,8 +14,7 @@
         <a-tab-pane key="subagents" tab="SubAgents" />
       </a-tabs>
       <div class="toolbar-actions">
-        <!-- 工具Tab时显示自动启用工具按钮和类型筛选 -->
-        <DynamicToolDrawer v-if="activeTab === 'tools'" placement="bottomRight" :show-status="false" :show-count="false" />
+        <!-- 工具Tab时显示类型筛选 -->
         <a-select
           v-if="activeTab === 'tools'"
           v-model:value="toolTypeFilter"
@@ -42,12 +41,15 @@
         <button class="lb-btn" @click="handleRefresh">
           <ReloadOutlined :spin="currentLoading" /> 刷新
         </button>
-        <button v-if="activeTab === 'skills'" class="lb-btn" @click="skillRef?.openImportModal()">
+        <button v-if="activeTab === 'skills'" class="lb-btn lb-btn--accent lb-btn--accent--mcp" @click="skillRef?.openImportModal()">
           <UploadOutlined /> ZIP 导入
         </button>
-        <button v-if="activeTab === 'skills'" class="lb-btn" @click="skillRef?.openRemoteInstallModal()">
+        <button v-if="activeTab === 'skills'" class="lb-btn lb-btn--accent lb-btn--accent--default" @click="skillRef?.openRemoteInstallModal()">
           <CloudDownloadOutlined /> 远程安装
         </button>
+        <!-- 自动注入工具：工具Tab专属，放最右区域紧邻主按钮（与 Skill tab 强调色按钮位置一致）；
+             tooltip 改 bottomLeft，避免按钮贴右边界时 tooltip 溢出屏幕 -->
+        <DynamicToolDrawer v-if="activeTab === 'tools'" placement="bottomLeft" :show-status="false" :show-count="false" />
         <button class="lb-btn lb-btn--primary" @click="handleAdd">
           <PlusOutlined /> {{ addBtnText }}
         </button>

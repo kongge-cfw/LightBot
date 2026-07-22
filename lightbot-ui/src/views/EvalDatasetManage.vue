@@ -13,7 +13,7 @@
       <template #searchPrefix><SearchOutlined /></template>
       <template #actions>
         <a-tooltip title="示例评测集">
-          <button class="lb-btn" @click="openExampleModal">
+          <button class="lb-btn lb-btn--accent lb-btn--accent--subagent" @click="openExampleModal">
             <SnippetsOutlined />
           </button>
         </a-tooltip>

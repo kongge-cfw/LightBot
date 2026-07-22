@@ -25,7 +25,7 @@
       <template #searchPrefix><SearchOutlined /></template>
       <template #actions>
         <a-tooltip title="示例工作流">
-          <button class="lb-btn" @click="openExampleModal">
+          <button class="lb-btn lb-btn--accent lb-btn--accent--subagent" @click="openExampleModal">
             <ExperimentOutlined />
           </button>
         </a-tooltip>

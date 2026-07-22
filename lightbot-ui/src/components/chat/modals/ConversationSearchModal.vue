@@ -153,17 +153,22 @@ defineExpose({ runSearch })
 .conv-search-input {
   margin-bottom: 12px;
 }
+/* input 和搜索按钮分离：间距足够大以避开 input focus 时的 2px 蓝色光晕，
+   否则光晕会盖住按钮左边缘，视觉上像被遮挡 */
 .conv-search-input .ant-input-affix-wrapper {
   border-top-right-radius: 6px;
   border-bottom-right-radius: 6px;
 }
 .conv-search-input .ant-input-group > .ant-input-group-addon:last-child {
-  padding-left: 8px;
+  padding-left: 16px;
   background: transparent;
 }
-.conv-search-input .ant-input-search-button {
-  border-top-left-radius: 6px;
-  border-bottom-left-radius: 6px;
+/* antd 对 .ant-input-search-button 用逻辑属性 border-start-start-radius:0 把左侧角削平，
+   选择器特异性 (0,5,0)。这里必须用同样的逻辑属性 + 同等或更高特异性才能生效，
+   否则按钮左侧没圆角、像被切掉。 */
+.conv-search-input .ant-input-group > .ant-input-group-addon:last-child .ant-input-search-button {
+  border-start-start-radius: 6px;
+  border-end-start-radius: 6px;
 }
 .conv-search-body {
   max-height: 60vh;

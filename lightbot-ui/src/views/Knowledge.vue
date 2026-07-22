@@ -12,7 +12,7 @@
     >
       <template #searchPrefix><SearchOutlined /></template>
       <template #actions>
-        <button class="lb-btn" @click="router.push('/app/graph')">
+        <button class="lb-btn lb-btn--accent lb-btn--accent--knowledge" @click="router.push('/app/graph')">
           <ApartmentOutlined /> 知识图谱
         </button>
       </template>

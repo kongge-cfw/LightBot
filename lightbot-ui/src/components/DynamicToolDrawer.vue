@@ -1,7 +1,7 @@
 <template>
   <slot name="trigger">
     <a-tooltip title="查看运行时自动注入的工具" :placement="placement">
-      <button type="button" class="btn-dynamic-tool" @click="open">
+      <button type="button" class="lb-btn lb-btn--accent lb-btn--accent--tool" @click="open">
         <SettingOutlined /> 自动注入工具
       </button>
     </a-tooltip>
@@ -174,23 +174,8 @@ const groups = computed(() => {
 </script>
 
 <style scoped>
-.btn-dynamic-tool {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
-  background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--color-mute);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.btn-dynamic-tool:hover {
-  border-color: var(--color-link);
-  color: var(--color-link);
-}
+/* trigger 按钮已迁移到 .lb-btn.lb-btn--accent.lb-btn--accent--tool（绿色渐变），
+   与 Extensions tools tab、AgentDetail tools/knowledge tab 三处嵌入的视觉一致 */
 .drawer-desc {
   margin-bottom: 14px;
   font-size: 13px;

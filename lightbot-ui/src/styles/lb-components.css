@@ -64,6 +64,97 @@
   width: 100%;
 }
 
+/* ========== 强调按钮（特殊能力入口）==========
+   用于"知识图谱入口 / Playground / 自动注入工具 / 远程安装"等需要视觉锚点的按钮，
+   复用 variables.css 已定义的 --gradient-entity-* token（不引入新色板）。
+   - 普通主按钮继续用 .lb-btn--primary（默认黑）
+   - 强调按钮加 .lb-btn--accent + 颜色修饰类
+   - 渐变饱和色在浅/深背景下都用白色内描边 + 阴影做边界，hover 时上浮 + overlay 压暗（色相稳定） */
+.lb-btn--accent {
+  color: #fff;
+  border: none;
+  font-weight: 500;
+  /* 文字阴影：渐变底色含浅色区段（default 的青色 #00dfd8、skill 的亮橙 #f59e0b），
+     纯白文字在浅色区段对比度偏低；text-shadow 给文字加暗色投影，跨渐变色段保持可读 */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+  /* box-shadow 列表固定为 3 个 shadow，hover/active 只改各 shadow 的 rgba 值，
+     保证 transition 能逐 shadow 平滑插值（数量不一致会跳变）：
+     1. inset overlay（transparent → rgba(0,0,0,X)）：变暗背景的核心机制
+     2. inset 1px 白色内描边：浅/深背景下都让按钮边界清晰
+     3. 外阴影：浮起反馈 */
+  box-shadow: inset 0 0 0 9999px transparent,
+              inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+              0 1px 2px rgba(0, 0, 0, 0.08);
+  transition: transform var(--duration-fast, 0.15s) ease,
+              box-shadow var(--duration-fast, 0.15s) ease;
+}
+.lb-btn--accent:hover:not(:disabled) {
+  /* 修复 .lb-btn:hover 的 color 渗透：
+     .lb-btn:hover { color: var(--color-link) } 优先级 (0,3,0) 高于
+     .lb-btn--accent { color: #fff } 的 (0,1,0)，原代码没在 hover 显式覆盖，
+     导致强调按钮 hover 时白字被染成 #0070f3 深蓝——配在彩色渐变背景上刺眼。
+     直接改浅蓝会与 default 蓝青色按钮 #00dfd8 冲突（对比度仅 1.8 不可读），
+     故保持 color: #fff，蓝色反馈改用 text-shadow 第二层 glow 提供柔和提示 */
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32),
+               0 0 10px rgba(190, 220, 255, 0.55);
+  transform: translateY(-1px);
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.05),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.22),
+              0 2px 8px rgba(0, 0, 0, 0.14);
+}
+.lb-btn--accent:active:not(:disabled) {
+  /* 按下时 overlay 略深 + 移除外阴影做"凹陷"反馈；
+     color: #fff 同样为了防止 .lb-btn:hover 渗透（按下期间 :hover 仍生效）*/
+  color: #fff;
+  transform: translateY(0);
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.12),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.lb-btn--accent:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.lb-btn--accent--default  { background: var(--gradient-entity-default); }
+.lb-btn--accent--tool     { background: var(--gradient-entity-tool); }
+.lb-btn--accent--knowledge{ background: var(--gradient-entity-knowledge); }
+.lb-btn--accent--mcp      { background: var(--gradient-entity-mcp); }
+.lb-btn--accent--skill    { background: var(--gradient-entity-skill); }
+.lb-btn--accent--subagent { background: var(--gradient-entity-subagent); }
+
+/* 深色模式：背景已暗，overlay 比例略低（0.16）避免颜色过暗；
+   外阴影加深以补偿深色背景对浮起反馈的视觉吸收 */
+[data-theme="dark"] .lb-btn--accent {
+  box-shadow: inset 0 0 0 9999px transparent,
+              inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+              0 1px 2px rgba(0, 0, 0, 0.4);
+}
+[data-theme="dark"] .lb-btn--accent:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 9999px rgba(0, 0, 0, 0.08),
+              inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+              0 2px 10px rgba(0, 0, 0, 0.45);
+}
+
+/* ========== 骨架屏（shimmer 动画）==========
+   用于统计卡片、列表、详情等加载态。DashboardView / Observability 共用。
+   - 颜色用 canvas-soft-2 → hairline-strong 渐变 shimmer
+   - 动画周期 2.4s，与 DashboardView 历史动画一致 */
+.lb-skeleton-block {
+  background: linear-gradient(
+    90deg,
+    var(--color-canvas-soft-2) 0%,
+    var(--color-hairline-strong) 50%,
+    var(--color-canvas-soft-2) 100%
+  );
+  background-size: 200% 100%;
+  animation: lb-skeleton-shimmer 2.4s ease-in-out infinite;
+  border-radius: 4px;
+}
+@keyframes lb-skeleton-shimmer {
+  0% { background-position: 150% 0; }
+  100% { background-position: -50% 0; }
+}
+
 /* ========== Tabs 视觉统一（新代码加 .lb-tabs 类即可复用，避免每个 view 复制 40 行 :deep） ========== */
 /* useTheme.js 的 components.Tabs 已统一 inkBarColor/itemSelectedColor；此处仅做轻量视觉调整。
    历史 view 的 :deep(.ant-tabs-nav) 覆盖保留不动（避免视觉退化）。 */

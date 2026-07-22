@@ -11,10 +11,10 @@
 
     <!-- 顶部统计卡片 -->
     <div v-if="activeTab !== 'tool'" class="stats-overview">
-      <LbStatCard :icon="BarChartOutlined" accent="blue" :value="overview.totalCount ?? '-'" label="总请求数" />
-      <LbStatCard :icon="ThunderboltOutlined" accent="purple" :value="formatTokens(overview.totalTokens)" label="总Token" />
-      <LbStatCard :icon="ClockCircleOutlined" accent="teal" :value="formatDuration(overview.avgDurationMs)" label="平均耗时" />
-      <LbStatCard :icon="ToolOutlined" accent="orange" :value="overview.totalToolCalls ?? '-'" label="工具调用" />
+      <LbStatCard :icon="BarChartOutlined" accent="blue" :value="overview.totalCount ?? '-'" label="总请求数" :loading="statsLoading" />
+      <LbStatCard :icon="ThunderboltOutlined" accent="purple" :value="formatTokens(overview.totalTokens)" label="总Token" :loading="statsLoading" />
+      <LbStatCard :icon="ClockCircleOutlined" accent="teal" :value="formatDuration(overview.avgDurationMs)" label="平均耗时" :loading="statsLoading" />
+      <LbStatCard :icon="ToolOutlined" accent="orange" :value="overview.totalToolCalls ?? '-'" label="工具调用" :loading="statsLoading" />
     </div>
 
     <!-- 对话/工作流 筛选栏 -->
@@ -566,6 +566,7 @@ const route = useRoute()
 const router = useRouter()
 
 const loading = ref(false)
+const statsLoading = ref(false)
 const traces = ref([])
 const overview = ref({})
 const activeTab = ref(normalizeObservabilityTab(route.query.tab))
@@ -994,10 +995,13 @@ async function loadTraces(page) {
 }
 
 async function loadOverview() {
+  statsLoading.value = true
   try {
     const res = await getTraceOverview(activeTab.value)
     overview.value = res.data || {}
-  } catch { /* ignore */ }
+  } catch { /* ignore */ } finally {
+    statsLoading.value = false
+  }
 }
 
 function onTabChange() {

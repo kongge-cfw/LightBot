@@ -12,7 +12,7 @@
     >
       <template #searchPrefix><SearchOutlined /></template>
       <template #actions>
-        <button class="lb-btn" @click="router.push('/app/playground')">
+        <button class="lb-btn lb-btn--accent lb-btn--accent--default" @click="router.push('/app/playground')">
           <PlayCircleOutlined /> Playground
         </button>
         <button class="lb-btn" @click="router.push('/app/prompt-templates')">

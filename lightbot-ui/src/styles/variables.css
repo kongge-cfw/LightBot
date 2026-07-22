@@ -107,7 +107,7 @@
   /* 滚动条统一 token（v4 全局滚动条规范）
      使用约定：所有滚动容器自动继承全局样式，禁止在组件局部写 ::-webkit-scrollbar。
      详见 src/styles/scrollbar.css */
-  --scrollbar-size: 8px;
+  --scrollbar-size: 6px;
   --scrollbar-thumb: #d4d4d8;
   --scrollbar-thumb-hover: #a1a1aa;
   --scrollbar-track: transparent;

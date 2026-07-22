@@ -18,7 +18,6 @@
       >
         <template v-if="$slots.searchPrefix" #prefix><slot name="searchPrefix" /></template>
       </a-input>
-      <slot name="actions" />
       <button
         v-if="showRefresh"
         type="button"
@@ -36,6 +35,7 @@
       >
         <PlusOutlined /> {{ createText }}
       </button>
+      <slot name="actions" />
     </div>
   </div>
 </template>

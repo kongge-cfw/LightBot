@@ -15,10 +15,10 @@
     >
       <template #searchPrefix><SearchOutlined /></template>
       <template #actions>
-        <button class="lb-btn lb-btn--primary" style="background: #7c3aed" @click="importModalVisible = true">
+        <button class="lb-btn lb-btn--accent lb-btn--accent--mcp" @click="importModalVisible = true">
           <UploadOutlined /> ZIP 导入
         </button>
-        <button class="lb-btn lb-btn--primary" style="background: #0369a1" @click="remoteInstallVisible = true">
+        <button class="lb-btn lb-btn--accent lb-btn--accent--default" @click="remoteInstallVisible = true">
           <CloudDownloadOutlined /> 远程安装
         </button>
       </template>
@@ -470,10 +470,7 @@ defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallMo
   grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
 }
 .dialog-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 12px);
-  scrollbar-gutter: stable;
+  /* 滚动由 .ant-modal-body 全局接管，避免双滚动条 */
 }
 .detail-scroll-body {
   max-height: calc(100vh - 260px);
