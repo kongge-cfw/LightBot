@@ -16,6 +16,7 @@
  * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
+  min-height: 80px;
   max-height: calc(100vh - 200px);
   overflow-x: hidden;
   overflow-y: auto;
@@ -33,4 +34,31 @@
  */
 .ant-modal-body .ant-slider-with-marks {
   margin-inline: 14px;
+}
+
+/**
+ * antd Modal / Drawer footer 按钮右边缘对齐 body 内容右边缘。
+ *
+ * 背景：.ant-modal-body 加了 scrollbar-gutter: stable 永远预留滚动条空间（8px），
+ * gutter 在 padding-right (默认 24px) 内侧额外占位，内容可视区右边缘 = padding-right + gutter = 32px。
+ * footer 默认 padding: 10px 16px，按钮右边缘只有 16px，没有 gutter 概念。
+ * 结果：body 长内容出滚动条时，footer 按钮比 body 内容右边缘少 16px，
+ * 视觉上像"按钮被滚动条挤到旁边"。
+ *
+ * 修复：footer padding-right 直接设为 32px（body padding-right + scrollbar-size），
+ * 按钮右边缘与 body 内容右边缘对齐。
+ */
+.ant-modal-footer,
+.ant-drawer-footer {
+  padding-right: calc(var(--scrollbar-size) + 24px);
+}
+
+/**
+ * footer 居中弹窗（如 MCP 连接成功提示）。
+ * Modal.info 默认 footer 右对齐，这类"纯提示型"弹窗按钮只有一个"知道了"，
+ * 居中更对称。同时重置左右 padding 对称，避免上方规则让 footer 右侧多出 gutter 宽度。
+ */
+.modal-footer-center .ant-modal-footer {
+  text-align: center;
+  padding-inline: 24px;
 }

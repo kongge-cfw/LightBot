@@ -353,13 +353,30 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
         </div>
       </div>
     </a-modal>
+
+    <!-- 测试连接结果弹窗 -->
+    <a-modal
+      v-model:open="testResultVisible"
+      :title="testResultData.title"
+      :width="480"
+      ok-text="知道了"
+      :mask-closable="true"
+      wrap-class-name="modal-footer-center mcp-test-result-modal"
+      @ok="testResultVisible = false"
+    >
+      <p v-if="testResultData.summary" class="test-result-summary">{{ testResultData.summary }}</p>
+      <ul v-if="testResultData.tools.length" class="test-result-list">
+        <li v-for="t in testResultData.tools" :key="t.name">{{ t.name }}</li>
+      </ul>
+      <div v-if="testResultData.error" class="test-result-error">{{ testResultData.error }}</div>
+    </a-modal>
   </div>
 </template>
 
 <script setup>
 defineOptions({ name: 'McpManage' })
 defineProps({ hideHeader: Boolean })
-import { ref, reactive, watch, onMounted, computed, h } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { PlusOutlined, EditOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApiOutlined, ToolOutlined, QuestionCircleOutlined, SyncOutlined, EyeOutlined, CopyOutlined, MoreOutlined, CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { getMcpServers, createMcpServer, updateMcpServer, deleteMcpServer, testMcpServer, getMcpServerTools, refreshMcpServerTools, toggleMcpTool, setMcpServerEnabled } from '../api/mcp'
@@ -394,6 +411,14 @@ const detailRow = ref(null)
 // 工具详情弹窗
 const toolDetailVisible = ref(false)
 const toolDetail = ref(null)
+// 测试连接结果弹窗
+const testResultVisible = ref(false)
+const testResultData = reactive({
+  title: '',
+  summary: '',
+  tools: [],
+  error: '',
+})
 
 function isBuiltin(server) {
   return Number(server?.isBuiltin) === 1
@@ -579,19 +604,18 @@ async function handleTest(server) {
   try {
     const res = await testMcpServer(server.id)
     const tools = res.data || []
-    Modal.info({
-      title: `连接成功 — ${server.name}`,
-      content: h('div', [
-        h('p', { style: { marginBottom: '8px' } }, `发现 ${tools.length} 个工具：`),
-        h('ul', { style: { paddingLeft: '20px', margin: '0' } },
-          tools.map(t => h('li', { style: { marginBottom: '4px' } }, t.name))
-        )
-      ]),
-      width: 480,
-    })
+    testResultData.title = `连接成功 — ${server.name}`
+    testResultData.summary = `发现 ${tools.length} 个工具：`
+    testResultData.tools = tools
+    testResultData.error = ''
+    testResultVisible.value = true
   } catch (e) {
     const msg = e?.response?.data?.message || e?.message || '连接失败，请检查配置'
-    Modal.error({ title: `连接失败 — ${server.name}`, content: msg, width: 480 })
+    testResultData.title = `连接失败 — ${server.name}`
+    testResultData.summary = ''
+    testResultData.tools = []
+    testResultData.error = msg
+    testResultVisible.value = true
   } finally {
     testingId.value = null
   }
@@ -1259,5 +1283,39 @@ defineExpose({ openDialog, search, refresh, loading })
   font-size: 11px;
   color: var(--color-mute);
   margin-top: 6px;
+}
+.test-result-summary {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--color-body);
+}
+.test-result-list {
+  margin: 0;
+  padding-left: 20px;
+}
+.test-result-list li {
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.test-result-error {
+  padding: 12px 14px;
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error-soft);
+  border-radius: 8px;
+  color: var(--color-error-deep);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+</style>
+
+<style>
+/* MCP 测试连接结果弹窗：480px 窄宽度下，全局 max-height (100vh - 200px) 让弹窗又窄又高。
+   限定 50vh 上限，工具列表多时也只占半屏，配合 min-height: 80px 视觉更协调。 */
+.mcp-test-result-modal .ant-modal-body {
+  min-height: 80px;
+  max-height: 50vh;
 }
 </style>
