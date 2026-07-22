@@ -218,11 +218,26 @@
   font-size: 24px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  line-height: 1.3;
 }
 .lb-detail-header__desc {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 8px 12px;
+  background: var(--color-canvas-soft);
+  border-left: 3px solid var(--color-link);
+  border-radius: 0 6px 6px 0;
+  max-width: 720px;
+  word-break: break-word;
+}
+.lb-detail-header__desc--empty {
+  font-style: italic;
   color: var(--color-mute);
+  background: transparent;
+  border-left-color: var(--color-hairline-strong);
+  opacity: 0.75;
 }
 .lb-detail-header__tags {
   display: flex;

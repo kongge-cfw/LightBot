@@ -5,7 +5,7 @@
         <ArrowLeftOutlined /> 返回
       </button>
       <h1 class="lb-detail-header__title">{{ title }}</h1>
-      <p v-if="desc" class="lb-detail-header__desc">{{ desc }}</p>
+      <p class="lb-detail-header__desc" :class="{ 'lb-detail-header__desc--empty': !desc }">{{ desc || '暂无描述' }}</p>
       <div v-if="$slots.tags || tagsList.length" class="lb-detail-header__tags">
         <slot name="tags">
           <a-tag v-for="t in tagsList" :key="t" color="blue">{{ t }}</a-tag>

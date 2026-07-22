@@ -6,7 +6,7 @@
           <ArrowLeftOutlined /> 返回
         </button>
         <h1 class="page-title">{{ experiment?.name || '实验详情' }}</h1>
-        <p class="page-desc">{{ experiment?.description || '' }}</p>
+        <p class="page-desc" :class="{ 'page-desc--empty': !experiment?.description }">{{ experiment?.description || '暂无描述' }}</p>
       </div>
       <div class="page-header-actions">
         <a-tag v-if="experimentStatus" :color="statusColor" style="font-size: 14px; padding: 4px 12px;">
@@ -337,7 +337,7 @@ import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 const route = useRoute()
 const router = useRouter()
 const experimentId = route.params.id
-const experiment = ref(null)
+const experiment = ref({})
 const activeTab = ref('overview')
 const resultEvaluatorTab = ref('')
 const evaluatorResults = ref([])
@@ -728,11 +728,27 @@ function truncate(str, len) {
   font-size: 24px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  line-height: 1.3;
 }
 .page-desc {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 8px 12px;
+  background: var(--color-canvas-soft);
+  border-left: 3px solid var(--color-link);
+  border-radius: 0 6px 6px 0;
+  max-width: 720px;
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+.page-desc--empty {
+  font-style: italic;
   color: var(--color-mute);
+  background: transparent;
+  border-left-color: var(--color-hairline-strong);
+  opacity: 0.75;
 }
 .page-header-actions {
   display: flex;

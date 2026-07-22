@@ -7,7 +7,7 @@
           <ArrowLeftOutlined /> 返回
         </button>
         <h1 class="page-title"><span v-if="latestVersion" class="version-badge">{{ latestVersion }}</span>{{ promptKey }}</h1>
-        <p class="page-desc" v-if="prompt?.description">{{ prompt.description }}</p>
+        <p class="page-desc" :class="{ 'page-desc--empty': !prompt?.description }">{{ prompt?.description || '暂无描述' }}</p>
         <LbTagList v-if="prompt?.tags" :tags="prompt.tags" />
       </div>
       <div class="header-actions">
@@ -280,7 +280,7 @@ import { copyToClipboard } from '../utils/clipboard'
 const route = useRoute()
 const router = useRouter()
 const promptKey = route.params.id
-const prompt = ref(null)
+const prompt = ref({})
 const versions = ref([])
 const pageLoading = ref(true)
 const submitting = ref(false)
@@ -637,7 +637,8 @@ function scrollToBottom(inst) {
   font-size: 24px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  line-height: 1.3;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -656,9 +657,23 @@ function scrollToBottom(inst) {
   white-space: nowrap;
 }
 .page-desc {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 8px 12px;
+  background: var(--color-canvas-soft);
+  border-left: 3px solid var(--color-link);
+  border-radius: 0 6px 6px 0;
+  max-width: 720px;
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+.page-desc--empty {
+  font-style: italic;
   color: var(--color-mute);
-  margin-bottom: 12px;
+  background: transparent;
+  border-left-color: var(--color-hairline-strong);
+  opacity: 0.75;
 }
 .prompt-tags {
   display: flex;

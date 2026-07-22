@@ -22,7 +22,9 @@
               </button>
             </a-tooltip>
           </div>
-          <p class="page-desc">{{ headerDescription || '暂无描述' }}</p>
+          <p class="page-desc" :class="{ 'page-desc--empty': !headerDescription }">
+            {{ headerDescription || '暂无描述' }}
+          </p>
         </div>
       </div>
       <div class="header-actions">
@@ -3597,6 +3599,7 @@ onMounted(async () => {
   align-items: center;
   gap: 8px;
   min-width: 0;
+  margin-bottom: 12px;
 }
 .page-title-row .page-title {
   margin-bottom: 0;
@@ -3640,11 +3643,26 @@ onMounted(async () => {
   font-size: 24px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  line-height: 1.3;
 }
 .page-desc {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 8px 12px;
+  background: var(--color-canvas-soft);
+  border-left: 3px solid var(--color-link);
+  border-radius: 0 6px 6px 0;
+  max-width: 720px;
+  word-break: break-word;
+}
+.page-desc--empty {
+  font-style: italic;
   color: var(--color-mute);
+  background: transparent;
+  border-left-color: var(--color-hairline-strong);
+  opacity: 0.75;
 }
 .btn-primary {
   display: flex;

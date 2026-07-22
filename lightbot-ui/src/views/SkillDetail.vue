@@ -3,6 +3,7 @@
     <!-- 顶部导航栏 -->
     <LbDetailHeader
       :title="skill.displayName || skill.name || 'Skill 详情'"
+      :desc="skill.description || ''"
       @back="goBack"
     >
       <template #tags>

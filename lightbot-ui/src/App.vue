@@ -213,6 +213,35 @@ textarea.ant-input:focus,
   outline: 0 !important;
 }
 
+/* RangePicker 活动单元格指示条：默认派生自 colorPrimary（#171717），深色模式下近黑不可见。
+   显式覆盖为 link 蓝，让"正在编辑开始/结束哪个输入框"清晰可辨；浅色模式下也统一为品牌蓝。 */
+.ant-picker-active-bar {
+  background: var(--color-link) !important;
+}
+
+/* RangePicker 面板内的选中日期（开始日 / 结束日 / 单选选中日）：
+   默认背景派生自 colorPrimary（#171717），深色模式下与面板背景重合无法辨识。
+   覆盖为 link 蓝填充 + 白字，跨主题一致、与 active-bar 视觉呼应。 */
+.ant-picker-cell-in-view.ant-picker-cell-selected .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-start .ant-picker-cell-inner,
+.ant-picker-cell-in-view.ant-picker-cell-range-end .ant-picker-cell-inner {
+  background: var(--color-link) !important;
+  color: #fff !important;
+  border-color: var(--color-link) !important;
+}
+
+/* RangePicker 区间内（开始与结束之间）的日期：默认派生色对比度偏弱，
+   用 info-bg 淡蓝统一标识"在选中区间内"。 */
+.ant-picker-cell-in-view.ant-picker-cell-in-range::before {
+  background: var(--color-info-bg) !important;
+}
+
+/* RangePicker hover 预览区间：默认派生自 colorPrimaryHover（趋黑），深色下不可见。
+   覆盖为 link-bg-soft 让"鼠标悬停预览的结束日"清晰可见。 */
+.ant-picker-cell-in-view.ant-picker-cell-range-hover::before {
+  background: var(--color-link-bg-soft) !important;
+}
+
 .ant-modal .ant-modal-content {
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-5) !important;
@@ -366,6 +395,87 @@ textarea.ant-input:focus,
 [data-theme="dark"] .ant-radio-wrapper:not(.ant-radio-wrapper-checked):hover .ant-radio-inner,
 [data-theme="dark"] .ant-checkbox-wrapper:not(.ant-checkbox-wrapper-checked):hover .ant-checkbox-inner {
   border-color: #d4d4d8 !important;
+}
+
+/* ===== 深色模式：colorPrimary 派生的"选中/激活"态全局兜底 =====
+   说明：项目 colorPrimary=#171717（品牌近黑），antd 把 Switch/Checkbox/Radio/Slider/
+   InputNumber 等组件的"选中/激活"视觉直接派生自 colorPrimary，在深色 #111/#1f1f1f 画布上
+   近乎不可见。useTheme.js 不便按组件单独切 colorPrimary，故在此统一 CSS 兜底。
+   统一用 var(--color-link)（#3b82f6 深色），与 RangePicker active-bar / 输入聚焦色一致。 */
+
+/* Switch 打开态：默认 #171717 与画布重合，改蓝色清晰可辨 */
+[data-theme="dark"] .ant-switch-checked.ant-switch-checked {
+  background-color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-switch-checked:hover:not(.ant-switch-disabled) {
+  background-color: var(--color-link-deep) !important;
+}
+/* 二次防护：antd 4.x 部分版本会 inline style 写 background-color，需提升优先级 */
+[data-theme="dark"] .ant-switch.ant-switch-checked > .ant-switch-inner {
+  background: transparent !important;
+}
+
+/* Checkbox 选中态：勾选背景派生自 colorPrimary 近黑，改蓝色 */
+[data-theme="dark"] .ant-checkbox-checked .ant-checkbox-inner {
+  background-color: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-checkbox-checked .ant-checkbox-inner:hover {
+  border-color: var(--color-link-deep) !important;
+}
+[data-theme="dark"] .ant-checkbox-indeterminate .ant-checkbox-inner {
+  background-color: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+}
+
+/* Radio 选中态：实心圆点派生自 colorPrimary 近黑，改蓝色 */
+[data-theme="dark"] .ant-radio-checked .ant-radio-inner,
+[data-theme="dark"] .ant-radio-wrapper-checked .ant-radio-inner {
+  background-color: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-radio-inner::after {
+  background-color: #fff !important;
+}
+[data-theme="dark"] .ant-radio-button-wrapper-checked {
+  background-color: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+  color: #fff !important;
+}
+[data-theme="dark"] .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled):hover {
+  background-color: var(--color-link-deep) !important;
+  border-color: var(--color-link-deep) !important;
+}
+
+/* Slider 滑块手柄 + 已填充轨道：派生自 colorPrimary 近黑，改蓝色 */
+[data-theme="dark"] .ant-slider-handle,
+[data-theme="dark"] .ant-slider-handle::after {
+  background-color: var(--color-link) !important;
+  border-color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-slider-handle:hover,
+[data-theme="dark"] .ant-slider-handle:focus {
+  border-color: var(--color-link-deep) !important;
+}
+[data-theme="dark"] .ant-slider-track {
+  background-color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-slider:hover .ant-slider-track {
+  background-color: var(--color-link-deep) !important;
+}
+[data-theme="dark"] .ant-slider-dot-active {
+  border-color: var(--color-link) !important;
+}
+
+/* InputNumber 步进按钮 hover/active：箭头图标派生自 colorPrimary 近黑，
+   handler 按钮背景在深色下也偏暗。统一蓝色图标 + 半透 hover 底色 */
+[data-theme="dark"] .ant-input-number-handler-up:hover:not(.ant-input-number-handler-up-disabled) .ant-input-number-handler-up-inner,
+[data-theme="dark"] .ant-input-number-handler-down:hover:not(.ant-input-number-handler-down-disabled) .ant-input-number-handler-down-inner {
+  color: var(--color-link) !important;
+}
+[data-theme="dark"] .ant-input-number-handler-up:hover:not(.ant-input-number-handler-up-disabled),
+[data-theme="dark"] .ant-input-number-handler-down:hover:not(.ant-input-number-handler-down-disabled) {
+  background: rgba(255, 255, 255, 0.06) !important;
 }
 
 /* Drawer / Modal 在深色模式下边框、阴影加强 */

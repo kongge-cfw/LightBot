@@ -16,7 +16,7 @@
             {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
           </span>
         </h1>
-        <p class="page-desc">{{ knowledge.description || '暂无描述' }}</p>
+        <p class="page-desc" :class="{ 'page-desc--empty': !knowledge.description }">{{ knowledge.description || '暂无描述' }}</p>
         <div class="kb-stats-bar">
           <div class="kb-stat-item">
             <FileTextOutlined />
@@ -2366,7 +2366,8 @@ onUnmounted(() => {
   font-size: 24px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin-bottom: 12px;
+  line-height: 1.3;
 }
 .title-type-icon {
   font-size: 18px;
@@ -2407,8 +2408,23 @@ onUnmounted(() => {
   background: #16a34a;
 }
 .page-desc {
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 8px 12px;
+  background: var(--color-canvas-soft);
+  border-left: 3px solid var(--color-link);
+  border-radius: 0 6px 6px 0;
+  max-width: 720px;
+  margin-bottom: 16px;
+  word-break: break-word;
+}
+.page-desc--empty {
+  font-style: italic;
   color: var(--color-mute);
+  background: transparent;
+  border-left-color: var(--color-hairline-strong);
+  opacity: 0.75;
 }
 .kb-stats-bar {
   display: flex;

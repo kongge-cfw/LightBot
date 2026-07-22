@@ -212,20 +212,20 @@ defineExpose({
   min-width: 120px;
   padding: 14px 24px;
   border-radius: 12px;
-  border: 2px dashed #d4d4d8;
-  background: rgba(255, 255, 255, 0.95);
+  border: 2px dashed var(--color-hairline-strong);
+  background: var(--color-canvas-soft-2);
   color: var(--color-mute);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-3);
   transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.15s;
   pointer-events: none;
 }
 .workflow-trash .trash-icon { font-size: 28px; }
 .workflow-trash .trash-label { font-size: 12px; white-space: nowrap; }
 .workflow-trash.is-over:not(.is-disabled) {
-  border-color: #ef4444;
+  border-color: var(--color-error);
   border-style: solid;
   background: var(--color-error-bg);
-  color: #dc2626;
+  color: var(--color-error);
   transform: translateX(-50%) scale(1.05);
 }
 .workflow-trash.is-disabled { opacity: 0.65; }
