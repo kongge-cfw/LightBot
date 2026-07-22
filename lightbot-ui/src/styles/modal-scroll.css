@@ -34,3 +34,16 @@
 .ant-modal-body::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/**
+ * 带 marks 的 slider 在 modal 内：marks label 默认 transform: translateX(-50%)，
+ * "首/尾"两个 label 的中心对齐 slider 容器左右边缘，label 半个文字会溢出 slider 容器。
+ * slider 默认水平 margin 仅 4px，溢出后 label 紧贴 form-item-control 边缘，
+ * 配合 .ant-modal-body 的 overflow-x: hidden 视觉上像被切掉一截。
+ *
+ * 修复：给 modal 内带 marks 的 slider 加大左右 margin，让边缘 label 有完整的字宽空间。
+ * 仅作用于 .ant-slider-with-marks（无 marks 的 slider 不受影响）。
+ */
+.ant-modal-body .ant-slider-with-marks {
+  margin-inline: 14px;
+}
