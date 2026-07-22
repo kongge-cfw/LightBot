@@ -415,18 +415,6 @@ function handleCancel() {
   border: 1px solid var(--color-hairline);
   border-radius: 8px;
   padding: 4px;
-  scrollbar-width: thin;
-}
-.skill-list::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-.skill-list::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 2px;
-}
-.skill-list::-webkit-scrollbar-track {
-  background: transparent;
 }
 .skill-item {
   display: flex;

@@ -1045,18 +1045,7 @@ defineExpose({ openDialog, search, refresh, loading })
   max-height: calc(100vh - 260px);
   overflow-y: auto;
   padding-right: var(--scroll-content-gap, 8px);
-  scrollbar-width: thin;
   scrollbar-gutter: stable;
-}
-.detail-scroll-body::-webkit-scrollbar {
-  width: 5px;
-}
-.detail-scroll-body::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
-  border-radius: 3px;
-}
-.detail-scroll-body::-webkit-scrollbar-track {
-  background: transparent;
 }
 .detail-scroll-body :deep(.ant-descriptions-view) {
   table-layout: fixed;

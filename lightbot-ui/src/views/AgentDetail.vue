@@ -4151,16 +4151,6 @@ onMounted(async () => {
 .config-list-scroll--two-rows {
   max-height: 92px;
 }
-.config-list-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.config-list-scroll::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.config-list-scroll::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
-}
 .model-config-form :deep(.ant-form-item) {
   margin-bottom: 16px;
 }
@@ -4538,21 +4528,12 @@ onMounted(async () => {
   padding: 8px 20px 12px 8px;
   margin-right: 0;
 }
-.panel-body::-webkit-scrollbar {
-  width: 8px;
-}
 .panel-body--chat {
   max-height: none;
   overflow-y: visible;
 }
 .panel-form {
   padding-bottom: 16px;
-}
-.panel-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 4px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 .panel-header-actions {
   display: flex;

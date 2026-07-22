@@ -12,27 +12,14 @@
  * 文字、a-row gutter 负 margin、a-input-number min-width 等几像素溢出都会触发
  * 横向滚动条。需要横向滚动的弹窗（代码/JSON/SQL 结果）通过 :body-style 显式
  * 设置 overflow: 'auto' 覆盖。
+ *
+ * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
   max-height: calc(100vh - 200px);
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-width: thin;
-}
-
-.ant-modal-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.ant-modal-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.ant-modal-body::-webkit-scrollbar-track {
-  background: transparent;
+  scrollbar-gutter: stable;
 }
 
 /**

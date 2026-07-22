@@ -271,10 +271,7 @@ defineEmits([
   overflow-x: auto;
   margin: 12px 0;
 }
-.message-content :deep(pre:not(.shiki))::-webkit-scrollbar { height: 4px; }
-.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-track { background: transparent; }
-.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 2px; }
-.message-content :deep(pre:not(.shiki))::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.25); }
+/* pre:not(.shiki) 的滚动条样式统一在 src/styles/scrollbar.css 特例 2 维护 */
 .message-content :deep(pre:not(.shiki) code) {
   background: transparent !important;
   color: #e4e4e7;

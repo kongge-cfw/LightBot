@@ -227,31 +227,7 @@ textarea.ant-input:focus,
   min-width: 112px;
 }
 
-/* 滚动条样式 */
-::-webkit-scrollbar {
-  width: 6px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
-  background: #52525b;
-}
+/* 滚动条统一样式已抽出至 src/styles/scrollbar.css，由 main.js 全局加载 */
 
 /* 弹窗遮罩层禁止外层滚动，内容仅在 modal body 内滚动 */
 .ant-modal-wrap {
@@ -270,37 +246,8 @@ textarea.ant-input:focus,
   color: var(--color-mute) !important;
 }
 
-/* 垂直滚动区域：内容与滚动条保持统一间距 */
-.scroll-area-y,
-.modal-scroll-body,
-.tab-content,
-.guide,
-.log-table-body,
-.detail-scroll-body,
-.dialog-scroll-body,
-.fetch-model-list,
-.model-list {
-  scrollbar-gutter: stable;
-}
-
-.scroll-area-y,
-.modal-scroll-body,
-.tab-content,
-.guide,
-.log-table-body,
-.fetch-model-list,
-.model-list {
-  padding-right: var(--scroll-content-gap);
-}
-
-/* 弹窗 / 抽屉内可滚动区域 */
-.ant-modal-body .scroll-area-y,
-.ant-modal-body .modal-scroll-body,
-.ant-modal-body .dialog-scroll-body,
-.ant-drawer-body .scroll-area-y,
-.ant-drawer-body .modal-scroll-body {
-  padding-right: var(--scroll-content-gap);
-}
+/* 滚动容器的 gutter / padding 规则已抽出至 src/styles/scrollbar.css 的
+   "语义滚动容器"区块，统一管理所有滚动容器的内容间距。 */
 
 /* ===== 深色模式：自定义组件适配 ===== */
 /* Ant Design 组件由 darkAlgorithm 自动处理，仅保留自定义组件覆盖 */

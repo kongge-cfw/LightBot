@@ -350,20 +350,6 @@ onMounted(loadAll)
   min-height: 0;
   overflow-y: auto;
   padding-right: 8px;
-  scrollbar-width: thin;
-}
-
-.advisor-scroll-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.advisor-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-
-.advisor-scroll-body::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 /* 下拉自定义区域：通过 :popup-class-name 全局类放宽宽度 */
@@ -567,43 +553,8 @@ onMounted(loadAll)
   white-space: nowrap;
 }
 
-/* 表格水平滚动条调细（4px），滚动条色用项目变量自动适配深色 */
-.advisor-table :deep(.ant-table-body) {
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-hairline-strong) transparent;
-}
-
-.advisor-table :deep(.ant-table-body::-webkit-scrollbar) {
-  height: 4px;
-  width: 4px;
-}
-
-.advisor-table :deep(.ant-table-body::-webkit-scrollbar-thumb) {
-  background: var(--color-hairline-strong);
-  border-radius: 2px;
-}
-
-.advisor-table :deep(.ant-table-body::-webkit-scrollbar-track) {
-  background: transparent;
-}
-
 /* 隐藏 antd 默认为滚动条预留的占位间距 */
 .advisor-table :deep(.ant-table-content) {
   overflow-x: auto !important;
-  scrollbar-width: thin;
-  scrollbar-color: var(--color-hairline-strong) transparent;
-}
-
-.advisor-table :deep(.ant-table-content::-webkit-scrollbar) {
-  height: 4px;
-}
-
-.advisor-table :deep(.ant-table-content::-webkit-scrollbar-thumb) {
-  background: var(--color-hairline-strong);
-  border-radius: 2px;
-}
-
-.advisor-table :deep(.ant-table-content::-webkit-scrollbar-track) {
-  background: transparent;
 }
 </style>

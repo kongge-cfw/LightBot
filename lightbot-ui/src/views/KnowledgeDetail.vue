@@ -3146,16 +3146,6 @@ onUnmounted(() => {
   overflow-x: hidden;
   padding-right: 8px;
 }
-.chunk-list::-webkit-scrollbar {
-  width: 6px;
-}
-.chunk-list::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.chunk-list::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
-}
 .chunk-item {
   border: 1px solid var(--color-hairline);
   border-radius: 6px;

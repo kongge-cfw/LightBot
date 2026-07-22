@@ -526,13 +526,6 @@ onUnmounted(() => {
   overflow-y: hidden;
   padding-bottom: 4px;
 }
-.bar-chart-scroll::-webkit-scrollbar {
-  height: 6px;
-}
-.bar-chart-scroll::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
 .bar-chart--trend {
   flex: none;
   display: flex;

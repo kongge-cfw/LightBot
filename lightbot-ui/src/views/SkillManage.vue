@@ -473,32 +473,11 @@ defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallMo
   padding-right: var(--scroll-content-gap, 12px);
   scrollbar-gutter: stable;
 }
-.dialog-scroll-body::-webkit-scrollbar {
-  width: 5px;
-}
-.dialog-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.dialog-scroll-body::-webkit-scrollbar-track {
-  background: transparent;
-}
 .detail-scroll-body {
   max-height: calc(100vh - 260px);
   overflow-y: auto;
   padding-right: var(--scroll-content-gap, 8px);
-  scrollbar-width: thin;
   scrollbar-gutter: stable;
-}
-.detail-scroll-body::-webkit-scrollbar {
-  width: 5px;
-}
-.detail-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.detail-scroll-body::-webkit-scrollbar-track {
-  background: transparent;
 }
 .detail-scroll-body :deep(.ant-descriptions-item-label) {
   white-space: nowrap;

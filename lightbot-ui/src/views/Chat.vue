@@ -720,15 +720,6 @@ watch(sessionId, (newVal, oldVal) => {
   overflow-anchor: none;
 }
 
-.chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-
-.chat-messages::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-
 .history-loading {
   display: flex;
   align-items: center;

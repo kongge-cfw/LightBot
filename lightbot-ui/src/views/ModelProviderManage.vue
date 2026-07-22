@@ -1122,13 +1122,6 @@ onMounted(async () => {
   overflow-y: auto;
   margin-bottom: 12px;
 }
-.fetch-model-list::-webkit-scrollbar {
-  width: 4px;
-}
-.fetch-model-list::-webkit-scrollbar-thumb {
-  background: var(--color-hairline-strong);
-  border-radius: 2px;
-}
 .fetch-model-grid {
   display: flex;
   flex-direction: column;
@@ -1198,16 +1191,6 @@ onMounted(async () => {
   overflow-y: auto;
   padding-right: 12px;
   margin-right: -4px;
-}
-.provider-form-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-.provider-form-scroll::-webkit-scrollbar-thumb {
-  background: var(--color-hairline-strong);
-  border-radius: 3px;
-}
-.provider-form-scroll::-webkit-scrollbar-track {
-  background: transparent;
 }
 
 /* 弹窗底部 */
@@ -1321,16 +1304,6 @@ onMounted(async () => {
   overflow-y: auto;
   padding: 2px 14px 2px 2px;
   margin-right: -6px;
-}
-.preset-list::-webkit-scrollbar {
-  width: 6px;
-}
-.preset-list::-webkit-scrollbar-thumb {
-  background: var(--color-hairline-strong);
-  border-radius: 3px;
-}
-.preset-list::-webkit-scrollbar-track {
-  background: transparent;
 }
 .preset-card {
   display: flex;

@@ -452,16 +452,6 @@ function handleDelete(id) {
   padding-right: var(--scroll-content-gap, 12px);
   scrollbar-gutter: stable;
 }
-.dialog-scroll-body::-webkit-scrollbar {
-  width: 5px;
-}
-.dialog-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.dialog-scroll-body::-webkit-scrollbar-track {
-  background: transparent;
-}
 
 .dialog-footer-right { display: flex; gap: 8px; }
 

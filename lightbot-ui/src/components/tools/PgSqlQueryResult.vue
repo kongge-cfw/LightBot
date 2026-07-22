@@ -373,13 +373,4 @@ function openRowDetail(ri) {
   max-height: 300px;
   overflow-y: auto;
 }
-
-.inline-table-scroll::-webkit-scrollbar,
-.modal-table-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-.inline-table-scroll::-webkit-scrollbar-thumb,
-.modal-table-scroll::-webkit-scrollbar-thumb { background: var(--blue-200); border-radius: 4px; }
-.inline-table-scroll::-webkit-scrollbar-thumb:hover,
-.modal-table-scroll::-webkit-scrollbar-thumb:hover { background: var(--blue-300); }
-.inline-table-scroll::-webkit-scrollbar-track,
-.modal-table-scroll::-webkit-scrollbar-track { background: transparent; }
 </style>

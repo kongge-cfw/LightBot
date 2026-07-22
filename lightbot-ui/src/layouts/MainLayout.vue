@@ -787,13 +787,6 @@ watch(sessionLoadMoreRef, (el) => {
   overflow-y: auto;
   padding: 0 8px;
 }
-.session-section::-webkit-scrollbar {
-  width: 4px;
-}
-.session-section::-webkit-scrollbar-thumb {
-  background: var(--sidebar-border);
-  border-radius: 2px;
-}
 .section-title {
   position: sticky;
   top: 0;

@@ -1,42 +1,13 @@
 /* UI 工具类 - 统一卡片/面板/按钮样式 */
 
-/* 垂直滚动区域：内容与滚动条保持统一间距 */
+/* 垂直滚动区域：内容与滚动条保持统一间距
+   滚动条本身（宽度/颜色/圆角/hover）由 src/styles/scrollbar.css 全局统一，
+   此处仅保留"这是滚动容器，需要 gutter + 内容右留白"的语义。 */
 .scroll-area-y,
 .modal-scroll-body {
   overflow-y: auto;
   scrollbar-gutter: stable;
-  padding-right: var(--scroll-content-gap, 8px);
-  scrollbar-width: thin;
-}
-
-.scroll-area-y::-webkit-scrollbar {
-  width: 6px;
-}
-
-.modal-scroll-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.scroll-area-y::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-.modal-scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-[data-theme="dark"] .scroll-area-y::-webkit-scrollbar-thumb {
-  background: #3f3f46;
-}
-
-[data-theme="dark"] .modal-scroll-body::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  padding-right: var(--scroll-content-gap);
 }
 
 /* 面板（详情页、设置页的大区块） */

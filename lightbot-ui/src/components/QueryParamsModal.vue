@@ -515,16 +515,6 @@ defineExpose({ open, getQaEnabled: () => form.qa_enabled })
   padding: 24px calc(24px + var(--scroll-content-gap, 8px)) 24px 16px;
   scrollbar-gutter: stable;
 }
-.scroll-body::-webkit-scrollbar {
-  width: 6px;
-}
-.scroll-body::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
-  border-radius: 3px;
-}
-.scroll-body::-webkit-scrollbar-thumb:hover {
-  background: #a1a1aa;
-}
 .config-form {
   padding-right: 8px;
 }

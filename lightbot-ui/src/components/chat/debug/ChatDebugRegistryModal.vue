@@ -37,22 +37,4 @@ const visible = computed({
   padding: 16px 20px 16px 16px;
   scrollbar-gutter: stable;
 }
-
-.debug-registry-modal-body::-webkit-scrollbar {
-  width: 6px;
-}
-
-.debug-registry-modal-body::-webkit-scrollbar-track {
-  background: transparent;
-  margin: 4px 0;
-}
-
-.debug-registry-modal-body::-webkit-scrollbar-thumb {
-  background: var(--gray-300);
-  border-radius: 3px;
-}
-
-.debug-registry-modal-body::-webkit-scrollbar-thumb:hover {
-  background: var(--gray-400);
-}
 </style>
