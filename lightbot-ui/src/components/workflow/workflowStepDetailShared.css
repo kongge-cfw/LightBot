@@ -53,9 +53,26 @@
 .wf-param-value { flex: 1; word-break: break-word; color: var(--color-text-dark); }
 .wf-param-value.mono { font-family: ui-monospace, monospace; font-size: 11px; }
 .wf-raw-fold { margin-top: 8px; font-size: 11px; color: var(--color-mute); }
+.wf-raw-fold summary { cursor: pointer; user-select: none; list-style: none; }
+.wf-raw-fold summary::-webkit-details-marker { display: none; }
 .wf-raw-fold pre {
+  /* details 折叠/展开过渡（与 MarkdownPreview .md-details-body 同款，v4 2.3.5） */
   margin-top: 4px; padding: 8px; background: var(--color-canvas-soft); border-radius: 6px;
-  max-height: 160px; overflow: auto; white-space: pre-wrap;
+  white-space: pre-wrap;
+  display: block !important; /* 覆盖 details:not([open])>non-summary 的 display:none */
+  max-height: 0 !important;
+  overflow: hidden;
+  opacity: 0;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  transition: max-height var(--duration-base, 0.24s) var(--easing-standard, ease),
+              opacity var(--duration-fast, 0.15s) ease,
+              padding var(--duration-base, 0.24s) var(--easing-standard, ease);
+}
+details.wf-raw-fold[open] > pre {
+  max-height: 160px !important;
+  opacity: 1;
+  padding: 8px !important;
 }
 .wf-chunk-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
 .wf-chunk-card { padding: 8px; border: 1px solid var(--color-purple-border); border-radius: 6px; background: var(--color-canvas); }

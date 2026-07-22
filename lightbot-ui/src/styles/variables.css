@@ -92,6 +92,18 @@
   --space-lg: 24px;
   --space-xl: 32px;
 
+  /* 动画时长 / 缓动函数（v4 2.3.6 规范）
+     使用约定：
+     - 微交互（hover、focus、color shift）：var(--duration-fast)
+     - 布局过渡（height/width/transform layout、列表补位）：var(--duration-base)
+     - 长动画（路由切换、模态进出）：var(--duration-slow)
+     - 默认缓动统一 var(--easing-standard)；进入回弹用 var(--easing-spring) */
+  --duration-fast: 0.15s;
+  --duration-base: 0.24s;
+  --duration-slow: 0.32s;
+  --easing-standard: ease;
+  --easing-spring: cubic-bezier(0.22, 1, 0.36, 1);
+
   /* Rounded */
   --radius-xs: 4px;
   --radius-sm: 6px;

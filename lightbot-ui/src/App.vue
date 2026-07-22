@@ -103,6 +103,41 @@ body {
   border-radius: var(--radius-sm) !important;
 }
 
+/* 输入类控件 hover/focus 状态：antd 默认用 colorPrimary（#171717）派生 controlOutline，
+   alpha 约 0.12，浅色背景下 box-shadow 几乎看不见；深色模式下更糊。
+   统一覆盖为 link 蓝边 + 蓝色光晕，跨主题一致、视觉反馈清晰。
+   覆盖范围：Input / Input.TextArea / InputNumber / Select / DatePicker / Cascader 等。 */
+.ant-input:hover:not(:disabled):not(.ant-input-disabled),
+.ant-input-affix-wrapper:hover:not(.ant-input-affix-wrapper-disabled),
+.ant-input-number:not(.ant-input-number-disabled):hover,
+.ant-input-number-affix-wrapper:not(.ant-input-number-affix-wrapper-disabled):hover,
+.ant-picker:not(.ant-picker-disabled):hover,
+.ant-select:not(.ant-select-disabled):hover .ant-select-selector,
+.ant-cascader-picker:not(.ant-cascader-picker-disabled):hover .ant-cascader-input {
+  border-color: var(--color-link) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-input-number-affix-wrapper-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector,
+.ant-cascader-picker-focused .ant-cascader-input {
+  border-color: var(--color-link) !important;
+  box-shadow: 0 0 0 2px var(--color-link-bg-soft) !important;
+  outline: 0 !important;
+}
+
+/* textarea focus 状态：ant-input 类的 textarea 走 .ant-input:focus 路径，但部分场景用 :focus-within */
+textarea.ant-input:focus,
+.ant-input textarea:focus {
+  border-color: var(--color-link) !important;
+  box-shadow: 0 0 0 2px var(--color-link-bg-soft) !important;
+  outline: 0 !important;
+}
+
 .ant-modal .ant-modal-content {
   border-radius: var(--radius-lg) !important;
   box-shadow: var(--shadow-5) !important;
@@ -112,9 +147,35 @@ body {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0 !important;
 }
 
+/* Message 全局定制：跟随主题的通知样式
+   - 浅色模式：白底 + 深字 + hairline 边框
+   - 深色模式：深底 + 白字 + 半透边框，避免与 #111 背景重合
+   - 图标色降饱和：success/error/warning/info 改用 Tailwind 色阶而非 antd 默认饱和色 */
 .ant-message .ant-message-notice-content {
   border-radius: var(--radius-md) !important;
   box-shadow: var(--shadow-4) !important;
+  background: var(--color-canvas) !important;
+  border: 1px solid var(--color-hairline) !important;
+  color: var(--color-ink) !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  padding: 10px 16px !important;
+}
+.ant-message .ant-message-notice-content .anticon {
+  font-size: 15px !important;
+  margin-right: 8px !important;
+}
+.ant-message .ant-message-success .anticon { color: #22c55e !important; }
+.ant-message .ant-message-error .anticon { color: #ef4444 !important; }
+.ant-message .ant-message-warning .anticon { color: #f59e0b !important; }
+.ant-message .ant-message-info .anticon,
+.ant-message .ant-message-loading .anticon { color: #3b82f6 !important; }
+
+[data-theme="dark"] .ant-message .ant-message-notice-content {
+  background: #18181b !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  color: #fafafa !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
 }
 
 /* Notification 全局定制：项目级通知统一圆角与阴影（token Notification.borderRadiusLG 兜底） */

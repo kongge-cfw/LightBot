@@ -237,9 +237,28 @@ watch(
   details.md-details[open] > summary::before {
     transform: rotate(90deg);
   }
+  /* details 折叠/展开高度过渡：原生 <details> toggle 是瞬时的无动画，
+     用 display:block 覆盖 details:not([open])>non-summary 的 display:none，
+     配合 max-height/opacity/padding 过渡实现平滑展开。闭合时 max-height:0 + overflow:hidden
+     让内容高度归零。max-height 2000px 容纳常规文档；超大内容会被裁切但不影响交互。 */
   .md-details-body {
     padding: 0 14px 14px;
     border-top: 1px solid var(--gray-100);
+    display: block !important;
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    transition: max-height var(--duration-base, 0.24s) var(--easing-standard, ease),
+                opacity var(--duration-fast, 0.15s) ease,
+                padding-top var(--duration-base, 0.24s) var(--easing-standard, ease),
+                padding-bottom var(--duration-base, 0.24s) var(--easing-standard, ease);
+  }
+  details.md-details[open] > .md-details-body {
+    max-height: 2000px;
+    opacity: 1;
+    padding-bottom: 14px;
   }
   .md-details-body > :first-child { margin-top: 12px; }
   .md-details-body ul:not(.contains-task-list) { list-style: disc; }

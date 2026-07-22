@@ -197,12 +197,14 @@
     <!-- 主内容区 -->
     <main class="main-content">
       <router-view v-slot="{ Component, route: r }">
-        <keep-alive :include="cachedRouteNames">
-          <component
-            :is="Component"
-            :key="r.path.startsWith('/app/chat') ? '/app/chat' : r.path"
-          />
-        </keep-alive>
+        <transition name="lb-route" mode="out-in">
+          <keep-alive :include="cachedRouteNames">
+            <component
+              :is="Component"
+              :key="r.path.startsWith('/app/chat') ? '/app/chat' : r.path"
+            />
+          </keep-alive>
+        </transition>
       </router-view>
     </main>
 
