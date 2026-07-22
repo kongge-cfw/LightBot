@@ -39,7 +39,7 @@
         </div>
 
         <a-modal v-model:open="showModal" title="OCR 识别预览" :footer="null" :width="680"
-          :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
+          :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
           <div class="opr-modal-meta">
             <div class="opr-path-chip">
               <FileSearchOutlined class="opr-path-chip-icon" />

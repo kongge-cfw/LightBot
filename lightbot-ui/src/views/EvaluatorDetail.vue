@@ -136,7 +136,6 @@
       v-model:open="versionDialogVisible"
       title="新建版本"
       :width="680"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="versionForm" :label-col="{ span: 4 }">
@@ -160,7 +159,7 @@
             placeholder='JSON 格式，如: [{"name":"actual_output","description":"实际输出","required":true}]'
           />
         </a-form-item>
-        <a-form-item label="评估模型（可选）">
+        <a-form-item label="评估模型">
           <ModelSelect
             v-model:provider-id="versionForm.providerId"
             v-model:model-id="versionForm.modelId"
@@ -176,11 +175,13 @@
           />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="versionDialogVisible = false"
-        @confirm="handleCreateVersion"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="versionDialogVisible = false"
+          @confirm="handleCreateVersion"
+        />
+      </template>
     </a-modal>
   </div>
 </template>

@@ -88,7 +88,6 @@
       v-model:open="dialogVisible"
       :title="form.id ? '编辑模板' : '新建模板'"
       :width="800"
-      :footer="null"
       :maskClosable="false"
     >
       <div class="dialog-scroll-body">
@@ -124,11 +123,13 @@
         </a-form-item>
       </a-form>
       </div>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
   </div>
 </template>

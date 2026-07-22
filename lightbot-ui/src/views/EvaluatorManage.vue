@@ -89,7 +89,6 @@
       v-model:open="dialogVisible"
       :title="form.id ? '编辑评估器' : '新建评估器'"
       :width="560"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="form" :label-col="{ span: 5 }">
@@ -103,11 +102,13 @@
           <TagInput v-model="form.tags" />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
   </div>
 </template>

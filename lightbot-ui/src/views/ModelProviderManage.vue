@@ -50,7 +50,7 @@
     </div>
 
     <!-- 新增/编辑弹窗 -->
-    <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑提供商' : '新增提供商'" :width="480" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑提供商' : '新增提供商'" :width="480" :maskClosable="false">
       <div class="provider-form-scroll">
         <a-form :model="form" :label-col="{ span: 6 }">
           <a-form-item label="名称" required>
@@ -103,17 +103,19 @@
         </template>
         </a-form>
       </div>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      >
-        <template #left>
-          <button class="lb-btn" :disabled="checking" @click="handleCheck">
-            {{ checking ? '检查中...' : '检查连通性' }}
-          </button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        >
+          <template #left>
+            <button class="lb-btn" :disabled="checking" @click="handleCheck">
+              {{ checking ? '检查中...' : '检查连通性' }}
+            </button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
 
     <!-- 提供商预设弹窗 -->

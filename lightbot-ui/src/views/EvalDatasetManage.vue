@@ -67,7 +67,6 @@
       v-model:open="dialogVisible"
       :title="form.id ? '编辑评测集' : '新建评测集'"
       :width="560"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="form" :label-col="{ span: 5 }">
@@ -78,11 +77,13 @@
           <a-textarea v-model:value="form.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- 示例评测集弹窗 -->

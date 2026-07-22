@@ -178,7 +178,6 @@
       v-model:open="restartDialogVisible"
       title="重新评测"
       :width="restartStep === 0 ? 480 : 720"
-      :footer="null"
       :maskClosable="false"
     >
       <div v-if="restartStep === 0">
@@ -197,13 +196,6 @@
             </div>
           </a-radio>
         </a-radio-group>
-        <LbDialogFooter
-          :loading="restartSubmitting"
-          :confirm-text="restartMode === 'direct' ? '确认重启' : '下一步'"
-          :loading-text="restartMode === 'direct' ? '重启中...' : '下一步'"
-          @cancel="restartDialogVisible = false"
-          @confirm="handleRestartConfirm"
-        />
       </div>
 
       <div v-if="restartStep === 1">
@@ -267,7 +259,18 @@
         </a-form>
         </div>
         </a-spin>
+      </div>
+      <template #footer>
         <LbDialogFooter
+          v-if="restartStep === 0"
+          :loading="restartSubmitting"
+          :confirm-text="restartMode === 'direct' ? '确认重启' : '下一步'"
+          :loading-text="restartMode === 'direct' ? '重启中...' : '下一步'"
+          @cancel="restartDialogVisible = false"
+          @confirm="handleRestartConfirm"
+        />
+        <LbDialogFooter
+          v-else
           :loading="restartSubmitting"
           confirm-text="更新并重新评测"
           @cancel="restartDialogVisible = false"
@@ -277,7 +280,7 @@
             <button class="lb-btn" @click="restartStep = 0">上一步</button>
           </template>
         </LbDialogFooter>
-      </div>
+      </template>
     </a-modal>
 
     <!-- 结果详情弹窗 -->

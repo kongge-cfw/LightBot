@@ -84,7 +84,7 @@
     </a-spin>
 
     <!-- 新增/编辑弹窗 -->
-    <a-modal v-model:open="dialogVisible" :width="720" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="dialogVisible" :width="720" :maskClosable="false">
       <template #title>
         <span>{{ form.id ? '编辑 Skill' : '新增 Skill' }}</span>
         <QuestionCircleOutlined class="help-icon" @click.stop="guideVisible = true" />
@@ -137,11 +137,13 @@
         </a-form-item>
       </a-form>
       </div>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- ZIP 导入弹窗 -->

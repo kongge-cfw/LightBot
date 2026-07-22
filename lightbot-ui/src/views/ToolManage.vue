@@ -94,7 +94,7 @@
     </a-spin>
 
     <!-- 新增/编辑弹窗 -->
-    <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑工具' : '新增工具'" :width="640" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑工具' : '新增工具'" :width="640" :maskClosable="false">
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 5 }">
         <a-form-item label="工具标识" required>
@@ -267,15 +267,17 @@
         </template>
       </a-form>
       </div>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- 测试工具弹窗 -->
-    <a-modal v-model:open="testDialogVisible" :title="testToolName || '测试工具'" :width="680" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="testDialogVisible" :title="testToolName || '测试工具'" :width="680" :maskClosable="false">
       <a-spin :spinning="testLoading" tip="执行中...">
       <div class="dialog-scroll-body">
       <!-- 参数说明 -->
@@ -321,14 +323,16 @@
       </template>
       </div>
       </a-spin>
-      <LbDialogFooter
-        cancel-text="关闭"
-        confirm-text="执行测试"
-        loading-text="执行中..."
-        :loading="testLoading"
-        @cancel="testDialogVisible = false"
-        @confirm="handleTest"
-      />
+      <template #footer>
+        <LbDialogFooter
+          cancel-text="关闭"
+          confirm-text="执行测试"
+          loading-text="执行中..."
+          :loading="testLoading"
+          @cancel="testDialogVisible = false"
+          @confirm="handleTest"
+        />
+      </template>
     </a-modal>
 
     <!-- 工具详情弹窗 -->
@@ -336,7 +340,6 @@
       v-model:open="detailVisible"
       :title="detailTool?.displayName || detailTool?.name || '工具详情'"
       :width="640"
-      :footer="null"
       :maskClosable="false"
     >
       <div class="detail-section-container" v-if="detailTool">
@@ -462,21 +465,23 @@
         </template>
       </div>
 
-      <LbDialogFooter
-        cancel-text="关闭"
-        hide-confirm
-        @cancel="detailVisible = false"
-      >
-        <template #left>
-          <button
-            v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'"
-            class="lb-btn"
-            @click="detailVisible = false; openDialog(detailTool)"
-          >
-            <EditOutlined /> 编辑
-          </button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          cancel-text="关闭"
+          hide-confirm
+          @cancel="detailVisible = false"
+        >
+          <template #left>
+            <button
+              v-if="(detailTool?.toolType?.code || detailTool?.toolType) !== 'knowledge'"
+              class="lb-btn"
+              @click="detailVisible = false; openDialog(detailTool)"
+            >
+              <EditOutlined /> 编辑
+            </button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
 
   </div>

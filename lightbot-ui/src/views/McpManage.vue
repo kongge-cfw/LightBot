@@ -79,7 +79,7 @@
     </a-spin>
 
     <!-- 新增/编辑弹窗 -->
-    <a-modal v-model:open="dialogVisible" :width="560" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="dialogVisible" :width="560" :maskClosable="false">
       <template #title>
         <span>{{ form.id ? '编辑 MCP Server' : '新增 MCP Server' }}</span>
         <QuestionCircleOutlined class="help-icon" @click="guideVisible = true" />
@@ -131,11 +131,13 @@
           </a-form-item>
         </template>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="dialogVisible = false"
-        @confirm="handleSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="dialogVisible = false"
+          @confirm="handleSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- 配置指南弹窗 -->
@@ -218,7 +220,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
     </a-modal>
 
     <!-- 详情弹窗 -->
-    <a-modal v-model:open="detailVisible" title="MCP Server 详情" :width="640" :footer="null" :maskClosable="false">
+    <a-modal v-model:open="detailVisible" title="MCP Server 详情" :width="640" :maskClosable="false">
       <div class="detail-scroll-body">
         <template v-if="detailRow">
           <a-descriptions bordered :column="1" size="small">
@@ -242,17 +244,19 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
           </a-descriptions>
         </template>
       </div>
-      <LbDialogFooter
-        cancel-text="关闭"
-        hide-confirm
-        @cancel="detailVisible = false"
-      >
-        <template #left>
-          <button v-if="detailRow" class="lb-btn" @click="detailVisible = false; openDialog(detailRow)">
-            <EditOutlined /> 编辑
-          </button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          cancel-text="关闭"
+          hide-confirm
+          @cancel="detailVisible = false"
+        >
+          <template #left>
+            <button v-if="detailRow" class="lb-btn" @click="detailVisible = false; openDialog(detailRow)">
+              <EditOutlined /> 编辑
+            </button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
 
     <!-- 工具列表抽屉 -->

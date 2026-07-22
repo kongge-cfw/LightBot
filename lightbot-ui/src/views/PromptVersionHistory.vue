@@ -60,7 +60,6 @@
       v-model:open="detailVisible"
       title="版本详情"
       :width="700"
-      :footer="null"
       :maskClosable="false"
     >
       <div v-if="detailVersion" class="version-detail">
@@ -94,20 +93,22 @@
         <div class="detail-content-title">Prompt 内容</div>
         <a-textarea :value="detailVersion.template" :rows="12" readonly class="template-editor" />
       </div>
-      <LbDialogFooter
-        cancel-text="关闭"
-        hide-confirm
-        @cancel="detailVisible = false"
-      >
-        <template #left>
-          <button class="lb-btn" @click="restoreVersion(detailVersion)">
-            <RollbackOutlined /> 恢复到编辑区
-          </button>
-          <button class="lb-btn" @click="compareWithPrevious(detailVersion)">
-            <SwapOutlined /> 与前版本对比
-          </button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          cancel-text="关闭"
+          hide-confirm
+          @cancel="detailVisible = false"
+        >
+          <template #left>
+            <button class="lb-btn" @click="restoreVersion(detailVersion)">
+              <RollbackOutlined /> 恢复到编辑区
+            </button>
+            <button class="lb-btn" @click="compareWithPrevious(detailVersion)">
+              <SwapOutlined /> 与前版本对比
+            </button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
 
     <!-- 版本对比弹窗 -->

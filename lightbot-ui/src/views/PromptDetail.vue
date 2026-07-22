@@ -230,7 +230,6 @@
       v-model:open="versionDialogVisible"
       title="发布版本"
       :width="480"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="versionForm" :label-col="{ span: 5 }">
@@ -247,12 +246,14 @@
           </a-radio-group>
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        confirm-text="发布"
-        @cancel="versionDialogVisible = false"
-        @confirm="handlePublishVersion"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          confirm-text="发布"
+          @cancel="versionDialogVisible = false"
+          @confirm="handlePublishVersion"
+        />
+      </template>
     </a-modal>
   </div>
 </template>

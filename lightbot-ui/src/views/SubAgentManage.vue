@@ -198,7 +198,6 @@
       v-model:open="detailVisible"
       :title="currentDetail?.displayName || 'SubAgent 详情'"
       :width="640"
-      :footer="null"
       :maskClosable="false"
     >
       <div class="dialog-scroll-body">
@@ -255,17 +254,19 @@
         </div>
       </div>
       </div>
-      <LbDialogFooter
-        cancel-text="关闭"
-        hide-confirm
-        @cancel="detailVisible = false"
-      >
-        <template #left>
-          <button v-if="currentDetail" class="lb-btn" @click="detailVisible = false; openEditDialog(currentDetail)">
-            <EditOutlined /> 编辑
-          </button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          cancel-text="关闭"
+          hide-confirm
+          @cancel="detailVisible = false"
+        >
+          <template #left>
+            <button v-if="currentDetail" class="lb-btn" @click="detailVisible = false; openEditDialog(currentDetail)">
+              <EditOutlined /> 编辑
+            </button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
   </div>
 </template>

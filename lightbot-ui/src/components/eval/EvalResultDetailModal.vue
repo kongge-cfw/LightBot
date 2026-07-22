@@ -3,7 +3,7 @@
     :open="open"
     width="1300px"
     :footer="null"
-    :bodyStyle="{ maxHeight: '75vh', overflowY: 'auto', padding: '16px 24px 16px 16px' }"
+    :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto', padding: '16px 24px 16px 16px' }"
     @cancel="$emit('update:open', false)"
   >
     <template #title>

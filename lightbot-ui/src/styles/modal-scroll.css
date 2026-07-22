@@ -5,7 +5,8 @@
  * - 已有 :body-style="{ maxHeight/overflow }" 内联样式的弹窗：内联样式优先级更高，自动覆盖默认规则
  * - 完全没有 body-style 的弹窗：使用此默认值，超出高度自动出滚动条
  *
- * 预留 200px 给 modal 头部/底部/外边距，确保 viewport 底部不被遮挡
+ * max-height 预留 240px = modal 顶部偏移(100) + header(55) + footer(53) + 安全余量(32)，
+ * 确保小屏（如 1366×768 笔记本）下整个弹窗（含 footer 按钮）完全可见，不会被视窗底部裁切。
  *
  * overflow-x: hidden 必须显式声明：CSS 规范下当 overflow-y 非 visible 时，
  * overflow-x 的 visible 会被隐式计算为 auto，弹窗内的 a-slider marks 绝对定位
@@ -13,14 +14,21 @@
  * 横向滚动条。需要横向滚动的弹窗（代码/JSON/SQL 结果）通过 :body-style 显式
  * 设置 overflow: 'auto' 覆盖。
  *
+ * padding-right 全局加 --scroll-content-gap（8px）：滚动条与内容之间统一留呼吸距离。
+ * 配合 scrollbar-gutter: stable + antd 默认 24px padding，出滚动条时内容到滚动条
+ * 距离 = 32px。要求：所有 a-modal 的底部按钮必须用 #footer slot 走 .ant-modal-footer，
+ * 不能用 :footer="null" + body 内部 <LbDialogFooter>，否则按钮会被 body padding-right
+ * 挤到里面。
+ *
  * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
   min-height: 80px;
-  max-height: calc(100vh - 200px);
+  max-height: calc(100vh - 240px);
   overflow-x: hidden;
   overflow-y: auto;
   scrollbar-gutter: stable;
+  padding-right: calc(24px + var(--scroll-content-gap));
 }
 
 /**

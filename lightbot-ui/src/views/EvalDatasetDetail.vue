@@ -91,7 +91,6 @@
       v-model:open="versionDialogVisible"
       title="新建版本"
       :width="480"
-      :footer="null"
       :maskClosable="false"
     >
       <p style="color: var(--color-mute); margin-bottom: 16px;">
@@ -102,11 +101,13 @@
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="versionDialogVisible = false"
-        @confirm="handleCreateVersion"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="versionDialogVisible = false"
+          @confirm="handleCreateVersion"
+        />
+      </template>
     </a-modal>
 
     <!-- 添加数据项弹窗 -->
@@ -114,7 +115,6 @@
       v-model:open="itemDialogVisible"
       title="添加数据项"
       :width="640"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="itemForm" :label-col="{ span: 5 }">
@@ -134,11 +134,13 @@
           />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="itemDialogVisible = false"
-        @confirm="handleCreateItem"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="itemDialogVisible = false"
+          @confirm="handleCreateItem"
+        />
+      </template>
     </a-modal>
 
     <!-- 版本数据项详情弹窗 -->

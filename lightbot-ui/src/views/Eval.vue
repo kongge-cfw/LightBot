@@ -212,7 +212,6 @@
       v-model:open="datasetDialogVisible"
       :title="datasetForm.id ? '编辑评测集' : '新建评测集'"
       :width="560"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="datasetForm" :label-col="{ span: 5 }">
@@ -223,11 +222,13 @@
           <a-textarea v-model:value="datasetForm.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="datasetDialogVisible = false"
-        @confirm="handleDatasetSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="datasetDialogVisible = false"
+          @confirm="handleDatasetSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- 评估器 创建/编辑弹窗 -->
@@ -235,7 +236,6 @@
       v-model:open="evaluatorDialogVisible"
       :title="evaluatorForm.id ? '编辑评估器' : '新建评估器'"
       :width="560"
-      :footer="null"
       :maskClosable="false"
     >
       <a-form :model="evaluatorForm" :label-col="{ span: 5 }">
@@ -249,11 +249,13 @@
           <TagInput v-model="evaluatorForm.tags" />
         </a-form-item>
       </a-form>
-      <LbDialogFooter
-        :loading="submitting"
-        @cancel="evaluatorDialogVisible = false"
-        @confirm="handleEvaluatorSubmit"
-      />
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          @cancel="evaluatorDialogVisible = false"
+          @confirm="handleEvaluatorSubmit"
+        />
+      </template>
     </a-modal>
 
     <!-- 示例评测集弹窗 -->
@@ -312,7 +314,6 @@
       v-model:open="experimentDialogVisible"
       title="创建实验"
       :width="680"
-      :footer="null"
       :maskClosable="false"
       @close="resetExperimentDialog"
     >
@@ -425,17 +426,19 @@
         <div v-if="experimentForm.evaluators.length >= 5" style="margin-top: 4px; font-size: 12px; color: var(--color-mute); text-align: center;">最多添加5个评估器</div>
       </div>
 
-      <LbDialogFooter
-        :loading="submitting"
-        :confirm-text="experimentStep < 3 ? '下一步' : '创建实验'"
-        :loading-text="experimentStep < 3 ? '下一步' : '创建中...'"
-        @cancel="experimentDialogVisible = false"
-        @confirm="experimentStep < 3 ? nextExperimentStep() : handleExperimentSubmit()"
-      >
-        <template #left>
-          <button v-if="experimentStep > 0" class="lb-btn" @click="experimentStep--">上一步</button>
-        </template>
-      </LbDialogFooter>
+      <template #footer>
+        <LbDialogFooter
+          :loading="submitting"
+          :confirm-text="experimentStep < 3 ? '下一步' : '创建实验'"
+          :loading-text="experimentStep < 3 ? '下一步' : '创建中...'"
+          @cancel="experimentDialogVisible = false"
+          @confirm="experimentStep < 3 ? nextExperimentStep() : handleExperimentSubmit()"
+        >
+          <template #left>
+            <button v-if="experimentStep > 0" class="lb-btn" @click="experimentStep--">上一步</button>
+          </template>
+        </LbDialogFooter>
+      </template>
     </a-modal>
   </div>
 </template>

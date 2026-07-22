@@ -3,7 +3,6 @@
     v-model:open="visible"
     title="快速创建 Prompt"
     :width="560"
-    :footer="null"
     :maskClosable="false"
   >
     <div class="dialog-scroll-body">
@@ -51,14 +50,16 @@
     </div>
     </div>
 
-    <LbDialogFooter
-      :loading="submitting"
-      :confirm-disabled="!form.promptKey"
-      confirm-text="创建"
-      loading-text="创建中..."
-      @cancel="visible = false"
-      @confirm="handleSubmit"
-    />
+    <template #footer>
+      <LbDialogFooter
+        :loading="submitting"
+        :confirm-disabled="!form.promptKey"
+        confirm-text="创建"
+        loading-text="创建中..."
+        @cancel="visible = false"
+        @confirm="handleSubmit"
+      />
+    </template>
   </a-modal>
 </template>
 

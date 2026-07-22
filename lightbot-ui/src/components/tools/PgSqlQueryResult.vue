@@ -54,7 +54,7 @@
       title="查询结果详情"
       :footer="null"
       width="900px"
-      :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '16px' }"
+      :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '16px' }"
     >
       <div class="sql-modal-sqlbar">
         <code class="sql-modal-sql">{{ data.sql }}</code>

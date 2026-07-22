@@ -31,7 +31,7 @@
         </div>
 
         <a-modal v-model:open="showModal" title="文件内容" :footer="null" :width="680"
-          :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
+          :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
           <div class="sfr-modal-meta">
             <div class="sfr-modal-meta-item">
               <span class="sfr-modal-meta-label">文件路径</span>
@@ -68,7 +68,7 @@
         </div>
 
         <a-modal v-model:open="showModal" title="文件列表" :footer="null" :width="720"
-          :bodyStyle="{ maxHeight: '75vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
+          :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
           <div class="sfr-modal-meta">
             <div class="sfr-modal-meta-item">
               <FolderOpenOutlined class="sfr-modal-meta-icon" />

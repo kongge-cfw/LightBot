@@ -3,7 +3,6 @@
     v-model:open="visible"
     title="从模板导入"
     :width="960"
-    :footer="null"
     :maskClosable="false"
   >
     <div class="template-import-lr">
@@ -76,17 +75,19 @@
       </div>
     </div>
 
-    <LbDialogFooter
-      confirm-text="导入模板"
-      :confirm-disabled="!selectedTemplate"
-      @cancel="visible = false"
-      @confirm="handleImport"
-    >
-      <template #left>
-        <span class="template-count">共 {{ templates.length }} 个模板</span>
-        <span class="template-tip">仅导入提示词内容，不导入模型配置</span>
-      </template>
-    </LbDialogFooter>
+    <template #footer>
+      <LbDialogFooter
+        confirm-text="导入模板"
+        :confirm-disabled="!selectedTemplate"
+        @cancel="visible = false"
+        @confirm="handleImport"
+      >
+        <template #left>
+          <span class="template-count">共 {{ templates.length }} 个模板</span>
+          <span class="template-tip">仅导入提示词内容，不导入模型配置</span>
+        </template>
+      </LbDialogFooter>
+    </template>
   </a-modal>
 </template>
 
