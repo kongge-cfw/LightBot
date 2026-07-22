@@ -42,7 +42,10 @@
     <div class="trend-row">
       <div class="panel panel-trend">
         <div class="panel-header panel-header--trend">
-          <h3>对话趋势</h3>
+          <h3>
+            对话趋势
+            <span class="trend-metric-hint">每日消息数</span>
+          </h3>
           <div class="trend-controls">
             <div class="trend-quick-btns">
               <button
@@ -68,13 +71,13 @@
           <div class="bar-chart bar-chart--trend" :style="trendChartStyle">
             <div
               v-for="(d, i) in chatTrend"
-              :key="i"
+              :key="`${trendChartKey}-${d.date}`"
               class="bar-col bar-col--trend"
               :style="trendColStyle"
             >
               <div class="bar-value">{{ d.count }}</div>
               <div class="bar-track" :style="trendTrackStyle">
-                <div class="bar-fill" :style="{ height: barHeight(d.count) + '%' }"></div>
+                <div class="bar-fill" :style="{ height: barHeight(d.count) + '%', '--bar-i': i }"></div>
               </div>
               <div class="bar-label">{{ formatDay(d.date) }}</div>
             </div>
@@ -82,8 +85,8 @@
           </div>
         </div>
         <div class="chat-summary">
-          <span>总会话: <b>{{ chatStats.totalSessions ?? '-' }}</b></span>
-          <span>总消息: <b>{{ chatStats.totalMessages ?? '-' }}</b></span>
+          <span>区间会话: <b>{{ chatStats.totalSessions ?? '-' }}</b></span>
+          <span>区间消息: <b>{{ chatStats.totalMessages ?? '-' }}</b></span>
           <span v-if="chatStats.trendStartDate && chatStats.trendEndDate" class="trend-range-info">
             {{ chatStats.trendStartDate }} ~ {{ chatStats.trendEndDate }}
           </span>
@@ -199,6 +202,8 @@ const trendMode = ref('days')
 const trendDateRange = ref(null)
 const trendScrollRef = ref(null)
 const trendContainerWidth = ref(0)
+// 切换日期/快捷范围时自增，强制柱子重渲染以重放上升动画
+const trendChartKey = ref(0)
 let trendResizeObserver = null
 
 const chatTrend = computed(() => chatStats.value.messagesPerDay || [])
@@ -315,6 +320,8 @@ function buildChatParams() {
 async function loadChatStats() {
   const c = await getDashboardChat(buildChatParams()).catch(() => ({ data: {} }))
   chatStats.value = c.data || {}
+  // 自增 key 触发 v-for 重渲染，让柱子从 0 重新动画上升
+  trendChartKey.value++
   await nextTick()
   updateTrendContainerWidth()
 }
@@ -627,6 +634,18 @@ onUnmounted(() => {
   font-weight: 600;
   color: var(--color-ink);
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.trend-metric-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-mute);
+  padding: 2px 8px;
+  background: var(--color-canvas-soft-2);
+  border-radius: var(--radius-pill);
+  line-height: 1.4;
 }
 .panel-tip {
   font-size: 12px;
@@ -673,6 +692,19 @@ onUnmounted(() => {
   border-radius: 6px 6px 0 0;
   transition: height 0.6s ease;
   min-height: 4px;
+  transform-origin: bottom;
+  animation: bar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(var(--bar-i, 0) * 18ms);
+}
+@keyframes bar-rise {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
 }
 .bar-label {
   font-size: 11px;

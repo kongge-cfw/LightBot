@@ -42,8 +42,6 @@ public class ChatDashboardPortImpl implements ChatDashboardPort {
     @Override
     public Map<String, Object> getChatStats(Integer days, String startDate, String endDate) {
         Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("totalSessions", countSessions());
-        stats.put("totalMessages", countMessages());
 
         LocalDate rangeStart;
         LocalDate rangeEnd;
@@ -67,11 +65,16 @@ public class ChatDashboardPortImpl implements ChatDashboardPort {
             rangeStart = rangeEnd.minusDays(MAX_TREND_DAYS - 1L);
         }
 
-        List<Map<String, Object>> raw = messageMapper.countMessagesPerDayRange(
-                rangeStart.format(DATE_FMT), rangeEnd.format(DATE_FMT));
+        // 区间统计：会话按 create_time、消息按 create_time 过滤到选中日期范围内
+        String rangeStartStr = rangeStart.format(DATE_FMT);
+        String rangeEndStr = rangeEnd.format(DATE_FMT);
+        stats.put("totalSessions", chatSessionMapper.countByCreateDateRange(rangeStartStr, rangeEndStr));
+        stats.put("totalMessages", messageMapper.countByDateRange(rangeStartStr, rangeEndStr));
+
+        List<Map<String, Object>> raw = messageMapper.countMessagesPerDayRange(rangeStartStr, rangeEndStr);
         stats.put("messagesPerDay", fillMissingDays(raw, rangeStart, rangeEnd));
-        stats.put("trendStartDate", rangeStart.format(DATE_FMT));
-        stats.put("trendEndDate", rangeEnd.format(DATE_FMT));
+        stats.put("trendStartDate", rangeStartStr);
+        stats.put("trendEndDate", rangeEndStr);
         return stats;
     }
 

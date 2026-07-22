@@ -42,6 +42,16 @@ public interface MessageMapper extends BaseMapper<Message> {
     List<Map<String, Object>> countMessagesPerDayRange(@Param("startDate") String startDate,
                                                        @Param("endDate") String endDate);
 
+    /**
+     * 统计指定日期区间内的消息总数（含起止日）
+     */
+    @Select("""
+            SELECT COUNT(*) FROM message
+            WHERE create_time >= #{startDate}::date
+              AND create_time < (#{endDate}::date + INTERVAL '1 day')
+            """)
+    long countByDateRange(@Param("startDate") String startDate, @Param("endDate") String endDate);
+
     /** 按 metadata.requestId 查询本轮助手消息，避免把会话历史投影到当前调研任务。 */
     @Select("""
             SELECT * FROM message
