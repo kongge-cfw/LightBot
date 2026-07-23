@@ -16,6 +16,8 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
   const agents = ref([])
   /** 首次加载 Agent 列表及其版本/能力期间为 true，用于输入框加载遮罩 */
   const agentsLoading = ref(false)
+  /** 当前 agent 详情加载中：用于驱动欢迎语/推荐问题的骨架屏 */
+  const currentAgentLoading = ref(false)
   const selectedAgentId = ref(null)
   const currentAgent = ref(null)
   const chatCapabilities = ref({})
@@ -182,8 +184,10 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
     if (!agentId) {
       currentAgent.value = null
       chatCapabilities.value = {}
+      currentAgentLoading.value = false
       return
     }
+    currentAgentLoading.value = true
     try {
       const res = await getAgentDetail(agentId)
       currentAgent.value = res.data?.agent || null
@@ -191,6 +195,8 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
     } catch {
       currentAgent.value = null
       chatCapabilities.value = {}
+    } finally {
+      currentAgentLoading.value = false
     }
   }
 
@@ -236,6 +242,7 @@ export function useChatAgents({ sessionId, loading, pendingAttachments, voiceLis
   return {
     agents,
     agentsLoading,
+    currentAgentLoading,
     selectedAgentId,
     currentAgent,
     chatCapabilities,

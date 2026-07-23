@@ -1,22 +1,35 @@
 <template>
   <div class="empty-state">
     <img src="/lightbot-logo-single.png" alt="LightBot" class="empty-logo" />
-    <div class="welcome-content"><MarkdownPreview :content="welcomeMessage" /></div>
-    <!-- 推荐问题：全部展示 -->
-    <div v-if="recommendedQuestions.length > 0" class="recommended-questions">
-      <button
-        v-for="(q, qi) in recommendedQuestions"
-        :key="qi"
-        class="btn-question"
-        @click="$emit('select-question', q)"
-      >
-        {{ q }}
-      </button>
-    </div>
-    <!-- 无默认Agent提示 -->
-    <div v-if="!selectedAgentId && agentsLength > 0" class="no-default-hint">
-      没有默认Agent，<router-link to="/app/agents">去创建</router-link>
-    </div>
+    <template v-if="loading">
+      <!-- Agent 加载中：欢迎语与推荐问题区显示骨架屏，避免先显示默认文案再闪烁切换 -->
+      <div class="welcome-skeleton">
+        <div class="skeleton-line skeleton-line-lg"></div>
+        <div class="skeleton-line"></div>
+        <div class="skeleton-line skeleton-line-sm"></div>
+      </div>
+      <div class="recommended-skeleton">
+        <div v-for="i in 3" :key="i" class="skeleton-chip"></div>
+      </div>
+    </template>
+    <template v-else>
+      <div class="welcome-content"><MarkdownPreview :content="welcomeMessage" /></div>
+      <!-- 推荐问题：全部展示 -->
+      <div v-if="recommendedQuestions.length > 0" class="recommended-questions">
+        <button
+          v-for="(q, qi) in recommendedQuestions"
+          :key="qi"
+          class="btn-question"
+          @click="$emit('select-question', q)"
+        >
+          {{ q }}
+        </button>
+      </div>
+      <!-- 无默认Agent提示 -->
+      <div v-if="!selectedAgentId && agentsLength > 0" class="no-default-hint">
+        没有默认Agent，<router-link to="/app/agents">去创建</router-link>
+      </div>
+    </template>
   </div>
 </template>
 
@@ -28,6 +41,7 @@ defineProps({
   recommendedQuestions: { type: Array, default: () => [] },
   selectedAgentId: { type: [String, Number], default: null },
   agentsLength: { type: Number, default: 0 },
+  loading: { type: Boolean, default: false },
 })
 
 defineEmits(['select-question'])
@@ -46,6 +60,55 @@ defineEmits(['select-question'])
   height: 64px;
   margin-bottom: 24px;
   object-fit: contain;
+}
+/* Agent 加载中的骨架屏 */
+.welcome-skeleton {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 24px;
+}
+.skeleton-line {
+  height: 14px;
+  border-radius: 7px;
+  background: linear-gradient(
+    90deg,
+    var(--color-canvas-soft-2) 25%,
+    var(--color-canvas-soft) 37%,
+    var(--color-canvas-soft-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+  width: 60%;
+}
+.skeleton-line-lg { width: 75%; height: 22px; border-radius: 11px; }
+.skeleton-line-sm { width: 40%; }
+.recommended-skeleton {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  max-width: 600px;
+}
+.skeleton-chip {
+  width: 140px;
+  height: 34px;
+  border-radius: 100px;
+  background: linear-gradient(
+    90deg,
+    var(--color-canvas-soft-2) 25%,
+    var(--color-canvas-soft) 37%,
+    var(--color-canvas-soft-2) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease infinite;
+}
+@keyframes skeleton-shimmer {
+  0% { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
 }
 .welcome-content {
   text-align: center;

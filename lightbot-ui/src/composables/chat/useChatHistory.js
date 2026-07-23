@@ -45,6 +45,9 @@ export function useChatHistory(deps) {
   const hasMoreMessages = ref(false)
   const loadingOlder = ref(false)
   const initialLoadDone = ref(false)
+  /** 每页加载消息条数：首次进入/切会话时只加载最近 N 条，减少首屏等待；
+   *  用户上滚触顶时再加载下一页（loadOlderMessages） */
+  const MESSAGE_PAGE_SIZE = 5
   /** 切换会话时 agent/版本加载中 */
   const switchingSession = ref(false)
   /** 竞态保护：每次 loadHistory 递增，过期请求不写入状态 */
@@ -116,7 +119,7 @@ export function useChatHistory(deps) {
     try {
       // 并行加载消息（第1页）和会话详情
       const [msgRes, sessionRes] = await Promise.all([
-        getSessionMessages(sessionId.value, { pageNum: 1, pageSize: 10 }),
+        getSessionMessages(sessionId.value, { pageNum: 1, pageSize: MESSAGE_PAGE_SIZE }),
         getSession(sessionId.value, { silent: true }),
       ])
       // 请求已过期，丢弃结果
@@ -134,7 +137,7 @@ export function useChatHistory(deps) {
       await enrichMessagesAttachments(parsed)
       if (reqId !== loadHistoryRequestId) return
       messages.value = parsed
-      hasMoreMessages.value = records.length === 10
+      hasMoreMessages.value = records.length === MESSAGE_PAGE_SIZE
 
       // 批量加载消息反馈状态
       loadBatchFeedbacks(parsed)
@@ -199,14 +202,14 @@ export function useChatHistory(deps) {
       messagePage.value++
       const res = await getSessionMessages(sessionId.value, {
         pageNum: messagePage.value,
-        pageSize: 10,
+        pageSize: MESSAGE_PAGE_SIZE,
       })
       const records = res.data?.records || []
       if (records.length > 0) {
         const olderMessages = records.reverse().map(m => parseMessage(m))
         await enrichMessagesAttachments(olderMessages)
         messages.value = [...olderMessages, ...messages.value]
-        hasMoreMessages.value = records.length === 10
+        hasMoreMessages.value = records.length === MESSAGE_PAGE_SIZE
         // 保持滚动位置：prepend 后虚拟化器重新计算所有 item 位置，
         // 需要用 scrollToOffset 将 scrollTop 加上新增内容的高度
         await nextTick()
