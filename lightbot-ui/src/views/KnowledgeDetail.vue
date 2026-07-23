@@ -220,6 +220,9 @@
             <div v-if="activeTab === 'mindmap'" class="rag-section">
               <div v-if="mindmapData" class="mindmap-container">
                 <svg ref="mindmapSvgRef" class="mindmap-svg"></svg>
+                <div v-if="mindmapLoading" class="mindmap-loading-mask">
+                  <a-spin tip="重新生成中..." />
+                </div>
                 <div class="mindmap-actions">
                   <button class="btn-primary-sm" :disabled="mindmapLoading" @click="handleGenerateMindmap">
                     {{ mindmapLoading ? '生成中...' : '重新生成' }}
@@ -227,12 +230,17 @@
                 </div>
               </div>
               <div v-else class="mindmap-empty">
-                <p v-if="documents.length === 0">请先上传文档后再生成思维导图</p>
-                <p v-else-if="mindmapLoaded">暂无思维导图，点击下方按钮AI自动生成</p>
-                <p v-else>加载中...</p>
-                <button class="btn-primary-sm" :disabled="mindmapLoading || documents.length === 0" @click="handleGenerateMindmap">
-                  {{ mindmapLoading ? '生成中...' : '生成思维导图' }}
-                </button>
+                <a-spin
+                  v-if="mindmapFetching || mindmapLoading"
+                  :tip="mindmapLoading ? 'AI 生成中，预计 10-30 秒...' : '加载中...'"
+                />
+                <template v-else-if="documents.length === 0">
+                  <p>请先上传文档后再生成思维导图</p>
+                </template>
+                <template v-else>
+                  <p>暂无思维导图，点击下方按钮 AI 自动生成</p>
+                  <button class="btn-primary-sm" @click="handleGenerateMindmap">生成思维导图</button>
+                </template>
               </div>
             </div>
           </a-tab-pane>
@@ -1107,6 +1115,7 @@ const ragLoading = ref(false)
 const ragRef = ref(null)
 const mindmapData = ref(null)
 const mindmapLoading = ref(false)
+const mindmapFetching = ref(false)
 const mindmapSvgRef = ref(null)
 const mindmapLoaded = ref(false)
 
@@ -2136,6 +2145,7 @@ function parseDuplicateDetails(val) {
 async function loadMindmap() {
   if (mindmapLoaded.value) return
   mindmapLoaded.value = true
+  mindmapFetching.value = true
   try {
     const res = await getMindmap(knowledgeId)
     if (res.data) {
@@ -2145,6 +2155,8 @@ async function loadMindmap() {
     }
   } catch (e) {
     // 未生成过思维导图，忽略
+  } finally {
+    mindmapFetching.value = false
   }
 }
 
@@ -2991,10 +3003,26 @@ onUnmounted(() => {
 
 /* 思维导图 */
 .mindmap-container {
+  position: relative;
   flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+/* 重新生成时覆盖在导图上的加载遮罩：保留旧导图可见但明确反馈"正在重生成" */
+.mindmap-loading-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.65);
+  backdrop-filter: blur(2px);
+  border-radius: 8px;
+  z-index: 5;
+}
+[data-theme="dark"] .mindmap-loading-mask {
+  background: rgba(0, 0, 0, 0.55);
 }
 .mindmap-svg {
   flex: 1;

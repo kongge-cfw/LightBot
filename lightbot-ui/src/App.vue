@@ -397,21 +397,25 @@ textarea.ant-input:focus,
   border-color: #d4d4d8 !important;
 }
 
-/* ===== 深色模式：colorPrimary 派生的"选中/激活"态全局兜底 =====
+/* ===== colorPrimary 派生的"选中/激活"态全局兜底 =====
    说明：项目 colorPrimary=#171717（品牌近黑），antd 把 Switch/Checkbox/Radio/Slider/
-   InputNumber 等组件的"选中/激活"视觉直接派生自 colorPrimary，在深色 #111/#1f1f1f 画布上
-   近乎不可见。useTheme.js 不便按组件单独切 colorPrimary，故在此统一 CSS 兜底。
-   统一用 var(--color-link)（#3b82f6 深色），与 RangePicker active-bar / 输入聚焦色一致。 */
+   InputNumber 等组件的"选中/激活"视觉直接派生自 colorPrimary——深色画布上近乎不可见，
+   浅色画布上 Switch 打开态为近黑，与关闭/禁用的灰色易混淆。统一用 var(--color-link)
+   （#3b82f6 深色）覆盖，与 RangePicker active-bar / 输入聚焦色一致。 */
 
-/* Switch 打开态：默认 #171717 与画布重合，改蓝色清晰可辨 */
-[data-theme="dark"] .ant-switch-checked.ant-switch-checked {
+/* Switch 打开态：默认 #171717 黑色在深色画布不可见、浅色画布与禁用混淆，改蓝色清晰可辨 */
+.ant-switch-checked.ant-switch-checked {
   background-color: var(--color-link) !important;
 }
-[data-theme="dark"] .ant-switch-checked:hover:not(.ant-switch-disabled) {
+.ant-switch-checked:hover:not(.ant-switch-disabled) {
   background-color: var(--color-link-deep) !important;
 }
+/* 打开+禁用：antd 派生的淡黑与"正常关闭"灰色难辨，显式淡蓝让禁用态一眼可分 */
+.ant-switch.ant-switch-checked.ant-switch-disabled {
+  background-color: rgba(59, 130, 246, 0.45) !important;
+}
 /* 二次防护：antd 4.x 部分版本会 inline style 写 background-color，需提升优先级 */
-[data-theme="dark"] .ant-switch.ant-switch-checked > .ant-switch-inner {
+.ant-switch.ant-switch-checked > .ant-switch-inner {
   background: transparent !important;
 }
 
