@@ -1,8 +1,8 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <button class="btn-back" @click="router.push('/app/prompts')">
-        <ArrowLeftOutlined /> 返回
+      <button type="button" class="page-back-icon" title="返回" @click="router.push('/app/prompts')">
+        <ArrowLeftOutlined />
       </button>
       <h2 class="page-title">
         Playground
@@ -540,18 +540,6 @@ async function loadPromptsData() {
   gap: 16px;
   margin-bottom: 20px;
 }
-.btn-back {
-  background: none;
-  border: none;
-  color: var(--color-mute);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-}
-.btn-back:hover { color: var(--color-link); }
 .page-title {
   font-size: 20px;
   font-weight: 600;

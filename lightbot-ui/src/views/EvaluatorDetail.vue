@@ -1,10 +1,9 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
-      :title="evaluator?.name || '评估器详情'"
+      :title="evaluator?.name || ''"
+      :desc="evaluator?.description"
       :breadcrumb="[{ label: '评估器', onClick: () => router.back() }]"
-      :icon="AuditOutlined"
-      icon-bg="tool"
       @back="router.back()"
     >
       <template #extra>
@@ -14,6 +13,7 @@
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <div class="content-grid">
       <!-- 左侧：版本列表 -->
       <div class="panel">
@@ -103,6 +103,7 @@
           </div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 版本详情弹窗 -->
@@ -408,13 +409,6 @@ function getModelStatusHint(version) {
 </script>
 
 <style scoped>
-.page {
-  padding: 20px calc(24px + var(--scroll-content-gap)) 20px 24px;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
-}
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -482,6 +476,7 @@ function getModelStatusHint(version) {
   display: grid;
   grid-template-columns: 2fr 3fr;
   gap: 16px;
+  height: 100%;
 }
 .panel {
   background: var(--color-canvas);

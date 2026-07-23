@@ -1,10 +1,9 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
       :title="knowledge.name"
+      :desc="knowledge.description"
       :breadcrumb="[{ label: '知识库', onClick: () => router.push('/app/knowledge') }]"
-      :icon="knowledge.type === 'milvus' ? CloudServerOutlined : DatabaseOutlined"
-      icon-bg="knowledge"
       @back="router.push('/app/knowledge')"
     >
       <template #tags>
@@ -15,43 +14,42 @@
           {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
         </a-tag>
       </template>
+      <template #stats>
+        <span class="kb-stat-item">
+          <FileTextOutlined />
+          <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
+          <span class="kb-stat-label">文档</span>
+        </span>
+        <span class="kb-stat-divider"></span>
+        <span class="kb-stat-item">
+          <BlockOutlined />
+          <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
+          <span class="kb-stat-label">分片</span>
+        </span>
+        <span class="kb-stat-divider"></span>
+        <span class="kb-stat-item">
+          <FontColorsOutlined />
+          <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
+          <span class="kb-stat-label">Token</span>
+        </span>
+        <a-tooltip title="重新计算统计数据">
+          <button class="kb-stats-refresh" :disabled="statsRepairing" @click="handleRefreshStats">
+            <LoadingOutlined v-if="statsRepairing" spin />
+            <ReloadOutlined v-else />
+          </button>
+        </a-tooltip>
+      </template>
       <template #extra>
-        <button class="lb-btn lb-btn--sm" @click="openMembersModal">
+        <button class="lb-btn" @click="openMembersModal">
           <TeamOutlined /> 成员
         </button>
-        <button class="lb-btn lb-btn--sm lb-btn--primary" @click="openEditDialog">
+        <button class="lb-btn lb-btn--primary" @click="openEditDialog">
           <EditOutlined /> 编辑
         </button>
       </template>
     </LbDetailHeader>
 
-    <!-- 统计条（KnowledgeDetail 独有，放 header 下方）-->
-    <div class="kb-stats-bar">
-      <div class="kb-stat-item">
-        <FileTextOutlined />
-        <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
-        <span class="kb-stat-label">文档</span>
-      </div>
-      <div class="kb-stat-divider"></div>
-      <div class="kb-stat-item">
-        <BlockOutlined />
-        <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
-        <span class="kb-stat-label">分片</span>
-      </div>
-      <div class="kb-stat-divider"></div>
-      <div class="kb-stat-item">
-        <FontColorsOutlined />
-        <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
-        <span class="kb-stat-label">Token</span>
-      </div>
-      <a-tooltip title="重新计算统计数据">
-        <button class="kb-stats-refresh" :disabled="statsRepairing" @click="handleRefreshStats">
-          <LoadingOutlined v-if="statsRepairing" spin />
-          <ReloadOutlined v-else />
-        </button>
-      </a-tooltip>
-    </div>
-
+    <div class="detail-page__body">
     <div class="content-grid">
       <!-- 文档列表 -->
       <div class="panel">
@@ -273,18 +271,20 @@
         </a-tabs>
       </div>
     </div>
+    </div>
 
     <!-- 文档预览/分块弹窗：bodyStyle padding:0 让 tabs-nav 通栏背景色填满；
-         minHeight 给弹窗稳定最小高度，避免切换 tab / 加载态导致高度反复跳动。
-         不用 flex 链路传递高度（ant-tabs-tabpane 在 flex 容器中的 stretch 行为不稳定），
-         改为每个 tab-pane-body 自管 max-height + overflow:auto -->
+         height 按视口动态固定，预留 160px 给 modal header + wrap flex 居中余量 + box-shadow，
+         避免 modal-content 总高超过视口触发 ant-modal-wrap 外层滚动条；
+         不写 minHeight 防止小视口下强制撑高超出视口；
+         各 tab-pane-body 自管 max-height + overflow:auto 处理自身内容溢出 -->
     <a-modal
       v-model:open="docModalVisible"
       :title="currentDoc?.name || '文档详情'"
       :width="900"
       :footer="null"
       centered
-      :bodyStyle="{ padding: '0', minHeight: '460px' }"
+      :bodyStyle="{ padding: '0', height: 'calc(100vh - 160px)', overflow: 'hidden' }"
     >
       <a-tabs v-model:activeKey="docModalTab" class="doc-modal-tabs">
         <template #rightExtra>
@@ -2338,17 +2338,10 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 页面采用 flex 列布局：header 固定占位 + content-grid 撑满剩余空间
-   外层不再滚动，左右两个 panel 各自管理自己的滚动区域（doc-list / rag-messages），
-   避免"外层页面 + 内层对话"双滚动条 */
-.page {
-  padding: 20px 24px;
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--color-canvas-soft);
-}
+/* KnowledgeDetail 采用页面级滚动：body 复用全局 .detail-page__body（padding + overflow-y:auto）。
+   kb-stats-bar / content-grid / panel / rag-section 全部放弃 height-chain（flex:1 + overflow:hidden），
+   改为自然高度；仅 doc-list 与 rag-messages 这种「单区域长列表」用 max-height + overflow:auto 内部滚动，
+   避免页面被无限撑高。 */
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -2434,20 +2427,14 @@ onUnmounted(() => {
   border-left-color: var(--color-hairline-strong);
   opacity: 0.75;
 }
-.kb-stats-bar {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 12px 32px 20px;
-  background: var(--color-canvas);
-  border-bottom: 1px solid var(--color-hairline);
-}
+/* 统计项内联展示（放在 LbDetailHeader 的 #stats 槽里，与标题同行的右侧） */
 .kb-stat-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
   font-size: 13px;
   color: var(--color-mute);
+  white-space: nowrap;
 }
 .kb-stat-value {
   font-weight: 600;
@@ -2459,8 +2446,8 @@ onUnmounted(() => {
 }
 .kb-stat-divider {
   width: 1px;
-  height: 16px;
-  background: #ebebeb;
+  height: 14px;
+  background: var(--color-hairline);
 }
 .kb-stats-refresh {
   display: inline-flex;
@@ -2485,27 +2472,32 @@ onUnmounted(() => {
   opacity: 0.5;
 }
 
-/* content-grid 在 flex 列布局中撑满剩余高度；min-height:0 是 flex 子项可以收缩
-   到内容尺寸以下的关键（否则 grid 会被内部撑高触发外层滚动） */
+/* 覆盖全局 .detail-page__body：本页改用 panel 内部各区域自管滚动，
+   不再页面级滚动，避免 tab 切换时 panel 高度跟随内容跳变 */
+.detail-page__body {
+  overflow: hidden;
+  height: 100%;
+}
+/* content-grid：撑满 body，两列等高（stretch）让左右 panel 高度一致且稳定 */
 .content-grid {
+  height: 100%;
   display: grid;
   grid-template-columns: minmax(0, 2.5fr) minmax(0, 3fr);
   gap: 15px;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  align-items: stretch;
 }
-/* 每个 panel 自己做 flex 列容器：header 固定，中间列表/区域 flex:1 + overflow:auto */
+/* panel：撑满 grid cell，固定高度由视口决定；overflow:hidden 让内部各区域自管滚动，
+   切换 tab 时 panel 高度不变（解决高度来回跳）。min-height:0 让 grid item 可收缩 */
 .panel {
   background: var(--color-canvas);
   border: 1px solid var(--color-hairline);
   border-radius: 8px;
   padding: 16px;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  min-height: 0;
 }
 .panel-header {
   display: flex;
@@ -2525,9 +2517,20 @@ onUnmounted(() => {
   align-items: center;
   gap: 8px;
 }
-/* ant-tabs 在右侧 panel 内要撑满：把 ant-tabs 链路上各层都设为 flex 列并允许收缩，
-   最终让 .rag-section 的 flex:1 能拿到实际高度。
-   min-height:0 是 flex 子项能否收缩到内容尺寸以下的关键，缺任一层都会断链 */
+/* 左 panel：a-spin 包裹了 doc-list，需要突破 ant-spin wrapping 让 doc-list 拿到 flex:1 */
+.panel > :deep(.ant-spin-nested-loading) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.panel :deep(.ant-spin-container) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* 右 panel：ant-tabs 链路打通，让 tab pane 拿到 panel 减去 nav 的真实高度 */
 .panel > :deep(.ant-tabs) {
   flex: 1;
   min-height: 0;
@@ -2604,8 +2607,8 @@ onUnmounted(() => {
   border-color: rgba(255, 255, 255, 0.25);
 }
 
-/* 文档列表本身是左侧 panel 的唯一滚动容器：撑满剩余高度、超出滚动
-   padding-right 留出滚动条与内容的呼吸距离，避免文档名贴着滚动条 */
+/* 文档列表：撑满 panel 剩余高度，超出内部滚动（不再写死 max-height，
+   panel 自身已固定视口高度，doc-list 自然在 panel 内滚动） */
 .doc-list {
   display: flex;
   flex-direction: column;
@@ -2616,7 +2619,7 @@ onUnmounted(() => {
   padding-right: var(--scroll-content-gap, 8px);
 }
 .doc-list-min {
-  min-height: 120px;
+  min-height: 0;
 }
 .doc-item {
   display: flex;
@@ -2715,15 +2718,14 @@ onUnmounted(() => {
   flex-shrink: 0;
 }
 
-/* RAG & 思维导图共用：不再写死 calc(100vh - 220px)，由父级 flex 撑满决定
-   这样 rag-messages 只在自身内容溢出时才出现滚动条，消除外层页面 + 内层对话双滚动条 */
+/* rag-section：撑满 tab pane，让 KnowledgeGraphTab 内的 height:100% 链路拿到真实尺寸 */
 .rag-section {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  overflow: hidden;
 }
+/* rag-messages：flex:1 占满剩余空间把 rag-input 推到底部，超出内部滚动 */
 .rag-messages {
   flex: 1;
   min-height: 0;
@@ -3023,18 +3025,40 @@ onUnmounted(() => {
   border-color: var(--color-hairline);
   color: var(--color-ink);
 }
-/* doc-modal-tabs 只做视觉容器，不参与高度传递 */
+/* doc-modal-tabs：modal body 已有固定 height，这里把高度链一路打通到 tab-pane，
+   让 doc-graph-pane 能用 flex:1 撑满剩余空间 */
 .doc-modal-tabs {
   margin-top: 4px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+.doc-modal-tabs :deep(.ant-tabs) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 .doc-modal-tabs :deep(.ant-tabs-nav) {
   margin: 0;
   padding: 8px 24px 0;
   background: var(--color-canvas-soft);
   border-bottom: 1px solid var(--color-hairline);
+  flex-shrink: 0;
 }
 .doc-modal-tabs :deep(.ant-tabs-content-holder) {
   padding: 0;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.doc-modal-tabs :deep(.ant-tabs-content) {
+  height: 100%;
+}
+.doc-modal-tabs :deep(.ant-tabs-tabpane-active) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 /* tab-pane-body 自管高度：min-height 给稳定占位（420 + nav 40 ≈ modal minHeight 460），
    max-height 限制在视口内（260 全局预留 + 40 nav + 20 边距），超出则出滚动条；
@@ -3051,16 +3075,17 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
 }
-/* 图谱面板：KnowledgeGraphTab 自管布局，不加 padding 让画布撑满。
-   doc-graph-pane 作为 flex 容器把高度传给组件根（组件内 height:100% 才能生效），
-   并覆盖组件内 min-height（StandaloneGraph 全屏场景需要，modal 里不需要 500/400 兜底）。
-   空状态用绝对定位撑满 canvas-wrapper（kg-canvas-wrapper 是 flex item，
-   其子项 height:100% 解析不稳定，用 inset:0 绝对定位兜底，保证垂直居中生效）*/
+/* 文档弹窗的图谱面板：撑满父级 tab-pane（高度链已由 .doc-modal-tabs 打通），
+   覆盖 .tab-pane-body 的 min/max-height 与 overflow，
+   内部 canvas 由 KnowledgeGraphTab flex:1 自适应拿到真实尺寸渲染 */
 .doc-graph-pane {
+  flex: 1;
+  min-height: 0;
+  max-height: none;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
   padding: 0;
+  overflow: hidden;
 }
 .doc-graph-pane > :deep(.knowledge-graph-tab) {
   flex: 1;
@@ -3068,11 +3093,6 @@ onUnmounted(() => {
 }
 .doc-graph-pane :deep(.kg-canvas-wrapper) {
   min-height: 0;
-}
-.doc-graph-pane :deep(.kg-empty) {
-  position: absolute;
-  inset: 0;
-  height: auto;
 }
 .doc-info-pane {
   overflow: auto;

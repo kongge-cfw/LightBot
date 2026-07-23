@@ -1,5 +1,5 @@
 ﻿<template>
-  <div class="page" :class="{ 'page--loading': pageLoading || saving || publishing }">
+  <div class="detail-page" :class="{ 'detail-page--loading': pageLoading || saving || publishing }">
     <!-- 加载遮罩 -->
     <div v-if="pageLoading" class="sync-overlay">
       <div class="sync-overlay-content">
@@ -9,9 +9,9 @@
     </div>
 
     <LbDetailHeader
-      :title="headerName || 'Agent 详情'"
+      :title="headerName || ''"
+      :desc="agent.description"
       :breadcrumb="[{ label: 'Agents', onClick: handleGoBack }]"
-      :icon="RobotOutlined"
       @back="handleGoBack"
     >
       <template #tags>
@@ -23,15 +23,15 @@
         </a-tooltip>
       </template>
       <template #extra>
-        <button v-if="agent.agentType === 'workflow'" class="lb-btn lb-btn--sm" @click="goWorkflowEdit">
+        <button v-if="agent.agentType === 'workflow'" class="lb-btn" @click="goWorkflowEdit">
           <SettingOutlined /> 工作流编排
         </button>
-        <button class="lb-btn lb-btn--sm" @click="startChat">
+        <button class="lb-btn" @click="startChat">
           <MessageOutlined /> 对话
         </button>
         <button
           v-if="agent.agentType === 'workflow'"
-          class="lb-btn lb-btn--sm"
+          class="lb-btn"
           @click="handleSaveWorkflowBasic"
           :disabled="saving || isVersionPreview"
         >
@@ -39,17 +39,17 @@
         </button>
         <button
           v-if="agent.agentType !== 'workflow'"
-          class="lb-btn lb-btn--sm"
+          class="lb-btn"
           @click="openVersionDrawer"
         >
           <HistoryOutlined /> 版本管理
         </button>
-        <button v-if="agent.agentType !== 'workflow'" class="lb-btn lb-btn--sm" @click="handleSave" :disabled="saving || isVersionPreview">
+        <button v-if="agent.agentType !== 'workflow'" class="lb-btn" @click="handleSave" :disabled="saving || isVersionPreview">
           <SaveOutlined /> 暂存
         </button>
         <button
           v-if="agent.agentType !== 'workflow'"
-          class="lb-btn lb-btn--sm lb-btn--primary"
+          class="lb-btn lb-btn--primary"
           @click="handlePublish"
           :disabled="publishing || saving || isVersionPreview"
         >
@@ -58,6 +58,7 @@
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <a-alert
       v-if="isVersionPreview"
       type="info"
@@ -963,7 +964,6 @@
               <div class="list-header-actions">
                 <DynamicToolDrawer
                   v-if="!isVersionPreview"
-                  placement="bottomRight"
                   :selected-knowledge="selectedKnowledge"
                   :selected-mcp-servers="selectedMcpServers"
                   :selected-sub-agents="selectedSubAgents"
@@ -1108,7 +1108,6 @@
         <!-- 自动启用工具抽屉（通过 hint 链接触发，不渲染默认按钮） -->
         <DynamicToolDrawer
           ref="dynamicToolDrawerRef"
-          placement="bottomRight"
           :selected-knowledge="selectedKnowledge"
           :selected-mcp-servers="selectedMcpServers"
           :selected-sub-agents="selectedSubAgents"
@@ -1359,6 +1358,7 @@
       </a-tab-pane>
 
     </a-tabs>
+    </div>
     </div>
     <a-modal
       v-model:open="publishModalVisible"
@@ -3560,16 +3560,10 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page {
+.detail-page {
   position: relative;
-  padding: var(--space-xl);
-  padding-right: calc(var(--space-xl) + var(--scroll-content-gap));
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
 }
-.page--loading {
+.detail-page--loading {
   overflow: hidden;
 }
 .page-header {

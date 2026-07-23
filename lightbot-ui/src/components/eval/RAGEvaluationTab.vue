@@ -64,6 +64,7 @@
           <template #icon><ReloadOutlined /></template>
         </a-button>
       </div>
+      <div class="eval-history-body">
       <a-table
         :dataSource="results"
         :columns="resultColumns"
@@ -105,6 +106,7 @@
           </template>
         </template>
       </a-table>
+      </div>
     </div>
 
     <!-- 结果详情弹窗 -->
@@ -290,8 +292,13 @@ onMounted(() => {
 .eval-model-row { padding: 0 2px; }
 .eval-model-item { display: flex; flex-direction: column; gap: 4px; }
 .eval-model-label { font-size: 13px; color: var(--color-text-dark); font-weight: 500; }
-.eval-history { flex: 1; overflow-y: auto; }
-.eval-history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+/* eval-history 拆 header + body：header（标题+刷新按钮）固定不滚，
+   body 只装 a-table，滚动条不会延伸到刷新按钮处；
+   overflow-x:hidden 禁掉横向滚动条（列宽由 a-table 自管，不外溢）；
+   padding-right 让分页与垂直滚动条之间留出呼吸距离 */
+.eval-history { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.eval-history-header { flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.eval-history-body { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; padding-right: 8px; }
 .eval-history-title { font-weight: 500; font-size: 14px; }
 .action-icon { cursor: pointer; color: #666; font-size: 14px; }
 .action-icon:hover { color: #1890ff; }

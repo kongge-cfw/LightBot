@@ -2,10 +2,8 @@
   <div class="skill-detail-page">
     <!-- 顶部导航：LbDetailHeader 面包屑模式（顶栏面包屑 + 标题区图标/元信息） -->
     <LbDetailHeader
-      :title="skill.displayName || skill.name || 'Skill 详情'"
+      :title="skill.displayName || skill.name || ''"
       :breadcrumb="[{ label: 'Skills', onClick: goBack }]"
-      :icon="BookOutlined"
-      icon-bg="skill"
       @back="goBack"
     >
       <template #tags>
@@ -20,12 +18,12 @@
         <span v-if="skill.version" class="meta meta-version">v{{ skill.version }}</span>
       </template>
       <template #extra>
-        <button class="lb-btn lb-btn--sm" @click="handleExport">
+        <button class="lb-btn" @click="handleExport">
           <ExportOutlined /> 导出
         </button>
         <button
           v-if="skill.isBuiltin !== 1"
-          class="lb-btn lb-btn--sm detail-action-danger"
+          class="lb-btn detail-action-danger"
           @click="handleDelete"
         >
           <DeleteOutlined /> 删除

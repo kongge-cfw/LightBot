@@ -1,21 +1,22 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
       title="创建实验"
       :breadcrumb="[{ label: '实验', onClick: () => router.push('/app/eval') }]"
-      :icon="ExperimentOutlined"
       @back="router.push('/app/eval')"
     />
 
-    <div class="create-card">
-      <ExperimentCreateForm
-        :label-span="4"
-        @success="onCreateSuccess"
-      >
-        <template #cancel>
-          <button class="btn-cancel" @click="router.push('/app/eval')">取消</button>
-        </template>
-      </ExperimentCreateForm>
+    <div class="detail-page__body">
+      <div class="create-card">
+        <ExperimentCreateForm
+          :label-span="4"
+          @success="onCreateSuccess"
+        >
+          <template #cancel>
+            <button class="btn-cancel" @click="router.push('/app/eval')">取消</button>
+          </template>
+        </ExperimentCreateForm>
+      </div>
     </div>
   </div>
 </template>
@@ -34,14 +35,6 @@ function onCreateSuccess() {
 </script>
 
 <style scoped>
-.page {
-  padding: var(--space-xl);
-  padding-right: calc(var(--space-xl) + var(--scroll-content-gap));
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
-}
 .page-header {
   margin-bottom: 24px;
 }

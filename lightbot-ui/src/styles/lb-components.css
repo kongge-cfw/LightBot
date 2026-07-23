@@ -352,6 +352,28 @@
 }
 
 /* ========== 详情页头部 ========== */
+/* 顶部 icon-only 返回按钮：用于独立页面（Playground / StandaloneGraph / PromptTemplateManage）
+   或其他不使用 LbDetailHeader 面包屑模式的场景。无文字、圆角方块、hover 浅灰背景，
+   视觉权重低于带文字的按钮，避免抢戏标题。 */
+.page-back-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-md, 8px);
+  color: var(--color-body);
+  font-size: 16px;
+  cursor: pointer;
+  transition: background var(--duration-fast, 0.15s) ease, color var(--duration-fast, 0.15s) ease;
+}
+.page-back-icon:hover {
+  background: var(--color-canvas-soft-2);
+  color: var(--color-ink);
+}
+
 .lb-detail-header {
   display: flex;
   justify-content: space-between;
@@ -416,9 +438,6 @@
   border-bottom: 1px solid var(--color-hairline);
 }
 .lb-detail-header--stack .lb-detail-header__title-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
   padding: 20px 32px;
   background: var(--color-canvas);
   border-bottom: 1px solid var(--color-hairline);
@@ -426,32 +445,72 @@
 .lb-detail-header--stack .lb-detail-header__title {
   font-size: 20px;
 }
-.lb-detail-header__icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 20px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-.lb-detail-header__icon :deep(.anticon) {
-  font-size: 20px;
-}
-.lb-detail-header__icon--default   { background: var(--gradient-entity-default); }
-.lb-detail-header__icon--tool      { background: var(--gradient-entity-tool); }
-.lb-detail-header__icon--knowledge { background: var(--gradient-entity-knowledge); }
-.lb-detail-header__icon--mcp       { background: var(--gradient-entity-mcp); }
-.lb-detail-header__icon--skill     { background: var(--gradient-entity-skill); }
-.lb-detail-header__icon--subagent  { background: var(--gradient-entity-subagent); }
 .lb-detail-header__title-text {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
-  gap: 6px;
+  gap: 8px;
+}
+.lb-detail-header__title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.lb-detail-header__title-row .lb-detail-header__tags {
+  margin: 0;
+}
+/* title-row 内的统计/元信息槽：推到最右侧，与标题/标签共享同一行 */
+.lb-detail-header__stats {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lb-detail-header__desc {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-body);
+  padding: 4px 0 4px 12px;
+  border-left: 3px solid var(--color-link);
+  margin: 0;
+  word-break: break-word;
+}
+.lb-detail-header__top-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+.lb-detail-header__tags--inline {
+  flex-wrap: nowrap;
+}
+.lb-detail-header--slim .lb-detail-header__top-bar {
+  padding: 12px 32px;
+}
+
+/* ========== 详情页布局外壳 ==========
+   与 LbDetailHeader 配套：外壳无 padding，让 header 顶到视口边缘；
+   内容区 .detail-page__body 自带 padding，让卡片与页面有间隔。
+   避免每个详情页重复写 scoped 样式，也避免污染全局 .page（admin-page.css）。 */
+.detail-page {
+  height: 100vh;
+  background: var(--color-canvas-soft);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.detail-page__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-xl);
+  padding-right: calc(var(--space-xl) + var(--scroll-content-gap, 8px));
+  scrollbar-gutter: stable;
 }
 
 /* ========== 管理页头部 ========== */

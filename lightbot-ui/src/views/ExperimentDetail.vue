@@ -1,9 +1,8 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
-      :title="experiment?.name || '实验详情'"
+      :title="experiment?.name || ''"
       :breadcrumb="[{ label: '实验', onClick: () => router.back() }]"
-      :icon="ExperimentOutlined"
       @back="router.back()"
     >
       <template v-if="experimentStatus" #tags>
@@ -27,6 +26,7 @@
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <!-- 实验信息卡片 -->
     <div class="info-cards">
       <div class="info-card">
@@ -168,6 +168,7 @@
           <ReloadOutlined /> 刷新结果
         </button>
       </div>
+    </div>
     </div>
     </div>
 
@@ -695,14 +696,6 @@ function truncate(str, len) {
 </script>
 
 <style scoped>
-.page {
-  padding: var(--space-xl);
-  padding-right: calc(var(--space-xl) + var(--scroll-content-gap));
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
-}
 .page-header {
   display: flex;
   justify-content: space-between;

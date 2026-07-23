@@ -1,9 +1,8 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
       title="版本记录"
       :breadcrumb="[{ label: 'Prompt 详情', onClick: () => router.push(`/app/prompts/${promptKey}`) }]"
-      :icon="HistoryOutlined"
       @back="router.push(`/app/prompts/${promptKey}`)"
     >
       <template #tags>
@@ -11,6 +10,7 @@
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <!-- 提示条 -->
     <a-alert
       message="勾选两个版本进行对比，或点击操作列的详情按钮查看版本详情"
@@ -53,6 +53,7 @@
       <button class="btn-primary-sm" @click="openCompare()">
         <SwapOutlined /> 对比选中版本
       </button>
+    </div>
     </div>
 
     <!-- 版本详情弹窗 -->
@@ -292,11 +293,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.page {
-  padding: 20px 24px;
-  min-height: 100vh;
-  background: var(--color-canvas-soft);
-}
 .meta-key {
   font-family: 'SF Mono', Monaco, Consolas, monospace;
   color: #be185d;

@@ -2,8 +2,8 @@
   <div class="standalone-graph-page">
     <!-- 顶部标题栏 -->
     <div class="page-header">
-      <button class="btn-back" @click="router.back()">
-        <ArrowLeftOutlined /> 返回
+      <button type="button" class="page-back-icon" title="返回" @click="router.back()">
+        <ArrowLeftOutlined />
       </button>
       <h2 class="page-title">知识图谱</h2>
       <div class="page-header-right">
@@ -283,10 +283,11 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   SearchOutlined, DeleteOutlined, CompressOutlined, UploadOutlined, DownloadOutlined,
   PlusOutlined, LinkOutlined, ThunderboltOutlined, ClearOutlined, QuestionCircleOutlined,
-  ArrowLeftOutlined
+  ArrowLeftOutlined,
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -300,7 +301,8 @@ import { COLOR_PALETTE, LAYOUT_CONFIG, formatGraphData } from '../composables/us
 import LbGraphNodeDetailPanel from '../components/common/LbGraphNodeDetailPanel.vue'
 import { useTheme } from '../composables/useTheme'
 
-// ---- 主题适配：与 KnowledgeGraphTab 保持一致，切换深浅色时自动重渲染 ----
+// ---- 主题适配：与 KnowledgeGraphTab 保持一致，切换浅深色时自动重渲染 ----
+const router = useRouter()
 const { isDark } = useTheme()
 const graphColors = computed(() => isDark.value
   ? { labelFill: '#ffffff', edgeLabel: '#d1d5db', edgeStroke: '#555', edgeArrow: '#555',
@@ -1004,18 +1006,6 @@ onUnmounted(() => {
   padding: 24px 32px 12px;
   flex-shrink: 0;
 }
-.btn-back {
-  background: none;
-  border: none;
-  color: var(--color-mute);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0;
-}
-.btn-back:hover { color: var(--color-link); }
 .page-title {
   font-size: 20px;
   font-weight: 600;

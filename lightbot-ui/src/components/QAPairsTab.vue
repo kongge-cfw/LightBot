@@ -34,6 +34,7 @@
       </div>
     </div>
 
+    <div class="qa-table-wrap">
     <a-table
       :data-source="qaPairs"
       :columns="columns"
@@ -88,6 +89,7 @@
         </template>
       </template>
     </a-table>
+    </div>
 
     <!-- 新增弹窗 -->
     <a-modal
@@ -414,10 +416,20 @@ onMounted(() => {
   height: 100%;
 }
 .qa-toolbar {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
   margin-bottom: 12px;
+}
+/* qa-table-wrap 滚动区：toolbar 固定不滚，表格 + 分页 在此区域滚动；
+   overflow-x:hidden 禁掉横向滚动条；padding-right 让分页与垂直滚动条之间留出呼吸距离 */
+.qa-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 8px;
 }
 .qa-search {
   width: 220px;

@@ -1,7 +1,7 @@
 <template>
   <div class="workflow-toolbar">
-    <button class="btn-back" @click="$emit('back')">
-      <ArrowLeftOutlined /> 返回
+    <button type="button" class="page-back-icon" title="返回" @click="$emit('back')">
+      <ArrowLeftOutlined />
     </button>
     <a-tag v-if="workflowStatus === 'draft'" color="orange" class="publish-tag">{{ getStatusLabel('draft') }}</a-tag>
     <a-tag v-else-if="workflowStatus === 'published_editing'" color="gold" class="publish-tag">{{ getStatusLabel('published_editing') }}</a-tag>
@@ -127,19 +127,6 @@ defineEmits([
   flex-shrink: 0;
 }
 .publish-tag { flex-shrink: 0; }
-.btn-back {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 8px 16px;
-  background: transparent;
-  border: 1px solid var(--color-hairline);
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 14px;
-  color: var(--color-text-dark);
-}
-.btn-back:hover { background: var(--color-canvas-soft); }
 .workflow-title {
   font-size: 16px;
   font-weight: 600;

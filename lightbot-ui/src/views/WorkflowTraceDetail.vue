@@ -1,16 +1,11 @@
 <template>
-  <div class="workflow-trace-detail">
+  <div class="detail-page">
     <LbDetailHeader
       title="工作流链路详情"
       :breadcrumb="[{ label: '工作流追踪', onClick: () => router.back() }]"
-      :icon="ApartmentOutlined"
+      slim
       @back="router.back()"
     >
-      <template v-if="trace" #tags>
-        <a-tag :color="traceStatusColor(trace.status)">
-          {{ traceStatusLabel(trace.status) }}
-        </a-tag>
-      </template>
       <template #extra>
         <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
           <a-radio-button value="graph"><ApartmentOutlined /> 图</a-radio-button>
@@ -19,16 +14,24 @@
       </template>
     </LbDetailHeader>
 
-    <!-- 基本信息栏 -->
-    <div v-if="trace" class="trace-info-bar">
+    <div class="detail-page__body">
+    <!-- 基本信息卡片：状态 + Agent + 耗时 + Token + Request ID 一块展示 -->
+    <div v-if="trace" class="trace-info-card">
+      <div class="info-status">
+        <span class="status-dot" :class="trace.status"></span>
+        <span class="status-text">{{ traceStatusLabel(trace.status) }}</span>
+      </div>
+      <div class="info-divider"></div>
       <div class="info-item">
         <span class="info-label">Agent</span>
         <span class="info-val">{{ trace.agentName || '-' }}</span>
       </div>
+      <div class="info-divider"></div>
       <div class="info-item">
         <span class="info-label">耗时</span>
         <span class="info-val">{{ formatDuration(trace.totalDurationMs) }}</span>
       </div>
+      <div class="info-divider"></div>
       <div class="info-item">
         <span class="info-label">Token</span>
         <span class="info-val">
@@ -37,6 +40,7 @@
           <span class="token-output">出 {{ trace.outputTokens ?? 0 }}</span>
         </span>
       </div>
+      <div v-if="trace.requestId" class="info-divider"></div>
       <div v-if="trace.requestId" class="info-item">
         <span class="info-label">Request ID</span>
         <span class="info-val rid-text">{{ trace.requestId }}</span>
@@ -80,7 +84,7 @@
             @pane-click="selectedNodeId = null"
           />
         </div>
-        <div v-else class="graph-empty-hint">暂无工作流图快照，请切换到文本模式查看节点详情</div>
+        <div v-else-if="!loading" class="graph-empty-hint">暂无工作流图快照，请切换到文本模式查看节点详情</div>
 
         <!-- 节点详情：与编排页一致的只读配置面板 + 本次执行结果 -->
         <ResizableSidePanel
@@ -166,6 +170,7 @@
         </div>
       </div>
     </a-spin>
+    </div>
   </div>
 </template>
 
@@ -507,24 +512,44 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.workflow-trace-detail {
-  padding: 20px 24px;
-  height: 100%;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Info bar */
-.trace-info-bar {
+/* 基本信息卡片：状态 + Agent + 耗时 + Token + Request ID 统一展示 */
+.trace-info-card {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px 24px;
-  padding: 12px 16px;
-  background: var(--color-canvas-soft);
+  align-items: center;
+  gap: 12px 16px;
+  padding: 14px 20px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
   border-radius: 8px;
   margin-bottom: 16px;
+}
+.info-status {
+  display: inline-flex;
   align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--color-mute);
+}
+.status-dot.completed { background: #52c41a; box-shadow: 0 0 4px rgba(82, 196, 26, 0.4); }
+.status-dot.failed { background: #ff4d4f; box-shadow: 0 0 4px rgba(255, 77, 79, 0.4); }
+.status-dot.running,
+.status-dot.processing { background: #1890ff; box-shadow: 0 0 4px rgba(24, 144, 255, 0.4); }
+.status-text {
+  color: var(--color-ink);
+}
+.info-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-hairline);
 }
 .info-item {
   display: flex;
@@ -537,6 +562,7 @@ onUnmounted(() => {
 }
 .info-val {
   font-size: 13px;
+  color: var(--color-ink);
 }
 .rid-text {
   font-family: 'Geist Mono', Menlo, monospace;
@@ -567,8 +593,9 @@ onUnmounted(() => {
   font-size: 13px;
 }
 .user-question-section {
-  border-color: var(--color-border-blue);
-  background: var(--color-info-bg);
+  background: transparent;
+  padding: 0;
+  border: none;
 }
 .user-question-text {
   font-size: 14px;

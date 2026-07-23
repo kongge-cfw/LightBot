@@ -1,10 +1,9 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
-      :title="dataset?.name || '评测集详情'"
+      :title="dataset?.name || ''"
+      :desc="dataset?.description"
       :breadcrumb="[{ label: '评测集', onClick: () => router.back() }]"
-      :icon="DatabaseOutlined"
-      icon-bg="knowledge"
       @back="router.back()"
     >
       <template #extra>
@@ -17,6 +16,7 @@
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <div class="content-grid">
       <!-- 左侧：数据项列表 -->
       <div class="panel">
@@ -86,6 +86,7 @@
           <div v-if="versions.length === 0" class="item-empty">暂无版本</div>
         </div>
       </div>
+    </div>
     </div>
 
     <!-- 新建版本弹窗 -->
@@ -348,13 +349,6 @@ function truncate(str, len) {
 </script>
 
 <style scoped>
-.page {
-  padding: 20px calc(24px + var(--scroll-content-gap)) 20px 24px;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
-}
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -449,6 +443,7 @@ function truncate(str, len) {
   display: grid;
   grid-template-columns: 3fr 2fr;
   gap: 16px;
+  height: 100%;
 }
 .panel {
   background: var(--color-canvas);

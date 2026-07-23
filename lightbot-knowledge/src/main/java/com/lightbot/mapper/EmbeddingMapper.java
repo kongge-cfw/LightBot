@@ -22,10 +22,13 @@ public interface EmbeddingMapper extends BaseMapper<Embedding> {
      * 设置 HNSW ef_search 参数（仅对当前事务生效）
      * <p>提升召回率：ef_search=100 约增加 10-20ms 延迟，召回率从 ~90% 提升到 ~98%。
      * 参数透传：由调用方按 query_params.hnsw_ef_search 决定值，默认 100</p>
+     * <p>注意：PostgreSQL 的 SET LOCAL 不支持 JDBC 参数绑定（$1 在 SET 上下文是语法错误），
+     * 必须用 ${} 字面量内联。efSearch 是 int 类型且调用方已 clamp 到 [topK, 1000] 区间，
+     * 数字字面量无 SQL 注入风险。</p>
      *
      * @param efSearch HNSW 检索时的 ef 取值（取值范围 [topK, 1000]）
      */
-    @Select("SET LOCAL hnsw.ef_search = #{efSearch}")
+    @Select("SET LOCAL hnsw.ef_search = ${efSearch}")
     void setHnswEfSearch(@Param("efSearch") int efSearch);
 
     /**

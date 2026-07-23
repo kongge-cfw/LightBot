@@ -1,9 +1,9 @@
 <template>
-  <div class="page">
+  <div class="detail-page">
     <LbDetailHeader
       :title="promptKey"
+      :desc="prompt?.description"
       :breadcrumb="[{ label: 'Prompts', onClick: () => router.back() }]"
-      :icon="FileTextOutlined"
       @back="router.back()"
     >
       <template #tags>
@@ -11,15 +11,16 @@
         <LbTagList v-if="prompt?.tags" :tags="prompt.tags" />
       </template>
       <template #extra>
-        <button class="lb-btn lb-btn--sm" @click="router.push(`/app/prompts/${promptKey}/versions`)">
+        <button class="lb-btn" @click="router.push(`/app/prompts/${promptKey}/versions`)">
           <HistoryOutlined /> 版本记录
         </button>
-        <button class="lb-btn lb-btn--sm lb-btn--primary" @click="openVersionDialog()">
+        <button class="lb-btn lb-btn--primary" @click="openVersionDialog()">
           <CloudUploadOutlined /> 发布版本
         </button>
       </template>
     </LbDetailHeader>
 
+    <div class="detail-page__body">
     <!-- 配置实例网格 -->
     <a-spin :spinning="pageLoading">
     <div class="instances-grid" :class="'cols-' + instances.length">
@@ -218,6 +219,7 @@
       </div>
     </div>
     </a-spin>
+    </div>
 
     <!-- 从模板导入弹窗 -->
     <TemplateImportModalLR
@@ -609,14 +611,6 @@ function scrollToBottom(inst) {
 </script>
 
 <style scoped>
-.page {
-  padding: 20px calc(24px + var(--scroll-content-gap)) 20px 24px;
-  min-height: 100vh;
-  height: 100vh;
-  overflow-y: auto;
-  background: var(--color-canvas-soft);
-  scrollbar-gutter: stable;
-}
 .version-badge {
   display: inline-flex;
   align-items: center;
