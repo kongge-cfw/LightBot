@@ -1,16 +1,16 @@
 <template>
-  <div class="detail-page">
+  <div v-if="knowledge && docPagination && typeof askRag === 'function'" class="detail-page">
     <LbDetailHeader
-      :title="knowledge.name"
-      :desc="knowledge.description"
+      :title="knowledge?.name"
+      :desc="knowledge?.description"
       :breadcrumb="[{ label: '知识库', onClick: () => router.push('/app/knowledge') }]"
       @back="router.push('/app/knowledge')"
     >
       <template #tags>
-        <a-tag v-if="knowledge.type" color="blue">
+        <a-tag v-if="knowledge?.type" color="blue">
           {{ knowledge.type === 'milvus' ? 'Milvus' : 'PostgreSQL' }}
         </a-tag>
-        <a-tag v-if="knowledge.type === 'milvus'" :color="milvusConnected ? 'success' : 'default'">
+        <a-tag v-if="knowledge?.type === 'milvus'" :color="milvusConnected ? 'success' : 'default'">
           {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
         </a-tag>
       </template>
@@ -25,19 +25,19 @@
             <LoadingOutlined v-if="statsRepairing" spin class="kb-stat-icon-loading" />
             <span class="kb-stat-item">
               <FileTextOutlined />
-              <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
+              <span class="kb-stat-value">{{ knowledge?.documentCount || 0 }}</span>
               <span class="kb-stat-label">文档</span>
             </span>
             <span class="kb-stat-divider"></span>
             <span class="kb-stat-item">
               <BlockOutlined />
-              <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
+              <span class="kb-stat-value">{{ knowledge?.chunkCount || 0 }}</span>
               <span class="kb-stat-label">分片</span>
             </span>
             <span class="kb-stat-divider"></span>
             <span class="kb-stat-item">
               <FontColorsOutlined />
-              <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
+              <span class="kb-stat-value">{{ formatTokenCount(knowledge?.totalTokens) }}</span>
               <span class="kb-stat-label">Token</span>
             </span>
           </button>
@@ -54,12 +54,30 @@
     </LbDetailHeader>
 
     <div class="detail-page__body">
-    <div class="content-grid">
-      <!-- 文档列表 -->
-      <div class="panel">
-        <div class="panel-header">
-          <h3>文档列表</h3>
-          <div class="panel-header-actions">
+      <!-- 顶置 Tab 栏：文档 / 检索测试 / 思维导图 / 知识图谱 / 问答对 / RAG评估 / 评估基准 / 反馈调优 -->
+      <nav class="kb-tab-bar" aria-label="知识库功能导航">
+        <div class="kb-tab-list" role="tablist">
+          <button
+            v-for="tab in kbTabs"
+            :key="tab.key"
+            type="button"
+            class="kb-tab-item"
+            :class="{ active: activeTab === tab.key }"
+            role="tab"
+            :aria-selected="activeTab === tab.key"
+            @click="activeTab = tab.key"
+          >
+            <component :is="tab.icon" :size="16" />
+            <span>{{ tab.label }}</span>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Tab 内容区：v-show 切换保留各 tab 状态；重型组件用 tabMounted 首次延迟挂载后不再卸载 -->
+      <main class="kb-tab-content">
+        <!-- 文档 Tab -->
+        <div v-show="activeTab === 'docs'" class="kb-tab-pane">
+          <div class="doc-toolbar">
             <a-input
               v-model:value="docSearch"
               placeholder="搜索文档名称..."
@@ -76,213 +94,258 @@
                 <ReloadOutlined :spin="docLoading" />
               </button>
             </a-tooltip>
-            <button class="btn-primary-sm" @click="openUploadModal">上传文档</button>
+            <div class="doc-toolbar-spacer"></div>
+            <button class="btn-primary-sm" @click="openUploadModal">
+              <UploadOutlined /> 上传文档
+            </button>
           </div>
-        </div>
-        <a-spin :spinning="docLoading">
-        <div class="doc-list" :class="{ 'doc-list-min': docLoading }">
-          <div v-for="doc in documents" :key="doc.id" class="doc-item" @click="openDocModal(doc)">
-            <a-tooltip :title="statusText(doc.status?.code || doc.status)">
-              <span class="doc-status-icon" :class="doc.status?.code || doc.status">
-                <CheckCircleOutlined v-if="(doc.status?.code || doc.status) === 'completed'" />
-                <SyncOutlined v-else-if="(doc.status?.code || doc.status) === 'uploading' || (doc.status?.code || doc.status) === 'pending' || (doc.status?.code || doc.status) === 'processing'" spin />
-                <CloseCircleOutlined v-else-if="(doc.status?.code || doc.status) === 'failed'" />
-                <ExclamationCircleOutlined v-else />
-              </span>
-            </a-tooltip>
-            <FileTypeIcon :name="doc.name" :size="16" class="doc-file-icon" />
-            <a-tooltip :title="doc.name" placement="topLeft">
-              <span class="doc-name">{{ doc.name }}</span>
-            </a-tooltip>
-            <div class="doc-meta">
-              <a-tooltip v-if="duplicateThreshold > 0 && doc.duplicateRate != null && doc.duplicateRate >= duplicateThreshold" :title="`内容重复率 ${(doc.duplicateRate * 100).toFixed(1)}%，超过阈值 ${(duplicateThreshold * 100).toFixed(0)}%`">
-                <a-tag color="orange" class="doc-dup-tag">重复 {{ (doc.duplicateRate * 100).toFixed(0) }}%</a-tag>
-              </a-tooltip>
-              <span v-if="doc.chunkCount" class="doc-chunk-count">{{ doc.chunkCount }} 分块</span>
-              <a-tooltip title="入库" v-if="(doc.status?.code || doc.status) === 'uploaded' || (doc.status?.code || doc.status) === 'failed'">
-                <button class="doc-icon-btn" @click.stop="openIngestModal(doc)"><UploadOutlined /></button>
-              </a-tooltip>
-              <a-tooltip title="重新入库" v-if="(doc.status?.code || doc.status) === 'completed'">
-                <button class="doc-icon-btn" @click.stop="openIngestModal(doc)"><RedoOutlined /></button>
-              </a-tooltip>
-              <a-tooltip v-if="isUrlDocument(doc)" title="同步最新内容">
-                <button class="doc-icon-btn" :disabled="doc._syncing" @click.stop="handleSyncUrl(doc)">
-                  <SyncOutlined :spin="doc._syncing" />
-                </button>
-              </a-tooltip>
-              <a-tooltip title="删除">
-                <button class="doc-icon-btn danger" @click.stop="deleteDoc(doc.id)"><DeleteOutlined /></button>
-              </a-tooltip>
-              <!-- URL 文档同步信息 -->
-              <span v-if="isUrlDocument(doc)" class="doc-sync-info">
-                <a-tag v-if="getSyncIntervalLabel(doc)" size="small" :color="getSyncIntervalLabel(doc) === '手动' ? 'default' : 'blue'">
-                  {{ getSyncIntervalLabel(doc) }}
-                </a-tag>
-              </span>
-            </div>
-          </div>
-          <div v-if="documents.length === 0" class="doc-empty">
-            {{ docSearch.trim() ? '未找到匹配文档' : '暂无文档' }}
-          </div>
-        </div>
-        </a-spin>
-        <div v-if="docPagination.total > 0" class="doc-pagination">
-          <a-pagination
-            v-model:current="docPagination.current"
-            :page-size="docPagination.pageSize"
-            :total="docPagination.total"
-            size="small"
-            show-less-items
-            :show-total="(total) => `共 ${total} 条`"
-            @change="loadDocuments"
-          />
-        </div>
-      </div>
-
-      <!-- 检索测试 + 思维导图 -->
-      <div class="panel">
-        <a-tabs v-model:activeKey="activeTab">
-          <a-tab-pane key="ask" tab="检索测试">
-            <div class="rag-section">
-              <div class="rag-messages" ref="ragRef">
-                <template v-for="(turn, ti) in ragHistory" :key="ti">
-                  <!-- 用户提问 -->
-                  <div class="rag-msg user">
-                    <div class="rag-content">{{ turn.question }}</div>
-                  </div>
-                  <!-- 加载中 -->
-                  <div v-if="turn.loading" class="rag-msg assistant">
-                    <LoadingOutlined spin /> 检索中...
-                  </div>
-                  <!-- 检索结果摘要 -->
-                  <template v-else>
-                    <div v-if="turn.results.length > 0" class="rag-msg assistant">
-                      检索到 {{ turn.results.length }} 条结果
-                      <template v-if="turn.results.some(r => r.resultType === 'qa_pair')">
-                        （含 {{ turn.results.filter(r => r.resultType === 'qa_pair').length }} 条问答对）
-                      </template>
-                    </div>
-                    <div v-else class="rag-msg assistant">
-                      未检索到相关内容
-                    </div>
-                    <!-- 文档块列表 -->
-                    <div v-for="(item, i) in turn.results" :key="'chunk-' + ti + '-' + i" class="chunk-result-card">
-                      <div class="chunk-result-header">
-                        <span class="chunk-rank">#{{ item.rank }}</span>
-                        <a-tag v-if="item.resultType === 'qa_pair'" color="blue" size="small">问答对</a-tag>
-                        <span v-else class="chunk-source">{{ item.documentName }}</span>
-                        <span class="chunk-score">相似度 {{ (item.score * 100).toFixed(1) }}%</span>
-                      </div>
-                      <div class="chunk-result-content">{{ item.content }}</div>
-                    </div>
-                  </template>
-                </template>
-              </div>
-              <div class="rag-input">
-                <input
-                  v-model="ragQuestion"
-                  placeholder="输入测试问题..."
-                  @keydown.enter="askRag"
-                />
-                <a-tooltip title="检索配置">
-                  <button class="btn-outline-sm" @click="queryParamsModalRef?.open()">
-                    <SettingOutlined />
-                  </button>
-                </a-tooltip>
-                <button class="btn-primary-sm" :disabled="!ragQuestion.trim() || ragLoading" @click="askRag">
-                  <SearchOutlined v-if="!ragLoading" />
-                  <LoadingOutlined v-else spin />
-                </button>
-              </div>
-              <!-- 示例问题轮播 / 空状态引导 -->
-              <div v-if="exampleQuestions.length > 0" class="example-questions">
-                <span class="example-question-label">试试问</span>
-                <transition name="fade" mode="out-in">
-                  <a-tooltip :title="exampleQuestions[questionRotateIndex]" :overlay-style="{ maxWidth: '400px' }">
-                    <span
-                      :key="questionRotateIndex"
-                      class="example-question-text"
-                      @click="ragQuestion = exampleQuestions[questionRotateIndex]"
-                    >
-                      {{ exampleQuestions[questionRotateIndex] }}
+          <a-table
+            :columns="docColumns"
+            :data-source="documents"
+            :loading="docLoading"
+            :pagination="false"
+            row-key="id"
+            size="middle"
+            class="doc-table"
+            :custom-row="(doc) => ({ onClick: () => openDocModal(doc), style: { cursor: 'pointer' } })"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'name'">
+                <div class="doc-name-cell">
+                  <FileTypeIcon :name="record.name" :size="16" class="doc-file-icon" />
+                  <a-tooltip :title="record.name" placement="topLeft">
+                    <span class="doc-name-text">{{ record.name }}</span>
+                  </a-tooltip>
+                  <a-tag
+                    v-if="duplicateThreshold > 0 && record.duplicateRate != null && record.duplicateRate >= duplicateThreshold"
+                    color="orange"
+                    class="doc-dup-tag"
+                  >
+                    <a-tooltip :title="`内容重复率 ${(record.duplicateRate * 100).toFixed(1)}%，超过阈值 ${(duplicateThreshold * 100).toFixed(0)}%`">
+                      重复 {{ (record.duplicateRate * 100).toFixed(0) }}%
+                    </a-tooltip>
+                  </a-tag>
+                  <a-tag
+                    v-if="isUrlDocument(record) && getSyncIntervalLabel(record)"
+                    size="small"
+                    :color="getSyncIntervalLabel(record) === '手动' ? 'default' : 'blue'"
+                    class="doc-sync-tag"
+                  >
+                    {{ getSyncIntervalLabel(record) }}
+                  </a-tag>
+                </div>
+              </template>
+              <template v-else-if="column.key === 'size'">
+                <span class="doc-muted">{{ record.fileSize ? formatFileSize(record.fileSize) : '-' }}</span>
+              </template>
+              <template v-else-if="column.key === 'chunks'">
+                <span class="doc-muted">{{ record.chunkCount ?? '-' }}</span>
+              </template>
+              <template v-else-if="column.key === 'status'">
+                <div class="doc-status-cell">
+                  <a-tooltip :title="statusText(record.status?.code || record.status)">
+                    <span class="doc-status-icon" :class="record.status?.code || record.status">
+                      <CheckCircleOutlined v-if="(record.status?.code || record.status) === 'completed'" />
+                      <SyncOutlined v-else-if="(record.status?.code || record.status) === 'uploading' || (record.status?.code || record.status) === 'pending' || (record.status?.code || record.status) === 'processing'" spin />
+                      <CloseCircleOutlined v-else-if="(record.status?.code || record.status) === 'failed'" />
+                      <ExclamationCircleOutlined v-else />
                     </span>
                   </a-tooltip>
-                </transition>
-              </div>
-              <div v-else-if="ragHistory.length === 0" class="example-questions">
-                <div class="example-questions-hint">
-                  暂无示例问题，<a @click="handleGenerateQuestions" :disabled="editQuestionLoading">点击生成示例问题</a>
+                  <span class="doc-status-text">{{ statusText(record.status?.code || record.status) }}</span>
                 </div>
-              </div>
-            </div>
-          </a-tab-pane>
-          <a-tab-pane key="mindmap" tab="思维导图">
-            <div v-if="activeTab === 'mindmap'" class="rag-section">
-              <div v-if="mindmapData" class="mindmap-container">
-                <svg ref="mindmapSvgRef" class="mindmap-svg"></svg>
-                <div v-if="mindmapLoading" class="mindmap-loading-mask">
-                  <a-spin tip="重新生成中..." />
+              </template>
+              <template v-else-if="column.key === 'updateTime'">
+                <span class="doc-muted">{{ formatDateTime(record.updateTime) }}</span>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <div class="doc-action-cell" @click.stop>
+                  <a-tooltip v-if="(record.status?.code || record.status) === 'uploaded' || (record.status?.code || record.status) === 'failed'" title="入库">
+                    <button class="doc-icon-btn" @click="openIngestModal(record)"><UploadOutlined /></button>
+                  </a-tooltip>
+                  <a-tooltip v-if="(record.status?.code || record.status) === 'completed'" title="重新入库">
+                    <button class="doc-icon-btn" @click="openIngestModal(record)"><RedoOutlined /></button>
+                  </a-tooltip>
+                  <a-tooltip v-if="isUrlDocument(record)" title="同步最新内容">
+                    <button class="doc-icon-btn" :disabled="record._syncing" @click="handleSyncUrl(record)">
+                      <SyncOutlined :spin="record._syncing" />
+                    </button>
+                  </a-tooltip>
+                  <a-tooltip title="删除">
+                    <button class="doc-icon-btn danger" @click="deleteDoc(record.id)"><DeleteOutlined /></button>
+                  </a-tooltip>
                 </div>
-                <div class="mindmap-actions">
-                  <button class="btn-primary-sm" :disabled="mindmapLoading" @click="handleGenerateMindmap">
-                    {{ mindmapLoading ? '生成中...' : '重新生成' }}
-                  </button>
+              </template>
+            </template>
+            <template #emptyText>
+              <div class="doc-empty">{{ docSearch.trim() ? '未找到匹配文档' : '暂无文档' }}</div>
+            </template>
+          </a-table>
+          <div v-if="docPagination?.total > 0" class="doc-pagination">
+            <a-pagination
+              :current="docPagination.current"
+              :page-size="docPagination.pageSize"
+              :total="docPagination.total"
+              size="small"
+              show-less-items
+              show-size-changer
+              :page-size-options="['10', '20', '50', '100']"
+              :show-total="(total) => `共 ${total} 条`"
+              @change="onDocPageChange"
+              @show-size-change="onDocPageSizeChange"
+            />
+          </div>
+        </div>
+
+        <!-- 检索测试 Tab -->
+        <div v-show="activeTab === 'ask'" class="kb-tab-pane">
+          <div class="rag-section">
+            <div class="rag-messages" ref="ragRef">
+              <template v-for="(turn, ti) in ragHistory" :key="ti">
+                <div class="rag-msg user">
+                  <div class="rag-content">{{ turn.question }}</div>
                 </div>
-              </div>
-              <div v-else class="mindmap-empty">
-                <a-spin
-                  v-if="mindmapFetching || mindmapLoading"
-                  :tip="mindmapLoading ? 'AI 生成中，预计 10-30 秒...' : '加载中...'"
-                />
-                <template v-else-if="documents.length === 0">
-                  <p>请先上传文档后再生成思维导图</p>
-                </template>
+                <div v-if="turn.loading" class="rag-msg assistant">
+                  <LoadingOutlined spin /> 检索中...
+                </div>
                 <template v-else>
-                  <p>暂无思维导图，点击下方按钮 AI 自动生成</p>
-                  <button class="btn-primary-sm" @click="handleGenerateMindmap">生成思维导图</button>
+                  <div v-if="turn.results.length > 0" class="rag-msg assistant">
+                    检索到 {{ turn.results.length }} 条结果
+                    <template v-if="turn.results.some(r => r.resultType === 'qa_pair')">
+                      （含 {{ turn.results.filter(r => r.resultType === 'qa_pair').length }} 条问答对）
+                    </template>
+                  </div>
+                  <div v-else class="rag-msg assistant">
+                    未检索到相关内容
+                  </div>
+                  <div v-for="(item, i) in turn.results" :key="'chunk-' + ti + '-' + i" class="chunk-result-card">
+                    <div class="chunk-result-header">
+                      <span class="chunk-rank">#{{ item.rank }}</span>
+                      <a-tag v-if="item.resultType === 'qa_pair'" color="blue" size="small">问答对</a-tag>
+                      <span v-else class="chunk-source">{{ item.documentName }}</span>
+                      <span class="chunk-score">相似度 {{ (item.score * 100).toFixed(1) }}%</span>
+                    </div>
+                    <div class="chunk-result-content">{{ item.content }}</div>
+                  </div>
                 </template>
-              </div>
+              </template>
             </div>
-          </a-tab-pane>
-          <a-tab-pane key="eval" tab="RAG 评估">
-            <div class="rag-section">
-              <RAGEvaluationTab ref="evalTabRef" :knowledge-id="knowledgeId" />
-            </div>
-          </a-tab-pane>
-          <a-tab-pane key="benchmarks" tab="评估基准">
-            <div class="rag-section">
-              <EvaluationBenchmarks ref="benchmarksTabRef" :knowledge-id="knowledgeId" :doc-total="docPagination.total" />
-            </div>
-          </a-tab-pane>
-          <a-tab-pane key="knowledge-graph" tab="知识图谱">
-            <div v-if="activeTab === 'knowledge-graph'" class="rag-section">
-              <KnowledgeGraphTab :knowledge-id="knowledgeId" :doc-total="docPagination.total" />
-            </div>
-          </a-tab-pane>
-          <a-tab-pane key="advisor" tab="反馈调优">
-            <div v-if="activeTab === 'advisor'" class="rag-section">
-              <KnowledgeAdvisorTab :knowledge-id="knowledgeId" />
-            </div>
-          </a-tab-pane>
-          <a-tab-pane key="qa-pairs" tab="问答对">
-            <div class="rag-section" style="position: relative;">
-              <QAPairsTab
-                ref="qaPairsTabRef"
-                :knowledge-id="knowledgeId"
-                :doc-total="docPagination.total"
-                :qa-enabled="qaEnabled"
+            <div class="rag-input">
+              <input
+                v-model="ragQuestion"
+                placeholder="输入测试问题..."
+                @keydown="onRagKeydown"
               />
-              <div v-if="!qaEnabled" class="qa-disabled-mask">
-                <div class="qa-disabled-content">
-                  <p>问答对检索未启用</p>
-                  <button class="btn-primary-sm" @click="queryParamsModalRef?.open()">前往检索配置开启</button>
-                </div>
+              <a-tooltip title="检索配置">
+                <button class="btn-outline-sm" @click="queryParamsModalRef?.open()">
+                  <SettingOutlined />
+                </button>
+              </a-tooltip>
+              <button class="btn-primary-sm" :disabled="!ragQuestion.trim() || ragLoading" @click="askRag">
+                <SearchOutlined v-if="!ragLoading" />
+                <LoadingOutlined v-else spin />
+              </button>
+            </div>
+            <div v-if="exampleQuestions.length > 0" class="example-questions">
+              <span class="example-question-label">试试问</span>
+              <a-tooltip
+                :title="exampleTruncated ? exampleQuestions[questionRotateIndex] : undefined"
+                placement="top"
+                :overlay-style="{ maxWidth: '400px' }"
+              >
+                <span
+                  ref="exampleSpanRef"
+                  :key="questionRotateIndex"
+                  class="example-question-text example-question-fade"
+                  @click="ragQuestion = exampleQuestions[questionRotateIndex]"
+                >
+                  {{ exampleQuestions[questionRotateIndex] }}
+                </span>
+              </a-tooltip>
+            </div>
+            <div v-else-if="ragHistory.length === 0" class="example-questions">
+              <div class="example-questions-hint">
+                暂无示例问题，<a @click="handleGenerateQuestions" :disabled="editQuestionLoading">点击生成示例问题</a>
               </div>
             </div>
-          </a-tab-pane>
-        </a-tabs>
-      </div>
-    </div>
+          </div>
+        </div>
+
+        <!-- 思维导图 Tab -->
+        <div v-show="activeTab === 'mindmap'" class="kb-tab-pane">
+          <div class="rag-section">
+            <div v-if="mindmapData" class="mindmap-container">
+              <svg ref="mindmapSvgRef" class="mindmap-svg"></svg>
+              <div v-if="mindmapLoading" class="mindmap-loading-mask">
+                <a-spin tip="重新生成中..." />
+              </div>
+              <div class="mindmap-actions">
+                <button class="btn-primary-sm" :disabled="mindmapLoading" @click="handleGenerateMindmap">
+                  {{ mindmapLoading ? '生成中...' : '重新生成' }}
+                </button>
+              </div>
+            </div>
+            <div v-else class="mindmap-empty">
+              <a-spin
+                v-if="mindmapFetching || mindmapLoading"
+                :tip="mindmapLoading ? 'AI 生成中，预计 10-30 秒...' : '加载中...'"
+              />
+              <template v-else-if="documents.length === 0">
+                <p>请先上传文档后再生成思维导图</p>
+              </template>
+              <template v-else>
+                <p>暂无思维导图，点击下方按钮 AI 自动生成</p>
+                <button class="btn-primary-sm" @click="handleGenerateMindmap">生成思维导图</button>
+              </template>
+            </div>
+          </div>
+        </div>
+
+        <!-- 知识图谱 Tab（首次切到才挂载） -->
+        <div v-show="activeTab === 'knowledge-graph'" class="kb-tab-pane">
+          <div v-if="tabMounted['knowledge-graph']" class="rag-section">
+            <KnowledgeGraphTab :knowledge-id="knowledgeId" :doc-total="docPagination?.total" />
+          </div>
+        </div>
+
+        <!-- 问答对 Tab（首次切到才挂载） -->
+        <div v-show="activeTab === 'qa-pairs'" class="kb-tab-pane">
+          <div v-if="tabMounted['qa-pairs']" class="rag-section" style="position: relative;">
+            <QAPairsTab
+              ref="qaPairsTabRef"
+              :knowledge-id="knowledgeId"
+              :doc-total="docPagination?.total"
+              :qa-enabled="qaEnabled"
+            />
+            <div v-if="!qaEnabled" class="qa-disabled-mask">
+              <div class="qa-disabled-content">
+                <p>问答对检索未启用</p>
+                <button class="btn-primary-sm" @click="queryParamsModalRef?.open()">前往检索配置开启</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- RAG 评估 Tab（首次切到才挂载） -->
+        <div v-show="activeTab === 'eval'" class="kb-tab-pane">
+          <div v-if="tabMounted['eval']" class="rag-section">
+            <RAGEvaluationTab ref="evalTabRef" :knowledge-id="knowledgeId" />
+          </div>
+        </div>
+
+        <!-- 评估基准 Tab（首次切到才挂载） -->
+        <div v-show="activeTab === 'benchmarks'" class="kb-tab-pane">
+          <div v-if="tabMounted['benchmarks']" class="rag-section">
+            <EvaluationBenchmarks ref="benchmarksTabRef" :knowledge-id="knowledgeId" :doc-total="docPagination?.total" />
+          </div>
+        </div>
+
+        <!-- 反馈调优 Tab（首次切到才挂载） -->
+        <div v-show="activeTab === 'advisor'" class="kb-tab-pane">
+          <div v-if="tabMounted['advisor']" class="rag-section">
+            <KnowledgeAdvisorTab :knowledge-id="knowledgeId" />
+          </div>
+        </div>
+      </main>
     </div>
 
     <!-- 文档预览/分块弹窗：bodyStyle padding:0 让 tabs-nav 通栏背景色填满；
@@ -967,7 +1030,7 @@
     <QueryParamsModal
       ref="queryParamsModalRef"
       :knowledge-id="knowledgeId"
-      :knowledge-type="knowledge.type || 'pg'"
+      :knowledge-type="knowledge?.type || 'pg'"
       @apply="onQueryParamsApply"
       @qa-change="onQaChange"
     />
@@ -1006,6 +1069,9 @@
       </div>
     </a-modal>
   </div>
+  <div v-else class="detail-page detail-page--loading">
+    <div class="detail-page-loading-text">知识库加载中...</div>
+  </div>
 </template>
 
 <script setup>
@@ -1024,6 +1090,9 @@ import {
   FileTextOutlined, BlockOutlined, FontColorsOutlined,
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
+import {
+  FileText, Search, Map as MapIcon, Network, MessagesSquare, BarChart3, ClipboardList, Lightbulb,
+} from 'lucide-vue-next'
 import {
   getKnowledge, updateKnowledge, getDocuments, uploadDocument, uploadDocuments, deleteDocument,
   previewDocument, getDocumentDownloadUrl, getChunks, searchKnowledge,
@@ -1090,6 +1159,20 @@ function refreshDocuments() {
   loadDocuments()
 }
 
+// 切换页码：同步 current/pageSize 后拉取
+function onDocPageChange(page, pageSize) {
+  docPagination.current = page
+  docPagination.pageSize = pageSize
+  loadDocuments()
+}
+
+// 切换每页条数：回到第 1 页 + 按新 pageSize 拉取
+function onDocPageSizeChange(current, size) {
+  docPagination.pageSize = size
+  docPagination.current = 1
+  loadDocuments()
+}
+
 const strategyLabelMap = {
   general: '通用分块', book: '书籍分块', separator: '严格分隔', qa: '问答对分块', laws: '法规分块',
 }
@@ -1105,7 +1188,38 @@ const duplicateThreshold = computed(() => {
     return cfg.duplicateDetectionEnabled ? (cfg.duplicateThreshold ?? 0.8) : -1
   } catch { return -1 }
 })
-const activeTab = ref('ask')
+const activeTab = ref('docs')
+// 各 tab 是否已挂载过：重型组件（图谱/问答对/评估/基准/反馈调优）首次切到才挂载，之后保留状态不卸载
+const tabMounted = reactive({
+  docs: true,
+  ask: false,
+  mindmap: false,
+  'knowledge-graph': false,
+  'qa-pairs': false,
+  eval: false,
+  benchmarks: false,
+  advisor: false,
+})
+// 顶置 Tab 栏配置：顺序按使用频率，docs 默认激活
+const kbTabs = [
+  { key: 'docs', label: '文档', icon: FileText },
+  { key: 'ask', label: '检索测试', icon: Search },
+  { key: 'mindmap', label: '思维导图', icon: MapIcon },
+  { key: 'knowledge-graph', label: '知识图谱', icon: Network },
+  { key: 'qa-pairs', label: '问答对', icon: MessagesSquare },
+  { key: 'eval', label: 'RAG 评估', icon: BarChart3 },
+  { key: 'benchmarks', label: '评估基准', icon: ClipboardList },
+  { key: 'advisor', label: '反馈调优', icon: Lightbulb },
+]
+// 文档表格列定义：名称（含重复率标签）/ 大小 / 分块 / 状态 / 更新时间 / 操作
+const docColumns = [
+  { title: '名称', key: 'name', dataIndex: 'name', ellipsis: true },
+  { title: '大小', key: 'size', dataIndex: 'fileSize', width: 100 },
+  { title: '分块', key: 'chunks', dataIndex: 'chunkCount', width: 80, align: 'center' },
+  { title: '状态', key: 'status', width: 140 },
+  { title: '更新时间', key: 'updateTime', dataIndex: 'updateTime', width: 170 },
+  { title: '操作', key: 'action', width: 180, align: 'center' },
+]
 const evalTabRef = ref(null)
 const benchmarksTabRef = ref(null)
 const qaPairsTabRef = ref(null)
@@ -1242,6 +1356,20 @@ const exampleQuestions = ref([])
 const exampleQuestionsLoaded = ref(false)
 const questionRotateIndex = ref(0)
 const shownQuestionIndices = ref(new Set())
+// 示例问题 span 引用：检测文本是否被省略（scrollWidth > clientWidth），
+// 仅在溢出时才给 a-tooltip 传 title，避免短文本也弹 tooltip
+const exampleSpanRef = ref(null)
+const exampleTruncated = ref(false)
+function checkExampleTruncated() {
+  const el = exampleSpanRef.value
+  exampleTruncated.value = !!el && el.scrollWidth - el.clientWidth > 1
+}
+watch(questionRotateIndex, () => {
+  nextTick(checkExampleTruncated)
+})
+watch(exampleQuestions, () => {
+  nextTick(checkExampleTruncated)
+})
 let questionRotateTimer = null
 
 function pickRandomQuestionIndex() {
@@ -1278,6 +1406,12 @@ const isManagerOrCreator = computed(() => {
 
 async function loadKnowledge() {
   const res = await getKnowledge(knowledgeId)
+  // 兜底：res.data 为 null/undefined 时（API 异常或数据被删除）保持空对象，
+  // 避免模板访问 knowledge.name 时报 "Cannot read properties of undefined"
+  if (!res.data) {
+    knowledge.value = {}
+    return
+  }
   knowledge.value = res.data
 
   // Milvus 类型知识库检查连接状态
@@ -2029,11 +2163,19 @@ async function handleSyncUrl(doc) {
 
 // ========== 检索测试 ==========
 
+function onRagKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+    e.preventDefault()
+    askRag()
+  }
+}
+
 async function askRag() {
   const q = ragQuestion.value.trim()
   if (!q || ragLoading.value) return
   ragQuestion.value = ''
   ragLoading.value = true
+
 
   const turn = reactive({ question: q, results: [], loading: true })
   ragHistory.value.push(turn)
@@ -2160,8 +2302,15 @@ async function loadMindmap() {
   }
 }
 
-// 切换到思维导图tab时才加载/重新渲染
+// 切换到对应 tab 时才挂载重型组件 / 按需加载数据
 watch(activeTab, (tab) => {
+  // 标记 tab 已挂载（触发 v-if 首次渲染，之后保留状态不再卸载）
+  if (!tabMounted[tab]) tabMounted[tab] = true
+  // 切到检索测试 tab 时重新检测示例问题是否被省略（其他 tab 下元素 display:none，尺寸为 0）
+  if (tab === 'ask') {
+    nextTick(checkExampleTruncated)
+  }
+
   if (tab === 'mindmap') {
     nextTick(() => {
       if (mindmapData.value) {
@@ -2365,6 +2514,9 @@ onMounted(async () => {
       questionRotateIndex.value = pickRandomQuestionIndex()
     }
   }, 5000)
+
+  // 窗口尺寸变化会影响示例问题是否溢出，需重新检测
+  window.addEventListener('resize', checkExampleTruncated)
 })
 
 onUnmounted(() => {
@@ -2372,6 +2524,7 @@ onUnmounted(() => {
     clearInterval(questionRotateTimer)
     questionRotateTimer = null
   }
+  window.removeEventListener('resize', checkExampleTruncated)
   stopDocPoll()
   _ingestConfigCache.clear()
   _ingestConfigCache = null
@@ -2383,6 +2536,16 @@ onUnmounted(() => {
    kb-stats-bar / content-grid / panel / rag-section 全部放弃 height-chain（flex:1 + overflow:hidden），
    改为自然高度；仅 doc-list 与 rag-messages 这种「单区域长列表」用 max-height + overflow:auto 内部滚动，
    避免页面被无限撑高。 */
+.detail-page--loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+}
+.detail-page-loading-text {
+  color: var(--color-mute);
+  font-size: 14px;
+}
 .page-header {
   display: flex;
   justify-content: space-between;
@@ -2514,95 +2677,206 @@ onUnmounted(() => {
   font-size: 14px;
 }
 
-/* 覆盖全局 .detail-page__body：本页改用 panel 内部各区域自管滚动，
-   不再页面级滚动，避免 tab 切换时 panel 高度跟随内容跳变 */
+/* 覆盖全局 .detail-page__body：顶置 Tab 栏 + 内容区内部自管滚动，
+   页面级不滚动，避免 tab 切换时高度跳变；padding 清零让 tab-bar 紧贴 header */
 .detail-page__body {
   overflow: hidden;
   height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
 }
-/* content-grid：撑满 body，两列等高（stretch）让左右 panel 高度一致且稳定 */
-.content-grid {
-  height: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 2.5fr) minmax(0, 3fr);
-  gap: 15px;
-  align-items: stretch;
-}
-/* panel：撑满 grid cell，固定高度由视口决定；overflow:hidden 让内部各区域自管滚动，
-   切换 tab 时 panel 高度不变（解决高度来回跳）。min-height:0 让 grid item 可收缩 */
-.panel {
+
+/* 顶置 Tab 栏：参考 Yuxi .database-tab-bar / .database-tab-item */
+.kb-tab-bar {
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-hairline);
   background: var(--color-canvas);
-  border: 1px solid var(--color-hairline);
-  border-radius: 8px;
-  padding: 16px;
-  min-width: 0;
+  padding: 8px 32px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.kb-tab-list {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: max-content;
+}
+.kb-tab-item {
+  position: relative;
+  min-height: 40px;
+  border: none;
+  background: transparent;
+  color: var(--color-mute);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+}
+.kb-tab-item:hover { color: var(--color-ink); }
+.kb-tab-item.active { color: var(--color-ink); }
+.kb-tab-item.active::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-link);
+  border-radius: 1px;
+}
+[data-theme="dark"] .kb-tab-item:hover,
+[data-theme="dark"] .kb-tab-item.active { color: var(--color-link); }
+
+/* Tab 内容区：独占剩余高度，内部各 tab pane 自管滚动 */
+.kb-tab-content {
+  flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  padding: 16px 32px;
 }
-.panel-header {
+.kb-tab-pane {
+  flex: 1;
+  min-height: 0;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  flex-shrink: 0;
+  flex-direction: column;
 }
-.panel-header h3 {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-ink);
-  flex-shrink: 0;
-}
-.panel-header-actions {
+
+/* 文档表格工具栏 */
+.doc-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-/* 左 panel：a-spin 包裹了 doc-list，需要突破 ant-spin wrapping 让 doc-list 拿到 flex:1 */
-.panel > :deep(.ant-spin-nested-loading) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.panel :deep(.ant-spin-container) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-/* 右 panel：ant-tabs 链路打通，让 tab pane 拿到 panel 减去 nav 的真实高度 */
-.panel > :deep(.ant-tabs) {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.panel :deep(.ant-tabs-nav) {
   margin-bottom: 12px;
   flex-shrink: 0;
 }
-.panel :deep(.ant-tabs-content-holder) {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-.panel :deep(.ant-tabs-content) {
-  height: 100%;
-}
-.panel :deep(.ant-tabs-tabpane-active) {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
+.doc-toolbar-spacer { flex: 1; }
 .doc-search-input {
-  width: 180px;
+  width: 220px;
 }
-.header-actions {
+
+/* 文档表格：让 .doc-table 自身作为滚动容器，toolbar/pagination 固定不滚 */
+.doc-table {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+/* 表头吸顶：滚动时表头跟随可视区固定 */
+.doc-table :deep(.ant-table-thead) {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-canvas-soft-2);
+}
+
+/* 表格单元格内：名称列（图标 + 文件名 + URL 同步 tag） */
+.doc-name-cell {
   display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 }
+.doc-name-cell .doc-file-icon {
+  flex-shrink: 0;
+}
+.doc-name-text {
+  font-size: 14px;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+.doc-sync-tag {
+  font-size: 11px;
+  line-height: 18px;
+  margin-right: 0;
+  flex-shrink: 0;
+}
+/* 状态列：图标 + 文字 */
+.doc-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.doc-status-text {
+  font-size: 13px;
+  color: var(--color-body);
+}
+.doc-status-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+}
+.doc-status-icon.uploading { color: #d97706; }
+.doc-status-icon.uploaded { color: var(--color-mute); }
+.doc-status-icon.pending { color: #2563eb; }
+.doc-status-icon.processing { color: #d97706; }
+.doc-status-icon.completed { color: #16a34a; }
+.doc-status-icon.failed { color: #dc2626; }
+/* 操作列按钮组 */
+.doc-action-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  justify-content: center;
+}
+.doc-muted {
+  color: var(--color-mute);
+  font-size: 13px;
+}
+.doc-dup-tag {
+  font-size: 11px;
+  line-height: 18px;
+  padding: 0 6px;
+  margin-right: 0;
+  cursor: default;
+}
+.doc-icon-btn {
+  width: 26px;
+  height: 26px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-mute);
+  font-size: 14px;
+  transition: background 0.15s, color 0.15s;
+}
+.doc-icon-btn:hover {
+  background: var(--color-canvas-soft-2);
+  color: var(--color-ink);
+}
+.doc-icon-btn.danger:hover {
+  background: var(--color-error-bg);
+  color: #dc2626;
+}
+.doc-empty {
+  text-align: center;
+  padding: 40px;
+  color: var(--color-mute);
+}
+.doc-pagination {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  flex-shrink: 0;
+}
+
 .btn-outline-sm {
   display: inline-flex;
   align-items: center;
@@ -2647,117 +2921,6 @@ onUnmounted(() => {
 :global([data-theme="dark"]) .btn-primary-sm:hover:not(:disabled) {
   background: #3f3f46;
   border-color: rgba(255, 255, 255, 0.25);
-}
-
-/* 文档列表：撑满 panel 剩余高度，超出内部滚动（不再写死 max-height，
-   panel 自身已固定视口高度，doc-list 自然在 panel 内滚动） */
-.doc-list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 8px);
-}
-.doc-list-min {
-  min-height: 0;
-}
-.doc-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--color-hairline);
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-  overflow: hidden;
-}
-.doc-item:hover {
-  border-color: var(--color-link);
-}
-.doc-item :deep(.ant-tooltip-wrapper) {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.doc-status-icon {
-  font-size: 16px;
-  flex-shrink: 0;
-  width: 20px;
-  text-align: center;
-}
-.doc-status-icon.uploading { color: #d97706; }
-.doc-status-icon.uploaded { color: var(--color-mute); }
-.doc-status-icon.pending { color: #2563eb; }
-.doc-status-icon.processing { color: #d97706; }
-.doc-status-icon.completed { color: #16a34a; }
-.doc-status-icon.failed { color: #dc2626; }
-.doc-file-icon {
-  flex-shrink: 0;
-}
-.doc-name {
-  display: block;
-  font-size: 14px;
-  line-height: 1.5;
-  color: var(--color-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.doc-chunk-count {
-  font-size: 12px;
-  color: var(--color-mute);
-  flex-shrink: 0;
-}
-.doc-dup-tag {
-  font-size: 11px;
-  line-height: 18px;
-  padding: 0 4px;
-  flex-shrink: 0;
-}
-.doc-meta {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  font-size: 13px;
-  color: var(--color-mute);
-  flex-shrink: 0;
-  margin-left: auto;
-}
-.doc-icon-btn {
-  width: 26px;
-  height: 26px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-mute);
-  font-size: 14px;
-  transition: background 0.15s, color 0.15s;
-}
-.doc-icon-btn:hover {
-  background: var(--color-canvas-soft-2);
-  color: var(--color-ink);
-}
-.doc-icon-btn.danger:hover {
-  background: var(--color-error-bg);
-  color: #dc2626;
-}
-.doc-empty {
-  text-align: center;
-  padding: 40px;
-  color: var(--color-mute);
-}
-.doc-pagination {
-  display: flex;
-  justify-content: center;
-  padding: 8px 0;
-  flex-shrink: 0;
 }
 
 /* rag-section：撑满 tab pane，让 KnowledgeGraphTab 内的 height:100% 链路拿到真实尺寸 */
@@ -2951,14 +3114,15 @@ onUnmounted(() => {
   margin-top: 4px;
 }
 
-/* 示例问题轮播过渡 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.4s ease;
+/* 示例问题轮播过渡：:key 变化触发 span 重挂载，CSS 动画跑一次淡入；
+   不用 Vue <transition> 是因为它会让外层 a-tooltip 整体卸载重建，
+   导致 tooltip 弹层闪烁、trigger 位置丢失 */
+.example-question-fade {
+  animation: example-question-fade-in 0.4s ease;
 }
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+@keyframes example-question-fade-in {
+  from { opacity: 0; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* RAG消息中的markdown样式 */

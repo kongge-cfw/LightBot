@@ -29,6 +29,7 @@
         :recommended-questions="currentRecommendedQuestions"
         :selected-agent-id="selectedAgentId"
         :agents-length="agents.length"
+        :loading="currentAgentLoading || agentsLoading"
         @select-question="applyRecommendedQuestion"
       />
 
@@ -390,7 +391,7 @@ const {
   selectedConfigVersion, selectedAgentVersionId, configVersionOptions,
   showFileUploadBtn, showVoiceInputBtn, showTtsBtn,
   fileAcceptTypes, imageAcceptTypes, documentAcceptTypes, fileUploadHint, imageUploadHint,
-  currentWelcomeMessage, currentRecommendedQuestions,
+  currentWelcomeMessage, currentRecommendedQuestions, currentAgentLoading,
   handleAgentSelect, onConfigVersionChange,
   loadAgentConfigVersions, loadCurrentAgent, loadAgents,
 } = useChatAgents({
@@ -624,7 +625,6 @@ onMounted(async () => {
   if (queryAgentId) {
     await loadCurrentAgent(queryAgentId)
     await loadAgentConfigVersions(queryAgentId)
-    router.replace({ path: '/app/chat' })
   } else if (selectedAgentId.value) {
     await loadAgentConfigVersions(selectedAgentId.value)
   }

@@ -15,8 +15,68 @@
             <template #prefix><SearchOutlined /></template>
           </a-input>
           <a-button size="small" @click="handleSearch" :disabled="!searchText">搜索</a-button>
+          <span class="kg-toolbar-divider"></span>
+          <a-input
+            v-model:value="semanticQuery"
+            placeholder="语义搜索..."
+            allow-clear
+            size="small"
+            class="kg-search-semantic"
+            @press-enter="handleSemanticSearch"
+          >
+            <template #prefix><ThunderboltOutlined /></template>
+          </a-input>
+          <a-button size="small" @click="handleSemanticSearch" :loading="semanticSearching" :disabled="!semanticQuery">
+            语义搜索
+          </a-button>
+          <a-popover trigger="click" placement="bottomLeft">
+            <template #content>
+              <div class="kg-semantic-config">
+                <div class="kg-semantic-config-item">
+                  <span class="kg-semantic-config-label">TopN</span>
+                  <a-input-number
+                    v-model:value="semanticTopN"
+                    :min="1"
+                    :max="100"
+                    :precision="0"
+                    size="small"
+                    style="width: 100%"
+                  />
+                  <span class="kg-semantic-config-hint">返回条数上限</span>
+                </div>
+                <div class="kg-semantic-config-item">
+                  <span class="kg-semantic-config-label">相似度阈值</span>
+                  <a-input-number
+                    v-model:value="semanticMinScore"
+                    :min="0"
+                    :max="1"
+                    :step="0.05"
+                    :precision="2"
+                    size="small"
+                    style="width: 100%"
+                  />
+                  <span class="kg-semantic-config-hint">低于该值的结果不高亮（0~1）</span>
+                </div>
+              </div>
+            </template>
+            <a-button size="small">
+              <template #icon><SettingOutlined /></template>
+              参数
+            </a-button>
+          </a-popover>
+          <a-tooltip>
+            <template #title>
+              <div style="max-width: 260px">
+                <div style="font-weight: 600; margin-bottom: 4px">什么是语义搜索？</div>
+                <div>基于向量相似度匹配节点含义，而非精确匹配文字。命中节点按相似度高亮，低于阈值的结果不展示。</div>
+                <div style="margin-top: 6px; color: var(--color-mute)">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
+              </div>
+            </template>
+            <QuestionCircleOutlined class="kg-semantic-help" />
+          </a-tooltip>
+          <!-- 共用清除高亮按钮：放在两种搜索之后，对节点搜索 / 语义搜索同时生效 -->
           <a-tooltip v-if="searchKeywords.length > 0" title="清除高亮">
-            <a-button size="small" @click="handleClearSearch">
+            <a-button size="small" class="kg-clear-btn" @click="handleClearSearch">
               <template #icon><ClearOutlined /></template>
             </a-button>
           </a-tooltip>
@@ -72,67 +132,6 @@
           </a-popconfirm>
         </template>
         </div>
-      </div>
-
-      <div class="kg-toolbar-row kg-toolbar-semantic">
-        <a-input
-          v-model:value="semanticQuery"
-          placeholder="语义搜索，按含义匹配节点..."
-          allow-clear
-          size="small"
-          class="kg-search-semantic"
-          @press-enter="handleSemanticSearch"
-        >
-          <template #prefix><ThunderboltOutlined /></template>
-        </a-input>
-        <a-button size="small" @click="handleSemanticSearch" :loading="semanticSearching" :disabled="!semanticQuery">
-          语义搜索
-        </a-button>
-        <a-popover trigger="click" placement="bottomLeft">
-          <template #content>
-            <div class="kg-semantic-config">
-              <div class="kg-semantic-config-item">
-                <span class="kg-semantic-config-label">TopN</span>
-                <a-input-number
-                  v-model:value="semanticTopN"
-                  :min="1"
-                  :max="100"
-                  :precision="0"
-                  size="small"
-                  style="width: 100%"
-                />
-                <span class="kg-semantic-config-hint">返回条数上限</span>
-              </div>
-              <div class="kg-semantic-config-item">
-                <span class="kg-semantic-config-label">相似度阈值</span>
-                <a-input-number
-                  v-model:value="semanticMinScore"
-                  :min="0"
-                  :max="1"
-                  :step="0.05"
-                  :precision="2"
-                  size="small"
-                  style="width: 100%"
-                />
-                <span class="kg-semantic-config-hint">低于该值的结果不高亮（0~1）</span>
-              </div>
-            </div>
-          </template>
-          <a-button size="small">
-            <template #icon><SettingOutlined /></template>
-            参数
-          </a-button>
-        </a-popover>
-        <a-tooltip>
-          <template #title>
-            <div style="max-width: 260px">
-              <div style="font-weight: 600; margin-bottom: 4px">什么是语义搜索？</div>
-              <div>基于向量相似度匹配节点含义，而非精确匹配文字。命中节点按相似度高亮，低于阈值的结果不展示。</div>
-              <div style="margin-top: 6px; color: var(--color-mute)">示例：搜索"数据库技术"可以找到"MySQL"、"PostgreSQL"等节点</div>
-            </div>
-          </template>
-          <QuestionCircleOutlined class="kg-semantic-help" />
-        </a-tooltip>
       </div>
     </div>
 
@@ -896,7 +895,6 @@ function handleSearch() {
   })
 
   graphInstance.setElementState(updates)
-  graphInstance.draw()
 
   // 更新显示数量
   displayNodeCount.value = Object.values(updates).filter(v => v[0] === 'highlighted').length
@@ -951,7 +949,6 @@ async function handleSemanticSearch() {
         graphInstance.updateNodeData(nodeDataUpdates)
       }
       graphInstance.setElementState(updates)
-      graphInstance.draw()
       searchKeywords.value = [semanticQuery.value.trim()]
       displayNodeCount.value = Object.values(updates).filter(v => v[0] === 'highlighted').length
     }
@@ -982,7 +979,6 @@ function handleClearSearch() {
     graphInstance.updateNodeData(nodeDataUpdates)
   }
   graphInstance.setElementState(updates)
-  graphInstance.draw()
 
   displayNodeCount.value = stats.nodeCount
   displayEdgeCount.value = stats.edgeCount
@@ -1094,19 +1090,12 @@ watch(isDark, () => {
   flex-wrap: wrap;
 }
 
-.kg-toolbar-semantic {
-  padding: 8px 10px;
-  background: var(--color-canvas-soft);
-  border: 1px solid var(--color-hairline);
-  border-radius: 6px;
-  justify-content: flex-start;
-}
-
 .kg-toolbar-left {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .kg-toolbar-right {
@@ -1117,14 +1106,19 @@ watch(isDark, () => {
   gap: 8px;
 }
 
+.kg-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--color-hairline);
+  margin: 0 4px;
+}
+
 .kg-search {
   width: 180px;
 }
 
 .kg-search-semantic {
-  flex: 1;
-  min-width: 160px;
-  max-width: 360px;
+  width: 200px;
 }
 
 .kg-semantic-help {

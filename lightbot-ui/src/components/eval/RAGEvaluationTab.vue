@@ -3,57 +3,47 @@
     <div class="eval-desc">
       基于评估基准对知识库的检索质量和回答准确性进行量化评估，支持 Precision/Recall/F1@K 指标和 LLM 评判
     </div>
-    <!-- 工具栏 -->
+    <!-- 工具栏：评估基准 + 答案生成模型 + 评判模型 + 开始评估，一行平铺 -->
     <div class="eval-toolbar">
-      <a-select
-        v-model:value="selectedBenchmarkId"
-        placeholder="选择评估基准"
-        style="width: 200px"
-        :loading="benchmarksLoading"
-        allow-clear
-        show-search
-        :filter-option="filterBenchmark"
-      >
-        <a-select-option v-for="bm in benchmarks" :key="bm.id" :value="bm.id">
-          {{ bm.name }} ({{ bm.questionCount }}题)
-        </a-select-option>
-      </a-select>
-      <div class="eval-toolbar-right">
-        <!-- <a-button size="small" @click="refreshAll" :loading="benchmarksLoading || resultsLoading">
-          <template #icon><ReloadOutlined /></template>
-        </a-button> -->
+      <div class="eval-toolbar-item eval-toolbar-benchmark">
+        <label class="eval-toolbar-label">评估基准</label>
+        <a-select
+          v-model:value="selectedBenchmarkId"
+          placeholder="选择评估基准"
+          :loading="benchmarksLoading"
+          allow-clear
+          show-search
+          :filter-option="filterBenchmark"
+        >
+          <a-select-option v-for="bm in benchmarks" :key="bm.id" :value="bm.id">
+            {{ bm.name }} ({{ bm.questionCount }}题)
+          </a-select-option>
+        </a-select>
+      </div>
+      <div class="eval-toolbar-item">
+        <label class="eval-toolbar-label">答案生成模型{{ selectedBenchmarkHasGoldAnswer ? '（可选）' : '' }}</label>
+        <ModelSelect
+          v-model:provider-id="selectedAnswer.providerId"
+          v-model:model-id="selectedAnswer.modelId"
+          model-type="llm"
+          placeholder="不选则仅评估检索质量"
+        />
+      </div>
+      <div class="eval-toolbar-item">
+        <label class="eval-toolbar-label">答案评判模型{{ selectedBenchmarkHasGoldAnswer ? '（可选）' : '' }}</label>
+        <ModelSelect
+          v-model:provider-id="selectedJudge.providerId"
+          v-model:model-id="selectedJudge.modelId"
+          model-type="llm"
+          placeholder="不选则仅评估检索质量"
+        />
+      </div>
+      <div class="eval-toolbar-run">
         <a-button type="primary" size="small" :disabled="!canRun" :loading="runLoading" @click="handleRun"
           :style="!canRun ? { background: '#d9d9d9', borderColor: '#d9d9d9', color: '#fff' } : {}">
           <template #icon><PlayCircleOutlined /></template> 开始评估
         </a-button>
       </div>
-    </div>
-    <!-- 模型选择（同一行） -->
-    <div class="eval-model-row">
-      <a-row :gutter="16">
-        <a-col :span="12">
-          <div class="eval-model-item">
-            <label class="eval-model-label">答案生成模型{{ selectedBenchmarkHasGoldAnswer ? '（可选）' : '' }}</label>
-            <ModelSelect
-              v-model:provider-id="selectedAnswer.providerId"
-              v-model:model-id="selectedAnswer.modelId"
-              model-type="llm"
-              placeholder="不选则仅评估检索质量"
-            />
-          </div>
-        </a-col>
-        <a-col :span="12">
-          <div class="eval-model-item">
-            <label class="eval-model-label">答案评判模型{{ selectedBenchmarkHasGoldAnswer ? '（可选）' : '' }}</label>
-            <ModelSelect
-              v-model:provider-id="selectedJudge.providerId"
-              v-model:model-id="selectedJudge.modelId"
-              model-type="llm"
-              placeholder="不选则仅评估检索质量"
-            />
-          </div>
-        </a-col>
-      </a-row>
     </div>
 
     <!-- 评估历史 -->
@@ -287,11 +277,32 @@ onMounted(() => {
 <style scoped>
 .rag-eval-tab { display: flex; flex-direction: column; gap: 12px; height: 100%; }
 .eval-desc { color: #999; font-size: 12px; line-height: 1.6; padding: 0 2px; }
-.eval-toolbar { display: flex; justify-content: space-between; align-items: center; }
-.eval-toolbar-right { display: flex; gap: 8px; align-items: center; }
-.eval-model-row { padding: 0 2px; }
-.eval-model-item { display: flex; flex-direction: column; gap: 4px; }
-.eval-model-label { font-size: 13px; color: var(--color-text-dark); font-weight: 500; }
+.eval-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.eval-toolbar-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.eval-toolbar-benchmark {
+  flex: 0 0 220px;
+}
+.eval-toolbar-label {
+  font-size: 13px;
+  color: var(--color-text-dark);
+  font-weight: 500;
+  white-space: nowrap;
+}
+.eval-toolbar-run {
+  flex-shrink: 0;
+  padding-bottom: 1px;
+}
 /* eval-history 拆 header + body：header（标题+刷新按钮）固定不滚，
    body 只装 a-table，滚动条不会延伸到刷新按钮处；
    overflow-x:hidden 禁掉横向滚动条（列宽由 a-table 自管，不外溢）；

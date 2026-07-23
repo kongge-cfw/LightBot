@@ -391,18 +391,15 @@ onMounted(loadAll)
 
 .advisor-cards {
   display: grid;
-  /* 6 列网格：第一行 3 个 stat 卡片各占 2 列，第二行 2 个 wide 卡片各占 3 列 */
-  grid-template-columns: repeat(6, 1fr);
+  /* 5 列网格：5 个卡片一行平铺 */
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
   margin-bottom: 24px;
 }
 
-.advisor-card.card-stat {
-  grid-column: span 2;
-}
-
+.advisor-card.card-stat,
 .advisor-card.card-wide {
-  grid-column: span 3;
+  grid-column: span 1;
 }
 
 /* 窄屏（< 900px）回退为单列自适应，避免卡片被过度压缩 */
