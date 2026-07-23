@@ -259,6 +259,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div class="example-intro">选择一个内置示例，快速创建评测集并学习评测数据的组织方式</div>
       <div class="example-list">
         <div v-for="ex in datasetExamples" :key="ex.key" class="example-card">
@@ -275,6 +276,7 @@
           </div>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 示例评估器弹窗 -->
@@ -285,6 +287,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div class="example-intro">选择一个内置示例，快速创建评估器并学习评估 Prompt 的编写方式</div>
       <div class="example-list">
         <div v-for="ex in evaluatorExamples" :key="ex.key" class="example-card">
@@ -300,6 +303,7 @@
           </div>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 创建实验弹窗 -->
@@ -310,6 +314,7 @@
       :maskClosable="false"
       @close="resetExperimentDialog"
     >
+      <div class="dialog-scroll-body">
       <a-steps :current="experimentStep" size="small" style="margin-bottom: 24px">
         <a-step title="基本信息" />
         <a-step title="评测集" />
@@ -418,7 +423,7 @@
         </a-button>
         <div v-if="experimentForm.evaluators.length >= 5" style="margin-top: 4px; font-size: 12px; color: var(--color-mute); text-align: center;">最多添加5个评估器</div>
       </div>
-
+      </div>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"

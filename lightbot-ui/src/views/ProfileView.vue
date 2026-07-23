@@ -287,6 +287,7 @@
     </a-tabs>
 
     <a-modal v-model:open="memoryModalVisible" :title="editingMemoryId ? '编辑长期记忆' : '新增长期记忆'" @ok="handleSaveMemory">
+      <div class="dialog-scroll-body">
       <a-form :model="memoryForm" layout="vertical">
         <a-form-item label="类型">
           <a-select v-model:value="memoryForm.memoryType">
@@ -306,6 +307,7 @@
           <a-input-number v-model:value="memoryForm.confidence" :min="0" :max="1" :step="0.05" />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
   </div>
 </template>

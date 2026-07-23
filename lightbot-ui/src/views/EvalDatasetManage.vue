@@ -93,6 +93,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div class="example-intro">选择一个内置示例，快速创建评测集并学习评测数据的组织方式</div>
       <div class="example-list">
         <div v-for="ex in examples" :key="ex.key" class="example-card">
@@ -108,6 +109,7 @@
             <span class="example-count">{{ ex.itemCount }} 条示例数据</span>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

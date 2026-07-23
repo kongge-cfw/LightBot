@@ -139,20 +139,22 @@
       class="example-workflow-modal"
       :body-style="{ padding: 0, overflow: 'hidden' }"
     >
-      <div class="example-modal-body">
-        <div class="example-desc">选择一个内置示例，快速创建工作流 Agent 并学习各节点的使用方式</div>
-        <div class="example-list-scroll">
-          <div class="example-list">
-            <div v-for="ex in workflowExamples" :key="ex.key" class="example-card">
-              <div class="example-card-header">
-                <span class="example-name">{{ ex.name }}</span>
-                <a-button type="primary" size="small" :loading="exampleCreating === ex.key" @click="handleCreateExample(ex.key)">
-                  生成
-                </a-button>
-              </div>
-              <div class="example-desc-text">{{ ex.description }}</div>
-              <div class="example-tags">
-                <a-tag v-for="tag in ex.nodeTypeTags" :key="tag" color="blue">{{ tag }}</a-tag>
+      <div class="dialog-scroll-body">
+        <div class="example-modal-body">
+          <div class="example-desc">选择一个内置示例，快速创建工作流 Agent 并学习各节点的使用方式</div>
+          <div class="example-list-scroll">
+            <div class="example-list">
+              <div v-for="ex in workflowExamples" :key="ex.key" class="example-card">
+                <div class="example-card-header">
+                  <span class="example-name">{{ ex.name }}</span>
+                  <a-button type="primary" size="small" :loading="exampleCreating === ex.key" @click="handleCreateExample(ex.key)">
+                    生成
+                  </a-button>
+                </div>
+                <div class="example-desc-text">{{ ex.description }}</div>
+                <div class="example-tags">
+                  <a-tag v-for="tag in ex.nodeTypeTags" :key="tag" color="blue">{{ tag }}</a-tag>
+                </div>
               </div>
             </div>
           </div>

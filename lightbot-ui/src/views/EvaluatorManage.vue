@@ -66,6 +66,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div class="example-intro">选择一个内置示例，快速创建评估器并学习评估 Prompt 的编写方式</div>
       <div class="example-list">
         <div v-for="ex in examples" :key="ex.key" class="example-card">
@@ -80,6 +81,7 @@
             <a-tag v-for="tag in ex.tags" :key="tag" color="purple">{{ tag }}</a-tag>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
 

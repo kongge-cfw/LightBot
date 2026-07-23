@@ -718,12 +718,20 @@ function getWorkflowStatusLabel(code) {
 function scheduleAutoSave() {
   if (!workflowLoaded.value || isVersionPreview.value) return
   if (!isDirty.value) return
+  // 即时校验：失败则不启动自动保存计时器，直到配置再次通过校验
+  // showToast=false 保持 silent，不打扰用户编辑；validationErrors 仍会刷新供顶栏显示
+  if (validateWorkflow(false).length > 0) {
+    clearTimeout(autoSaveTimer)
+    return
+  }
   clearTimeout(autoSaveTimer)
   autoSaveTimer = setTimeout(() => doAutoSave(true), 2500)
 }
 
 async function doAutoSave(silent = true) {
-  if (autoSaving.value || !isDirty.value || isVersionPreview.value) return
+  if (autoSaving.value || !isDirty.value || isVersionPreview.value) return false
+  // 双重保险：timer 排队期间用户可能再次改坏配置，执行前再校验一次
+  if (validateWorkflow(false).length > 0) return false
   // 静默自动保存不展示「保存中...」，避免顶栏频繁闪烁
   if (!silent) autoSaving.value = true
   try {
@@ -733,10 +741,12 @@ async function doAutoSave(silent = true) {
     if (workflowStatus.value === 'published') {
       workflowStatus.value = 'published_editing'
     }
+    return true
   } catch (e) {
     if (!silent) {
       notification.error({ message: '自动保存失败', description: e.message })
     }
+    return false
   } finally {
     if (!silent) autoSaving.value = false
   }
@@ -814,8 +824,11 @@ async function closeNodePanel() {
   syncSelectedNodeToStore()
   clearTimeout(autoSaveTimer)
   if (isDirty.value) {
-    await doAutoSave(true)
-    message.success(`「${node.data?.label || getNodeTitle(node.type)}」已自动保存`)
+    // doAutoSave 校验失败会跳过保存并返回 false，此时不展示"已自动保存"避免误导用户
+    const saved = await doAutoSave(true)
+    if (saved) {
+      message.success(`「${node.data?.label || getNodeTitle(node.type)}」已自动保存`)
+    }
   }
   nodePanelSnapshot.value = null
   nodePanelHistoryRecorded.value = false
@@ -2529,6 +2542,15 @@ function validateWorkflow(showToast = true) {
 }
 
 async function saveDraft() {
+  // 保存到数据库前强制校验：校验失败禁止暂存，避免把不完整的工作流写入草稿
+  const errors = validateWorkflow(false)
+  if (errors.length > 0) {
+    notification.warning({
+      message: '工作流配置不完整，无法暂存',
+      description: `发现 ${errors.length} 个配置错误，请完善后重试`,
+    })
+    return
+  }
   saving.value = true
   try {
     await saveWorkflowDraft(agentId, buildWorkflowPayload())

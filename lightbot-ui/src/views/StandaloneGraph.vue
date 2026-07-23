@@ -1003,7 +1003,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 24px 32px 12px;
+  padding: 20px 24px 12px;
   flex-shrink: 0;
 }
 .page-title {

@@ -83,6 +83,7 @@
         <span>{{ form.id ? '编辑 MCP Server' : '新增 MCP Server' }}</span>
         <QuestionCircleOutlined class="help-icon" @click="guideVisible = true" />
       </template>
+      <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：filesystem-server（不超过30字）" :maxlength="30" show-count />
@@ -130,6 +131,7 @@
           </a-form-item>
         </template>
       </a-form>
+      </div>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"
@@ -141,6 +143,7 @@
 
     <!-- 配置指南弹窗 -->
     <a-modal v-model:open="guideVisible" title="MCP Server 配置指南" :width="640" :footer="null">
+      <div class="dialog-scroll-body">
       <div class="guide">
         <div class="guide-section">
           <div class="guide-h3">什么是 MCP？</div>
@@ -216,10 +219,12 @@
 OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 详情弹窗 -->
     <a-modal v-model:open="detailVisible" title="MCP Server 详情" :width="640" :maskClosable="false">
+      <div class="dialog-scroll-body">
       <div class="detail-scroll-body">
         <template v-if="detailRow">
           <a-descriptions bordered :column="1" size="small">
@@ -242,6 +247,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
             </a-descriptions-item>
           </a-descriptions>
         </template>
+      </div>
       </div>
       <template #footer>
         <LbDialogFooter
@@ -310,6 +316,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
       :width="720"
       :footer="null"
     >
+      <div class="dialog-scroll-body">
       <div class="tool-detail-modal">
         <div class="detail-section">
           <div class="detail-label">工具名称</div>
@@ -354,6 +361,7 @@ OPENAI_API_KEY=sk-xxxxxxxxxxxx</pre>
             </button>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
 

@@ -83,6 +83,7 @@
 
     <!-- 日志详情弹窗 -->
     <a-modal v-model:open="detailVisible" title="日志详情" :width="700" :footer="null">
+      <div class="dialog-scroll-body">
       <div v-if="detailLog" class="log-detail">
         <div class="detail-row">
           <span class="detail-label">时间</span>
@@ -104,6 +105,7 @@
           <span class="detail-label">异常堆栈</span>
           <pre class="detail-stack">{{ detailLog.stackTrace }}</pre>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

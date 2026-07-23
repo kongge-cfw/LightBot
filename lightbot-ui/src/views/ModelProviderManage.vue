@@ -50,6 +50,7 @@
 
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑提供商' : '新增提供商'" :width="480" :maskClosable="false">
+      <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：通义千问" :maxlength="30" show-count />
@@ -100,6 +101,7 @@
         </a-form-item>
       </template>
       </a-form>
+      </div>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"
@@ -115,8 +117,8 @@
       </template>
     </a-modal>
 
-    <!-- 提供商预设弹窗 -->
-    <a-modal v-model:open="presetModalVisible" title="选择提供商预设" :width="760" :footer="null" :maskClosable="false">
+    <!-- 提供商预设弹窗：footer 走 antd 默认槽，渲染在 body 外，不随内容滚动 -->
+    <a-modal v-model:open="presetModalVisible" title="选择提供商预设" :width="760" :maskClosable="false">
       <div class="preset-modal-desc">系统预设一些 OpenAI-compatible 提供商模板，应用后会覆盖当前基础配置。</div>
       <div class="preset-list">
         <button
@@ -152,10 +154,10 @@
         </button>
         <div v-if="providerPresets.length === 0" class="preset-empty">暂无可用预设</div>
       </div>
-      <div class="preset-modal-footer">
+      <template #footer>
         <button class="btn-cancel" @click="presetModalVisible = false">取消</button>
         <button v-if="selectedPreset" class="btn-primary-sm" @click="applySelectedPreset">应用预设</button>
-      </div>
+      </template>
     </a-modal>
 
     <!-- 模型管理弹窗 -->
@@ -1420,14 +1422,6 @@ onMounted(async () => {
   text-align: center;
   color: var(--color-mute);
   font-size: 13px;
-}
-.preset-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  padding-top: 16px;
-  margin-top: 16px;
-  border-top: 1px solid var(--color-hairline);
 }
 
 

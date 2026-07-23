@@ -114,6 +114,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div v-if="detailVersion" class="version-detail">
         <div class="detail-row">
           <div class="detail-section" style="flex:6">
@@ -132,6 +133,7 @@
           </div>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 新建版本弹窗 -->
@@ -141,6 +143,7 @@
       :width="680"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="versionForm" :label-col="{ span: 4 }">
         <a-form-item label="版本号" required>
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
@@ -178,6 +181,7 @@
           />
         </a-form-item>
       </a-form>
+      </div>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"

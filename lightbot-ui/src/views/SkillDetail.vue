@@ -259,6 +259,7 @@
 
     <!-- 新建文件弹窗 -->
     <a-modal v-model:open="showCreateFile" title="新建文件" :width="480" :maskClosable="false">
+      <div class="dialog-scroll-body">
       <a-form :model="newFileForm" :label-col="{ span: 5 }">
         <a-form-item label="路径" required>
           <a-input v-model:value="newFileForm.path" placeholder="如 SKILL.md 或 images/logo.png" />
@@ -273,6 +274,7 @@
           <a-textarea v-model:value="newFileForm.content" :rows="6" placeholder="文件初始内容（可选）" />
         </a-form-item>
       </a-form>
+      </div>
       <template #footer>
         <button class="btn-cancel" @click="showCreateFile = false">取消</button>
         <button class="btn-primary-sm" :disabled="!newFileForm.path || creatingFile" @click="handleCreateFile">

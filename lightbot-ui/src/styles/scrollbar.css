@@ -52,7 +52,6 @@
 .scroll-area-y,
 .modal-scroll-body,
 .detail-scroll-body,
-.dialog-scroll-body,
 .code-block-scroll,
 .debug-registry-modal-body,
 .advisor-scroll-body,
@@ -73,10 +72,11 @@
   padding-right: var(--scroll-content-gap);
 }
 
-/* 弹窗 / 抽屉内的滚动容器：同样预留滚动条空间 */
+/* 弹窗 / 抽屉内的滚动容器：同样预留滚动条空间
+   注意：.dialog-scroll-body 已移至 modal-scroll.css 的动态规则（配合 JS 监听
+   .ant-modal-body.has-overflow），无滚动条时 padding-right: 0，有滚动条时才加 8px */
 .ant-modal-body .scroll-area-y,
 .ant-modal-body .modal-scroll-body,
-.ant-modal-body .dialog-scroll-body,
 .ant-drawer-body .scroll-area-y,
 .ant-drawer-body .modal-scroll-body {
   padding-right: var(--scroll-content-gap);

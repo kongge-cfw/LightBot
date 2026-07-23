@@ -738,8 +738,9 @@
       </div>
     </a-modal>
 
-    <!-- 编辑知识库弹窗 -->
-    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" @ok="handleEdit" :confirm-loading="editSubmitting" :bodyStyle="{ maxHeight: '70vh', overflowY: 'auto' }">
+    <!-- 编辑知识库弹窗：.dialog-scroll-body wrapper 提供滚动条与字段间的呼吸距离（scrollbar.css 全局装饰） -->
+    <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" @ok="handleEdit" :confirm-loading="editSubmitting">
+      <div class="dialog-scroll-body">
       <a-form :model="editForm" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="editForm.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
@@ -841,6 +842,7 @@
           </div>
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 成员管理弹窗 -->
@@ -909,30 +911,35 @@
           <template #prefix><SearchOutlined /></template>
         </a-input>
         <div class="invite-results">
-          <div v-for="u in inviteResults" :key="u.id" class="invite-item">
-            <div class="invite-user">
-              <div class="member-avatar">
-                <img v-if="u.avatar" :src="u.avatar" alt="avatar" class="member-avatar-img" @error="u.avatar = ''" />
-                <span v-else>{{ (u.username || u.nickname || 'U')[0] }}</span>
-              </div>
-              <div class="invite-info">
-                <span class="invite-name">{{ u.username || u.nickname }}</span>
-                <span class="invite-username">@{{ u.username }}</span>
-              </div>
-            </div>
-            <a-select
-              v-model:value="inviteRole"
-              size="small"
-              style="width: 90px"
-            >
-              <a-select-option value="manager">管理者</a-select-option>
-              <a-select-option value="developer">开发者</a-select-option>
-              <a-select-option value="viewer">查看者</a-select-option>
-            </a-select>
-            <button class="btn-primary-sm" @click="handleInvite(u.id)">邀请</button>
+          <div v-if="inviteSearching" class="invite-loading">
+            <LoadingOutlined spin /> 搜索中...
           </div>
-          <div v-if="inviteKeyword && inviteResults.length === 0" class="empty-tip">未找到用户</div>
-          <div v-if="!inviteKeyword" class="empty-tip">输入关键词搜索用户</div>
+          <div v-else-if="!inviteKeyword" class="empty-tip">输入关键词搜索用户</div>
+          <div v-else-if="inviteResults.length === 0" class="empty-tip">未找到用户</div>
+          <template v-else>
+            <div v-for="u in inviteResults" :key="u.id" class="invite-item">
+              <div class="invite-user">
+                <div class="member-avatar">
+                  <img v-if="u.avatar" :src="u.avatar" alt="avatar" class="member-avatar-img" @error="u.avatar = ''" />
+                  <span v-else>{{ (u.username || u.nickname || 'U')[0] }}</span>
+                </div>
+                <div class="invite-info">
+                  <span class="invite-name">{{ u.username || u.nickname }}</span>
+                  <span class="invite-username">@{{ u.username }}</span>
+                </div>
+              </div>
+              <a-select
+                v-model:value="inviteRole"
+                size="small"
+                style="width: 90px"
+              >
+                <a-select-option value="manager">管理者</a-select-option>
+                <a-select-option value="developer">开发者</a-select-option>
+                <a-select-option value="viewer">查看者</a-select-option>
+              </a-select>
+              <button class="btn-primary-sm" @click="handleInvite(u.id)">邀请</button>
+            </div>
+          </template>
         </div>
       </div>
     </a-modal>
@@ -1241,6 +1248,7 @@ const inviteVisible = ref(false)
 const inviteKeyword = ref('')
 const inviteResults = ref([])
 const inviteRole = ref('viewer')
+const inviteSearching = ref(false)
 let inviteSearchTimer = null
 
 const isManagerOrCreator = computed(() => {
@@ -2226,6 +2234,7 @@ function openMembersModal() {
 function openInviteModal() {
   inviteKeyword.value = ''
   inviteResults.value = []
+  inviteSearching.value = false
   inviteRole.value = 'viewer'
   inviteVisible.value = true
 }
@@ -2235,15 +2244,23 @@ function onInviteSearch() {
   const kw = inviteKeyword.value.trim()
   if (!kw) {
     inviteResults.value = []
+    inviteSearching.value = false
     return
   }
+  // 关键字变化后立即进入搜索中状态：debounce 等待期间 + API 请求期间都显示 loading
+  // 避免 debounce 窗口里 inviteResults 还是空数组，提前闪一下"未找到用户"
+  inviteSearching.value = true
   inviteSearchTimer = setTimeout(async () => {
     try {
       const res = await searchUsers(kw)
       // 过滤掉已经是成员的用户
       const memberIds = new Set(members.value.map(m => String(m.userId)))
       inviteResults.value = (res.data || []).filter(u => !memberIds.has(String(u.id)))
-    } catch { /* ignore */ }
+    } catch {
+      inviteResults.value = []
+    } finally {
+      inviteSearching.value = false
+    }
   }, 300)
 }
 
@@ -3932,6 +3949,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.invite-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 32px 0;
+  color: var(--color-mute);
+  font-size: 13px;
 }
 .invite-item {
   display: flex;

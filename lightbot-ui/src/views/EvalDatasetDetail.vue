@@ -120,6 +120,7 @@
       :width="640"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="itemForm" :label-col="{ span: 5 }">
         <a-form-item label="输入内容" required>
           <a-textarea v-model:value="itemForm.input" :rows="4" :maxlength="2000" show-count placeholder="用户输入内容 (不超过2000字)" />
@@ -137,6 +138,7 @@
           />
         </a-form-item>
       </a-form>
+      </div>
       <template #footer>
         <LbDialogFooter
           :loading="submitting"
@@ -154,6 +156,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <a-spin :spinning="versionDetailLoading">
         <div class="version-detail-list">
           <div v-for="item in versionDetailItems" :key="item.id" class="item-row">
@@ -170,6 +173,7 @@
           <div v-if="versionDetailItems.length === 0 && !versionDetailLoading" class="item-empty">该版本无数据项</div>
         </div>
       </a-spin>
+      </div>
     </a-modal>
   </div>
 </template>

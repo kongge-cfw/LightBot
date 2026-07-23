@@ -179,85 +179,87 @@
       :width="restartStep === 0 ? 480 : 720"
       :maskClosable="false"
     >
-      <div v-if="restartStep === 0">
-        <p style="color: var(--color-mute); margin-bottom: 16px;">选择重新评测方式：</p>
-        <a-radio-group v-model:value="restartMode" style="display: flex; flex-direction: column; gap: 12px;">
-          <a-radio value="direct">
-            <div>
-              <div style="font-weight: 500;">直接重新评测</div>
-              <div style="font-size: 12px; color: var(--color-mute);">使用当前配置立即重新运行</div>
-            </div>
-          </a-radio>
-          <a-radio value="modify">
-            <div>
-              <div style="font-weight: 500;">修改配置后重新评测</div>
-              <div style="font-size: 12px; color: var(--color-mute);">修改实验名称、评测集版本、Prompt 版本、评估器版本等</div>
-            </div>
-          </a-radio>
-        </a-radio-group>
-      </div>
-
-      <div v-if="restartStep === 1">
-        <a-spin :spinning="restartFormLoading" tip="加载配置中...">
-        <div class="restart-form-scroll">
-        <a-form :model="editForm" :label-col="{ span: 5 }" :style="{ opacity: restartFormLoading ? 0.4 : 1, transition: 'opacity 0.2s' }">
-          <a-form-item label="实验名称" required>
-            <a-input v-model:value="editForm.name" :maxlength="30" show-count placeholder="实验名称 (不超过30字)" />
-          </a-form-item>
-          <a-form-item label="描述">
-            <a-textarea v-model:value="editForm.description" :rows="2" :maxlength="50" show-count placeholder="实验描述 (不超过50字)" />
-          </a-form-item>
-          <a-form-item label="评测集" required>
-            <a-select v-model:value="editForm.datasetId" placeholder="选择评测集" @change="onEditDatasetChange">
-              <a-select-option v-for="d in datasetList" :key="d.id" :value="d.id">{{ d.name }}</a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="数据版本" required>
-            <a-select v-model:value="editForm.datasetVersion" placeholder="选择数据版本">
-              <a-select-option v-for="v in datasetVersions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="Prompt" required>
-            <a-select v-model:value="editForm.promptKey" placeholder="选择 Prompt" @change="onEditPromptChange">
-              <a-select-option v-for="p in promptList" :key="p.promptKey" :value="p.promptKey">{{ p.promptKey }}</a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="Prompt 版本" required>
-            <a-select v-model:value="editForm.promptVersion" placeholder="选择版本">
-              <a-select-option v-for="v in promptVersions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
-            </a-select>
-          </a-form-item>
-          <a-form-item label="变量映射">
-            <a-textarea v-model:value="editForm.variableMapping" :rows="2" placeholder='JSON: {"input":"user_input"}' />
-          </a-form-item>
-          <div v-for="(ev, idx) in editForm.evaluators" :key="ev.evaluatorId || ev.id || idx" class="evaluator-config-block">
-            <div class="evaluator-config-header">
-              <span class="evaluator-config-title">评估器 {{ idx + 1 }}</span>
-              <a-tooltip v-if="editForm.evaluators.length > 1" title="移除">
-                <button class="btn-icon danger" @click="removeEditEvaluator(idx)"><DeleteOutlined /></button>
-              </a-tooltip>
-            </div>
-            <a-form-item label="评估器" required>
-              <a-select v-model:value="ev.evaluatorId" placeholder="选择评估器" @change="(id) => onEditEvaluatorChange(idx, id)">
-                <a-select-option v-for="e in evaluatorList" :key="e.id" :value="e.id">{{ e.name }}</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item label="评估器版本" required>
-              <a-select v-model:value="ev.evaluatorVersion" placeholder="选择版本">
-                <a-select-option v-for="v in ev.versions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
-              </a-select>
-            </a-form-item>
-            <a-form-item label="参数映射">
-              <a-textarea v-model:value="ev.evaluatorParamMapping" :rows="2" placeholder='JSON: {"actual_output":"output"}' />
-            </a-form-item>
-          </div>
-          <a-button v-if="editForm.evaluators.length < 5" type="dashed" size="small" block @click="addEditEvaluator" style="margin-top: 4px;">
-            <PlusOutlined /> 添加评估器
-          </a-button>
-          <div v-if="editForm.evaluators.length >= 5" style="margin-top: 4px; font-size: 12px; color: var(--color-mute); text-align: center;">最多添加5个评估器</div>
-        </a-form>
+      <div class="dialog-scroll-body">
+        <div v-if="restartStep === 0">
+          <p style="color: var(--color-mute); margin-bottom: 16px;">选择重新评测方式：</p>
+          <a-radio-group v-model:value="restartMode" style="display: flex; flex-direction: column; gap: 12px;">
+            <a-radio value="direct">
+              <div>
+                <div style="font-weight: 500;">直接重新评测</div>
+                <div style="font-size: 12px; color: var(--color-mute);">使用当前配置立即重新运行</div>
+              </div>
+            </a-radio>
+            <a-radio value="modify">
+              <div>
+                <div style="font-weight: 500;">修改配置后重新评测</div>
+                <div style="font-size: 12px; color: var(--color-mute);">修改实验名称、评测集版本、Prompt 版本、评估器版本等</div>
+              </div>
+            </a-radio>
+          </a-radio-group>
         </div>
-        </a-spin>
+
+        <div v-if="restartStep === 1">
+          <a-spin :spinning="restartFormLoading" tip="加载配置中...">
+          <div class="restart-form-scroll">
+          <a-form :model="editForm" :label-col="{ span: 5 }" :style="{ opacity: restartFormLoading ? 0.4 : 1, transition: 'opacity 0.2s' }">
+            <a-form-item label="实验名称" required>
+              <a-input v-model:value="editForm.name" :maxlength="30" show-count placeholder="实验名称 (不超过30字)" />
+            </a-form-item>
+            <a-form-item label="描述">
+              <a-textarea v-model:value="editForm.description" :rows="2" :maxlength="50" show-count placeholder="实验描述 (不超过50字)" />
+            </a-form-item>
+            <a-form-item label="评测集" required>
+              <a-select v-model:value="editForm.datasetId" placeholder="选择评测集" @change="onEditDatasetChange">
+                <a-select-option v-for="d in datasetList" :key="d.id" :value="d.id">{{ d.name }}</a-select-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item label="数据版本" required>
+              <a-select v-model:value="editForm.datasetVersion" placeholder="选择数据版本">
+                <a-select-option v-for="v in datasetVersions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item label="Prompt" required>
+              <a-select v-model:value="editForm.promptKey" placeholder="选择 Prompt" @change="onEditPromptChange">
+                <a-select-option v-for="p in promptList" :key="p.promptKey" :value="p.promptKey">{{ p.promptKey }}</a-select-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item label="Prompt 版本" required>
+              <a-select v-model:value="editForm.promptVersion" placeholder="选择版本">
+                <a-select-option v-for="v in promptVersions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
+              </a-select>
+            </a-form-item>
+            <a-form-item label="变量映射">
+              <a-textarea v-model:value="editForm.variableMapping" :rows="2" placeholder='JSON: {"input":"user_input"}' />
+            </a-form-item>
+            <div v-for="(ev, idx) in editForm.evaluators" :key="ev.evaluatorId || ev.id || idx" class="evaluator-config-block">
+              <div class="evaluator-config-header">
+                <span class="evaluator-config-title">评估器 {{ idx + 1 }}</span>
+                <a-tooltip v-if="editForm.evaluators.length > 1" title="移除">
+                  <button class="btn-icon danger" @click="removeEditEvaluator(idx)"><DeleteOutlined /></button>
+                </a-tooltip>
+              </div>
+              <a-form-item label="评估器" required>
+                <a-select v-model:value="ev.evaluatorId" placeholder="选择评估器" @change="(id) => onEditEvaluatorChange(idx, id)">
+                  <a-select-option v-for="e in evaluatorList" :key="e.id" :value="e.id">{{ e.name }}</a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item label="评估器版本" required>
+                <a-select v-model:value="ev.evaluatorVersion" placeholder="选择版本">
+                  <a-select-option v-for="v in ev.versions" :key="v.version" :value="v.version">{{ v.version }}</a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item label="参数映射">
+                <a-textarea v-model:value="ev.evaluatorParamMapping" :rows="2" placeholder='JSON: {"actual_output":"output"}' />
+              </a-form-item>
+            </div>
+            <a-button v-if="editForm.evaluators.length < 5" type="dashed" size="small" block @click="addEditEvaluator" style="margin-top: 4px;">
+              <PlusOutlined /> 添加评估器
+            </a-button>
+            <div v-if="editForm.evaluators.length >= 5" style="margin-top: 4px; font-size: 12px; color: var(--color-mute); text-align: center;">最多添加5个评估器</div>
+          </a-form>
+          </div>
+          </a-spin>
+        </div>
       </div>
       <template #footer>
         <LbDialogFooter

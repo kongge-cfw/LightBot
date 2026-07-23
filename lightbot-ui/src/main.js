@@ -14,6 +14,7 @@ import './styles/lb-components.css'
 import App from './App.vue'
 import router from './router'
 import { captureException, installGlobalErrorHandlers } from './utils/errorReport'
+import { installModalScrollObserver } from './utils/modalScroll'
 
 // 限制全局最多显示3条消息提示，防止堆叠
 message.config({ maxCount: 3, duration: 2 })
@@ -43,3 +44,6 @@ app.use(createPinia())
 app.use(router)
 // Ant Design Vue 组件通过 unplugin-vue-components 自动按需引入
 app.mount('#app')
+
+// 弹窗滚动条动态监听：装在 mount 之后，确保初始 modal body 已就绪
+installModalScrollObserver()

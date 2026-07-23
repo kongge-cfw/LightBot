@@ -19,7 +19,7 @@
     <div v-else-if="benchmarks.length === 0" class="benchmarks-empty">暂无评估基准，请上传或 AI 生成</div>
 
     <div v-else class="benchmark-list">
-      <div v-for="bm in benchmarks" :key="bm.id" class="benchmark-card" :class="{ 'benchmark-generating': bm.status === 'generating' }">
+      <div v-for="bm in pagedBenchmarks" :key="bm.id" class="benchmark-card" :class="{ 'benchmark-generating': bm.status === 'generating' }">
         <div class="benchmark-card-header">
           <div class="benchmark-card-left">
             <span class="benchmark-name">{{ bm.name }}</span>
@@ -50,6 +50,19 @@
         </div>
         <div v-if="bm.description && bm.status !== 'generating'" class="benchmark-desc">{{ bm.description }}</div>
       </div>
+    </div>
+
+    <div v-if="benchmarks.length > 0" class="benchmarks-pagination">
+      <a-pagination
+        v-model:current="pagination.current"
+        v-model:page-size="pagination.pageSize"
+        :total="pagination.total"
+        :page-size-options="pagination.pageSizeOptions"
+ :show-size-changer="true"
+        :show-total="(t) => `共 ${t} 条`"
+        size="small"
+        @change="handlePageChange"
+      />
     </div>
 
     <!-- 预览弹窗 -->
@@ -102,7 +115,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   ReloadOutlined, UploadOutlined, ThunderboltOutlined,
@@ -123,6 +136,22 @@ const loading = ref(false)
 const benchmarks = ref([])
 const showGenerateModal = ref(false)
 const showUploadModal = ref(false)
+
+// 分页（与问答对对齐：每页 10 条，支持切换页大小），走前端切片，避免改后端 API
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  pageSizeOptions: ['10', '20', '50'],
+})
+const pagedBenchmarks = computed(() => {
+  const start = (pagination.current - 1) * pagination.pageSize
+  return benchmarks.value.slice(start, start + pagination.pageSize)
+})
+function handlePageChange(page, pageSize) {
+  pagination.current = page
+  pagination.pageSize = pageSize
+}
 
 const previewVisible = ref(false)
 const previewBenchmark_ = ref(null)
@@ -176,6 +205,9 @@ async function loadBenchmarks() {
   try {
     const res = await listBenchmarks(props.knowledgeId)
     benchmarks.value = res.data || []
+    // 重置分页：新增/删除/刷新后回到第一页，避免停留在越界页码
+    pagination.current = 1
+    pagination.total = benchmarks.value.length
   } catch (e) {
     message.error('加载基准列表失败')
   } finally {
@@ -236,6 +268,7 @@ onMounted(loadBenchmarks)
 .benchmarks-toolbar { display: flex; gap: 8px; justify-content: flex-end; }
 .benchmarks-empty { text-align: center; color: var(--color-mute); padding: 40px 0; }
 .benchmark-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.benchmarks-pagination { display: flex; justify-content: flex-end; padding-top: 8px; }
 .benchmark-card {
   border: 1px solid var(--color-hairline); border-radius: 6px; padding: 12px;
   display: flex; flex-direction: column; gap: 6px;

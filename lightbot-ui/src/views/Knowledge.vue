@@ -80,6 +80,7 @@
 
     <!-- 创建弹窗 -->
     <a-modal v-model:open="showCreate" title="新建知识库" :width="480" @ok="handleCreate" :confirm-loading="submitting" :maskClosable="false">
+      <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
@@ -117,6 +118,7 @@
           <ModelSelect v-model="form.embeddingModel" model-type="embedding" placeholder="选择嵌入模型" @change="onEmbeddingModelChange" />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
   </div>
 </template>

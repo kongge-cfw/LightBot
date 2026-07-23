@@ -600,7 +600,7 @@ onUnmounted(() => {
 .user-question-text {
   font-size: 14px;
   line-height: 1.8;
-  color: #333;
+  color: var(--color-ink);
   white-space: pre-wrap;
   word-break: break-word;
 }

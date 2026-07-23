@@ -1,14 +1,19 @@
 /**
  * 弹窗滚动条统一规则
  *
- * 核心语义：交给浏览器默认行为。
- * - 内容未超过 max-height：无滚动条、无预留空位，字段贴 antd 默认 24px 右内边距
- * - 内容超过 max-height：浏览器自动出滚动条，滚动条挤压内容；24px 内边距天然让
- *   字段和滚动条之间保持呼吸距离
+ * 核心语义：滚动条与字段的间距由 .dialog-scroll-body wrapper + JS 动态控制。
+ * - 无滚动条：wrapper padding-right: 0，字段贴 modal body 内边
+ * - 有滚动条：JS 给 .ant-modal-body 加 .has-overflow class，wrapper padding-right 变 8px
  *
- * 不再使用 scrollbar-gutter: stable：该属性会强制始终预留滚动条轨道（~15px），
- * 即便内容不溢出也出现"字段与右侧空白间隔"，违背直觉。付出"内容动态增长时
- * 偶发左移抖动"的代价，换取无滚动条时的紧凑视觉——这是符合预期的 trade-off。
+ * 为什么用 JS 而不是 scrollbar-gutter: stable:
+ * scrollbar-gutter 即便内容不溢出也始终预留 gutter，无滚动条的弹窗字段与右侧隔段距离，
+ * 违背"无滚动条时紧凑"的需求。JS 监听 scrollHeight > clientHeight 动态切换 class，
+ * 滚动条出现/消失时 padding 实时跟随，真正"灵活的滚动条出现和消失逻辑"。
+ *
+ * 为什么用 wrapper 而不是直接给 .ant-modal-body 加 padding-right:
+ * 直接给 .ant-modal-body 加 padding-right 会与 antd 默认 24px padding 冲突（CSS-in-JS
+ * 注入顺序问题，需升高 specificity 覆盖）。wrapper 在 modal body 内部加 padding，
+ * 不冲突 antd 默认值，且可精确控制仅作用于"表单内容区域"。
  *
  * max-height 预留 260px = modal 顶部偏移(48) + header(55) + footer(53) + 底部安全余量(104)，
  * 确保小屏（如 1366×768 笔记本）下整个弹窗（含 footer 按钮）完全可见、底部留出呼吸空间。
@@ -18,14 +23,28 @@
  * 文字、a-row gutter 负 margin、a-input-number min-width 等几像素溢出都会触发
  * 横向滚动条。需要横向滚动的弹窗（代码/JSON/SQL 结果）通过 :body-style 显式
  * 设置 overflow: 'auto' 覆盖。
- *
- * 滚动条颜色 / 宽度 / hover 态由 src/styles/scrollbar.css 全局统一，此处不再写。
  */
 .ant-modal-body {
   min-height: 80px;
   max-height: calc(100vh - 260px);
   overflow-x: hidden;
   overflow-y: auto;
+}
+
+/**
+ * .dialog-scroll-body 动态 padding：
+ * 配合 src/utils/modalScroll.js 监听 .ant-modal-body 的 scrollHeight/clientHeight，
+ * 滚动条出现时加 .has-overflow class，wrapper 获得 padding-right 让字段与滚动条间
+ * 留出呼吸距离；滚动条消失时移除 class，padding 复位为 0，字段贴 modal body 内边。
+ *
+ * 选择器 specificity 高于 scrollbar.css 的全局 .dialog-scroll-body（0,0,1,0），
+ * 确保动态规则覆盖全局默认。
+ */
+.ant-modal-body .dialog-scroll-body {
+  padding-right: 0;
+}
+.ant-modal-body.has-overflow .dialog-scroll-body {
+  padding-right: var(--scroll-content-gap);
 }
 
 /**
