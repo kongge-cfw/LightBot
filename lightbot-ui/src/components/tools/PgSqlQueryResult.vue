@@ -56,6 +56,7 @@
       width="900px"
       :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '16px' }"
     >
+      <div class="dialog-scroll-body">
       <div class="sql-modal-sqlbar">
         <code class="sql-modal-sql">{{ data.sql }}</code>
         <span class="sql-modal-stats">共 {{ data.total_rows }} 行 · {{ data.elapsed_ms }}ms</span>
@@ -78,6 +79,7 @@
           </table>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 单行详情弹窗 -->
@@ -88,6 +90,7 @@
       width="680px"
       :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '16px' }"
     >
+      <div class="dialog-scroll-body">
       <div v-if="activeRow" class="sql-row-detail-list">
         <div v-for="(val, ci) in activeRow" :key="ci" class="sql-row-detail-item">
           <div class="sql-row-detail-head">
@@ -97,6 +100,7 @@
             {{ val ?? '' }}
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

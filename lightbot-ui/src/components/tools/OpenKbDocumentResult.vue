@@ -43,6 +43,7 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle({ padding: '0' })"
     >
+      <div class="dialog-scroll-body">
       <div class="okd-modal-body">
         <!-- Tab 切换 -->
         <div class="okd-modal-tabs">
@@ -104,6 +105,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

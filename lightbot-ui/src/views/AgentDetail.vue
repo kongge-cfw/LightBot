@@ -15,12 +15,12 @@
       @back="handleGoBack"
     >
       <template #tags>
-        <span class="agent-status-badge" :class="agentStatusClass">{{ agentStatusText }}</span>
         <a-tooltip :title="agent.id ? `ID：${agent.id}` : '新建保存后生成 ID'">
           <button type="button" class="btn-agent-id" @click="copyAgentId">
             <IdcardOutlined />
           </button>
         </a-tooltip>
+        <span class="agent-status-badge" :class="agentStatusClass">{{ agentStatusText }}</span>
       </template>
       <template #extra>
         <button v-if="agent.agentType === 'workflow'" class="lb-btn" @click="goWorkflowEdit">

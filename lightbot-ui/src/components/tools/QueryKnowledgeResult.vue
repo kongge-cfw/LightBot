@@ -78,6 +78,7 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle()"
     >
+      <div class="dialog-scroll-body">
       <div v-if="activeItem" class="qkr-detail-item">
         <div class="qkr-detail-item-head">
           <span v-if="activeItem.result_type === 'qa_pair'" class="qkr-type-tag-lg">
@@ -110,6 +111,7 @@
           </div>
         </template>
       </div>
+      </div>
     </a-modal>
 
     <!-- 全量详情弹窗 -->
@@ -123,6 +125,7 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle({ padding: '20px' })"
     >
+      <div class="dialog-scroll-body">
       <div class="qkr-full-detail">
         <!-- 统计栏 -->
         <div class="qkr-stats-bar">
@@ -195,6 +198,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

@@ -10,6 +10,7 @@
       <span>评估结果详情</span>
       <QuestionCircleOutlined class="title-help-icon" @click="metricHelpVisible = true" />
     </template>
+    <div class="dialog-scroll-body">
     <div v-if="result" class="result-detail">
       <!-- 基本信息 -->
       <div class="result-info">
@@ -120,6 +121,7 @@
           </template>
         </a-table>
       </div>
+    </div>
     </div>
 
     <!-- 指标帮助弹窗 -->

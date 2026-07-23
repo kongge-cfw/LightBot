@@ -6,7 +6,7 @@
       search-placeholder="搜索 Agent 名称..."
       :refresh-disabled="loading"
       create-text="新建 Agent"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openDialog()"
     >
       <template #filters>
@@ -224,6 +224,13 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新按钮语义：清空搜索关键词 + 类型筛选，回到全量列表
+function refresh() {
+  searchText.value = ''
+  filterAgentType.value = undefined
+  loadData()
 }
 
 let searchDebounceTimer = null

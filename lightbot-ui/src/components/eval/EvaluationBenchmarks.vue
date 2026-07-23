@@ -72,6 +72,7 @@
       width="1200px"
       :footer="null"
     >
+      <div class="dialog-scroll-body">
       <div class="preview-summary">
         <span>问题数: <strong>{{ previewBenchmark_?.questionCount }}</strong></span>
         <span>Gold Chunks: <strong>{{ hasGoldChunks ? '有' : '无' }}</strong></span>
@@ -107,6 +108,7 @@
           </template>
         </template>
       </a-table>
+      </div>
     </a-modal>
 
     <BenchmarkGenerateModal v-model:open="showGenerateModal" :knowledge-id="knowledgeId" @success="loadBenchmarks" />

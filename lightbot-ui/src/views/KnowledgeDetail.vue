@@ -15,27 +15,31 @@
         </a-tag>
       </template>
       <template #stats>
-        <span class="kb-stat-item">
-          <FileTextOutlined />
-          <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
-          <span class="kb-stat-label">文档</span>
-        </span>
-        <span class="kb-stat-divider"></span>
-        <span class="kb-stat-item">
-          <BlockOutlined />
-          <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
-          <span class="kb-stat-label">分片</span>
-        </span>
-        <span class="kb-stat-divider"></span>
-        <span class="kb-stat-item">
-          <FontColorsOutlined />
-          <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
-          <span class="kb-stat-label">Token</span>
-        </span>
-        <a-tooltip title="重新计算统计数据">
-          <button class="kb-stats-refresh" :disabled="statsRepairing" @click="handleRefreshStats">
-            <LoadingOutlined v-if="statsRepairing" spin />
-            <ReloadOutlined v-else />
+        <a-tooltip :title="statsRepairing ? '统计中...' : '重新统计'">
+          <button
+            type="button"
+            class="kb-stats-group"
+            :disabled="statsRepairing"
+            @click="handleRefreshStats"
+          >
+            <LoadingOutlined v-if="statsRepairing" spin class="kb-stat-icon-loading" />
+            <span class="kb-stat-item">
+              <FileTextOutlined />
+              <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
+              <span class="kb-stat-label">文档</span>
+            </span>
+            <span class="kb-stat-divider"></span>
+            <span class="kb-stat-item">
+              <BlockOutlined />
+              <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
+              <span class="kb-stat-label">分片</span>
+            </span>
+            <span class="kb-stat-divider"></span>
+            <span class="kb-stat-item">
+              <FontColorsOutlined />
+              <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
+              <span class="kb-stat-label">Token</span>
+            </span>
           </button>
         </a-tooltip>
       </template>
@@ -68,7 +72,7 @@
               <template #prefix><SearchOutlined /></template>
             </a-input>
             <a-tooltip title="刷新" :open="docRefreshTipVisible" @open-change="v => { if (!v) docRefreshTipVisible = false }">
-              <button class="btn-outline-sm" @click="docRefreshTipVisible = false; loadDocuments()" :disabled="docLoading">
+              <button class="btn-outline-sm" @click="refreshDocuments" :disabled="docLoading">
                 <ReloadOutlined :spin="docLoading" />
               </button>
             </a-tooltip>
@@ -1068,6 +1072,14 @@ function onDocSearchInput() {
     docPagination.current = 1
     loadDocuments()
   }, 300)
+}
+
+// 刷新按钮语义：清空搜索关键词 + 回到第 1 页 + 重新拉取，与 allow-clear 的 @clear 行为一致
+function refreshDocuments() {
+  docRefreshTipVisible.value = false
+  docSearch.value = ''
+  docPagination.current = 1
+  loadDocuments()
 }
 
 const strategyLabelMap = {
@@ -2466,27 +2478,28 @@ onUnmounted(() => {
   height: 14px;
   background: var(--color-hairline);
 }
-.kb-stats-refresh {
+/* 统计区域整体可点击触发重算：hover 出 tooltip + 背景提示 */
+.kb-stats-group {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
+  gap: 12px;
+  padding: 4px 10px;
+  margin: -4px -10px;
   border: none;
-  border-radius: 4px;
   background: transparent;
-  color: var(--color-mute);
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
-  transition: all 0.2s;
+  transition: background 0.15s;
 }
-.kb-stats-refresh:hover:not(:disabled) {
-  color: var(--color-primary, #0070f3);
-  background: rgba(0, 112, 243, 0.06);
+.kb-stats-group:hover:not(:disabled) {
+  background: var(--color-canvas-soft-2);
 }
-.kb-stats-refresh:disabled {
-  cursor: not-allowed;
-  opacity: 0.5;
+.kb-stats-group:disabled {
+  cursor: progress;
+}
+.kb-stats-group .kb-stat-icon-loading {
+  color: var(--color-link);
+  font-size: 14px;
 }
 
 /* 覆盖全局 .detail-page__body：本页改用 panel 内部各区域自管滚动，

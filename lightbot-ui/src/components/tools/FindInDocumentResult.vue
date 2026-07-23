@@ -60,6 +60,7 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle({ padding: '20px' })"
     >
+      <div class="dialog-scroll-body">
       <div class="fid-detail-container">
         <!-- 原文翻页模式详情 -->
         <template v-if="data.mode === 'open'">
@@ -131,6 +132,7 @@
             </div>
           </div>
         </template>
+      </div>
       </div>
     </a-modal>
   </div>

@@ -7,6 +7,7 @@
     :destroy-on-close="false"
     @update:open="$emit('update:open', $event)"
   >
+    <div class="dialog-scroll-body">
     <div class="md-debug-toolbar">
       <a-button type="primary" @click="handleParse">解析</a-button>
       <a-button @click="handleClear">清空</a-button>
@@ -33,6 +34,7 @@
           <div v-else class="md-debug-empty">点击「解析」查看渲染效果</div>
         </div>
       </div>
+    </div>
     </div>
   </a-modal>
 </template>

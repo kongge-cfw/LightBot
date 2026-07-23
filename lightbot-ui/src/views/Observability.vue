@@ -135,7 +135,7 @@
       :footer="null"
       :maskClosable="false"
     >
-      <div v-if="toolDetailRecord" class="modal-scroll-body">
+      <div v-if="toolDetailRecord" class="dialog-scroll-body">
         <a-descriptions :column="2" size="small" bordered style="margin-bottom: 16px">
           <a-descriptions-item label="工具名称">
             <ToolOutlined /> {{ toolDetailRecord.toolName }}
@@ -496,7 +496,7 @@
 
     <!-- 请求配置弹窗 -->
     <a-modal v-model:open="configModalVisible" title="请求配置" :width="600" :footer="null" :maskClosable="false">
-      <div class="modal-scroll-body">
+      <div class="dialog-scroll-body">
         <div class="config-grid">
           <div v-for="(value, key) in traceModelInput.requestConfig" :key="key" class="config-item">
             <span class="config-key">{{ key }}</span>
@@ -516,7 +516,7 @@
       >
         <template #prefix><SearchOutlined /></template>
       </a-input>
-      <div class="modal-scroll-body">
+      <div class="dialog-scroll-body">
         <div
           v-for="(tool, ti) in traceModelInput.requestTools"
           :key="ti"
@@ -1565,15 +1565,8 @@ onUnmounted(() => clearTimeout(copyTimer))
   justify-content: flex-end;
   margin-bottom: 20px;
 }
-/* 弹窗滚动区域 */
-.modal-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 12px);
-  scrollbar-gutter: stable;
-}
-
-.modal-scroll-body .detail-pre {
+/* 弹窗滚动区域：滚动由全局 .ant-modal-body 负责（modal-scroll.css），wrapper 只负责让滚动条与内容保持距离 */
+.dialog-scroll-body .detail-pre {
   max-height: none;
   overflow: visible;
 }

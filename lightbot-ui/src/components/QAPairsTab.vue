@@ -12,7 +12,7 @@
         <template #prefix><SearchOutlined /></template>
       </a-input>
       <a-tooltip title="刷新">
-        <a-button size="small" @click="loadData" :disabled="loading">
+        <a-button size="small" @click="refresh" :disabled="loading">
           <template #icon><ReloadOutlined :spin="loading" /></template>
         </a-button>
       </a-tooltip>
@@ -99,6 +99,7 @@
       @ok="handleCreate"
       :confirm-loading="saving"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="form" layout="vertical">
         <a-form-item label="问题" required>
           <a-textarea v-model:value="form.question" placeholder="输入问题内容（不超过2000字）" :rows="3" :maxlength="2000" show-count />
@@ -107,6 +108,7 @@
           <a-textarea v-model:value="form.answer" placeholder="输入标准答案（不超过2000字）" :rows="5" :maxlength="2000" show-count />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 详情弹窗 -->
@@ -117,6 +119,7 @@
       :width="640"
       @cancel="detailEditing = false"
     >
+      <div class="dialog-scroll-body">
       <template v-if="detailRecord">
         <a-descriptions :column="2" size="small" bordered class="qa-detail-info">
           <a-descriptions-item label="状态">
@@ -157,6 +160,7 @@
           </div>
         </template>
       </template>
+      </div>
       <template #footer>
         <a-button @click="detailEditing = false" v-if="detailEditing">取消</a-button>
         <a-button v-if="!detailEditing" @click="startDetailEdit">
@@ -251,6 +255,13 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新按钮语义：清空搜索关键词 + 回到第 1 页 + 重新拉取
+function refresh() {
+  searchText.value = ''
+  pagination.value.current = 1
+  loadData()
 }
 
 async function handleCreate() {

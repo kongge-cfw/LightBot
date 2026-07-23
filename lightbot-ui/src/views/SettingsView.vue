@@ -469,6 +469,7 @@
       ok-text="创建"
       cancel-text="取消"
     >
+      <div class="dialog-scroll-body">
       <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 17 }">
         <a-form-item label="名称" required>
           <a-input v-model:value="apiKeyForm.name" placeholder="如：生产环境API" :maxlength="64" />
@@ -493,6 +494,7 @@
           />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 密钥展示弹窗（创建后一次性显示） -->

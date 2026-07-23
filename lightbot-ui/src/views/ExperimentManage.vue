@@ -6,7 +6,7 @@
       search-placeholder="搜索实验名称..."
       :refresh-disabled="loading"
       create-text="创建实验"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openCreateDialog()"
     >
       <template #searchPrefix><SearchOutlined /></template>
@@ -160,6 +160,12 @@ async function loadData() {
       loading.value = false
     }
   }
+}
+
+// 刷新按钮语义：清空搜索关键词，回到全量列表
+function refresh() {
+  searchText.value = ''
+  loadData()
 }
 
 function openCreateDialog() {

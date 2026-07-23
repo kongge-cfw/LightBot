@@ -75,7 +75,9 @@
       </div>
     </CollapseTransition>
     <a-modal v-model:open="argsModalOpen" title="参数详情" :footer="null" :width="520" destroyOnClose>
+      <div class="dialog-scroll-body">
       <pre class="args-modal-raw">{{ argsModalContent }}</pre>
+      </div>
     </a-modal>
   </div>
 </template>

@@ -121,10 +121,12 @@
     :footer="null"
     :maskClosable="false"
   >
+    <div class="dialog-scroll-body">
     <div v-if="versionContentLoading" class="version-loading">
       <LoadingOutlined spin /> 加载中...
     </div>
     <pre v-else class="version-content-pre">{{ versionContentText }}</pre>
+    </div>
   </a-modal>
 
   <!-- 回滚确认弹窗 -->

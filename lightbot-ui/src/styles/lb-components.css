@@ -458,6 +458,9 @@
   gap: 12px;
   flex-wrap: wrap;
   min-width: 0;
+  /* 父级 .lb-detail-header__title-text 是 flex column + align-items: flex-start， */
+  /* 不撑满父容器会导致 #stats 槽的 margin-left:auto 推不到容器右侧，统计信息无法靠右 */
+  width: 100%;
 }
 .lb-detail-header__title-row .lb-detail-header__tags {
   margin: 0;

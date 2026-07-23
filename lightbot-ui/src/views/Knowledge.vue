@@ -6,7 +6,7 @@
       search-placeholder="搜索知识库名称..."
       :refresh-disabled="loading"
       create-text="新建知识库"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openCreateModal"
     >
       <template #searchPrefix><SearchOutlined /></template>
@@ -172,6 +172,12 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新按钮语义：清空搜索关键词，回到全量列表
+function refresh() {
+  searchText.value = ''
+  loadData()
 }
 
 let searchDebounceTimer = null

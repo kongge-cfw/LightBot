@@ -144,7 +144,9 @@
           </button>
         </a-tooltip>
       </template>
+      <div class="dialog-scroll-body">
       <pre class="subagent-modal-pre">{{ jsonModalContent }}</pre>
+      </div>
     </a-modal>
   </div>
 </template>

@@ -7,6 +7,7 @@
     destroy-on-close
     @update:open="v => emit('update:open', v)"
   >
+    <div class="dialog-scroll-body">
     <template v-if="example">
       <p class="node-example-summary">{{ example.summary }}</p>
       <div class="node-example-label">示例配置（JSON）</div>
@@ -20,6 +21,7 @@
       <p v-else-if="readonly" class="node-example-readonly-tip">历史版本预览下不可应用</p>
     </template>
     <a-empty v-else description="暂无该节点类型的示例说明" />
+    </div>
   </a-modal>
 </template>
 

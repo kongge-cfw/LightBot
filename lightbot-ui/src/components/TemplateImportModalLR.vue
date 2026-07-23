@@ -5,6 +5,7 @@
     :width="960"
     :maskClosable="false"
   >
+    <div class="dialog-scroll-body">
     <div class="template-import-lr">
       <!-- 左侧：模板列表 -->
       <div class="template-left">
@@ -73,6 +74,7 @@
           <p>请从左侧选择模板查看详情</p>
         </div>
       </div>
+    </div>
     </div>
 
     <template #footer>

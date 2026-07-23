@@ -12,6 +12,7 @@
       <span>搜索历史对话</span>
     </template>
 
+    <div class="dialog-scroll-body">
     <div class="conv-search-input">
       <a-input-search
         ref="inputRef"
@@ -57,6 +58,7 @@
           <div class="conv-search-snippet" v-html="renderSnippet(item.snippet, item.messageRole)"></div>
         </div>
       </div>
+    </div>
     </div>
   </a-modal>
 </template>

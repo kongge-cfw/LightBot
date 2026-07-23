@@ -11,7 +11,7 @@
       >
         <template #prefix><SearchOutlined /></template>
       </a-input>
-      <button class="btn-refresh" @click="loadUsers" :disabled="loading">
+      <button class="btn-refresh" @click="refreshUsers" :disabled="loading">
         <ReloadOutlined :spin="loading" /> 刷新
       </button>
     </div>
@@ -81,6 +81,7 @@
       @ok="handleSaveEdit"
       @cancel="editVisible = false"
     >
+      <div class="dialog-scroll-body">
       <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
         <a-form-item label="用户名">
           <a-input :value="editForm.username" disabled />
@@ -107,6 +108,7 @@
           </a-select>
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 用户详情抽屉 -->
@@ -262,6 +264,13 @@ const knowledgesLoading = ref(false)
 onMounted(() => {
   loadUsers()
 })
+
+// 刷新按钮语义：清空搜索关键词 + 回到第 1 页 + 重新拉取
+function refreshUsers() {
+  searchKeyword.value = ''
+  pagination.current = 1
+  loadUsers()
+}
 
 async function loadUsers() {
   loading.value = true

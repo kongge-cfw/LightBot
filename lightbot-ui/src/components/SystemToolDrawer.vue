@@ -58,6 +58,7 @@
     :width="640"
     :footer="null"
   >
+    <div class="dialog-scroll-body">
     <div class="tool-detail-modal">
       <div class="raw-toggle-bar">
         <button class="btn-text raw-toggle" @click="rawMode = !rawMode">
@@ -138,6 +139,7 @@
         </div>
       </template>
     </div>
+    </div>
   </a-modal>
 
   <!-- 测试工具弹窗 -->
@@ -148,6 +150,7 @@
     :footer="null"
     :maskClosable="false"
   >
+    <div class="dialog-scroll-body">
     <!-- 参数说明 -->
     <div v-if="testToolParams.length > 0" class="test-params-section">
       <div class="test-params-title">参数说明</div>
@@ -193,6 +196,7 @@
       <div class="test-result-label">执行结果</div>
       <pre class="test-result-content" :class="{ 'is-json': isJsonResult(testResult) }">{{ formatTestResult(testResult) }}</pre>
     </div>
+    </div>
   </a-modal>
 
   <!-- 知识库工具帮助弹窗 -->
@@ -202,6 +206,7 @@
     :width="680"
     :footer="null"
   >
+    <div class="dialog-scroll-body">
     <div class="help-content">
       <div class="help-section">
         <h4>什么是知识库工具？</h4>
@@ -299,6 +304,7 @@ public class PgSqlTool {
           <li>不可删除：前端无法删除</li>
         </ul>
       </div>
+    </div>
     </div>
   </a-modal>
 </template>

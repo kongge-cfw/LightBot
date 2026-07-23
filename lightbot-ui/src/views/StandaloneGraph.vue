@@ -158,6 +158,7 @@
       @cancel="resetNodeForm"
       :confirm-loading="nodeSubmitting"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="nodeForm" :label-col="{ span: 4 }">
         <a-form-item label="名称">
           <a-input v-model:value="nodeForm.name" placeholder="实体名称（必填）" :maxlength="30" show-count />
@@ -171,6 +172,7 @@
           <a-textarea v-model:value="nodeForm.description" :rows="3" placeholder="实体描述（可选）" />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 新建/编辑关系弹窗 -->
@@ -183,6 +185,7 @@
       @cancel="resetEdgeForm"
       :confirm-loading="edgeSubmitting"
     >
+      <div class="dialog-scroll-body">
       <a-form :model="edgeForm" :label-col="{ span: 4 }">
         <a-form-item label="起始节点">
           <a-input
@@ -223,6 +226,7 @@
           <a-textarea v-model:value="edgeForm.description" :rows="2" placeholder="关系描述（可选）" />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
 
     <!-- 导入 JSONL 弹窗 -->
@@ -233,6 +237,7 @@
       :footer="null"
       :width="560"
     >
+      <div class="dialog-scroll-body">
       <a-alert type="info" show-icon style="margin-bottom: 16px">
         <template #message>通过 JSONL 文件批量导入节点和关系，每行一个三元组（头实体 → 关系 → 尾实体）。</template>
       </a-alert>
@@ -276,6 +281,7 @@
         <a-button @click="downloadSample">
           <template #icon><DownloadOutlined /></template> 下载示例文件
         </a-button>
+      </div>
       </div>
     </a-modal>
   </div>

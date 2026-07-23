@@ -17,6 +17,7 @@
         </div>
       </div>
     </template>
+    <div class="dialog-scroll-body">
     <a-spin :spinning="detailLoading">
       <div ref="scrollRef" class="task-detail-scroll" @scroll="onScroll">
         <div v-if="selectedDisplayTask" class="task-detail-summary">
@@ -93,6 +94,7 @@
         </div>
       </div>
     </a-spin>
+    </div>
   </a-modal>
 </template>
 

@@ -21,7 +21,9 @@
         </button>
       </a-tooltip>
     </template>
+    <div class="dialog-scroll-body">
     <pre class="raw-modal-content">{{ content }}</pre>
+    </div>
   </a-modal>
 
   <!-- Metadata 弹窗 -->
@@ -39,7 +41,9 @@
         <CopyOutlined v-else />
       </button>
     </template>
+    <div class="dialog-scroll-body">
     <pre class="raw-modal-content">{{ metadataJson }}</pre>
+    </div>
   </a-modal>
 </template>
 

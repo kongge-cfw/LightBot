@@ -48,6 +48,7 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle({ padding: '20px' })"
     >
+      <div class="dialog-scroll-body">
       <div class="sd-detail-container">
         <!-- 统计信息 -->
         <div class="sd-detail-stats">
@@ -91,6 +92,7 @@
           <InboxOutlined />
           <p>未找到匹配的文档</p>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

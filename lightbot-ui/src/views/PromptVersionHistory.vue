@@ -63,6 +63,7 @@
       :width="700"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div v-if="detailVersion" class="version-detail">
         <div class="detail-row">
           <span class="detail-label">版本号</span>
@@ -94,6 +95,7 @@
         <div class="detail-content-title">Prompt 内容</div>
         <a-textarea :value="detailVersion.template" :rows="12" readonly class="template-editor" />
       </div>
+      </div>
       <template #footer>
         <LbDialogFooter
           cancel-text="关闭"
@@ -120,6 +122,7 @@
       :footer="null"
       :maskClosable="false"
     >
+      <div class="dialog-scroll-body">
       <div v-if="compareOld && compareNew" class="compare-content">
         <!-- 颜色图例 -->
         <div class="compare-legend">
@@ -170,6 +173,7 @@
             </div>
           </div>
         </div>
+      </div>
       </div>
     </a-modal>
   </div>

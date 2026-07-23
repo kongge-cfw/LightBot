@@ -8,7 +8,7 @@
       search-placeholder="搜索 Skill 名称 / slug..."
       :refresh-disabled="loading"
       create-text="新增 Skill"
-      @refresh="loadData"
+      @refresh="refresh"
       @search-enter="loadData"
       @create="openDialog()"
     >

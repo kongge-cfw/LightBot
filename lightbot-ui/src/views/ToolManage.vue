@@ -8,7 +8,7 @@
       search-placeholder="搜索工具名称..."
       :refresh-disabled="loading"
       create-text="新增工具"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openDialog()"
     >
       <template #filters>

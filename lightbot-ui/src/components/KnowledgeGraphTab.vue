@@ -215,6 +215,7 @@
           <QuestionCircleOutlined style="margin-left: 6px; font-size: 14px; color: var(--color-mute); cursor: help" />
         </a-tooltip>
       </template>
+      <div class="dialog-scroll-body">
       <div class="doc-extract-content">
         <!-- 全选 -->
         <div class="doc-extract-header">
@@ -257,6 +258,7 @@
           </div>
         </div>
       </div>
+      </div>
     </a-modal>
 
     <!-- 抽取配置弹窗 -->
@@ -267,6 +269,7 @@
       :maskClosable="false"
       @ok="handleExtractConfigSubmit"
     >
+      <div class="dialog-scroll-body">
       <a-form layout="vertical">
         <a-form-item label="抽取模型">
           <ModelSelect
@@ -312,6 +315,7 @@
           />
         </a-form-item>
       </a-form>
+      </div>
     </a-modal>
   </div>
 </template>

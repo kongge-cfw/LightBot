@@ -15,7 +15,7 @@
       </span>
     </template>
 
-    <div class="scroll-body">
+    <div class="scroll-body dialog-scroll-body">
     <a-form :model="form" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }" class="config-form">
       <!-- 预设模式 -->
       <div class="preset-bar">
@@ -510,10 +510,7 @@ defineExpose({ open, getQaEnabled: () => form.qa_enabled })
 
 <style scoped>
 .scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 24px calc(24px + var(--scroll-content-gap, 8px)) 24px 16px;
-  scrollbar-gutter: stable;
+  padding: 24px 24px 24px 16px;
 }
 .config-form {
   padding-right: 8px;

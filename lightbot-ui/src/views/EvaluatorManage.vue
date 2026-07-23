@@ -6,7 +6,7 @@
       search-placeholder="搜索评估器名称..."
       :refresh-disabled="loading"
       create-text="新建评估器"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openDialog()"
     >
       <template #searchPrefix><SearchOutlined /></template>
@@ -159,6 +159,12 @@ async function loadData() {
   } finally {
     loading.value = false
   }
+}
+
+// 刷新按钮语义：清空搜索关键词，回到全量列表
+function refresh() {
+  searchText.value = ''
+  loadData()
 }
 
 function openDialog(row) {

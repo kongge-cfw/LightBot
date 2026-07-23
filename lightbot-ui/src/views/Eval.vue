@@ -565,6 +565,8 @@ function handleSearch() {
 }
 
 function handleRefresh() {
+  // 刷新按钮语义：清空搜索关键词后强制重新加载当前 tab
+  searchText.value = ''
   loadData(activeTab.value, true)
 }
 

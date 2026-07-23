@@ -7,7 +7,7 @@
       search-placeholder="搜索 Server 名称..."
       :refresh-disabled="loading"
       create-text="新增 Server"
-      @refresh="loadData"
+      @refresh="refresh"
       @create="openDialog()"
     >
       <template #searchPrefix><SearchOutlined /></template>

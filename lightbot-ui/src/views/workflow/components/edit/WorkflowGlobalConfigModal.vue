@@ -1,5 +1,6 @@
 <template>
   <a-modal v-model:open="open" title="全局设置" :width="640" @ok="$emit('ok')">
+    <div class="dialog-scroll-body">
     <a-form layout="vertical">
       <a-form-item>
         <template #label>
@@ -27,6 +28,7 @@
       </div>
       <a-button type="dashed" block @click="$emit('add-param')"><PlusOutlined /> 添加会话变量</a-button>
     </a-form>
+    </div>
   </a-modal>
 </template>
 

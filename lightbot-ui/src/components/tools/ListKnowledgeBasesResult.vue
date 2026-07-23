@@ -37,7 +37,9 @@
       :wrap-style="toolResultModalWrapStyle"
       :body-style="buildToolResultModalBodyStyle()"
     >
+      <div class="dialog-scroll-body">
       <pre class="lkb-detail-content">{{ formattedResult }}</pre>
+      </div>
     </a-modal>
   </div>
 </template>

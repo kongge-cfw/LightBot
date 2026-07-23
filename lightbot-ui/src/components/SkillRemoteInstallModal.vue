@@ -7,6 +7,7 @@
     :footer="null"
     @cancel="handleCancel"
   >
+    <div class="dialog-scroll-body">
     <!-- 步骤一：浏览 + 选择 -->
     <div v-if="step === 'browse'">
       <a-tabs v-model:activeKey="activeTab" class="remote-tabs">
@@ -183,6 +184,7 @@
         </div>
       </div>
     </a-modal>
+    </div>
   </a-modal>
 </template>
 

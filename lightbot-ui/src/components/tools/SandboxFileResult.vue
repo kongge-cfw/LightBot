@@ -43,6 +43,7 @@
             </div>
           </div>
           <pre class="sfr-modal-content">{{ data.content }}</pre>
+          </div>
         </a-modal>
       </div>
 
@@ -69,6 +70,7 @@
 
         <a-modal v-model:open="showModal" title="文件列表" :footer="null" :width="720"
           :bodyStyle="{ maxHeight: '70vh', overflow: 'auto', padding: '20px' }" destroyOnClose>
+          <div class="dialog-scroll-body">
           <div class="sfr-modal-meta">
             <div class="sfr-modal-meta-item">
               <FolderOpenOutlined class="sfr-modal-meta-icon" />
@@ -86,6 +88,7 @@
               <FileTextOutlined class="sfr-modal-list-icon" />
               <span class="sfr-modal-list-name">{{ file }}</span>
             </div>
+          </div>
           </div>
         </a-modal>
       </div>
