@@ -2,7 +2,6 @@
   <div class="page">
     <LbDetailHeader
       :title="dataset?.name || '评测集详情'"
-      :desc="dataset?.description || ''"
       @back="router.back()"
     >
       <template #extra>

@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="Prompt"
-      desc="测试和调试你的AI提示词"
       v-model="searchText"
       search-placeholder="搜索 Prompt Key..."
       :refresh-disabled="loading"

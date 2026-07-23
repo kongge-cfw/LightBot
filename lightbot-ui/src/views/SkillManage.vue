@@ -3,7 +3,6 @@
     <LbManageHeader
       v-if="!hideHeader"
       title="Skill 库"
-      desc="全局可复用的 Skill：编排提示词 + 依赖工具/MCP，可在 Agent 详情中按需启用"
       v-model="searchText"
       :search-width="240"
       search-placeholder="搜索 Skill 名称 / slug..."

@@ -1,19 +1,12 @@
 <template>
   <div class="eval-page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">评测</h1>
-        <p class="page-desc">数据集、评估器和实验管理</p>
-      </div>
-    </div>
-
-    <div class="tab-toolbar">
-      <a-tabs v-model:activeKey="activeTab" class="eval-tabs">
-        <a-tab-pane key="datasets" tab="评测集" />
-        <a-tab-pane key="evaluators" tab="评估器" />
-        <a-tab-pane key="experiments" tab="实验" />
-      </a-tabs>
-      <div class="toolbar-actions">
+    <LbPageTabsHeader
+      title="评测"
+      :tabs="tabs"
+      :active-key="activeTab"
+      @update:active-key="activeTab = $event"
+    >
+      <template #actions>
         <a-input
           v-model:value="searchText"
           :placeholder="searchPlaceholder"
@@ -39,8 +32,8 @@
         <button class="btn-primary" @click="handleAdd">
           <PlusOutlined /> {{ addBtnText }}
         </button>
-      </div>
-    </div>
+      </template>
+    </LbPageTabsHeader>
 
     <div class="tab-content scroll-area-y">
       <!-- 评测集 Tab -->
@@ -455,6 +448,7 @@ import { message, Modal } from 'ant-design-vue'
 import TagInput from '../components/TagInput.vue'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 import LbEmptyState from '../components/common/LbEmptyState.vue'
+import LbPageTabsHeader from '../components/common/LbPageTabsHeader.vue'
 import {
   getEvalDatasets, createEvalDataset, updateEvalDataset, deleteEvalDataset,
   listEvalDatasetExamples, createFromEvalDatasetExample,
@@ -474,6 +468,11 @@ import { getPrompts, getPromptVersions } from '../api/prompt'
 const router = useRouter()
 const route = useRoute()
 const activeTab = ref(route.query.tab || 'datasets')
+const tabs = [
+  { key: 'datasets', label: '评测集' },
+  { key: 'evaluators', label: '评估器' },
+  { key: 'experiments', label: '实验' },
+]
 const searchText = ref('')
 const datasetsLoading = ref(false)
 const evaluatorsLoading = ref(false)
@@ -867,40 +866,6 @@ function progressStatus(s) {
   padding: 32px;
   display: flex;
   flex-direction: column;
-}
-.page-header {
-  margin-bottom: 20px;
-  flex-shrink: 0;
-}
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin: 0 0 4px;
-}
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
-  margin: 0;
-}
-.tab-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  flex-shrink: 0;
-}
-.eval-tabs {
-  flex: 1;
-}
-.eval-tabs :deep(.ant-tabs-nav) {
-  margin-bottom: 0;
-}
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
 }
 .tab-content {
   flex: 1;

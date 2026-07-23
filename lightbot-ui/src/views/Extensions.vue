@@ -1,19 +1,12 @@
 <template>
   <div class="extensions-page">
-    <div class="page-header">
-      <div>
-        <h1 class="page-title">扩展管理</h1>
-        <p class="page-desc">管理 MCP 服务、Skill 技能、工具和 SubAgents</p>
-      </div>
-    </div>
-    <div class="tab-toolbar">
-      <a-tabs v-model:activeKey="activeTab" class="ext-tabs">
-        <a-tab-pane key="mcp" tab="MCP Server" />
-        <a-tab-pane key="skills" tab="Skill" />
-        <a-tab-pane key="tools" tab="工具" />
-        <a-tab-pane key="subagents" tab="SubAgents" />
-      </a-tabs>
-      <div class="toolbar-actions">
+    <LbPageTabsHeader
+      title="扩展管理"
+      :tabs="extensionTabs"
+      :active-key="activeTab"
+      @update:active-key="activeTab = $event"
+    >
+      <template #actions>
         <!-- 工具Tab时显示类型筛选 -->
         <a-select
           v-if="activeTab === 'tools'"
@@ -53,8 +46,8 @@
         <button class="lb-btn lb-btn--primary" @click="handleAdd">
           <PlusOutlined /> {{ addBtnText }}
         </button>
-      </div>
-    </div>
+      </template>
+    </LbPageTabsHeader>
     <div class="tab-content scroll-area-y">
       <!-- v-if 懒加载：未激活的 tab 不挂载子组件，避免首次进入并发所有子组件的 onMounted 请求 -->
       <McpManage v-if="activeTab === 'mcp'" ref="mcpRef" hide-header />
@@ -74,10 +67,17 @@ import SkillManage from './SkillManage.vue'
 import ToolManage from './ToolManage.vue'
 import SubAgentManage from './SubAgentManage.vue'
 import DynamicToolDrawer from '../components/DynamicToolDrawer.vue'
+import LbPageTabsHeader from '../components/common/LbPageTabsHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
 const activeTab = ref(route.query.tab || 'mcp')
+const extensionTabs = [
+  { key: 'mcp', label: 'MCP Server' },
+  { key: 'skills', label: 'Skill' },
+  { key: 'tools', label: '工具' },
+  { key: 'subagents', label: 'SubAgents' },
+]
 const searchText = ref('')
 const toolTypeFilter = ref('all')
 const mcpRef = ref(null)
@@ -164,40 +164,6 @@ watch(activeTab, (tab) => {
   padding: 32px;
   display: flex;
   flex-direction: column;
-}
-.page-header {
-  margin-bottom: 20px;
-  flex-shrink: 0;
-}
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin: 0 0 4px;
-}
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
-  margin: 0;
-}
-.tab-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-  flex-shrink: 0;
-}
-.ext-tabs {
-  flex: 1;
-}
-.ext-tabs :deep(.ant-tabs-nav) {
-  margin-bottom: 0;
-}
-.toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  flex-shrink: 0;
 }
 .tab-content {
   flex: 1;

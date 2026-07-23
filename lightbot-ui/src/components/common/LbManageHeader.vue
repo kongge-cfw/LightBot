@@ -1,10 +1,6 @@
 <template>
   <div class="lb-manage-header">
-    <div class="lb-manage-header__title">
-      <h1>{{ title }}</h1>
-      <p v-if="desc">{{ desc }}</p>
-      <slot name="titleExtra" />
-    </div>
+    <h2 class="lb-manage-header__title">{{ title }}</h2>
     <div class="lb-manage-header__actions">
       <slot name="filters" />
       <a-input
@@ -42,9 +38,9 @@
 
 <script setup>
 /**
- * 管理页头部
- * 统一项目中 16+ 处 .page-header + .page-header-actions 的重复写法。
- * 提供：标题/描述、搜索框（v-model）、筛选 slot、刷新、新建按钮。
+ * 管理页头部（h2 标题 + 右侧 action bar）
+ * 统一项目中管理列表页的 header 写法（参考 TaskCenter / SessionManage 模式）。
+ * 提供：h2 标题（左上角）、搜索框（v-model）、筛选 slot、刷新、新建按钮（全部靠右）。
  * 复杂筛选（tag 下拉、时间筛选等）通过 #filters slot 透传。
  * 特殊操作按钮（如导入、批量操作）通过 #actions slot 透传。
  */
@@ -52,7 +48,6 @@ import { ReloadOutlined, PlusOutlined } from '@ant-design/icons-vue'
 
 const props = defineProps({
   title: { type: String, required: true },
-  desc: { type: String, default: '' },
   searchable: { type: Boolean, default: true },
   searchPlaceholder: { type: String, default: '搜索...' },
   searchWidth: { type: Number, default: 220 },

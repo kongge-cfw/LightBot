@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="实验管理"
-      desc="创建和管理 Prompt 评测实验"
       v-model="searchText"
       search-placeholder="搜索实验名称..."
       :refresh-disabled="loading"

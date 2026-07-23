@@ -3,7 +3,6 @@
     <LbManageHeader
       v-if="!hideHeader"
       title="MCP Server"
-      desc="管理 MCP (Model Context Protocol) 服务"
       v-model="searchText"
       search-placeholder="搜索 Server 名称..."
       :refresh-disabled="loading"

@@ -1,10 +1,7 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <div>
-        <h1 class="page-title">日志</h1>
-        <p class="page-desc">实时查看系统日志，支持按级别过滤</p>
-      </div>
+      <h1 class="page-title">日志</h1>
       <div class="header-actions">
         <div class="connection-status" :class="{ connected: sseConnected, connecting: connecting }">
           <span class="status-dot"></span>

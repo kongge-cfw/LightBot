@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="评估器管理"
-      desc="创建和管理评估器模板"
       v-model="searchText"
       search-placeholder="搜索评估器名称..."
       :refresh-disabled="loading"

@@ -5,7 +5,6 @@
         <ArrowLeftOutlined /> 返回
       </button>
       <h1 class="lb-detail-header__title">{{ title }}</h1>
-      <p class="lb-detail-header__desc" :class="{ 'lb-detail-header__desc--empty': !desc }">{{ desc || '暂无描述' }}</p>
       <div v-if="$slots.tags || tagsList.length" class="lb-detail-header__tags">
         <slot name="tags">
           <a-tag v-for="t in tagsList" :key="t" color="blue">{{ t }}</a-tag>
@@ -21,7 +20,7 @@
 <script setup>
 /**
  * 详情页头部
- * 统一项目中 6+ 处 .btn-back + .page-title + .page-desc + .header-actions 的重复写法。
+ * 统一项目中 .btn-back + .page-title + .header-actions 的重复写法。
  * 三种返回写法（.btn-back / <a-button type="text"> / .btn-outline-sm）统一为本组件 showBack + @back。
  */
 import { ArrowLeftOutlined } from '@ant-design/icons-vue'
@@ -29,7 +28,6 @@ import { computed } from 'vue'
 
 const props = defineProps({
   title: { type: String, required: true },
-  desc: { type: String, default: '' },
   tags: { type: [String, Array], default: '' },
   showBack: { type: Boolean, default: true },
 })

@@ -1,13 +1,10 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.push('/app/eval')">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">创建实验</h1>
-        <p class="page-desc">选择评测集、配置评测对象和评估器，创建评测实验</p>
-      </div>
+      <button class="btn-back" @click="router.push('/app/eval')">
+        <ArrowLeftOutlined /> 返回
+      </button>
+      <h1 class="page-title">创建实验</h1>
     </div>
 
     <div class="create-card">

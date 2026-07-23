@@ -1,12 +1,12 @@
 <template>
   <div class="standalone-graph-page">
-    <!-- 页面头部 -->
+    <!-- 顶部标题栏 -->
     <div class="page-header">
-      <div>
-        <h1 class="page-title">知识图谱</h1>
-        <p class="page-desc">全局独立知识图谱，支持 JSONL 导入、语义搜索、节点/边编辑</p>
-      </div>
-      <div class="page-header-actions">
+      <button class="btn-back" @click="router.back()">
+        <ArrowLeftOutlined /> 返回
+      </button>
+      <h2 class="page-title">知识图谱</h2>
+      <div class="page-header-right">
         <span class="neo4j-status" :class="neo4jAvailable ? 'connected' : 'disconnected'">
           <span class="neo4j-dot"></span>
           {{ neo4jAvailable ? 'Neo4j 已连接' : 'Neo4j 未连接' }}
@@ -285,7 +285,8 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import {
   SearchOutlined, DeleteOutlined, CompressOutlined, UploadOutlined, DownloadOutlined,
-  PlusOutlined, LinkOutlined, ThunderboltOutlined, ClearOutlined, QuestionCircleOutlined
+  PlusOutlined, LinkOutlined, ThunderboltOutlined, ClearOutlined, QuestionCircleOutlined,
+  ArrowLeftOutlined
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -993,32 +994,40 @@ onUnmounted(() => {
   height: 100vh;
   overflow: hidden;
   background: var(--color-canvas-soft);
+  position: relative;
 }
 
 .page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 24px 32px 0;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 32px 12px;
   flex-shrink: 0;
 }
-
+.btn-back {
+  background: none;
+  border: none;
+  color: var(--color-mute);
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+}
+.btn-back:hover { color: var(--color-link); }
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin: 0;
+  white-space: nowrap;
 }
-
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
-}
-
-.page-header-actions {
+.page-header-right {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 
 .header-stats {

@@ -2,7 +2,6 @@
   <div class="page">
     <LbDetailHeader
       :title="evaluator?.name || '评估器详情'"
-      :desc="evaluator?.description || ''"
       @back="router.back()"
     >
       <template #extra>

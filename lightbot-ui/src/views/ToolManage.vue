@@ -3,7 +3,6 @@
     <LbManageHeader
       v-if="!hideHeader"
       title="工具管理"
-      desc="管理 Agent 可使用的工具（Tool）"
       v-model="searchText"
       :search-width="180"
       search-placeholder="搜索工具名称..."

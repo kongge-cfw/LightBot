@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="模型管理"
-      desc="管理 AI 模型提供商的 API 配置"
       :searchable="false"
       :show-refresh="false"
       create-text="新增提供商"

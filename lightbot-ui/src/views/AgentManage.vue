@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="Agent"
-      desc="创建和管理 AI Agent，配置系统提示词和行为"
       v-model="searchText"
       search-placeholder="搜索 Agent 名称..."
       :refresh-disabled="loading"

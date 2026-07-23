@@ -352,28 +352,21 @@
 .lb-manage-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 32px;
+  align-items: center;
+  margin-bottom: 20px;
   gap: 16px;
 }
 .lb-manage-header__title {
-  flex: 1;
-  min-width: 0;
-}
-.lb-manage-header__title h1 {
-  font-size: 24px;
+  margin: 0;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
-}
-.lb-manage-header__title p {
-  font-size: 14px;
-  color: var(--color-mute);
+  white-space: nowrap;
 }
 .lb-manage-header__actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-shrink: 0;
   flex-wrap: wrap;
 }

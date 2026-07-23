@@ -1,13 +1,10 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.push('/app/prompts')">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">Prompt 模板</h1>
-        <p class="page-desc">管理 Prompt 构建模板，方便快速创建和调试</p>
-      </div>
+      <button class="btn-back" @click="router.push('/app/prompts')">
+        <ArrowLeftOutlined /> 返回
+      </button>
+      <h2 class="page-title">Prompt 模板</h2>
       <div class="page-header-actions">
         <a-input
           v-model:value="searchText"
@@ -319,9 +316,9 @@ function handleDelete(id) {
 
 .page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 32px;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
 .btn-back {
@@ -333,27 +330,24 @@ function handleDelete(id) {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
+  padding: 0;
 }
 
 .btn-back:hover { color: var(--color-link); }
 
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
-}
-
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
+  margin: 0;
+  white-space: nowrap;
 }
 
 .page-header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  margin-left: auto;
 }
 
 .btn-primary {
@@ -421,6 +415,7 @@ function handleDelete(id) {
   font-size: 13px;
   color: var(--color-mute);
   display: block;
+  margin-top: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

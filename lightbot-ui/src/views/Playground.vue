@@ -1,40 +1,38 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.push('/app/prompts')">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">Playground
-          <a-popover trigger="click" overlay-class-name="playground-help-popover">
-            <template #content>
-              <div class="playground-help">
-                <p><strong>Playground 是什么？</strong></p>
-                <p>Playground 是 Prompt 的实时调试环境，用于验证模板效果和模型表现。</p>
-                <p><strong>使用方式：</strong></p>
-                <ul>
-                  <li>在编辑器中编写 Prompt 模板，使用 <code v-pre>{{变量名}}</code> 定义变量</li>
-                  <li>可选择已发布的 Prompt 版本快速加载</li>
-                  <li>在下方输入框发送消息，实时查看模型输出</li>
-                </ul>
-                <p><strong>适用场景：</strong></p>
-                <ul>
-                  <li>调试 Prompt 模板的指令清晰度和输出质量</li>
-                  <li>对比不同模型配置下的生成效果</li>
-                  <li>验证变量替换是否符合预期</li>
-                </ul>
-              </div>
-            </template>
-            <QuestionCircleOutlined class="playground-help-icon" />
-          </a-popover>
-        </h1>
-        <p class="page-desc">测试和调试你的 AI 提示词</p>
-      </div>
-      <div class="header-actions">
-        <button class="btn-outline" @click="openCreatePromptModal" title="从当前配置创建新Prompt">
+      <button class="btn-back" @click="router.push('/app/prompts')">
+        <ArrowLeftOutlined /> 返回
+      </button>
+      <h2 class="page-title">
+        Playground
+        <a-popover trigger="click" overlay-class-name="playground-help-popover">
+          <template #content>
+            <div class="playground-help">
+              <p><strong>Playground 是什么？</strong></p>
+              <p>Playground 是 Prompt 的实时调试环境，用于验证模板效果和模型表现。</p>
+              <p><strong>使用方式：</strong></p>
+              <ul>
+                <li>在编辑器中编写 Prompt 模板，使用 <code v-pre>{{变量名}}</code> 定义变量</li>
+                <li>可选择已发布的 Prompt 版本快速加载</li>
+                <li>在下方输入框发送消息，实时查看模型输出</li>
+              </ul>
+              <p><strong>适用场景：</strong></p>
+              <ul>
+                <li>调试 Prompt 模板的指令清晰度和输出质量</li>
+                <li>对比不同模型配置下的生成效果</li>
+                <li>验证变量替换是否符合预期</li>
+              </ul>
+            </div>
+          </template>
+          <QuestionCircleOutlined class="playground-help-icon" />
+        </a-popover>
+      </h2>
+      <div class="page-header-right">
+        <button class="lb-btn" @click="openCreatePromptModal" title="从当前配置创建新Prompt">
           <PlusOutlined /> 快速创建 Prompt
         </button>
-        <button class="btn-outline" @click="addInstance()" :disabled="instances.length >= 3" title="最多同时对比3个配置">
+        <button class="lb-btn lb-btn--primary" @click="addInstance()" :disabled="instances.length >= 3" title="最多同时对比3个配置">
           <CopyOutlined /> 添加配置
         </button>
       </div>
@@ -538,8 +536,8 @@ async function loadPromptsData() {
 }
 .page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 20px;
 }
 .btn-back {
@@ -551,18 +549,21 @@ async function loadPromptsData() {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 8px;
+  padding: 0;
 }
 .btn-back:hover { color: var(--color-link); }
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
 }
 .playground-help-icon {
   margin-left: 6px;
-  font-size: 18px;
+  font-size: 16px;
   color: var(--color-mute);
   cursor: pointer;
   transition: color 0.2s;
@@ -571,13 +572,10 @@ async function loadPromptsData() {
 .playground-help-icon:hover {
   color: #3b82f6;
 }
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
-}
-.header-actions {
+.page-header-right {
   display: flex;
   gap: 8px;
+  margin-left: auto;
 }
 .btn-outline {
   display: inline-flex;

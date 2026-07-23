@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="评测集"
-      desc="创建和管理评测数据集"
       v-model="searchText"
       search-placeholder="搜索评测集名称..."
       :refresh-disabled="loading"

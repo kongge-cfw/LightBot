@@ -2,7 +2,6 @@
   <div class="page">
     <div class="page-header">
       <h1 class="page-title">个人信息</h1>
-      <p class="page-desc">管理账户资料、安全设置和个人 AI 偏好</p>
     </div>
 
     <a-tabs v-model:activeKey="activeTab" class="profile-tabs">

@@ -2,7 +2,6 @@
   <div class="page">
     <LbManageHeader
       title="知识库"
-      desc="管理知识库，上传文档，基于 RAG 进行问答"
       v-model="searchText"
       search-placeholder="搜索知识库名称..."
       :refresh-disabled="loading"
