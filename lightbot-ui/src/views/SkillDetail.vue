@@ -1,12 +1,25 @@
 <template>
   <div class="skill-detail-page">
-    <!-- 顶部导航栏（参考 Linear/Notion 面包屑 + Dify 极简箭头） -->
-    <div class="detail-top-bar">
-      <button class="detail-breadcrumb" @click="goBack">
-        <ArrowLeftOutlined />
-        <span>Skills</span>
-      </button>
-      <div class="detail-top-actions">
+    <!-- 顶部导航：LbDetailHeader 面包屑模式（顶栏面包屑 + 标题区图标/元信息） -->
+    <LbDetailHeader
+      :title="skill.displayName || skill.name || 'Skill 详情'"
+      :breadcrumb="[{ label: 'Skills', onClick: goBack }]"
+      :icon="BookOutlined"
+      icon-bg="skill"
+      @back="goBack"
+    >
+      <template #tags>
+        <span v-if="skill.slug" class="meta meta-slug">{{ skill.slug }}</span>
+        <span
+          class="meta meta-status"
+          :class="skill.status === 'disabled' ? 'is-disabled' : 'is-enabled'"
+        >
+          {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
+        </span>
+        <span v-if="skill.isBuiltin === 1" class="meta meta-builtin">内置</span>
+        <span v-if="skill.version" class="meta meta-version">v{{ skill.version }}</span>
+      </template>
+      <template #extra>
         <button class="lb-btn lb-btn--sm" @click="handleExport">
           <ExportOutlined /> 导出
         </button>
@@ -17,29 +30,8 @@
         >
           <DeleteOutlined /> 删除
         </button>
-      </div>
-    </div>
-
-    <!-- 标题区：图标盒 + h2 + 元信息副标题，独立成块承载实体识别 -->
-    <div class="detail-title-section">
-      <div class="detail-icon">
-        <BookOutlined />
-      </div>
-      <div class="detail-title-text">
-        <h2>{{ skill.displayName || skill.name || 'Skill 详情' }}</h2>
-        <div class="detail-subtitle">
-          <span v-if="skill.slug" class="meta meta-slug">{{ skill.slug }}</span>
-          <span
-            class="meta meta-status"
-            :class="skill.status === 'disabled' ? 'is-disabled' : 'is-enabled'"
-          >
-            {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
-          </span>
-          <span v-if="skill.isBuiltin === 1" class="meta meta-builtin">内置</span>
-          <span v-if="skill.version" class="meta meta-version">v{{ skill.version }}</span>
-        </div>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <!-- Tab 内容 -->
     <a-spin :spinning="loading" tip="加载中..." style="flex:1; min-height:0; display:flex; flex-direction:column;">
@@ -395,7 +387,7 @@ const TreeNode = defineComponent({
 import { ref, reactive, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftOutlined, ExportOutlined, DeleteOutlined, ReloadOutlined,
+  ExportOutlined, DeleteOutlined, ReloadOutlined,
   FileAddOutlined, FileOutlined, FolderOpenOutlined, SaveOutlined,
   EyeOutlined, EditOutlined, BookOutlined
 } from '@ant-design/icons-vue'
@@ -410,6 +402,7 @@ import { getEnabledSkills } from '../api/skill'
 import { truncateText } from '../utils/format'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -759,47 +752,9 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-/* ========== 顶部导航：面包屑 + 操作按钮（参考 Linear/Notion/Dify）==========
-   把"返回按钮"改造为面包屑导航：箭头 + 父级 section 名「Skills」
-   一起点击返回，视觉上是导航路径而非孤立按钮，解决"返回按钮放哪都丑"问题。
-   标题/副标题/图标盒独立成块放到下方，避免与工具栏元素挤同一行。 */
-.detail-top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 10px 32px;
-  background: var(--color-canvas);
-  border-bottom: 1px solid var(--color-hairline);
-  flex-shrink: 0;
-}
-.detail-breadcrumb {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border: none;
-  background: transparent;
-  color: var(--color-mute);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 6px 10px;
-  margin-left: -10px;
-  border-radius: 6px;
-  transition: color 0.15s, background 0.15s;
-}
-.detail-breadcrumb:hover {
-  color: var(--color-ink);
-  background: var(--color-canvas-soft-2);
-}
-.detail-breadcrumb .anticon {
-  font-size: 14px;
-}
-.detail-top-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
+/* ========== Skill 详情页本地样式 ==========
+   顶栏 / 标题区 / 图标盒 / 面包屑的容器样式由 LbDetailHeader（lb-components.css）提供，
+   本文件只保留 SkillDetail 特有的 .meta* 元信息 pill 和 .detail-action-danger 按钮覆盖。 */
 .detail-action-danger {
   color: var(--color-error);
   border-color: var(--color-error);
@@ -808,52 +763,6 @@ onUnmounted(() => {
   background: var(--color-error);
   border-color: var(--color-error);
   color: #fff;
-}
-
-/* ========== 标题区：图标盒 + h2 + 元信息副标题 ========== */
-.detail-title-section {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 20px 32px 20px;
-  background: var(--color-canvas);
-  border-bottom: 1px solid var(--color-hairline);
-  flex-shrink: 0;
-}
-.detail-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 10px;
-  background: var(--gradient-entity-skill);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  font-size: 20px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-.detail-title-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  gap: 6px;
-}
-.detail-title-text h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--color-ink);
-  line-height: 1.3;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.detail-subtitle {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
 }
 .meta {
   display: inline-flex;

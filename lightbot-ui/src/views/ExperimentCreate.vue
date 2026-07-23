@@ -1,11 +1,11 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <button class="btn-back" @click="router.push('/app/eval')">
-        <ArrowLeftOutlined /> 返回
-      </button>
-      <h1 class="page-title">创建实验</h1>
-    </div>
+    <LbDetailHeader
+      title="创建实验"
+      :breadcrumb="[{ label: '实验', onClick: () => router.push('/app/eval') }]"
+      :icon="ExperimentOutlined"
+      @back="router.push('/app/eval')"
+    />
 
     <div class="create-card">
       <ExperimentCreateForm
@@ -22,8 +22,9 @@
 
 <script setup>
 import { useRouter } from 'vue-router'
-import { ArrowLeftOutlined } from '@ant-design/icons-vue'
+import { ExperimentOutlined } from '@ant-design/icons-vue'
 import ExperimentCreateForm from '../components/eval/ExperimentCreateForm.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const router = useRouter()
 

@@ -1,56 +1,55 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.push('/app/knowledge')">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">
-          {{ knowledge.name }}
-          <a-tooltip v-if="knowledge.type" :title="knowledge.type === 'milvus' ? 'Milvus' : 'PostgreSQL'">
-            <CloudServerOutlined v-if="knowledge.type === 'milvus'" class="title-type-icon milvus" />
-            <DatabaseOutlined v-else class="title-type-icon pg" />
-          </a-tooltip>
-          <span v-if="knowledge.type === 'milvus'" class="milvus-status" :class="{ connected: milvusConnected }">
-            <span class="status-dot"></span>
-            {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
-          </span>
-        </h1>
-        <p class="page-desc" :class="{ 'page-desc--empty': !knowledge.description }">{{ knowledge.description || '暂无描述' }}</p>
-        <div class="kb-stats-bar">
-          <div class="kb-stat-item">
-            <FileTextOutlined />
-            <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
-            <span class="kb-stat-label">文档</span>
-          </div>
-          <div class="kb-stat-divider"></div>
-          <div class="kb-stat-item">
-            <BlockOutlined />
-            <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
-            <span class="kb-stat-label">分片</span>
-          </div>
-          <div class="kb-stat-divider"></div>
-          <div class="kb-stat-item">
-            <FontColorsOutlined />
-            <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
-            <span class="kb-stat-label">Token</span>
-          </div>
-          <a-tooltip title="重新计算统计数据">
-            <button class="kb-stats-refresh" :disabled="statsRepairing" @click="handleRefreshStats">
-              <LoadingOutlined v-if="statsRepairing" spin />
-              <ReloadOutlined v-else />
-            </button>
-          </a-tooltip>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="btn-outline-sm" @click="openMembersModal">
+    <LbDetailHeader
+      :title="knowledge.name"
+      :breadcrumb="[{ label: '知识库', onClick: () => router.push('/app/knowledge') }]"
+      :icon="knowledge.type === 'milvus' ? CloudServerOutlined : DatabaseOutlined"
+      icon-bg="knowledge"
+      @back="router.push('/app/knowledge')"
+    >
+      <template #tags>
+        <a-tag v-if="knowledge.type" color="blue">
+          {{ knowledge.type === 'milvus' ? 'Milvus' : 'PostgreSQL' }}
+        </a-tag>
+        <a-tag v-if="knowledge.type === 'milvus'" :color="milvusConnected ? 'success' : 'default'">
+          {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
+        </a-tag>
+      </template>
+      <template #extra>
+        <button class="lb-btn lb-btn--sm" @click="openMembersModal">
           <TeamOutlined /> 成员
         </button>
-        <button class="btn-primary-sm" @click="openEditDialog">
+        <button class="lb-btn lb-btn--sm lb-btn--primary" @click="openEditDialog">
           <EditOutlined /> 编辑
         </button>
+      </template>
+    </LbDetailHeader>
+
+    <!-- 统计条（KnowledgeDetail 独有，放 header 下方）-->
+    <div class="kb-stats-bar">
+      <div class="kb-stat-item">
+        <FileTextOutlined />
+        <span class="kb-stat-value">{{ knowledge.documentCount || 0 }}</span>
+        <span class="kb-stat-label">文档</span>
       </div>
+      <div class="kb-stat-divider"></div>
+      <div class="kb-stat-item">
+        <BlockOutlined />
+        <span class="kb-stat-value">{{ knowledge.chunkCount || 0 }}</span>
+        <span class="kb-stat-label">分片</span>
+      </div>
+      <div class="kb-stat-divider"></div>
+      <div class="kb-stat-item">
+        <FontColorsOutlined />
+        <span class="kb-stat-value">{{ formatTokenCount(knowledge.totalTokens) }}</span>
+        <span class="kb-stat-label">Token</span>
+      </div>
+      <a-tooltip title="重新计算统计数据">
+        <button class="kb-stats-refresh" :disabled="statsRepairing" @click="handleRefreshStats">
+          <LoadingOutlined v-if="statsRepairing" spin />
+          <ReloadOutlined v-else />
+        </button>
+      </a-tooltip>
     </div>
 
     <div class="content-grid">
@@ -997,7 +996,7 @@ import { renderMarkdownSync } from '@/utils/markdown_preview'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftOutlined, EditOutlined, TeamOutlined, PlusOutlined, CloseOutlined, SearchOutlined,
+  EditOutlined, TeamOutlined, PlusOutlined, CloseOutlined, SearchOutlined,
   CheckCircleOutlined, ClockCircleOutlined, SyncOutlined, CloseCircleOutlined, ExclamationCircleOutlined,
   DownloadOutlined, LoadingOutlined, ReloadOutlined, QuestionCircleOutlined, DeleteOutlined, RobotOutlined,
   UploadOutlined, RedoOutlined,
@@ -1032,6 +1031,7 @@ import KnowledgeGraphTab from '../components/KnowledgeGraphTab.vue'
 import QAPairsTab from '../components/QAPairsTab.vue'
 import KnowledgeAdvisorTab from '../components/KnowledgeAdvisorTab.vue'
 import QueryParamsModal from '../components/QueryParamsModal.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 const DocumentEditorModal = defineAsyncComponent(() =>
   import('../components/DocumentEditor/DocumentEditorModal.vue')
 )
@@ -2438,7 +2438,9 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-top: 12px;
+  padding: 12px 32px 20px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
 }
 .kb-stat-item {
   display: flex;

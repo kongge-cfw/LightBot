@@ -2,6 +2,9 @@
   <div class="page">
     <LbDetailHeader
       :title="evaluator?.name || '评估器详情'"
+      :breadcrumb="[{ label: '评估器', onClick: () => router.back() }]"
+      :icon="AuditOutlined"
+      icon-bg="tool"
       @back="router.back()"
     >
       <template #extra>
@@ -188,7 +191,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PlusOutlined, ArrowLeftOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, AuditOutlined, ThunderboltOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import ModelSelect from '../components/ModelSelect.vue'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'

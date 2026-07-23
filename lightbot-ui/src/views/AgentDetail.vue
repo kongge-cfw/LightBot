@@ -8,36 +8,30 @@
       </div>
     </div>
 
-    <div class="page-header">
-      <div class="page-header-left">
-        <div class="page-header-titles">
-          <button class="btn-back" @click="handleGoBack">
-            <ArrowLeftOutlined /> 返回
-          </button>
-          <div class="page-title-row">
-            <h1 class="page-title">{{ headerName || 'Agent 详情' }}</h1>
-            <a-tooltip :title="agent.id ? `ID：${agent.id}` : '新建保存后生成 ID'">
-              <button type="button" class="btn-agent-id" @click="copyAgentId">
-                <IdcardOutlined />
-              </button>
-            </a-tooltip>
-          </div>
-          <p class="page-desc" :class="{ 'page-desc--empty': !headerDescription }">
-            {{ headerDescription || '暂无描述' }}
-          </p>
-        </div>
-      </div>
-      <div class="header-actions">
+    <LbDetailHeader
+      :title="headerName || 'Agent 详情'"
+      :breadcrumb="[{ label: 'Agents', onClick: handleGoBack }]"
+      :icon="RobotOutlined"
+      @back="handleGoBack"
+    >
+      <template #tags>
         <span class="agent-status-badge" :class="agentStatusClass">{{ agentStatusText }}</span>
-        <button v-if="agent.agentType === 'workflow'" class="btn-outline" @click="goWorkflowEdit">
+        <a-tooltip :title="agent.id ? `ID：${agent.id}` : '新建保存后生成 ID'">
+          <button type="button" class="btn-agent-id" @click="copyAgentId">
+            <IdcardOutlined />
+          </button>
+        </a-tooltip>
+      </template>
+      <template #extra>
+        <button v-if="agent.agentType === 'workflow'" class="lb-btn lb-btn--sm" @click="goWorkflowEdit">
           <SettingOutlined /> 工作流编排
         </button>
-        <button class="btn-outline" @click="startChat">
+        <button class="lb-btn lb-btn--sm" @click="startChat">
           <MessageOutlined /> 对话
         </button>
         <button
           v-if="agent.agentType === 'workflow'"
-          class="btn-outline"
+          class="lb-btn lb-btn--sm"
           @click="handleSaveWorkflowBasic"
           :disabled="saving || isVersionPreview"
         >
@@ -45,24 +39,24 @@
         </button>
         <button
           v-if="agent.agentType !== 'workflow'"
-          class="btn-outline"
+          class="lb-btn lb-btn--sm"
           @click="openVersionDrawer"
         >
           <HistoryOutlined /> 版本管理
         </button>
-        <button v-if="agent.agentType !== 'workflow'" class="btn-outline" @click="handleSave" :disabled="saving || isVersionPreview">
+        <button v-if="agent.agentType !== 'workflow'" class="lb-btn lb-btn--sm" @click="handleSave" :disabled="saving || isVersionPreview">
           <SaveOutlined /> 暂存
         </button>
         <button
           v-if="agent.agentType !== 'workflow'"
-          class="btn-primary"
+          class="lb-btn lb-btn--sm lb-btn--primary"
           @click="handlePublish"
           :disabled="publishing || saving || isVersionPreview"
         >
           <CheckCircleOutlined /> {{ publishing ? '发布中...' : '发布' }}
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <a-alert
       v-if="isVersionPreview"
@@ -1691,7 +1685,7 @@
 defineOptions({ name: 'AgentDetail' })
 import { ref, reactive, computed, onMounted, watch, h } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
-import { ArrowLeftOutlined, SaveOutlined, CloseOutlined, SearchOutlined, CheckOutlined, MessageOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined, LoadingOutlined, UndoOutlined, ToolOutlined, QuestionCircleOutlined, ApiOutlined, DeleteOutlined, BookOutlined, RobotOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined, HistoryOutlined, InfoCircleOutlined, IdcardOutlined, RightOutlined, DownOutlined, DatabaseOutlined, CloudServerOutlined } from '@ant-design/icons-vue'
+import { SaveOutlined, CloseOutlined, SearchOutlined, CheckOutlined, MessageOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined, LoadingOutlined, UndoOutlined, ToolOutlined, QuestionCircleOutlined, ApiOutlined, DeleteOutlined, BookOutlined, RobotOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined, HistoryOutlined, InfoCircleOutlined, IdcardOutlined, RightOutlined, DownOutlined, DatabaseOutlined, CloudServerOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { copyToClipboard } from '../utils/clipboard'
 import { getAgentDetail, updateAgent, updateAgentKnowledge, updateAgentTools, getAgentToolIds, getAgentToolDetails, generateAgentPrompt, generateAgentQuestions, uploadAgentAvatar, updateAgentMcpServers, updateAgentSubAgents, updateAgentSkills, publishAgent, listAgentVersions, getAgentVersionDetail, restoreAgentVersion, deleteAgentVersion } from '../api/agent'
@@ -1720,6 +1714,7 @@ import {
 } from '../utils/bindingId'
 import DynamicToolDrawer from '../components/DynamicToolDrawer.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 import { useBinding } from '../composables/useBinding'
 const route = useRoute()
 const router = useRouter()
@@ -3624,20 +3619,6 @@ onMounted(async () => {
 .btn-agent-id:hover {
   color: var(--color-link);
   background: var(--color-info-bg);
-}
-.btn-back {
-  background: none;
-  border: none;
-  color: var(--color-mute);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.btn-back:hover {
-  color: var(--color-link);
 }
 .page-title {
   font-size: 24px;

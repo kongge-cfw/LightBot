@@ -2,6 +2,9 @@
   <div class="page">
     <LbDetailHeader
       :title="dataset?.name || '评测集详情'"
+      :breadcrumb="[{ label: '评测集', onClick: () => router.back() }]"
+      :icon="DatabaseOutlined"
+      icon-bg="knowledge"
       @back="router.back()"
     >
       <template #extra>
@@ -173,7 +176,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { PlusOutlined, ArrowLeftOutlined, HistoryOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DatabaseOutlined, HistoryOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { formatDate as formatTime } from '../utils/format'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'

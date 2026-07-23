@@ -1,33 +1,31 @@
 <template>
   <div class="page">
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.back()">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">{{ experiment?.name || '实验详情' }}</h1>
-        <p class="page-desc" :class="{ 'page-desc--empty': !experiment?.description }">{{ experiment?.description || '暂无描述' }}</p>
-      </div>
-      <div class="page-header-actions">
-        <a-tag v-if="experimentStatus" :color="statusColor" style="font-size: 14px; padding: 4px 12px;">
-          {{ statusLabel }}
-        </a-tag>
+    <LbDetailHeader
+      :title="experiment?.name || '实验详情'"
+      :breadcrumb="[{ label: '实验', onClick: () => router.back() }]"
+      :icon="ExperimentOutlined"
+      @back="router.back()"
+    >
+      <template v-if="experimentStatus" #tags>
+        <a-tag :color="statusColor">{{ statusLabel }}</a-tag>
+      </template>
+      <template #extra>
         <button
           v-if="experimentStatus === 'running'"
-          class="btn-outline"
+          class="lb-btn"
           @click="handleStop"
         >
           <PauseCircleOutlined /> 停止
         </button>
         <button
           v-if="experimentStatus === 'stopped' || experimentStatus === 'failed' || experimentStatus === 'completed'"
-          class="btn-outline"
+          class="lb-btn"
           @click="handleRestart"
         >
           <ReloadOutlined /> 重新评测
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <!-- 实验信息卡片 -->
     <div class="info-cards">
@@ -324,7 +322,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowLeftOutlined, PauseCircleOutlined, ReloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import { ExperimentOutlined, PauseCircleOutlined, ReloadOutlined, PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   getExperiment, updateExperiment, stopExperiment, restartExperiment,
@@ -336,6 +334,7 @@ import { getPrompts, getPromptVersions } from '../api/prompt'
 import { getEvaluators, getEvaluatorVersions } from '../api/evaluator'
 import { formatTime } from '../utils/format'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const route = useRoute()
 const router = useRouter()

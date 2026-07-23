@@ -1,15 +1,15 @@
 <template>
   <div class="page">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.push(`/app/prompts/${promptKey}`)">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title">版本记录</h1>
-        <p class="page-desc">Prompt Key: {{ promptKey }}</p>
-      </div>
-    </div>
+    <LbDetailHeader
+      title="版本记录"
+      :breadcrumb="[{ label: 'Prompt 详情', onClick: () => router.push(`/app/prompts/${promptKey}`) }]"
+      :icon="HistoryOutlined"
+      @back="router.push(`/app/prompts/${promptKey}`)"
+    >
+      <template #tags>
+        <span class="meta meta-key">{{ promptKey }}</span>
+      </template>
+    </LbDetailHeader>
 
     <!-- 提示条 -->
     <a-alert
@@ -178,12 +178,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftOutlined, SwapOutlined, RollbackOutlined,
+  HistoryOutlined, SwapOutlined, RollbackOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { getPromptVersions } from '../api/prompt'
 import { formatTime } from '../utils/format'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -296,33 +297,14 @@ onMounted(async () => {
   min-height: 100vh;
   background: var(--color-canvas-soft);
 }
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 16px;
-}
-.btn-back {
-  background: none;
-  border: none;
-  color: var(--color-mute);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.btn-back:hover { color: var(--color-link); }
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin-bottom: 4px;
-}
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
+.meta-key {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: #be185d;
+  background: var(--color-purple-bg);
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-weight: 400;
 }
 .btn-link {
   background: none;

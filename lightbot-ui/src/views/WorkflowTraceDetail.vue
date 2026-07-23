@@ -1,21 +1,23 @@
 <template>
   <div class="workflow-trace-detail">
-    <!-- 顶部栏 -->
-    <div class="trace-header">
-      <div class="header-left">
-        <a-button type="text" @click="router.back()"><ArrowLeftOutlined /> 返回</a-button>
-        <span class="header-title">工作流链路详情</span>
-        <a-tag v-if="trace" :color="traceStatusColor(trace.status)">
+    <LbDetailHeader
+      title="工作流链路详情"
+      :breadcrumb="[{ label: '工作流追踪', onClick: () => router.back() }]"
+      :icon="ApartmentOutlined"
+      @back="router.back()"
+    >
+      <template v-if="trace" #tags>
+        <a-tag :color="traceStatusColor(trace.status)">
           {{ traceStatusLabel(trace.status) }}
         </a-tag>
-      </div>
-      <div class="header-right">
+      </template>
+      <template #extra>
         <a-radio-group v-model:value="viewMode" button-style="solid" size="small">
           <a-radio-button value="graph"><ApartmentOutlined /> 图</a-radio-button>
           <a-radio-button value="text"><UnorderedListOutlined /> 文</a-radio-button>
         </a-radio-group>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <!-- 基本信息栏 -->
     <div v-if="trace" class="trace-info-bar">
@@ -171,7 +173,6 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftOutlined,
   ApartmentOutlined,
   UnorderedListOutlined,
 } from '@ant-design/icons-vue'
@@ -179,6 +180,7 @@ import { getTraceDetail } from '../api/observability'
 import { getKnowledgeList } from '../api/knowledge'
 import { getTools } from '../api/tool'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 import WorkflowViewerCanvas from './workflow/components/WorkflowViewerCanvas.vue'
 import ResizableSidePanel from './workflow/components/ResizableSidePanel.vue'
 import WorkflowNodeDetailPanel from './workflow/components/edit/WorkflowNodeDetailPanel.vue'
@@ -511,29 +513,6 @@ onUnmounted(() => {
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-}
-
-/* Header */
-.trace-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 16px;
-}
-.header-left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.header-title {
-  font-size: 17px;
-  font-weight: 600;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 8px;
 }
 
 /* Info bar */

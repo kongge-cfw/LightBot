@@ -1,24 +1,24 @@
 <template>
   <div class="page">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div>
-        <button class="btn-back" @click="router.back()">
-          <ArrowLeftOutlined /> 返回
-        </button>
-        <h1 class="page-title"><span v-if="latestVersion" class="version-badge">{{ latestVersion }}</span>{{ promptKey }}</h1>
-        <p class="page-desc" :class="{ 'page-desc--empty': !prompt?.description }">{{ prompt?.description || '暂无描述' }}</p>
+    <LbDetailHeader
+      :title="promptKey"
+      :breadcrumb="[{ label: 'Prompts', onClick: () => router.back() }]"
+      :icon="FileTextOutlined"
+      @back="router.back()"
+    >
+      <template #tags>
+        <span v-if="latestVersion" class="version-badge">{{ latestVersion }}</span>
         <LbTagList v-if="prompt?.tags" :tags="prompt.tags" />
-      </div>
-      <div class="header-actions">
-        <button class="btn-outline-sm" @click="router.push(`/app/prompts/${promptKey}/versions`)">
+      </template>
+      <template #extra>
+        <button class="lb-btn lb-btn--sm" @click="router.push(`/app/prompts/${promptKey}/versions`)">
           <HistoryOutlined /> 版本记录
         </button>
-        <button class="btn-primary-sm" @click="openVersionDialog()">
+        <button class="lb-btn lb-btn--sm lb-btn--primary" @click="openVersionDialog()">
           <CloudUploadOutlined /> 发布版本
         </button>
-      </div>
-    </div>
+      </template>
+    </LbDetailHeader>
 
     <!-- 配置实例网格 -->
     <a-spin :spinning="pageLoading">
@@ -262,7 +262,7 @@
 import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftOutlined, HistoryOutlined, ThunderboltOutlined,
+  FileTextOutlined, HistoryOutlined, ThunderboltOutlined,
   ImportOutlined, CloudUploadOutlined, CopyOutlined, DeleteOutlined,
   QuestionCircleOutlined, EyeOutlined, CheckOutlined, CloseCircleOutlined,
 } from '@ant-design/icons-vue'
@@ -276,6 +276,7 @@ import TemplateImportModalLR from '../components/TemplateImportModalLR.vue'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import LbDialogFooter from '../components/common/LbDialogFooter.vue'
 import LbTagList from '../components/common/LbTagList.vue'
+import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 import { copyToClipboard } from '../utils/clipboard'
 
 const route = useRoute()
@@ -616,34 +617,6 @@ function scrollToBottom(inst) {
   background: var(--color-canvas-soft);
   scrollbar-gutter: stable;
 }
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 20px;
-}
-.btn-back {
-  background: none;
-  border: none;
-  color: var(--color-mute);
-  cursor: pointer;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  margin-bottom: 8px;
-}
-.btn-back:hover { color: var(--color-link); }
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: var(--color-ink);
-  margin-bottom: 12px;
-  line-height: 1.3;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
 .version-badge {
   display: inline-flex;
   align-items: center;
@@ -656,35 +629,6 @@ function scrollToBottom(inst) {
   padding: 2px 10px;
   line-height: 18px;
   white-space: nowrap;
-}
-.page-desc {
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--color-body);
-  padding: 8px 12px;
-  background: var(--color-canvas-soft);
-  border-left: 3px solid var(--color-link);
-  border-radius: 0 6px 6px 0;
-  max-width: 720px;
-  margin-bottom: 16px;
-  word-break: break-word;
-}
-.page-desc--empty {
-  font-style: italic;
-  color: var(--color-mute);
-  background: transparent;
-  border-left-color: var(--color-hairline-strong);
-  opacity: 0.75;
-}
-.prompt-tags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-}
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 .btn-outline-sm {
   display: inline-flex;
