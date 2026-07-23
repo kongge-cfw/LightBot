@@ -85,3 +85,15 @@
   text-align: center;
   padding-inline: 24px;
 }
+
+/**
+ * 预览类弹窗：内部已有自管滚动的视口（image-viewport / mpm-viewport），
+ * 外层 modal-body 不应再叠加 max-height + overflow，否则视口高度被压缩、
+ * 视口外的工具栏也会被算进滚动区域产生多余的垂直滚动条。
+ * 列出已知需要豁免的弹窗 class，按需追加。
+ */
+.chat-media-preview-modal .ant-modal-body,
+.mermaid-preview-modal .ant-modal-body {
+  max-height: none;
+  overflow: visible;
+}

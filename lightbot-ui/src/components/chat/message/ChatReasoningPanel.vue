@@ -83,7 +83,6 @@ watch(() => props.msg?._reasoningExpanded, scrollContentToBottom)
 }
 .reasoning-content {
   padding: 10px 12px;
-  padding-right: calc(12px + var(--scroll-content-gap, 8px));
   background: var(--color-warn-bg);
   font-size: 13px;
   color: var(--color-mute);
@@ -92,7 +91,6 @@ watch(() => props.msg?._reasoningExpanded, scrollContentToBottom)
   word-break: break-word;
   max-height: 300px;
   overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
