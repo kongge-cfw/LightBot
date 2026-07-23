@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1 class="page-title">个人信息</h1>
+      <h2 class="page-title">个人信息</h2>
     </div>
 
     <a-tabs v-model:activeKey="activeTab" class="profile-tabs">
@@ -698,17 +698,15 @@ watch(activeTab, (val) => {
   scrollbar-gutter: stable;
 }
 .page-header {
-  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
 }
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
-}
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
+  margin: 0;
 }
 .profile-tabs {
   background: transparent;

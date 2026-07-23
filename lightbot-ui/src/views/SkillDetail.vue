@@ -1,32 +1,45 @@
 <template>
   <div class="skill-detail-page">
-    <!-- 顶部导航栏 -->
-    <LbDetailHeader
-      :title="skill.displayName || skill.name || 'Skill 详情'"
-      @back="goBack"
-    >
-      <template #tags>
-        <span v-if="skill.slug" class="tag tag-slug">{{ skill.slug }}</span>
-        <a-tag :color="skill.status === 'disabled' ? 'default' : 'success'">
-          {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
-        </a-tag>
-        <a-tag v-if="skill.isBuiltin === 1" color="blue">内置</a-tag>
-        <span v-if="skill.version" class="tag tag-version">v{{ skill.version }}</span>
-      </template>
-      <template #extra>
-        <button class="lb-btn" @click="handleExport">
+    <!-- 顶部导航栏（参考 Linear/Notion 面包屑 + Dify 极简箭头） -->
+    <div class="detail-top-bar">
+      <button class="detail-breadcrumb" @click="goBack">
+        <ArrowLeftOutlined />
+        <span>Skills</span>
+      </button>
+      <div class="detail-top-actions">
+        <button class="lb-btn lb-btn--sm" @click="handleExport">
           <ExportOutlined /> 导出
         </button>
         <button
           v-if="skill.isBuiltin !== 1"
-          class="lb-btn"
-          style="color: var(--color-error); border-color: var(--color-error);"
+          class="lb-btn lb-btn--sm detail-action-danger"
           @click="handleDelete"
         >
           <DeleteOutlined /> 删除
         </button>
-      </template>
-    </LbDetailHeader>
+      </div>
+    </div>
+
+    <!-- 标题区：图标盒 + h2 + 元信息副标题，独立成块承载实体识别 -->
+    <div class="detail-title-section">
+      <div class="detail-icon">
+        <BookOutlined />
+      </div>
+      <div class="detail-title-text">
+        <h2>{{ skill.displayName || skill.name || 'Skill 详情' }}</h2>
+        <div class="detail-subtitle">
+          <span v-if="skill.slug" class="meta meta-slug">{{ skill.slug }}</span>
+          <span
+            class="meta meta-status"
+            :class="skill.status === 'disabled' ? 'is-disabled' : 'is-enabled'"
+          >
+            {{ skill.status === 'disabled' ? '已禁用' : '已启用' }}
+          </span>
+          <span v-if="skill.isBuiltin === 1" class="meta meta-builtin">内置</span>
+          <span v-if="skill.version" class="meta meta-version">v{{ skill.version }}</span>
+        </div>
+      </div>
+    </div>
 
     <!-- Tab 内容 -->
     <a-spin :spinning="loading" tip="加载中..." style="flex:1; min-height:0; display:flex; flex-direction:column;">
@@ -384,7 +397,7 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftOutlined, ExportOutlined, DeleteOutlined, ReloadOutlined,
   FileAddOutlined, FileOutlined, FolderOpenOutlined, SaveOutlined,
-  EyeOutlined, EditOutlined
+  EyeOutlined, EditOutlined, BookOutlined
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -397,7 +410,6 @@ import { getEnabledSkills } from '../api/skill'
 import { truncateText } from '../utils/format'
 import MarkdownPreview from '../components/MarkdownPreview.vue'
 import DynamicIcon from '../components/DynamicIcon.vue'
-import LbDetailHeader from '../components/common/LbDetailHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -747,51 +759,134 @@ onUnmounted(() => {
   flex-direction: column;
 }
 
-.detail-header {
+/* ========== 顶部导航：面包屑 + 操作按钮（参考 Linear/Notion/Dify）==========
+   把"返回按钮"改造为面包屑导航：箭头 + 父级 section 名「Skills」
+   一起点击返回，视觉上是导航路径而非孤立按钮，解决"返回按钮放哪都丑"问题。
+   标题/副标题/图标盒独立成块放到下方，避免与工具栏元素挤同一行。 */
+.detail-top-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 16px;
-  padding: 20px 32px 16px;
+  padding: 10px 32px;
   background: var(--color-canvas);
   border-bottom: 1px solid var(--color-hairline);
   flex-shrink: 0;
 }
-
-.btn-back {
-  display: flex;
+.detail-breadcrumb {
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 6px;
+  border: none;
   background: transparent;
-  border: 1px solid var(--color-hairline);
-  border-radius: 6px;
+  color: var(--color-mute);
   font-size: 13px;
   cursor: pointer;
-  color: var(--color-body);
+  padding: 6px 10px;
+  margin-left: -10px;
+  border-radius: 6px;
+  transition: color 0.15s, background 0.15s;
+}
+.detail-breadcrumb:hover {
+  color: var(--color-ink);
+  background: var(--color-canvas-soft-2);
+}
+.detail-breadcrumb .anticon {
+  font-size: 14px;
+}
+.detail-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   flex-shrink: 0;
 }
-.btn-back:hover { border-color: var(--color-ink); color: var(--color-ink); }
-
-.header-info {
-  flex: 1;
-  min-width: 0;
+.detail-action-danger {
+  color: var(--color-error);
+  border-color: var(--color-error);
 }
-.header-title {
+.detail-action-danger:hover:not(:disabled) {
+  background: var(--color-error);
+  border-color: var(--color-error);
+  color: #fff;
+}
+
+/* ========== 标题区：图标盒 + h2 + 元信息副标题 ========== */
+.detail-title-section {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 32px 20px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  flex-shrink: 0;
+}
+.detail-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: var(--gradient-entity-skill);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 20px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.detail-title-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 6px;
+}
+.detail-title-text h2 {
+  margin: 0;
   font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin: 0 0 4px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.header-tags {
+.detail-subtitle {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: wrap;
 }
-
-.header-actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
+.meta {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 1.6;
+  font-weight: 500;
+}
+.meta-slug {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: #be185d;
+  background: var(--color-purple-bg);
+  font-weight: 400;
+}
+.meta-status.is-enabled {
+  color: #16a34a;
+  background: rgba(22, 163, 74, 0.1);
+}
+.meta-status.is-disabled {
+  color: var(--color-mute);
+  background: var(--color-canvas-soft-2);
+}
+.meta-builtin {
+  color: #1d4ed8;
+  background: var(--color-info-bg);
+}
+.meta-version {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  color: #0369a1;
+  background: var(--color-info-bg);
+  font-weight: 400;
 }
 
 .detail-tabs {
@@ -827,21 +922,6 @@ onUnmounted(() => {
 
 .tab-body {
   padding: 24px 32px;
-}
-
-.tag {
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-}
-.tag-slug {
-  font-family: 'SF Mono', Monaco, Consolas, monospace;
-  color: #be185d;
-  background: var(--color-purple-bg);
-}
-.tag-version {
-  color: #0369a1;
-  background: var(--color-info-bg);
 }
 
 .detail-section {

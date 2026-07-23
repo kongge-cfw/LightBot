@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1 class="page-title">日志</h1>
+      <h2 class="page-title">日志</h2>
       <div class="header-actions">
         <div class="connection-status" :class="{ connected: sseConnected, connecting: connecting }">
           <span class="status-dot"></span>
@@ -262,16 +262,17 @@ onUnmounted(() => {
 }
 .page-header {
   display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 20px;
   flex-shrink: 0;
 }
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin-bottom: 4px;
+  margin: 0;
+  white-space: nowrap;
 }
 .page-desc {
   font-size: 14px;
@@ -281,6 +282,7 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
 }
 .connection-status {
   display: flex;

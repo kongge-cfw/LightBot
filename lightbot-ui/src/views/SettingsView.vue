@@ -1,7 +1,7 @@
 <template>
   <div class="page">
     <div class="page-header">
-      <h1 class="page-title">系统管理</h1>
+      <h2 class="page-title">系统管理</h2>
     </div>
 
     <a-tabs v-model:activeKey="activeTab" class="settings-tabs">
@@ -891,17 +891,14 @@ async function handleDeleteApiKey(key) {
   margin-bottom: 0;
 }
 .page-header {
-  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
 }
 .page-title {
-  font-size: 24px;
+  font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
-  margin: 0 0 4px;
-}
-.page-desc {
-  font-size: 14px;
-  color: var(--color-mute);
   margin: 0;
 }
 .content-grid {

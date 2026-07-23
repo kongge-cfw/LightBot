@@ -4,7 +4,7 @@
       <button v-if="showBack" type="button" class="lb-detail-header__back" @click="emit('back')">
         <ArrowLeftOutlined /> 返回
       </button>
-      <h1 class="lb-detail-header__title">{{ title }}</h1>
+      <h2 class="lb-detail-header__title">{{ title }}</h2>
       <div v-if="$slots.tags || tagsList.length" class="lb-detail-header__tags">
         <slot name="tags">
           <a-tag v-for="t in tagsList" :key="t" color="blue">{{ t }}</a-tag>
