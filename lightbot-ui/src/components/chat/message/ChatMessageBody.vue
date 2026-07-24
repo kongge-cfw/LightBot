@@ -196,12 +196,15 @@ defineEmits([
 }
 .incomplete-todos-alert .alert-title {
   font-weight: 600;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 .incomplete-todos-alert .alert-list {
   list-style: none;
   padding: 0;
   margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 .incomplete-todos-alert .alert-list li {
   display: flex;

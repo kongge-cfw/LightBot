@@ -88,9 +88,14 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         return page;
     }
 
+    /** 历史 tool_result 短结果阈值：长度小于此值的结果正文原样保留，避免前端二次拉取 */
+    private static final int TOOL_RESULT_INLINE_LIMIT = 500;
+
     /**
-     * 历史列表 toolEvents 瘦身：剥离所有 type=tool_result 事件的 result 正文，仅保留长度提示。
-     * 前端展开时按 messageId+index 调 getToolResultDetail 按需拉取完整内容
+     * 历史列表 toolEvents 瘦身：剥离过长的 result 正文，仅保留长度提示。
+     * <p>短结果（≤ {@link #TOOL_RESULT_INLINE_LIMIT}）原样保留，前端直接渲染无需二次拉取，
+     * 规避按需拉取接口在 toolOutput 缺失时静默失败（data 字段被 NON_NULL 过滤）的问题；
+     * 长结果仍走 getToolResultDetail 按需拉取</p>
      */
     private String compactToolEventsForList(String toolEventsJson) {
         if (toolEventsJson == null || toolEventsJson.isBlank()) {
@@ -110,12 +115,15 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
                 }
                 JsonNode resultNode = evt.get("result");
                 String result = resultNode != null ? resultNode.asText("") : "";
-                // 1. 删除 result 正文，仅保留长度供前端显示大小提示
+                // 1. 短结果原样保留（含空结果 JSON 如 {"total":0,"results":[]}），前端直接渲染
+                if (result.length() <= TOOL_RESULT_INLINE_LIMIT) {
+                    output.add(evt);
+                    continue;
+                }
+                // 2. 长结果：删除 result 正文，仅保留长度提示，前端按需拉取完整 JSON
                 com.fasterxml.jackson.databind.node.ObjectNode mutable = evt.deepCopy();
                 mutable.remove("result");
-                if (!result.isEmpty()) {
-                    mutable.put("resultTotalLength", result.length());
-                }
+                mutable.put("resultTotalLength", result.length());
                 output.add(mutable);
                 changed = true;
             }

@@ -265,9 +265,13 @@ async function fetchFullResult(index) {
   loadingFullResult.value = loadingSet
   try {
     const res = await getToolResultDetail(toolCallId)
-    if (typeof res?.data === 'string') {
+    if (typeof res?.data === 'string' && res.data) {
       // 拉到完整 result 后赋值，触发 ToolCallRenderer 渲染
       evt.result = res.data
+      emit('heightChange', { target: null, preserveViewport: true })
+    } else {
+      // 后端 toolOutput 为 null/空（旧记录或异常）：占位为错误 JSON，避免渲染空白
+      evt.result = JSON.stringify({ _error: true, message: '工具执行结果不可用' })
       emit('heightChange', { target: null, preserveViewport: true })
     }
   } catch (e) {

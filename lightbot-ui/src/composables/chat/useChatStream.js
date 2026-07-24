@@ -691,6 +691,18 @@ export function useChatStream(deps) {
     // 标记为用户主动停止，让 onDone 走「合并 [DONE] 元数据但不覆盖 UI」分支
     userStoppedStream.value = true
 
+    // 立即停止打字机平滑动画：把 smoother buffer 里残留内容一次性 flush 显示，
+    // 避免用户点停止后到后端 [DONE]/5s 兜底期间还看到逐字吐字
+    streamSmoother.stop()
+
+    // 立即置 _streaming=false：消除 MarkdownPreview 末尾的闪烁光标（typing-cursor），
+    // 让用户点停止后界面立即进入「终态」，不再有任何流式动画迹象
+    // 后续 [DONE] 到达时 finalizeAbortedStream 会再次赋值（幂等），不会冲突
+    const stoppingMsg = getCurrentStreamingMsg()
+    if (stoppingMsg) {
+      stoppingMsg._streaming = false
+    }
+
     // 立即置流式相关 UI 为完结态，用户感知立即停止；但保留 SSE 连接等 [DONE] 补 ID
     // [DONE] 到达时 onDone 会合并 assistantMessageId，然后本方法末尾的 finalize 逻辑收尾
     currentStatus.value = '正在中断...'
