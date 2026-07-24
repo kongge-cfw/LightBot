@@ -17,7 +17,8 @@ import lombok.Getter;
 public enum KnowledgeType {
 
     PG("pg", "PostgreSQL"),
-    MILVUS("milvus", "Milvus");
+    MILVUS("milvus", "Milvus"),
+    DIFY("dify", "Dify Dataset");
 
     @EnumValue
     private final String code;

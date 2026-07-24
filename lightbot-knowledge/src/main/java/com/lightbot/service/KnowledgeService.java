@@ -3,8 +3,10 @@ package com.lightbot.service;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.IngestDTO;
+import com.lightbot.dto.DifyKnowledgeConfigDTO;
 import com.lightbot.dto.KnowledgeSaveDTO;
 import com.lightbot.entity.Knowledge;
+import com.lightbot.vo.DifyConnectionTestVO;
 
 import java.util.List;
 import java.util.Map;
@@ -155,6 +157,22 @@ public interface KnowledgeService extends IService<Knowledge> {
      * @param params      检索配置
      */
     void updateQueryParams(Long knowledgeId, Map<String, Object> params);
+
+    /**
+     * 测试 Dify Dataset 连接（需要知识库成员权限）。
+     *
+     * @param knowledgeId 知识库ID
+     * @return 连通性结果
+     */
+    DifyConnectionTestVO testDifyConnection(Long knowledgeId);
+
+    /**
+     * 测试尚未保存的 Dify Dataset 连接配置，不写入数据库。
+     *
+     * @param config Dify 连接配置
+     * @return 连通性结果
+     */
+    DifyConnectionTestVO testDifyConnection(DifyKnowledgeConfigDTO config);
 
     /**
      * 检查 Milvus 向量数据库连接状态

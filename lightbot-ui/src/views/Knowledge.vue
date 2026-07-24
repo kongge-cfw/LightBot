@@ -62,8 +62,9 @@
             </span>
           </a-tooltip>
           <span v-if="k.type" class="card-type-icon-wrap">
-            <a-tooltip :title="k.type === 'milvus' ? 'Milvus' : 'PostgreSQL'">
+            <a-tooltip :title="k.type === 'milvus' ? 'Milvus' : k.type === 'dify' ? 'Dify Dataset（只读）' : 'PostgreSQL'">
               <CloudServerOutlined v-if="k.type === 'milvus'" class="card-type-icon milvus" />
+              <ApiOutlined v-else-if="k.type === 'dify'" class="card-type-icon dify" />
               <DatabaseOutlined v-else class="card-type-icon pg" />
             </a-tooltip>
           </span>
@@ -79,7 +80,7 @@
     </a-spin>
 
     <!-- 创建弹窗 -->
-    <a-modal v-model:open="showCreate" title="新建知识库" :width="480" @ok="handleCreate" :confirm-loading="submitting" :maskClosable="false">
+    <a-modal v-model:open="showCreate" title="新建知识库" :width="720" :maskClosable="false">
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ span: 6 }">
         <a-form-item label="名称" required>
@@ -112,13 +113,47 @@
               </div>
               <div class="kb-type-desc">高性能分布式向量数据库，支持亿级向量检索、混合检索（BM25 + 向量），适合大规模生产场景</div>
             </div>
+            <div
+              class="kb-type-card"
+              :class="{ active: form.type === 'dify' }"
+              @click="form.type = 'dify'"
+            >
+              <div class="kb-type-header">
+                <ApiOutlined class="kb-type-icon" />
+                <span class="kb-type-title">Dify Dataset</span>
+              </div>
+              <div class="kb-type-desc">连接已有 Dify 知识库，只读检索；文档、分块和问答由 Dify 管理</div>
+            </div>
           </div>
         </a-form-item>
-        <a-form-item label="Embed模型" required>
-          <ModelSelect v-model="form.embeddingModel" model-type="embedding" placeholder="选择嵌入模型" @change="onEmbeddingModelChange" />
+        <template v-if="form.type === 'dify'">
+          <a-form-item label="Dify API 地址" required>
+            <a-input v-model:value="form.difyConfig.apiUrl" placeholder="https://dify.example.com/v1" />
+          </a-form-item>
+          <a-form-item label="Dataset ID" required>
+            <a-input v-model:value="form.difyConfig.datasetId" placeholder="Dify Dataset ID" />
+          </a-form-item>
+          <a-form-item label="Dataset Token" required>
+            <a-input-password v-model:value="form.difyConfig.token" placeholder="仅用于加密保存，不会回显" />
+          </a-form-item>
+          <a-alert type="info" show-icon message="测试不会保存配置；创建时会再次验证连接。Dify Dataset 为只读知识库。" />
+        </template>
+        <a-form-item v-else label="Embed模型" required>
+          <ModelSelect v-model="form.embeddingModel" model-type="embedding" placeholder="选择嵌入模型" />
         </a-form-item>
       </a-form>
       </div>
+      <template #footer>
+        <a-button @click="showCreate = false">取消</a-button>
+        <a-button
+          v-if="form.type === 'dify'"
+          :loading="testingDifyConnection"
+          @click="handleTestDifyConnection"
+        >
+          测试连接
+        </a-button>
+        <a-button type="primary" :loading="submitting" @click="handleCreate">创建</a-button>
+      </template>
     </a-modal>
   </div>
 </template>
@@ -126,9 +161,9 @@
 <script setup>
 import { ref, reactive, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { PlusOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApartmentOutlined, DatabaseOutlined, CloudServerOutlined, FileTextOutlined, BlockOutlined, FontColorsOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, SearchOutlined, ReloadOutlined, ApartmentOutlined, DatabaseOutlined, CloudServerOutlined, ApiOutlined, FileTextOutlined, BlockOutlined, FontColorsOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
-import { getKnowledgeList, createKnowledge, deleteKnowledge } from '../api/knowledge'
+import { getKnowledgeList, createKnowledge, deleteKnowledge, testDifyDraftConnection } from '../api/knowledge'
 import ModelSelect from '../components/ModelSelect.vue'
 import EntityCard from '../components/EntityCard.vue'
 import LbManageHeader from '../components/common/LbManageHeader.vue'
@@ -141,12 +176,13 @@ const loading = ref(false)
 const searchText = ref('')
 const showCreate = ref(false)
 const submitting = ref(false)
-const selectedEmbeddingModelId = ref(null)
+const testingDifyConnection = ref(false)
 const form = reactive({
   name: '',
   description: '',
   type: 'pg',
   embeddingModel: null,
+  difyConfig: { apiUrl: '', datasetId: '', token: '' },
 })
 
 function formatTokenCount(count) {
@@ -158,7 +194,9 @@ function formatTokenCount(count) {
 
 function openCreateModal() {
   form.embeddingModel = null
-  selectedEmbeddingModelId.value = null
+  form.difyConfig.apiUrl = ''
+  form.difyConfig.datasetId = ''
+  form.difyConfig.token = ''
   showCreate.value = true
 }
 
@@ -208,13 +246,21 @@ async function handleCreate() {
     message.warning('请输入名称')
     return
   }
-  if (!form.embeddingModel) {
+  if (form.type !== 'dify' && !form.embeddingModel) {
     message.warning('请选择 Embed 模型')
+    return
+  }
+  if (form.type === 'dify' && (!form.difyConfig.apiUrl.trim() || !form.difyConfig.datasetId.trim() || !form.difyConfig.token.trim())) {
+    message.warning('请填写 Dify API 地址、Dataset ID 和 Token')
     return
   }
   submitting.value = true
   try {
-    await createKnowledge({ ...form, embeddingModel: selectedEmbeddingModelId.value, config: '{}' })
+    await createKnowledge({
+      ...form,
+      embeddingModel: form.type === 'dify' ? null : form.embeddingModel,
+      config: '{}',
+    })
     message.success('创建成功')
     showCreate.value = false
     form.name = ''
@@ -223,6 +269,20 @@ async function handleCreate() {
     loadData()
   } finally {
     submitting.value = false
+  }
+}
+
+async function handleTestDifyConnection() {
+  if (!form.difyConfig.apiUrl.trim() || !form.difyConfig.datasetId.trim() || !form.difyConfig.token.trim()) {
+    message.warning('请填写 Dify API 地址、Dataset ID 和 Token')
+    return
+  }
+  testingDifyConnection.value = true
+  try {
+    await testDifyDraftConnection({ ...form.difyConfig })
+    message.success('Dify Dataset 连接成功')
+  } finally {
+    testingDifyConnection.value = false
   }
 }
 
@@ -295,6 +355,9 @@ onMounted(loadData)
 .card-type-icon.milvus {
   color: #8b5cf6;
 }
+.card-type-icon.dify {
+  color: #14b8a6;
+}
 .empty-state {
   grid-column: 1 / -1;
   text-align: center;
@@ -310,7 +373,7 @@ onMounted(loadData)
 /* 知识库类型选择卡片 */
 .kb-type-cards {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   width: 100%;
 }
@@ -353,5 +416,8 @@ onMounted(loadData)
   font-size: 12px;
   color: var(--color-mute);
   line-height: 1.5;
+}
+@media (max-width: 640px) {
+  .kb-type-cards { grid-template-columns: 1fr; }
 }
 </style>

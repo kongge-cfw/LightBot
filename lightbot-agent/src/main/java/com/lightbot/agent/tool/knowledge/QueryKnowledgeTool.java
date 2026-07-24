@@ -6,6 +6,7 @@ import com.lightbot.entity.Knowledge;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.EmbeddingService;
 import com.lightbot.service.KnowledgeService;
+import com.lightbot.service.KnowledgeRetrievalService;
 import com.lightbot.service.QaPairService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.util.RagParamResolver;
@@ -53,9 +54,9 @@ public class QueryKnowledgeTool {
 
     private final AgentService agentService;
     private final KnowledgeService knowledgeService;
-    private final EmbeddingService embeddingService;
     private final QaPairService qaPairService;
     private final EmbeddingModel embeddingModel;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final RagParamResolver ragParamResolver;
     private final ObjectMapper objectMapper;
     private final com.lightbot.service.QueryRewriteService queryRewriteService;
@@ -110,12 +111,7 @@ public class QueryKnowledgeTool {
             }
             final String searchQuery = effectiveQuery;
 
-            // 3. 向量化问题
-            ToolEventEmitter.emit("正在向量化查询问题...");
-            float[] queryVector = embedText(searchQuery);
-            log.info("[Tool:query_knowledge] 问题向量化完成: dimension={}", queryVector.length);
-
-            // 4. 并行检索多个知识库（阈值过滤下沉到SQL层）
+            // 3. 并行检索多个知识库（由统一入口路由本地向量库或 Dify Dataset）。
             List<CompletableFuture<List<Map<String, Object>>>> futures = knowledgeIds.stream()
                     .map(knowledgeId -> CompletableFuture.supplyAsync(() -> {
                         try {
@@ -139,7 +135,7 @@ public class QueryKnowledgeTool {
                             CompletableFuture<List<Map<String, Object>>> chunkFuture = CompletableFuture.supplyAsync(() -> {
                                 try {
                                     Map<String, Object> searchParams = buildSearchParams(knowledge, searchQuery);
-                                    return embeddingService.searchSimilarSql(knowledgeId, queryVector, topK, threshold, searchParams);
+                                    return knowledgeRetrievalService.retrieve(knowledge, searchQuery, topK, threshold, searchParams);
                                 } catch (Exception e) {
                                     log.warn("[Tool:query_knowledge] Chunk检索失败: knowledgeId={}", knowledgeId);
                                     return List.<Map<String, Object>>of();
@@ -147,11 +143,12 @@ public class QueryKnowledgeTool {
                             }, lightBotExecutor);
 
                             CompletableFuture<List<Map<String, Object>>> qaFuture;
-                            if (qaEnabled) {
+                            if (qaEnabled && knowledge.getType() != com.lightbot.enums.KnowledgeType.DIFY) {
                                 ToolEventEmitter.emit("正在检索知识库「" + kbName + "」的问答对...");
                                 qaFuture = CompletableFuture.supplyAsync(() -> {
                                     try {
-                                        List<QaPairSearchResultVO> qaResults = qaPairService.searchSimilar(knowledgeId, queryVector, qaTopK, qaThreshold);
+                                        List<QaPairSearchResultVO> qaResults = qaPairService.searchSimilar(
+                                                knowledgeId, embedText(searchQuery), qaTopK, qaThreshold);
                                         return qaResults.stream().map(qa -> {
                                             Map<String, Object> row = new java.util.HashMap<>();
                                             row.put("id", qa.getId());

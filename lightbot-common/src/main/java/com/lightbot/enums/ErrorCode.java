@@ -65,6 +65,10 @@ public enum ErrorCode {
     KNOWLEDGE_CREATOR_ROLE_IMMUTABLE(50006, "不能修改创建者角色", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_CREATOR_CANNOT_REMOVE(50007, "不能移除创建者", HttpStatus.BAD_REQUEST),
     KNOWLEDGE_NO_DOCUMENT(50008, "知识库暂无已完成的文档", HttpStatus.BAD_REQUEST),
+    KNOWLEDGE_READ_ONLY(50010, "Dify Dataset 只读知识库不支持该操作", HttpStatus.BAD_REQUEST),
+    DIFY_CONFIG_INVALID(50011, "Dify Dataset 配置不合法", HttpStatus.BAD_REQUEST),
+    DIFY_CONNECTION_FAILED(50012, "Dify Dataset 连接失败，请检查地址、Token 和 Dataset ID", HttpStatus.BAD_REQUEST),
+    DIFY_ENCRYPTION_KEY_INVALID(50013, "Dify 凭证加密密钥未配置或格式错误", HttpStatus.INTERNAL_SERVER_ERROR),
 
     // ========== 文档模块 ==========
     DOCUMENT_UNSUPPORTED_TYPE(60001, "不支持的文件类型，支持: md/txt/pdf/doc/docx/ppt/pptx/xls/xlsx/csv/html", HttpStatus.BAD_REQUEST),

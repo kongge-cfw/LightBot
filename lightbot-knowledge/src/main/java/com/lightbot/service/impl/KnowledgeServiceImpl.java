@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.IngestDTO;
 import com.lightbot.dto.KnowledgeSaveDTO;
+import com.lightbot.dto.DifyKnowledgeConfigDTO;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
 import org.springframework.util.StringUtils;
@@ -24,12 +25,16 @@ import com.lightbot.service.DocumentService;
 import com.lightbot.service.GraphService;
 import com.lightbot.service.KnowledgeMemberService;
 import com.lightbot.service.KnowledgeService;
+import com.lightbot.service.KnowledgeRetrievalService;
+import com.lightbot.service.DifyDatasetClient;
 import com.lightbot.service.QaPairService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.util.JsonUtil;
 import com.lightbot.util.LlmTraceContext;
 import com.lightbot.util.MilvusUtil;
 import com.lightbot.util.MindmapUtil;
+import com.lightbot.util.DifySecretCipher;
+import com.lightbot.vo.DifyConnectionTestVO;
 import com.lightbot.config.RedisCacheConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,6 +76,9 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     private final MindmapUtil mindmapUtil;
     private final SystemConfigService systemConfigService;
     private final MilvusUtil milvusUtil;
+    private final DifySecretCipher difySecretCipher;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
+    private final DifyDatasetClient difyDatasetClient;
 
     @Override
     @Cacheable(value = RedisCacheConfig.CACHE_KNOWLEDGE, key = "#id", unless = "#result == null")
@@ -102,9 +110,9 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         knowledge.setDescription(request.getDescription());
         knowledge.setEmbeddingModel(request.getEmbeddingModel());
         knowledge.setType(request.getType());
-        knowledge.setConfig(request.getConfig());
+        knowledge.setConfig(buildKnowledgeConfig(request, true, null));
         knowledge.setQueryParams(request.getQueryParams());
-        knowledge.setGraphEnabled(request.getGraphEnabled());
+        knowledge.setGraphEnabled(request.getType() == KnowledgeType.DIFY ? false : request.getGraphEnabled());
 
         // 3. 初始化内部字段
         knowledge.setUserId(userId);
@@ -114,17 +122,24 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         knowledge.setTotalTokens(0L);
         save(knowledge);
 
-        // 4. 创建者自动成为成员（CREATOR角色）
+        // 4. Dify Token 独立加密保存，避免通过知识库详情或日志泄露。
+        if (knowledge.getType() == KnowledgeType.DIFY) {
+            // 新建即校验真实连通性；失败时事务回滚，不留下不可用的外部知识库。
+            knowledgeRetrievalService.retrieve(knowledge, "LightBot connection test", 1, 0.0, Map.of());
+        }
+
+        // 5. 创建者自动成为成员（CREATOR角色）
         KnowledgeMember member = new KnowledgeMember();
         member.setKnowledgeId(knowledge.getId());
         member.setUserId(userId);
         member.setRole(KnowledgeRole.CREATOR);
         knowledgeMemberService.save(member);
 
-        return knowledge;
+        return sanitizeForResponse(knowledge);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Knowledge update(KnowledgeSaveDTO request) {
         // 1. 权限校验：需要MANAGER及以上权限
         checkPermission(request.getId(), KnowledgeRole.MANAGER);
@@ -146,11 +161,18 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         // 4. 更新允许修改的字段
         existing.setName(request.getName());
         existing.setDescription(request.getDescription());
-        existing.setEmbeddingModel(request.getEmbeddingModel());
-        existing.setGraphEnabled(request.getGraphEnabled());
-        existing.setConfig(request.getConfig());
+        if (existing.getType() != KnowledgeType.DIFY) {
+            existing.setEmbeddingModel(request.getEmbeddingModel());
+            existing.setGraphEnabled(request.getGraphEnabled());
+            existing.setConfig(request.getConfig());
+        } else {
+            existing.setEmbeddingModel(null);
+            existing.setGraphEnabled(false);
+            existing.setConfig(buildKnowledgeConfig(request, false, existing.getConfig()));
+            knowledgeRetrievalService.retrieve(existing, "LightBot connection test", 1, 0.0, Map.of());
+        }
         updateById(existing);
-        return existing;
+        return sanitizeForResponse(existing);
     }
 
     @Override
@@ -164,12 +186,14 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         }
 
         // 2. 分页查询这些知识库
-        return baseMapper.selectPage(new Page<>(pageNum, pageSize),
+        Page<Knowledge> page = baseMapper.selectPage(new Page<>(pageNum, pageSize),
                 new LambdaQueryWrapper<Knowledge>()
                         .in(Knowledge::getId, knowledgeIds)
                         .eq(Knowledge::getStatus, CommonStatus.ACTIVE)
                         .like(StringUtils.hasText(name), Knowledge::getName, name)
                         .orderByDesc(Knowledge::getCreateTime));
+        page.setRecords(page.getRecords().stream().map(this::sanitizeForResponse).toList());
+        return page;
     }
 
     @Override
@@ -196,7 +220,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         // 5. 级联删除图谱（Neo4j + DB）——可选子系统，软失败不阻塞主流程
         safeRemove(() -> graphService.deleteByKnowledgeIdInternal(id), "KnowledgeGraph");
 
-        // 6. 逻辑删除知识库
+        // 6. 逻辑删除知识库；Dify 密文随 knowledge.config 一起删除。
         removeById(id);
 
         // 7. 同时删除所有成员关系
@@ -209,7 +233,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         checkMember(id);
 
         // 2. 返回知识库详情
-        return getById(id);
+        return sanitizeForResponse(getById(id));
     }
 
     @Override
@@ -730,6 +754,14 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
      */
     private Map<String, Object> normalizeQueryParams(Knowledge knowledge, Map<String, Object> params) {
         Map<String, Object> source = params != null ? params : Map.of();
+        if (knowledge.getType() == KnowledgeType.DIFY) {
+            Map<String, Object> normalized = new LinkedHashMap<>();
+            normalized.put("search_mode", normalizeSearchMode(source.get("search_mode")));
+            normalized.put("final_top_k", intParam(source, "final_top_k", 5, 1, 20));
+            normalized.put("score_threshold_enabled", boolParam(source, "score_threshold_enabled", true));
+            normalized.put("similarity_threshold", doubleParam(source, "similarity_threshold", 0.0, 0.0, 1.0));
+            return normalized;
+        }
         boolean milvus = knowledge.getType() == KnowledgeType.MILVUS;
         Map<String, Object> normalized = new LinkedHashMap<>();
 
@@ -809,6 +841,94 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
     @Override
     public boolean isMilvusAvailable() {
         return milvusUtil.isAvailable();
+    }
+
+    @Override
+    public DifyConnectionTestVO testDifyConnection(Long knowledgeId) {
+        // 1. 成员权限与类型校验
+        checkMember(knowledgeId);
+        Knowledge knowledge = getById(knowledgeId);
+        if (knowledge == null) {
+            throw new BizException(ErrorCode.KNOWLEDGE_NOT_FOUND);
+        }
+        if (knowledge.getType() != KnowledgeType.DIFY) {
+            throw new BizException(ErrorCode.DIFY_CONFIG_INVALID);
+        }
+
+        // 2. 调用 Dify retrieve 接口；空结果同样表示连接和鉴权成功。
+        knowledgeRetrievalService.retrieve(knowledge, "LightBot connection test", 1, 0.0, Map.of());
+
+        // 3. 只返回非敏感的连接结果。
+        DifyConnectionTestVO result = new DifyConnectionTestVO();
+        result.setConnected(true);
+        result.setDatasetId(String.valueOf(parseJsonToMap(knowledge.getConfig()).get("datasetId")));
+        return result;
+    }
+
+    @Override
+    public DifyConnectionTestVO testDifyConnection(DifyKnowledgeConfigDTO config) {
+        // 1. 草稿测试只校验并调用远端，不保存知识库或 Token。
+        if (config == null || !StringUtils.hasText(config.getApiUrl())
+                || !StringUtils.hasText(config.getDatasetId()) || !StringUtils.hasText(config.getToken())) {
+            throw new BizException(ErrorCode.DIFY_CONFIG_INVALID);
+        }
+
+        // 2. 空结果仍代表地址、Dataset 与鉴权均有效。
+        difyDatasetClient.retrieve(config.getApiUrl().trim(), config.getDatasetId().trim(), config.getToken().trim(),
+                "LightBot connection test", 1, 0.0, "vector");
+
+        DifyConnectionTestVO result = new DifyConnectionTestVO();
+        result.setConnected(true);
+        result.setDatasetId(config.getDatasetId().trim());
+        return result;
+    }
+
+    private String buildKnowledgeConfig(KnowledgeSaveDTO request, boolean tokenRequired, String currentConfig) {
+        boolean difyKnowledge = request.getType() == KnowledgeType.DIFY
+                || "dify".equals(parseJsonToMap(currentConfig).get("connector"));
+        if (!difyKnowledge) {
+            return StringUtils.hasText(request.getConfig()) ? request.getConfig() : "{}";
+        }
+        DifyKnowledgeConfigDTO difyConfig = request.getDifyConfig();
+        if (difyConfig == null || !StringUtils.hasText(difyConfig.getApiUrl())
+                || !StringUtils.hasText(difyConfig.getDatasetId())) {
+            throw new BizException(ErrorCode.DIFY_CONFIG_INVALID);
+        }
+        String tokenCiphertext = StringUtils.hasText(difyConfig.getToken())
+                ? difySecretCipher.encrypt(difyConfig.getToken().trim())
+                : String.valueOf(parseJsonToMap(currentConfig).getOrDefault("tokenCiphertext", ""));
+        if ((tokenRequired || !StringUtils.hasText(tokenCiphertext)) && !StringUtils.hasText(tokenCiphertext)) {
+            throw new BizException(ErrorCode.DIFY_CONFIG_INVALID);
+        }
+        Map<String, Object> config = new LinkedHashMap<>();
+        config.put("connector", "dify");
+        config.put("apiUrl", difyConfig.getApiUrl().trim().replaceAll("/+$", ""));
+        config.put("datasetId", difyConfig.getDatasetId().trim());
+        config.put("tokenCiphertext", tokenCiphertext);
+        config.put("tokenConfigured", true);
+        config.put("readOnly", true);
+        try {
+            return objectMapper.writeValueAsString(config);
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.DIFY_CONFIG_INVALID, e);
+        }
+    }
+
+    private Knowledge sanitizeForResponse(Knowledge knowledge) {
+        if (knowledge == null || knowledge.getType() != KnowledgeType.DIFY) {
+            return knowledge;
+        }
+        Knowledge response = new Knowledge();
+        org.springframework.beans.BeanUtils.copyProperties(knowledge, response);
+        Map<String, Object> config = new LinkedHashMap<>(parseJsonToMap(knowledge.getConfig()));
+        config.remove("tokenCiphertext");
+        config.put("tokenConfigured", true);
+        try {
+            response.setConfig(objectMapper.writeValueAsString(config));
+        } catch (Exception e) {
+            response.setConfig("{\"tokenConfigured\":true}");
+        }
+        return response;
     }
 
     private Map<String, Object> parseJsonToMap(String json) {

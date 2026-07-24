@@ -160,6 +160,14 @@ export function checkMilvusHealth(knowledgeId) {
   return request.get(`/knowledge/${knowledgeId}/milvus-health`)
 }
 
+export function testDifyConnection(knowledgeId) {
+  return request.post(`/knowledge/${knowledgeId}/connection-test`)
+}
+
+export function testDifyDraftConnection(data) {
+  return request.post('/knowledge/dify/connection-test', data)
+}
+
 export function refreshKnowledgeStats(knowledgeId) {
   return request.post(`/knowledge/${knowledgeId}/stats/refresh`)
 }

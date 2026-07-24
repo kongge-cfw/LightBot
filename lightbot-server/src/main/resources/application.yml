@@ -136,6 +136,12 @@ neo4j:
 
 # 系统配置
 lightbot:
+  dify:
+    # Base64 编码的 32 字节 AES 密钥；生产环境必须通过环境变量注入。
+    encryption-key: ${LIGHTBOT_DIFY_ENCRYPTION_KEY:}
+    encryption-key-version: v1
+    connect-timeout-seconds: 3
+    read-timeout-seconds: 15
 # ========================================
 # OCR 配置（RapidOCR）
 # enabled：是否启用 OCR 功能
@@ -262,4 +268,3 @@ springdoc:
     tags-sorter: alpha
   api-docs:
     path: /v3/api-docs
-

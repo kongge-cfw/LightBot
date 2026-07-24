@@ -41,4 +41,7 @@ public class KnowledgeSaveDTO {
 
     @Schema(description = "是否启用知识图谱")
     private Boolean graphEnabled;
+
+    @Schema(description = "Dify Dataset 连接配置；type=dify 时必填")
+    private DifyKnowledgeConfigDTO difyConfig;
 }

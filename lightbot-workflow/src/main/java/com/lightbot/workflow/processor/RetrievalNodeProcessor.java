@@ -3,7 +3,7 @@ package com.lightbot.workflow.processor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.entity.Knowledge;
 import com.lightbot.enums.NodeType;
-import com.lightbot.service.EmbeddingService;
+import com.lightbot.service.KnowledgeRetrievalService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.workflow.NodeExecutionContext;
 import com.lightbot.workflow.NodeExecutionResult;
@@ -12,10 +12,6 @@ import com.lightbot.workflow.WorkflowNodeDataUtils;
 import com.lightbot.workflow.WorkflowVariableUtils;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.ai.embedding.EmbeddingModel;
-import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.embedding.EmbeddingResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -36,11 +32,8 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
     private static final double DEFAULT_THRESHOLD = 0.5;
 
     private final KnowledgeService knowledgeService;
-    private final EmbeddingService embeddingService;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final ObjectMapper objectMapper;
-
-    @Autowired(required = false)
-    private EmbeddingModel embeddingModel;
 
     @Override
     public NodeType getType() {
@@ -106,13 +99,8 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
         String retrievalText = "";
         List<Map<String, Object>> retrievalChunks = new ArrayList<>();
         try {
-            if (embeddingModel == null) {
-                log.warn("[RetrievalNodeProcessor] EmbeddingModel 未配置，无法生成查询向量");
-                return passThrough(context, "retrievalResult", "");
-            }
-            float[] vector = embedText(query);
             Map<String, Object> searchParams = buildSearchParams(knowledge, query);
-            List<Map<String, Object>> hits = embeddingService.searchSimilarSql(knowledgeId, vector, topK, threshold, searchParams);
+            List<Map<String, Object>> hits = knowledgeRetrievalService.retrieve(knowledge, query, topK, threshold, searchParams);
             log.info("[RetrievalNodeProcessor] 检索完成: knowledgeId={}, topK={}, threshold={}, 命中数={}",
                     knowledgeId, topK, threshold, hits.size());
             for (Map<String, Object> hit : hits) {
@@ -154,11 +142,6 @@ public class RetrievalNodeProcessor extends AbstractFlowNodeProcessor implements
             return Long.parseLong(s);
         }
         return null;
-    }
-
-    private float[] embedText(String text) {
-        EmbeddingResponse response = embeddingModel.call(new EmbeddingRequest(List.of(text), null));
-        return response.getResult().getOutput();
     }
 
     @SuppressWarnings("unchecked")

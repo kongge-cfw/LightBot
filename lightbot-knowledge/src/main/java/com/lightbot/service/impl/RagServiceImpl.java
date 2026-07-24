@@ -11,6 +11,7 @@ import com.lightbot.model.ProviderResolver;
 import com.lightbot.vo.QaPairSearchResultVO;
 import com.lightbot.service.EmbeddingService;
 import com.lightbot.service.KnowledgeMemberService;
+import com.lightbot.service.KnowledgeRetrievalService;
 import com.lightbot.service.KnowledgeService;
 import com.lightbot.service.QaPairService;
 import com.lightbot.service.RagService;
@@ -51,11 +52,11 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class RagServiceImpl implements RagService {
 
-    private final EmbeddingService embeddingService;
     private final KnowledgeService knowledgeService;
     private final KnowledgeMemberService permissionHelper;
     private final QaPairService qaPairService;
     private final EmbeddingModel embeddingModel;
+    private final KnowledgeRetrievalService knowledgeRetrievalService;
     private final ModelFactory modelFactory;
     private final SystemConfigService systemConfigService;
     private final ObjectMapper objectMapper;
@@ -135,12 +136,9 @@ public class RagServiceImpl implements RagService {
         log.info("[RAG] {}开始: knowledgeId={}, providerId={}, topK={}, threshold={}, question={}",
                 logLabel, knowledgeId, actualProviderId, topK, threshold, question);
 
-        // 2. 将问题文本向量化
-        float[] queryVector = embedText(question);
-
-        // 3. 在知识库中检索相似内容（阈值过滤下沉到SQL层，传 queryParams 支持 Milvus search_mode）
+        // 2. 统一检索入口根据知识库类型路由到本地向量库或 Dify Dataset。
         Map<String, Object> mergedParams = buildSearchParams(knowledge, null, question);
-        List<Map<String, Object>> results = embeddingService.searchSimilarSql(knowledgeId, queryVector, topK, threshold, mergedParams);
+        List<Map<String, Object>> results = knowledgeRetrievalService.retrieve(knowledge, question, topK, threshold, mergedParams);
         log.info("[RAG] 向量检索完成(SQL过滤): threshold={}, 命中分块数={}", threshold, results.size());
         for (int i = 0; i < results.size(); i++) {
             Map<String, Object> row = results.get(i);
@@ -194,19 +192,17 @@ public class RagServiceImpl implements RagService {
         log.info("[RAG] 检索测试开始: knowledgeId={}, topK={}, threshold={}, qaEnabled={}, question={}",
                 knowledgeId, topK, threshold, qaEnabled, question);
 
-        // 3. 将问题文本向量化
-        float[] queryVector = embedText(question);
-
-        // 4. 并行检索 Chunk 和 QA Pair
+        // 3. 并行检索 Chunk 和 QA Pair；Dify 为只读外部库，无本地 QA Pair。
         Map<String, Object> mergedParams = buildSearchParams(knowledge, overrides, question);
 
         java.util.concurrent.CompletableFuture<List<Map<String, Object>>> chunkFuture =
                 java.util.concurrent.CompletableFuture.supplyAsync(() ->
-                    embeddingService.searchSimilarSql(knowledgeId, queryVector, topK, threshold, mergedParams)
+                    knowledgeRetrievalService.retrieve(knowledge, question, topK, threshold, mergedParams)
                 );
 
         java.util.concurrent.CompletableFuture<List<QaPairSearchResultVO>> qaFuture;
-        if (qaEnabled) {
+        if (qaEnabled && knowledge.getType() != com.lightbot.enums.KnowledgeType.DIFY) {
+            float[] queryVector = embedText(question);
             int qaTopK = resolveQaTopK(knowledge, overrides);
             double qaThreshold = resolveQaThreshold(knowledge, overrides);
             qaFuture = java.util.concurrent.CompletableFuture.supplyAsync(() ->

@@ -3,10 +3,12 @@ package com.lightbot.controller;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.lightbot.common.Result;
 import com.lightbot.dto.IngestDTO;
+import com.lightbot.dto.DifyKnowledgeConfigDTO;
 import com.lightbot.vo.KnowledgeMemberVO;
 import com.lightbot.dto.KnowledgeSaveDTO;
 import com.lightbot.entity.Document;
 import com.lightbot.entity.Knowledge;
+import com.lightbot.vo.DifyConnectionTestVO;
 import com.lightbot.enums.KnowledgeRole;
 import com.lightbot.service.DocumentService;
 import com.lightbot.service.KnowledgeMemberService;
@@ -137,6 +139,18 @@ public class KnowledgeController {
     @GetMapping("/{id}/milvus-health")
     public Result<Map<String, Object>> milvusHealth(@PathVariable Long id) {
         return Result.ok(Map.of("available", knowledgeService.isMilvusAvailable()));
+    }
+
+    @Operation(summary = "测试 Dify Dataset 连接")
+    @PostMapping("/{id}/connection-test")
+    public Result<DifyConnectionTestVO> testDifyConnection(@PathVariable Long id) {
+        return Result.ok(knowledgeService.testDifyConnection(id));
+    }
+
+    @Operation(summary = "测试未保存的 Dify Dataset 连接")
+    @PostMapping("/dify/connection-test")
+    public Result<DifyConnectionTestVO> testDifyDraftConnection(@Valid @RequestBody DifyKnowledgeConfigDTO config) {
+        return Result.ok(knowledgeService.testDifyConnection(config));
     }
 
     @Operation(summary = "全量重算知识库统计信息（需要成员权限）")
