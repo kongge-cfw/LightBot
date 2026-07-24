@@ -159,7 +159,7 @@
       :confirm-loading="nodeSubmitting"
     >
       <div class="dialog-scroll-body">
-      <a-form :model="nodeForm" :label-col="{ span: 4 }">
+      <a-form :model="nodeForm" :label-col="{ flex: '0 0 90px' }">
         <a-form-item label="名称">
           <a-input v-model:value="nodeForm.name" placeholder="实体名称（必填）" :maxlength="30" show-count />
         </a-form-item>
@@ -186,7 +186,7 @@
       :confirm-loading="edgeSubmitting"
     >
       <div class="dialog-scroll-body">
-      <a-form :model="edgeForm" :label-col="{ span: 4 }">
+      <a-form :model="edgeForm" :label-col="{ flex: '0 0 90px' }">
         <a-form-item label="起始节点">
           <a-input
             v-if="editingEdge"

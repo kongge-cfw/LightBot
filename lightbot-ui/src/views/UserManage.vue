@@ -82,7 +82,7 @@
       @cancel="editVisible = false"
     >
       <div class="dialog-scroll-body">
-      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 18 }">
+      <a-form :label-col="{ flex: '0 0 80px' }">
         <a-form-item label="用户名">
           <a-input :value="editForm.username" disabled />
         </a-form-item>

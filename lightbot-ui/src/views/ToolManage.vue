@@ -95,7 +95,7 @@
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑工具' : '新增工具'" :width="640" :maskClosable="false">
       <div class="dialog-scroll-body">
-      <a-form :model="form" :label-col="{ span: 5 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="工具标识" required>
           <a-input v-model:value="form.name" placeholder="如：http_request（英文，唯一标识）（不超过30字）" :maxlength="30" show-count :disabled="form.toolType === 'builtin'" />
         </a-form-item>

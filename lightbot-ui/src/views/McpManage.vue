@@ -84,7 +84,7 @@
         <QuestionCircleOutlined class="help-icon" @click="guideVisible = true" />
       </template>
       <div class="dialog-scroll-body">
-      <a-form :model="form" :label-col="{ span: 6 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：filesystem-server（不超过30字）" :maxlength="30" show-count />
         </a-form-item>

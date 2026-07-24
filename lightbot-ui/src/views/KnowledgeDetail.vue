@@ -614,7 +614,7 @@
           <!-- URL 高级配置 -->
           <a-collapse ghost class="url-advanced-collapse">
             <a-collapse-panel key="url-advanced" header="高级配置">
-              <a-form-item label="自定义请求头" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+              <a-form-item label="自定义请求头" :label-col="{ flex: '0 0 110px' }">
                 <div v-for="(h, i) in urlHeaders" :key="(h.key || 'header') + '-' + i" class="url-header-row">
                   <a-input v-model:value="h.key" placeholder="Header Name" style="width: 35%" size="small" />
                   <a-input v-model:value="h.value" placeholder="Header Value" style="width: 50%" size="small" />
@@ -624,7 +624,7 @@
                   + 添加 Header
                 </a-button>
               </a-form-item>
-              <a-form-item label="自动同步" :label-col="{ span: 6 }" :wrapper-col="{ span: 18 }">
+              <a-form-item label="自动同步" :label-col="{ flex: '0 0 110px' }">
                 <a-select v-model:value="urlSyncInterval" size="small" style="width: 200px">
                   <a-select-option value="manual">手动同步</a-select-option>
                   <a-select-option value="daily">每天同步</a-select-option>
@@ -760,7 +760,7 @@
       :maskClosable="false"
     >
       <div class="ingest-section">
-        <a-form :model="ingestForm" :label-col="{ span: 6 }">
+        <a-form :model="ingestForm" :label-col="{ flex: '0 0 100px' }">
           <a-form-item label="分块策略" required>
             <a-select v-model:value="ingestForm.chunkStrategy" style="width: 100%">
               <a-select-option value="general">通用分块 - 按分隔符和长度切分</a-select-option>
@@ -816,7 +816,7 @@
     <!-- 编辑知识库弹窗：.dialog-scroll-body wrapper 提供滚动条与字段间的呼吸距离（scrollbar.css 全局装饰） -->
     <a-modal v-model:open="editVisible" title="编辑知识库" :width="520" @ok="handleEdit" :confirm-loading="editSubmitting">
       <div class="dialog-scroll-body">
-      <a-form :model="editForm" :label-col="{ span: 6 }">
+      <a-form :model="editForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="editForm.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
         </a-form-item>

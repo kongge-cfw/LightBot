@@ -260,7 +260,7 @@
     <!-- 新建文件弹窗 -->
     <a-modal v-model:open="showCreateFile" title="新建文件" :width="480" :maskClosable="false">
       <div class="dialog-scroll-body">
-      <a-form :model="newFileForm" :label-col="{ span: 5 }">
+      <a-form :model="newFileForm" :label-col="{ flex: '0 0 80px' }">
         <a-form-item label="路径" required>
           <a-input v-model:value="newFileForm.path" placeholder="如 SKILL.md 或 images/logo.png" />
         </a-form-item>

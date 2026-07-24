@@ -71,7 +71,7 @@
         <QuestionCircleOutlined class="help-icon" @click.stop="guideVisible = true" />
       </template>
       <div class="dialog-scroll-body">
-      <a-form :label-col="{ span: 5 }" :wrapper-col="{ span: 19 }">
+      <a-form :label-col="{ flex: '0 0 100px' }">
         <div v-if="editingBuiltin" class="builtin-edit-banner">
           内置 SubAgent 仅可调整「模型配置」，其余字段保持系统默认不可修改。
         </div>

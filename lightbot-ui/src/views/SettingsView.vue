@@ -9,7 +9,7 @@
       <a-tab-pane key="landing" tab="Landing配置" />
       <a-tab-pane key="users" tab="用户管理" />
       <a-tab-pane key="token" tab="Token限额" />
-      <a-tab-pane key="apiKey" tab="APIKEY" />
+      <a-tab-pane key="apiKey" tab="API Key" />
     </a-tabs>
 
     <!-- Tab 1: 默认模型管理 -->
@@ -470,7 +470,7 @@
       cancel-text="取消"
     >
       <div class="dialog-scroll-body">
-      <a-form :label-col="{ span: 6 }" :wrapper-col="{ span: 17 }">
+      <a-form :label-col="{ flex: '0 0 120px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="apiKeyForm.name" placeholder="如：生产环境API" :maxlength="64" />
         </a-form-item>

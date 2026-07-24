@@ -10,7 +10,7 @@
       <p>将当前配置创建为新的 Prompt，包含模板内容、模型配置。</p>
     </div>
 
-    <a-form :model="form" :label-col="{ span: 5 }">
+    <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
       <a-form-item label="Prompt Key" required>
         <a-input v-model:value="form.promptKey" :maxlength="30" show-count placeholder="如：my_new_prompt (不超过30字)" @input="sanitizePromptKey" />
       </a-form-item>

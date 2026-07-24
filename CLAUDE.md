@@ -327,6 +327,42 @@ const form = reactive({ config: '', inputSchema: '', authConfig: '' })
 const form = reactive({ config: '{}', inputSchema: '{}', authConfig: '{}' })
 ```
 
+### 弹窗表单 label-col 规范
+
+```text
+所有 a-modal 内的 a-form 必须使用 flex 固定像素宽度，禁止使用 span 百分比
+原因：span 是弹窗宽度的百分比，同 span 在不同宽度弹窗下像素值不同
+      （720 宽下 span 6 = 180px，520 宽下 span 6 = 130px），视觉不一致
+      flex 固定像素后，宽弹窗里 label 占比小、窄弹窗里占比大，自动适应
+```
+
+```vue
+<!-- ❌ 错误：百分比，受弹窗宽度影响 -->
+<a-form :label-col="{ span: 6 }">
+
+<!-- ✅ 正确：固定像素，任何宽度弹窗下 label 都占相同像素 -->
+<a-form :label-col="{ flex: '0 0 100px' }">
+```
+
+**像素值按表单中最长 label 选择**（14px 字体下估算）：
+
+| label 特征 | 例子 | 推荐 flex |
+|---|---|---|
+| 2-3 字纯中文 | "名称"、"描述"、"路径"、"用户名" | `'0 0 80px'` |
+| 3-4 字中文 | "版本号"、"输入内容"、"目标节点" | `'0 0 90px'` |
+| 4-5 字中文 或 短英文（≤7 char）| "分块策略"、"API Key"、"上下文长度" | `'0 0 100px'`（默认值） |
+| 5-6 字中文 或 中英混合 | "Dataset Token"、"自定义请求头"、"评估器版本" | `'0 0 110px'` |
+| 长中英混合 | "每日Token配额"、"模型列表URL"、"依赖 MCP Server" | `'0 0 120px'` |
+
+**配套规则**：
+
+```text
+1. flex label 下禁止同时写 wrapper-col —— wrapper 默认占满剩余空间，显式指定反而限制布局
+2. 禁止用 JS 动态量算 label 宽度 —— 人眼一看即知最长标签，手填像素值更快也更稳定
+3. 本规范仅适用于 a-modal / a-drawer 内的表单；页面面板（SettingsView/AgentDetail/ProfileView 的主面板）不套用
+4. a-form-item 单独覆盖 label-col 时同样改用 flex（如 URL 高级配置里的"自定义请求头"）
+```
+
 涉及的 JSONB 字段（前端表单必须用 `'{}'`）：
 - `config` — 扩展配置
 - `inputSchema` / `outputSchema` — 工具输入输出 Schema

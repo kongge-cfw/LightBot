@@ -62,7 +62,7 @@
       :width="560"
       :maskClosable="false"
     >
-      <a-form :model="form" :label-col="{ span: 5 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="Prompt Key" required>
           <a-input
             v-model:value="form.promptKey"

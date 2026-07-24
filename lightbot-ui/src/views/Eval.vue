@@ -207,7 +207,7 @@
       :width="560"
       :maskClosable="false"
     >
-      <a-form :model="datasetForm" :label-col="{ span: 5 }">
+      <a-form :model="datasetForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="datasetForm.name" :maxlength="30" show-count placeholder="如：客服问答评测集 (不超过30字)" />
         </a-form-item>
@@ -231,7 +231,7 @@
       :width="560"
       :maskClosable="false"
     >
-      <a-form :model="evaluatorForm" :label-col="{ span: 5 }">
+      <a-form :model="evaluatorForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="evaluatorForm.name" :maxlength="30" show-count placeholder="如：准确性评估器 (不超过30字)" />
         </a-form-item>
@@ -323,7 +323,7 @@
       </a-steps>
 
       <!-- Step 1: 基本信息 -->
-      <a-form v-show="experimentStep === 0" :model="experimentForm" :label-col="{ span: 5 }">
+      <a-form v-show="experimentStep === 0" :model="experimentForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="实验名称" required>
           <a-input v-model:value="experimentForm.name" :maxlength="30" show-count placeholder="如：客服 Prompt v1 vs v2 对比 (不超过30字)" />
         </a-form-item>
@@ -333,7 +333,7 @@
       </a-form>
 
       <!-- Step 2: 选择评测集 -->
-      <a-form v-show="experimentStep === 1" :model="experimentForm" :label-col="{ span: 5 }">
+      <a-form v-show="experimentStep === 1" :model="experimentForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="评测集" required>
           <a-select
             v-model:value="experimentForm.datasetId"
@@ -360,7 +360,7 @@
       </a-form>
 
       <!-- Step 3: 配置评测对象 -->
-      <a-form v-show="experimentStep === 2" :model="experimentForm" :label-col="{ span: 5 }">
+      <a-form v-show="experimentStep === 2" :model="experimentForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="Prompt Key" required>
           <a-select
             v-model:value="experimentForm.promptKey"
@@ -402,7 +402,7 @@
               <DeleteOutlined class="evaluator-remove-btn" @click="removeExpEvaluator(idx)" />
             </a-tooltip>
           </div>
-          <a-form :model="ev" :label-col="{ span: 5 }">
+          <a-form :model="ev" :label-col="{ flex: '0 0 100px' }">
             <a-form-item label="评估器" required>
               <a-select v-model:value="ev.evaluatorId" placeholder="选择评估器" style="width: 100%" @change="(id) => onExpEvaluatorChange(idx, id)">
                 <a-select-option v-for="e in expEvaluatorList" :key="e.id" :value="e.id">{{ e.name }}</a-select-option>

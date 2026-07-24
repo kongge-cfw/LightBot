@@ -16,7 +16,7 @@
     </template>
 
     <div class="scroll-body dialog-scroll-body">
-    <a-form :model="form" :label-col="{ span: 8 }" :wrapper-col="{ span: 16 }" class="config-form">
+    <a-form :model="form" :label-col="{ flex: '0 0 110px' }" class="config-form">
       <!-- 预设模式 -->
       <div class="preset-bar">
         <span class="preset-label">快捷预设</span>

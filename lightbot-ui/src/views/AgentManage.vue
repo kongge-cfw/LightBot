@@ -105,7 +105,7 @@
       :confirm-loading="submitting"
       :maskClosable="false"
     >
-      <a-form :model="form" :label-col="{ span: 5 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 80px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：客服助手（不超过30字）" :maxlength="30" show-count />
         </a-form-item>

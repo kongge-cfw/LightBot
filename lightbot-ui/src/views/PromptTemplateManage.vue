@@ -88,7 +88,7 @@
       :maskClosable="false"
     >
       <div class="dialog-scroll-body">
-      <a-form :model="form" :label-col="{ span: 4 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="模板标识" required>
           <a-input v-model:value="form.promptTemplateKey" :maxlength="30" show-count placeholder="如：customer_service (不超过30字)" :disabled="!!form.id" />
         </a-form-item>

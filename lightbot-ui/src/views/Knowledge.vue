@@ -82,7 +82,7 @@
     <!-- 创建弹窗 -->
     <a-modal v-model:open="showCreate" title="新建知识库" :width="720" :maskClosable="false">
       <div class="dialog-scroll-body">
-      <a-form :model="form" :label-col="{ span: 6 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 110px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
         </a-form-item>

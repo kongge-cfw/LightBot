@@ -99,7 +99,7 @@
       <p style="color: var(--color-mute); margin-bottom: 16px;">
         将当前数据集中的所有数据项快照为一个新版本。
       </p>
-      <a-form :model="versionForm" :label-col="{ span: 5 }">
+      <a-form :model="versionForm" :label-col="{ flex: '0 0 90px' }">
         <a-form-item label="版本号" required>
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
         </a-form-item>
@@ -121,7 +121,7 @@
       :maskClosable="false"
     >
       <div class="dialog-scroll-body">
-      <a-form :model="itemForm" :label-col="{ span: 5 }">
+      <a-form :model="itemForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="输入内容" required>
           <a-textarea v-model:value="itemForm.input" :rows="4" :maxlength="2000" show-count placeholder="用户输入内容 (不超过2000字)" />
         </a-form-item>

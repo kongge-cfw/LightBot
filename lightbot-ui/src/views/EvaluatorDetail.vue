@@ -50,7 +50,7 @@
           <h3>在线调试</h3>
         </div>
         <div class="debug-form">
-          <a-form :label-col="{ span: 5 }">
+          <a-form :label-col="{ flex: '0 0 100px' }">
             <a-form-item label="选择版本" required>
               <a-select
                 v-model:value="debugForm.versionId"
@@ -144,7 +144,7 @@
       :maskClosable="false"
     >
       <div class="dialog-scroll-body">
-      <a-form :model="versionForm" :label-col="{ span: 4 }">
+      <a-form :model="versionForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="版本号" required>
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
         </a-form-item>

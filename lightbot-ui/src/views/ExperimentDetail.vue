@@ -201,7 +201,7 @@
         <div v-if="restartStep === 1">
           <a-spin :spinning="restartFormLoading" tip="加载配置中...">
           <div class="restart-form-scroll">
-          <a-form :model="editForm" :label-col="{ span: 5 }" :style="{ opacity: restartFormLoading ? 0.4 : 1, transition: 'opacity 0.2s' }">
+          <a-form :model="editForm" :label-col="{ flex: '0 0 110px' }" :style="{ opacity: restartFormLoading ? 0.4 : 1, transition: 'opacity 0.2s' }">
             <a-form-item label="实验名称" required>
               <a-input v-model:value="editForm.name" :maxlength="30" show-count placeholder="实验名称 (不超过30字)" />
             </a-form-item>

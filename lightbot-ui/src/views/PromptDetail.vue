@@ -234,7 +234,7 @@
       :width="480"
       :maskClosable="false"
     >
-      <a-form :model="versionForm" :label-col="{ span: 5 }">
+      <a-form :model="versionForm" :label-col="{ flex: '0 0 90px' }">
         <a-form-item label="版本号" required>
           <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
         </a-form-item>

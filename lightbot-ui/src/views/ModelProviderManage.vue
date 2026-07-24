@@ -51,7 +51,7 @@
     <!-- 新增/编辑弹窗 -->
     <a-modal v-model:open="dialogVisible" :title="form.id ? '编辑提供商' : '新增提供商'" :width="480" :maskClosable="false">
       <div class="dialog-scroll-body">
-      <a-form :model="form" :label-col="{ span: 6 }">
+      <a-form :model="form" :label-col="{ flex: '0 0 120px' }">
         <a-form-item label="名称" required>
           <a-input v-model:value="form.name" placeholder="如：通义千问" :maxlength="30" show-count />
         </a-form-item>
@@ -176,7 +176,7 @@
 
       <!-- 手动添加模型表单 -->
       <div v-if="showAddModel" class="add-model-form">
-        <a-form :model="modelForm" :label-col="{ span: 6 }" size="small">
+        <a-form :model="modelForm" :label-col="{ flex: '0 0 100px' }" size="small">
           <a-form-item label="模型标识" required>
             <a-input v-model:value="modelForm.modelId" placeholder="如：qwen-max" />
           </a-form-item>
