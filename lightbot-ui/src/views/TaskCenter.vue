@@ -175,7 +175,7 @@
 import { ref, reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { ReloadOutlined, SearchOutlined, DeleteOutlined, StopOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
-import { getTaskList, cancelTask, deleteTask, getTaskTypeCounts, getTaskProgress } from '../api/task'
+import { getTaskList, cancelTask, deleteTask, getTaskTypeCounts, getTaskProgress, getTaskCount } from '../api/task'
 import { formatTime } from '../utils/format'
 import { useTaskStore } from '../stores/task'
 
@@ -396,11 +396,22 @@ function formatJson(val) {
 onMounted(() => {
   loadTasks()
   loadTypeCounts()
+  // SSE 可能断线未纠正徽标，进入页面时强制同步一次任务计数
+  refreshTaskCount()
   pollTimer = setInterval(() => {
     loadTasks(true)
     loadTypeCounts()
   }, 5000)
 })
+
+async function refreshTaskCount() {
+  try {
+    const { data } = await getTaskCount()
+    if (data) taskStore.updateCounts(data)
+  } catch {
+    // 静默失败：徽标仍由 SSE 兜底
+  }
+}
 
 onUnmounted(() => {
   if (pollTimer) {

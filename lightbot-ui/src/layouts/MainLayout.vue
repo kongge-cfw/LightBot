@@ -291,7 +291,7 @@ const sidebarHidden = ref(false)
 let sidebarStateBeforeWorkflow = null
 let taskSSE = null
 let sseRetries = 0
-const SSE_MAX_RETRIES = 10
+// SSE 无限重连：徽标实时性依赖长连接，断线必须自愈（指数退避封顶 30s）
 const SSE_BASE_DELAY = 3000
 
 const { isDark, toggleTheme } = useTheme()
@@ -558,10 +558,8 @@ function connectTaskSSE() {
     onError: () => {
       taskSSE = null
       sseRetries++
-      if (sseRetries <= SSE_MAX_RETRIES) {
-        const delay = Math.min(SSE_BASE_DELAY * Math.pow(1.5, sseRetries - 1), 30000)
-        setTimeout(connectTaskSSE, delay)
-      }
+      const delay = Math.min(SSE_BASE_DELAY * Math.pow(1.5, sseRetries - 1), 30000)
+      setTimeout(connectTaskSSE, delay)
     },
     maxRetries: 0,
   })

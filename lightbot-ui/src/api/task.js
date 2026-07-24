@@ -8,6 +8,13 @@ export function getRunningTaskCount() {
   return request.get('/tasks/running-count')
 }
 
+/**
+ * 任务计数（HTTP 兜底）：SSE 断线或首次进入任务中心时拉取，纠正导航徽标
+ */
+export function getTaskCount() {
+  return request.get('/tasks/count')
+}
+
 export function getTaskTypeCounts() {
   return request.get('/tasks/type-counts')
 }

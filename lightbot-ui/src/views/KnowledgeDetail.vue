@@ -10,7 +10,10 @@
         <a-tag v-if="knowledge?.type" color="blue">
           {{ knowledge.type === 'milvus' ? 'Milvus' : 'PostgreSQL' }}
         </a-tag>
-        <a-tag v-if="knowledge?.type === 'milvus'" :color="milvusConnected ? 'success' : 'default'">
+        <a-tag v-if="knowledge?.type === 'milvus' && milvusChecking" color="processing">
+          <LoadingOutlined spin style="margin-right: 4px" />Milvus 连接中
+        </a-tag>
+        <a-tag v-else-if="knowledge?.type === 'milvus'" :color="milvusConnected ? 'success' : 'default'">
           {{ milvusConnected ? 'Milvus 已连接' : 'Milvus 未连接' }}
         </a-tag>
       </template>
@@ -1131,6 +1134,7 @@ const knowledgeId = route.params.id
 
 const knowledge = ref({})
 const milvusConnected = ref(false)
+const milvusChecking = ref(false)
 const statsRepairing = ref(false)
 const documents = ref([])
 const docLoading = ref(false)
@@ -1414,12 +1418,15 @@ async function loadKnowledge() {
   }
   knowledge.value = res.data
 
-  // Milvus 类型知识库检查连接状态
+  // Milvus 类型知识库检查连接状态，检查期间显示连接中动画避免直接展示「未连接」
   if (res.data.type === 'milvus') {
+    milvusChecking.value = true
     checkMilvusHealth(knowledgeId).then(r => {
       milvusConnected.value = r.data?.available ?? false
     }).catch(() => {
       milvusConnected.value = false
+    }).finally(() => {
+      milvusChecking.value = false
     })
   }
 

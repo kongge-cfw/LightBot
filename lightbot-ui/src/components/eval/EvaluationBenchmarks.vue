@@ -15,7 +15,9 @@
       </a-button>
     </div>
 
-    <div v-if="loading && benchmarks.length === 0" class="benchmarks-empty">加载中...</div>
+    <div v-if="loading && benchmarks.length === 0" class="benchmarks-empty">
+      <LoadingOutlined spin class="benchmarks-loading-icon" /> 加载中...
+    </div>
     <div v-else-if="benchmarks.length === 0" class="benchmarks-empty">暂无评估基准，请上传或 AI 生成</div>
 
     <div v-else class="benchmark-list">
@@ -269,6 +271,7 @@ onMounted(loadBenchmarks)
 .eval-desc { color: var(--color-mute); font-size: 12px; line-height: 1.6; padding: 0 2px; }
 .benchmarks-toolbar { display: flex; gap: 8px; justify-content: flex-end; }
 .benchmarks-empty { text-align: center; color: var(--color-mute); padding: 40px 0; }
+.benchmarks-loading-icon { margin-right: 6px; color: var(--color-link); }
 .benchmark-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
 .benchmarks-pagination { display: flex; justify-content: flex-end; padding-top: 8px; }
 .benchmark-card {

@@ -1,5 +1,6 @@
 package com.lightbot.controller;
 
+import com.lightbot.common.Result;
 import com.lightbot.enums.TaskStatus;
 import com.lightbot.service.TaskService;
 import com.lightbot.service.port.TaskCountNotifier;
@@ -55,6 +56,13 @@ public class TaskEventController implements TaskCountNotifier {
         return emitter;
     }
 
+    @Operation(summary = "任务计数查询（HTTP 兜底）", description = "SSE 断线或首次进入任务中心时拉取一次纠正徽标")
+    @GetMapping("/count")
+    public Result<Map<String, Long>> count() {
+        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+        return Result.ok(buildCounts(userId));
+    }
+
     /**
      * 供 TaskServiceImpl 在任务创建/状态变更时调用，立即推送最新计数给对应用户
      */
@@ -68,22 +76,31 @@ public class TaskEventController implements TaskCountNotifier {
 
     private void sendCount(Long userId, SseEmitter emitter) {
         try {
-            long pending = taskService.countByStatus(userId, TaskStatus.PENDING.getCode());
-            long running = taskService.countByStatus(userId, TaskStatus.RUNNING.getCode());
-            long pendingRetry = taskService.countByStatus(userId, TaskStatus.PENDING_RETRY.getCode());
-            // active 涵盖所有未完结状态：等待中 + 执行中 + 等待重试
-            long active = pending + running + pendingRetry;
             // 推送分状态计数 JSON，前端同时用于导航角标和任务中心
-            emitter.send(SseEmitter.event().name("count")
-                    .data(Map.of(
-                            "active", active,
-                            "pending", pending,
-                            "running", running,
-                            "pendingRetry", pendingRetry)));
+            emitter.send(SseEmitter.event().name("count").data(buildCounts(userId)));
         } catch (IOException | IllegalStateException e) {
             USER_EMITTERS.remove(userId, emitter);
         } catch (Exception e) {
             log.warn("[TaskEvent] 推送失败, userId={}", userId, e);
         }
+    }
+
+    /**
+     * 汇总用户各未完结状态任务数，SSE 推送与 HTTP 查询共用，避免双写逻辑漂移
+     *
+     * @param userId 当前登录用户ID
+     * @return active=未完结总数；pending/running/pendingRetry 为分状态计数
+     */
+    private Map<String, Long> buildCounts(Long userId) {
+        long pending = taskService.countByStatus(userId, TaskStatus.PENDING.getCode());
+        long running = taskService.countByStatus(userId, TaskStatus.RUNNING.getCode());
+        long pendingRetry = taskService.countByStatus(userId, TaskStatus.PENDING_RETRY.getCode());
+        // active 涵盖所有未完结状态：等待中 + 执行中 + 等待重试
+        long active = pending + running + pendingRetry;
+        return Map.of(
+                "active", active,
+                "pending", pending,
+                "running", running,
+                "pendingRetry", pendingRetry);
     }
 }
