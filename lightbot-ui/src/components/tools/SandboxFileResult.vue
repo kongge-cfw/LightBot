@@ -15,7 +15,7 @@
         <pre class="sfr-error-msg">{{ data.error || '未知错误' }}</pre>
       </div>
 
-      <!-- read_file: 文件内容 -->
+      <!-- read_file: 文件内容（FilePreview 按扩展名渲染） -->
       <div v-else-if="data.content != null" class="sfr-card">
         <div class="sfr-header">
           <FileTextOutlined class="sfr-header-icon" />
@@ -25,7 +25,16 @@
             <EyeOutlined /> 查看详情
           </button>
         </div>
-        <pre class="sfr-content-preview">{{ previewContent(data.content) }}</pre>
+        <div class="sfr-read-preview">
+          <FilePreview
+            :file-url="''"
+            :file-name="previewFileName"
+            :file-type="previewExt"
+            :content="truncateText(data.content, PREVIEW_MAX)"
+            :loading="false"
+            :download-url="''"
+          />
+        </div>
         <div v-if="data.content.length > PREVIEW_MAX" class="sfr-truncated-hint">
           ... 内容已截断，点击"查看详情"查看完整内容
         </div>
@@ -42,7 +51,16 @@
               <span class="sfr-modal-meta-value sfr-modal-meta-value-strong">{{ formatSize(data.size) }}</span>
             </div>
           </div>
-          <pre class="sfr-modal-content">{{ data.content }}</pre>
+          <div class="sfr-modal-preview">
+            <FilePreview
+              :file-url="''"
+              :file-name="previewFileName"
+              :file-type="previewExt"
+              :content="data.content || ''"
+              :loading="false"
+              :download-url="''"
+            />
+          </div>
         </a-modal>
       </div>
 
@@ -92,14 +110,32 @@
         </a-modal>
       </div>
 
-      <!-- write_file: 写入结果 -->
+      <!-- write_file: 写入结果（含内联文件预览） -->
       <div v-else-if="data.success === true" class="sfr-card">
         <div class="sfr-header">
           <CheckCircleOutlined class="sfr-header-icon success" />
           <span class="sfr-path">{{ data.path }}</span>
           <span class="sfr-badge success">写入成功</span>
+          <span v-if="data.size != null" class="sfr-meta">{{ formatSize(data.size) }}</span>
+          <button class="sfr-detail-btn" @click="togglePreview">
+            <EyeOutlined /> {{ showPreview ? '收起预览' : '查看预览' }}
+          </button>
+          <button v-if="data.downloadUrl" class="sfr-detail-btn" @click="handleDownload">
+            <DownloadOutlined /> 下载
+          </button>
         </div>
-        <div v-if="data.size != null" class="sfr-write-info">{{ formatSize(data.size) }} 已写入</div>
+        <CollapseTransition :open="showPreview">
+          <div class="sfr-inline-preview">
+            <FilePreview
+              :file-url="data.url || ''"
+              :file-name="previewFileName"
+              :file-type="previewExt"
+              :content="writePreviewContent"
+              :loading="false"
+              :download-url="data.downloadUrl || ''"
+            />
+          </div>
+        </CollapseTransition>
       </div>
 
       <!-- 兜底 -->
@@ -114,17 +150,23 @@
 import { ref, computed } from 'vue'
 import {
   FileTextOutlined, FolderOpenOutlined, CheckCircleOutlined,
-  CloseCircleOutlined, EyeOutlined
+  CloseCircleOutlined, EyeOutlined, DownloadOutlined
 } from '@ant-design/icons-vue'
+import FilePreview from '../FilePreview.vue'
+import CollapseTransition from '../common/CollapseTransition.vue'
+import { triggerBrowserDownload } from '@/utils/fileDownload'
 
 const props = defineProps({
-  event: { type: Object, required: true }
+  event: { type: Object, required: true },
+  /** 配对 tool_call 的 args；工作区路径无 url 时从中反查 content */
+  args: { type: String, default: '' }
 })
 
 const PREVIEW_MAX = 500
 const LIST_PREVIEW_MAX = 5
 
 const showModal = ref(false)
+const showPreview = ref(false)
 
 const rawResult = computed(() => props.event.result || '')
 
@@ -149,14 +191,51 @@ const previewFiles = computed(() => {
   return data.value.files.slice(0, LIST_PREVIEW_MAX)
 })
 
-function previewContent(content) {
+/** 从 path 取文件名，供 FilePreview 识别扩展名 */
+const previewFileName = computed(() => {
+  const p = data.value?.path || ''
+  return p.includes('/') ? p.substring(p.lastIndexOf('/') + 1) : p
+})
+
+const previewExt = computed(() => {
+  const name = previewFileName.value
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.substring(dot + 1).toLowerCase() : ''
+})
+
+/**
+ * write_file 预览正文：outputs/ 有 url 时交给 FilePreview 拉取；
+ * 工作区路径无 url 则从配对 tool_call args.content 反查。
+ */
+const writePreviewContent = computed(() => {
+  if (data.value?.url) return ''
+  if (!props.args) return ''
+  try {
+    const parsed = JSON.parse(props.args)
+    return parsed?.content || ''
+  } catch {
+    return ''
+  }
+})
+
+function truncateText(content, max) {
   if (!content) return ''
-  return content.length > PREVIEW_MAX ? content.substring(0, PREVIEW_MAX) + '...' : content
+  return content.length > max ? content.substring(0, max) + '...' : content
 }
 
 function formatSize(n) {
   if (n < 1024) return n + ' 字符'
   return (n / 1024).toFixed(1) + ' KB'
+}
+
+function togglePreview() {
+  showPreview.value = !showPreview.value
+}
+
+function handleDownload() {
+  if (data.value?.downloadUrl) {
+    triggerBrowserDownload(data.value.downloadUrl, previewFileName.value)
+  }
 }
 </script>
 
@@ -241,13 +320,13 @@ function formatSize(n) {
   }
 
   // ── read_file 预览 ──
-  .sfr-content-preview {
-    margin: 0; padding: 10px 12px;
-    background: var(--color-purple-bg); color: var(--gray-700);
-    font-size: 12px; line-height: 1.6;
-    white-space: pre-wrap; word-break: break-word;
-    max-height: 200px; overflow-y: auto;
-    font-family: 'Monaco', 'Menlo', monospace;
+  .sfr-read-preview {
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--color-canvas);
+    :deep(.file-preview) {
+      min-height: 80px;
+    }
   }
   .sfr-truncated-hint {
     padding: 6px 12px; font-size: 11px; color: var(--purple-500);
@@ -278,9 +357,15 @@ function formatSize(n) {
     background: var(--color-purple-bg);
   }
 
-  // ── write_file ──
-  .sfr-write-info {
-    padding: 8px 12px; color: var(--purple-700); font-size: 12px;
+  // ── write_file 内联预览 ──
+  .sfr-inline-preview {
+    max-height: 300px;
+    overflow-y: auto;
+    border-top: 1px solid var(--purple-200);
+    background: var(--color-canvas);
+    :deep(.file-preview) {
+      min-height: 200px;
+    }
   }
 
   // ── 兜底 JSON ──
@@ -292,7 +377,7 @@ function formatSize(n) {
     font-family: 'Monaco', 'Menlo', monospace;
   }
 
-  // ── 弹窗内（非 scoped 隔离，但 less 嵌套作用域已覆盖） ──
+  // ── 弹窗内 ──
   .sfr-modal-meta {
     display: flex; align-items: center; gap: 24px;
     padding: 12px 16px; margin-bottom: 20px;
@@ -319,13 +404,13 @@ function formatSize(n) {
   .sfr-modal-meta-value-strong {
     font-size: 14px; font-weight: 700;
   }
-  .sfr-modal-content {
-    margin: 0; padding: 16px;
-    background: var(--gray-900); color: var(--gray-100);
-    font-size: 13px; line-height: 1.7;
-    white-space: pre-wrap; word-break: break-word;
+  .sfr-modal-preview {
     border-radius: 8px;
-    font-family: 'Monaco', 'Menlo', monospace;
+    overflow: hidden;
+    background: var(--color-canvas);
+    :deep(.file-preview) {
+      min-height: 240px;
+    }
   }
   .sfr-modal-list {
     border: 1px solid var(--purple-200);

@@ -1072,7 +1072,17 @@ public class ChatServiceImpl implements ChatService {
                         .filter(tick -> ctx.isAborted())
                         .next())
                 .doOnSubscribe(sub -> ctx.resetStreamTextTracking())
-                .doOnNext(response -> receivedResponse[0] = true)
+                .doOnNext(response -> {
+                    receivedResponse[0] = true;
+                    // 尝试从 chunk 提取 tool_call args delta，节流推「正在生成 · 已输出 N 字」
+                    handleToolCallArgsDelta(response, ctx);
+                })
+                .doFinally(signal -> {
+                    // 本轮模型流结束，清理 args 累积器避免跨轮泄漏
+                    if (ctx.getToolArgsAccumulators() != null) {
+                        ctx.getToolArgsAccumulators().clear();
+                    }
+                })
                 .onErrorResume(e -> {
                     if (!receivedResponse[0] && attempt < retryTimes) {
                         int retryNo = attempt + 1;
@@ -1946,7 +1956,126 @@ public class ChatServiceImpl implements ChatService {
         } else if (statusFluxes != null) {
             statusFluxes.add(Flux.just(STATUS_PREFIX + callJson));
         }
+        // 文件写入类工具立即推「正在生成 xxx...」起始状态，替代裸 spinner 让用户感知到 AI 正在写哪个文件
+        emitFileWritingStatus(ctx, statusFluxes, toolName, args);
         return toolCallId;
+    }
+
+    /**
+     * 从 SpringAI 流式 chunk 中提取 tool_call arguments 增量，节流推送文件写入进度
+     * <p>若适配器在中间 chunk 不暴露 args delta（仅在最终 chunk 给完整 args），
+     * 本方法无中间态可推，退化为 B-3「正在生成 xxx...」兜底。</p>
+     *
+     * @param response 模型流式响应块
+     * @param ctx      对话上下文
+     */
+    private void handleToolCallArgsDelta(ChatResponse response, ChatContext ctx) {
+        if (response == null || ctx == null || ctx.getToolArgsAccumulators() == null) {
+            return;
+        }
+        try {
+            List<Generation> results = response.getResults();
+            if (results == null || results.isEmpty()) {
+                return;
+            }
+            AssistantMessage assistantMsg = results.get(0).getOutput();
+            if (assistantMsg == null) {
+                return;
+            }
+            List<AssistantMessage.ToolCall> toolCalls = assistantMsg.getToolCalls();
+            if (toolCalls == null || toolCalls.isEmpty()) {
+                return;
+            }
+            for (AssistantMessage.ToolCall tc : toolCalls) {
+                String key = (tc.id() != null && !tc.id().isBlank())
+                        ? tc.id()
+                        : ("name:" + (tc.name() != null ? tc.name() : "unknown"));
+                ToolCallAccumulator acc = ctx.getToolArgsAccumulators().computeIfAbsent(key, k -> {
+                    ToolCallAccumulator created = new ToolCallAccumulator();
+                    created.setToolCallKey(k);
+                    created.setToolName(tc.name());
+                    return created;
+                });
+                if (tc.name() != null && !tc.name().isBlank()) {
+                    acc.setToolName(tc.name());
+                }
+                // 仅文件写入类工具推进度，避免其它工具 args 噪音
+                if (!ToolCallAccumulator.isFileWritingTool(acc.getToolName())) {
+                    continue;
+                }
+                acc.acceptArgsFragment(tc.arguments());
+                acc.tryExtractPath();
+                if (!acc.shouldPush()) {
+                    continue;
+                }
+                String basename = acc.basename();
+                if (basename == null) {
+                    continue;
+                }
+                String msg = "正在生成 " + basename + " · 已输出 " + acc.getArgsLen() + " 字";
+                ctx.emitRealtimeStatus(toolEventGenerator.toolStatusEvent(msg, 0));
+                acc.markPushed();
+            }
+        } catch (Exception e) {
+            log.debug("[Chat] tool_call args delta 处理跳过: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 对 sandbox_write_file / sandbox_append_file 推送「正在生成 {filename}...」起始状态
+     * <p>替代原先工具执行期间前端只能看到裸 spinner 的体验，让用户立刻知道 AI 正在写哪个文件</p>
+     * <p>仅在工具属于文件写入类时推送，其他工具直接跳过</p>
+     *
+     * @param ctx 对话上下文（提供实时推送通道）
+     * @param statusFluxes 非流式模式下的批量状态收集容器
+     * @param toolName 工具名称
+     * @param args 工具入参 JSON（含 path 字段）
+     */
+    private void emitFileWritingStatus(ChatContext ctx, List<Flux<String>> statusFluxes,
+                                       String toolName, String args) {
+        // 仅文件写入类工具推起始状态，其他工具跳过避免噪音
+        if (!"sandbox_write_file".equals(toolName) && !"sandbox_append_file".equals(toolName)) {
+            return;
+        }
+        String basename = extractFileBasename(args);
+        if (basename == null) {
+            return;
+        }
+        String msg = "正在生成 " + basename + "...";
+        String statusJson = toolEventGenerator.toolStatusEvent(msg, 0);
+        if (ctx != null && ctx.getRealtimeStatusEmitter() != null) {
+            ctx.emitRealtimeStatus(statusJson);
+        } else if (statusFluxes != null) {
+            statusFluxes.add(Flux.just(STATUS_PREFIX + statusJson));
+        }
+    }
+
+    /**
+     * 从工具入参 JSON 中提取 path 字段的 basename（仅文件名部分）
+     *
+     * @param args 工具入参 JSON
+     * @return basename；args 非法或无 path 字段时返回 null
+     */
+    private String extractFileBasename(String args) {
+        if (args == null || args.isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(args);
+            JsonNode pathNode = node.get("path");
+            if (pathNode == null || pathNode.isNull()) {
+                return null;
+            }
+            String path = pathNode.asText("");
+            if (path.isEmpty()) {
+                return null;
+            }
+            // 取最后一段作为文件名（path 可能是 outputs/reports/report.md）
+            int slash = path.lastIndexOf('/');
+            return slash >= 0 ? path.substring(slash + 1) : path;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     private void appendToolCallResult(ChatContext ctx, List<Map<String, Object>> toolEventsList, List<Flux<String>> statusFluxes,

@@ -71,6 +71,22 @@
         <template v-if="column.key === 'createTime'">
           {{ formatTime(record.createTime) }}
         </template>
+        <!-- 仅 Request ID / Agent / 模型 三列保留悬浮 tooltip，其余列不弹 -->
+        <template v-else-if="column.dataIndex === 'requestId'">
+          <a-tooltip :title="record.requestId || undefined" placement="topLeft">
+            <span class="cell-ellipsis">{{ record.requestId }}</span>
+          </a-tooltip>
+        </template>
+        <template v-else-if="column.dataIndex === 'agentName'">
+          <a-tooltip :title="record.agentName || undefined" placement="topLeft">
+            <span class="cell-ellipsis">{{ record.agentName || '-' }}</span>
+          </a-tooltip>
+        </template>
+        <template v-else-if="column.dataIndex === 'model'">
+          <a-tooltip :title="record.model || undefined" placement="topLeft">
+            <span class="cell-ellipsis">{{ record.model || '-' }}</span>
+          </a-tooltip>
+        </template>
         <template v-else-if="column.key === 'status'">
           <a-tag :color="traceStatusColor(record.status)">
             {{ traceStatusLabel(record.status) }}
@@ -209,9 +225,9 @@
             <span class="info-label">Token</span>
             <span class="info-value">
               <span class="token-detail">
-                <span class="token-input" :title="'输入: ' + (detailTrace.inputTokens ?? 0)">入 {{ detailTrace.inputTokens ?? 0 }}</span>
+                <span class="token-input">入 {{ detailTrace.inputTokens ?? 0 }}</span>
                 <span class="token-sep">/</span>
-                <span class="token-output" :title="'输出: ' + (detailTrace.outputTokens ?? 0)">出 {{ detailTrace.outputTokens ?? 0 }}</span>
+                <span class="token-output">出 {{ detailTrace.outputTokens ?? 0 }}</span>
               </span>
             </span>
           </div>
@@ -393,7 +409,6 @@
                       class="wf-bar wf-bar-segment"
                       :class="'wf-bar-' + spanTypeClass(group.name)"
                       :style="{ left: sub._offsetPercent + '%', width: Math.max(sub._widthPercent, 1) + '%' }"
-                      :title="group.name + ' #' + (si + 1) + ': ' + formatDuration(sub.durationMs)"
                     ></div>
                   </template>
                   <template v-else>
@@ -401,7 +416,6 @@
                       class="wf-bar"
                       :class="'wf-bar-' + spanTypeClass(group.name)"
                       :style="{ left: group._offsetPercent + '%', width: Math.max(group._widthPercent, 1) + '%' }"
-                      :title="group.name + ': ' + formatDuration(group.totalDurationMs)"
                     ></div>
                   </template>
                 </span>
@@ -723,9 +737,10 @@ const pagination = reactive({
 
 const chatColumns = [
   { title: '时间', key: 'createTime', width: 170 },
-  { title: 'Request ID', dataIndex: 'requestId', width: 160, ellipsis: true },
-  { title: 'Agent', dataIndex: 'agentName', width: 120, ellipsis: true },
-  { title: '模型', dataIndex: 'model', width: 140, ellipsis: true },
+  // 仅这三列在 bodyCell 里用 a-tooltip；此处不用 ellipsis:true，避免原生 title 双层 tooltip
+  { title: 'Request ID', dataIndex: 'requestId', key: 'requestId', width: 160 },
+  { title: 'Agent', dataIndex: 'agentName', key: 'agentName', width: 120 },
+  { title: '模型', dataIndex: 'model', key: 'model', width: 140 },
   { title: 'Token (入/出)', key: 'totalTokens', width: 130 },
   { title: '耗时', key: 'totalDurationMs', width: 100 },
   { title: '工具', dataIndex: 'toolCallCount', width: 70, align: 'center' },
@@ -735,8 +750,8 @@ const chatColumns = [
 
 const workflowColumns = [
   { title: '时间', key: 'createTime', width: 170 },
-  { title: 'Request ID', dataIndex: 'requestId', width: 160, ellipsis: true },
-  { title: 'Agent', dataIndex: 'agentName', width: 120, ellipsis: true },
+  { title: 'Request ID', dataIndex: 'requestId', key: 'requestId', width: 160 },
+  { title: 'Agent', dataIndex: 'agentName', key: 'agentName', width: 120 },
   { title: 'Token (入/出)', key: 'totalTokens', width: 130 },
   { title: '耗时', key: 'totalDurationMs', width: 100 },
   { title: '状态', key: 'status', width: 80 },
@@ -1275,6 +1290,16 @@ onUnmounted(() => clearTimeout(copyTimer))
   white-space: nowrap;
   font-size: 12px;
   color: var(--color-body);
+}
+
+/* Trace 列表：Request ID / Agent / 模型 截断展示，完整内容靠 a-tooltip */
+.cell-ellipsis {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
 
 /* Token 详情 */

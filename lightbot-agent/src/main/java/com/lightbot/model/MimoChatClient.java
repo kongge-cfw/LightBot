@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.dto.ChatAttachmentDTO;
 import com.lightbot.entity.ModelProvider;
+import com.lightbot.service.chat.ToolCallAccumulator;
 import com.lightbot.service.chat.ToolEventGenerator;
 import com.lightbot.util.ChatDocumentMessageUtil;
 import com.lightbot.util.MinioUtil;
@@ -28,8 +29,8 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * MiMo OpenAI 兼容 API 直连客户端
@@ -73,6 +74,8 @@ public class MimoChatClient {
     public Flux<String> streamChat(ModelProvider provider, Map<String, Object> config,
                                    List<Message> messages, List<ChatAttachmentDTO> currentAttachments) {
         return Flux.create(sink -> {
+            // 本流生命周期内的 tool_call args 累积器，流结束即丢弃，避免跨请求泄漏
+            Map<Integer, ToolCallAccumulator> toolArgsAccumulators = new ConcurrentHashMap<>();
             try {
                 Map<String, Object> body = buildRequestBody(provider, config, messages, currentAttachments, true);
                 try {
@@ -115,22 +118,26 @@ public class MimoChatClient {
                                     if ("[DONE]".equals(data)) {
                                         break;
                                     }
-                                    parseStreamChunk(data, sink);
+                                    parseStreamChunk(data, sink, toolArgsAccumulators);
                                 }
                             } catch (Exception e) {
                                 sink.error(e);
                                 return null;
+                            } finally {
+                                toolArgsAccumulators.clear();
                             }
                             sink.complete();
                             return null;
                         });
             } catch (Exception e) {
+                toolArgsAccumulators.clear();
                 sink.error(e);
             }
         });
     }
 
-    private void parseStreamChunk(String data, reactor.core.publisher.FluxSink<String> sink) {
+    private void parseStreamChunk(String data, reactor.core.publisher.FluxSink<String> sink,
+                                  Map<Integer, ToolCallAccumulator> toolArgsAccumulators) {
         try {
             JsonNode root = objectMapper.readTree(data);
             if (root.has("error") && !root.get("error").isNull()) {
@@ -156,8 +163,55 @@ public class MimoChatClient {
             }
             emitReasoningContent(delta.get("reasoning_content"), sink);
             emitTextContent(delta.get("content"), sink);
+            // 提取 tool_calls[].function.arguments delta，节流推文件写入进度
+            emitToolCallArgsDelta(delta.get("tool_calls"), sink, toolArgsAccumulators);
         } catch (Exception e) {
             log.debug("[MimoChat] 解析流式块失败: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 解析 delta.tool_calls，按 index 累积 arguments，节流推送「正在生成 · 已输出 N 字」
+     *
+     * @param toolCalls             delta.tool_calls 数组
+     * @param sink                  上游 Flux sink
+     * @param toolArgsAccumulators  本流累积器
+     */
+    private void emitToolCallArgsDelta(JsonNode toolCalls, reactor.core.publisher.FluxSink<String> sink,
+                                       Map<Integer, ToolCallAccumulator> toolArgsAccumulators) {
+        if (toolCalls == null || !toolCalls.isArray() || toolCalls.isEmpty()) {
+            return;
+        }
+        for (JsonNode tc : toolCalls) {
+            int index = tc.has("index") ? tc.get("index").asInt(0) : 0;
+            ToolCallAccumulator acc = toolArgsAccumulators.computeIfAbsent(index, i -> {
+                ToolCallAccumulator created = new ToolCallAccumulator();
+                created.setToolCallKey(String.valueOf(i));
+                return created;
+            });
+            JsonNode fn = tc.get("function");
+            if (fn != null) {
+                if (fn.has("name") && !fn.get("name").asText("").isBlank()) {
+                    acc.setToolName(fn.get("name").asText());
+                }
+                if (fn.has("arguments") && !fn.get("arguments").isNull()) {
+                    acc.acceptArgsFragment(fn.get("arguments").asText(""));
+                }
+            }
+            if (!ToolCallAccumulator.isFileWritingTool(acc.getToolName())) {
+                continue;
+            }
+            acc.tryExtractPath();
+            if (!acc.shouldPush()) {
+                continue;
+            }
+            String basename = acc.basename();
+            if (basename == null) {
+                continue;
+            }
+            String msg = "正在生成 " + basename + " · 已输出 " + acc.getArgsLen() + " 字";
+            sink.next("[STATUS]" + toolEventGenerator.toolStatusEvent(msg, 0));
+            acc.markPushed();
         }
     }
 

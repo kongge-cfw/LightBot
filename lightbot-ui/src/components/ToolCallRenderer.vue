@@ -1,6 +1,6 @@
 <template>
   <ErrorToolResult v-if="isError" :event="event" :message="errorMessage" />
-  <component v-else :is="renderer" :event="event" :messageIndex="messageIndex" />
+  <component v-else :is="renderer" :event="event" :args="args" :messageIndex="messageIndex" />
 </template>
 
 <script setup>
@@ -11,6 +11,8 @@ import ErrorToolResult from './tools/ErrorToolResult.vue'
 
 const props = defineProps({
   event: { type: Object, required: true },
+  /** 配对 tool_call 的 args（用于无 url 时反查 content，如 sandbox_write_file 工作区路径） */
+  args: { type: String, default: '' },
   messageIndex: { type: Number, default: -1 }
 })
 

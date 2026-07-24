@@ -68,7 +68,7 @@
         <!-- 结果详情展开 -->
         <CollapseTransition v-if="evt.type === 'tool_result'" :open="expandedResults.has(ti)">
           <div class="result-detail">
-            <ToolCallRenderer :event="evt" :messageIndex="messageIndex" />
+            <ToolCallRenderer :event="evt" :args="getPairedCallArgs(ti)" :messageIndex="messageIndex" />
           </div>
         </CollapseTransition>
       </div>
@@ -172,6 +172,23 @@ const callResultPairing = computed(() => {
 
 function isCallCompleted(index) {
   return callResultPairing.value.has(index)
+}
+
+/**
+ * 取得与 tool_result 配对的 tool_call 的 args（同 toolName，且后于该 call）。
+ * SandboxFileResult 等渲染组件在工作区路径（无 url）时需从 args 反查 content 做内联预览。
+ * 复用 callResultPairing 的配对结果避免重复计算；未匹配到返回空串。
+ */
+function getPairedCallArgs(resultIndex) {
+  const events = props.toolEvents || []
+  // 反向查最近的同 toolName 的 tool_call；与 callResultPairing 顺序配对保持一致
+  for (let i = resultIndex - 1; i >= 0; i--) {
+    const prev = events[i]
+    if (prev?.type === 'tool_call' && prev?.toolName === events[resultIndex]?.toolName) {
+      return prev?.args || ''
+    }
+  }
+  return ''
 }
 
 /**

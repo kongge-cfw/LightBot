@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -213,6 +214,12 @@ public class ChatContext {
 
     /** 流式模式下实时推送 [STATUS] JSON 到 SSE（由 ChatServiceImpl 注入） */
     private java.util.function.Consumer<String> realtimeStatusEmitter;
+
+    /**
+     * LLM 流式 tool_call args 累积器（按 toolCallId 维度）
+     * <p>用于 write_file 等大段 arguments 生成期间节流推送字数进度；流结束须清理。</p>
+     */
+    private final Map<String, ToolCallAccumulator> toolArgsAccumulators = new ConcurrentHashMap<>();
 
     /**
      * 实时推送结构化状态事件 JSON（不含 [STATUS] 前缀）
