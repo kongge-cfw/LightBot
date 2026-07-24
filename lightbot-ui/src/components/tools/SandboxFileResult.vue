@@ -43,7 +43,6 @@
             </div>
           </div>
           <pre class="sfr-modal-content">{{ data.content }}</pre>
-          </div>
         </a-modal>
       </div>
 

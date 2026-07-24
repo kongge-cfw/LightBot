@@ -72,7 +72,8 @@
                 @click="handleDelete(record.id)"
               >
                 <DeleteOutlined />
-            </button>
+              </button>
+            </a-tooltip>
           </div>
         </template>
       </template>
