@@ -86,6 +86,7 @@ import {
   SyncOutlined,
   AuditOutlined,
   CheckCircleOutlined,
+  CheckSquareOutlined,
   AimOutlined,
   // 常用系统图标（菜单、按钮场景），不在 IconPicker 候选中但后端可能配置
   HomeOutlined,
@@ -203,6 +204,7 @@ export const ICON_MAP = {
   SyncOutlined,
   AuditOutlined,
   CheckCircleOutlined,
+  CheckSquareOutlined,
   AimOutlined,
   HomeOutlined,
   UserOutlined,
