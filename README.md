@@ -17,6 +17,7 @@
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="sql/README.md">数据库迁移</a> ·
+  <a href="LICENSE">Apache-2.0</a> ·
   <a href="http://localhost:8081/swagger-ui.html">Swagger UI</a>
 </p>
 
@@ -184,4 +185,8 @@ pnpm build
 
 ## License
 
-当前仓库尚未包含 `LICENSE` 文件；对外发布前请补充并确认开源许可证。
+本项目采用 [Apache License 2.0](LICENSE) 开源。
+
+在遵守许可证条款的前提下，你可以使用、修改和分发本项目；修改后分发时须保留许可证和版权声明。`LightBot` 名称及相关标识不因该许可证而自动授予商标使用权。
+
+项目依赖分别遵循其自身许可证。发布二进制包、镜像或衍生版本前，请一并核对并保留第三方组件要求的许可证与声明。
