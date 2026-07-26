@@ -403,7 +403,7 @@ onUnmounted(() => {
 <style scoped>
 .dashboard {
   padding: 24px 32px;
-  height: 100%;
+  height: var(--app-content-height);
   display: flex;
   flex-direction: column;
   overflow: hidden;

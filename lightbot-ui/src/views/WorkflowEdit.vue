@@ -3224,7 +3224,7 @@ function goBack() {
 
 <style scoped>
 .workflow-edit-page {
-  height: 100vh;
+  height: var(--app-content-height);
   display: flex;
   flex-direction: column;
   background: var(--color-canvas-soft-2);

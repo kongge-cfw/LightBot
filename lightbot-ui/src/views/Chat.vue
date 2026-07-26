@@ -693,9 +693,9 @@ watch(sessionId, (newVal, oldVal) => {
 .chat-container {
   display: flex;
   flex-direction: column;
-  /* 顶栏改造后对话区在 MainLayout 内，不能再用 100vh，否则会高出顶栏高度、底部输入框被裁切 */
-  height: 100%;
-  max-height: 100%;
+  /* 顶栏改造后对话区在 MainLayout 内，用 content-height，避免高出顶栏被裁切 */
+  height: var(--app-content-height);
+  max-height: var(--app-content-height);
   overflow: hidden;
   background: var(--color-canvas);
 }

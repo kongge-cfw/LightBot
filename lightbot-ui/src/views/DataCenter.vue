@@ -52,7 +52,7 @@ watch(
 
 <style scoped>
 .data-center-page {
-  height: 100%;
+  height: var(--app-content-height);
   overflow: hidden;
   background: var(--color-canvas-soft);
   padding: 28px 32px;

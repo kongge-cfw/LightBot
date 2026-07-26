@@ -158,7 +158,7 @@ watch(activeTab, (tab) => {
 
 <style scoped>
 .extensions-page {
-  height: 100vh;
+  height: var(--app-content-height);
   overflow: hidden;
   background: var(--color-canvas-soft);
   padding: 32px;

@@ -190,7 +190,7 @@ function handleDelete(id) {
 .page {
   padding: var(--space-xl);
   padding-right: calc(var(--space-xl) + var(--scroll-content-gap));
-  height: 100vh;
+  height: var(--app-content-height);
   overflow-y: auto;
   background: var(--color-canvas-soft);
   scrollbar-gutter: stable;

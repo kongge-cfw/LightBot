@@ -1,5 +1,12 @@
 <template>
-  <div class="layout" :class="{ 'layout--rail-hidden': !sessionRailVisible, 'layout--rail-collapsed': sidebarCollapsed && sessionRailVisible }">
+  <div
+    class="layout"
+    :class="{
+      'layout--rail-hidden': !sessionRailVisible,
+      'layout--rail-collapsed': sidebarCollapsed && sessionRailVisible,
+      'layout--no-topbar': isWorkflowRoute,
+    }"
+  >
     <!-- 顶部主导航 -->
     <header v-show="!isWorkflowRoute" class="topbar">
       <div class="topbar-left">
@@ -634,6 +641,12 @@ watch(sessionLoadMoreRef, (el) => {
   overflow: hidden;
   background: var(--color-canvas-soft);
   font-family: var(--font-sans);
+  /* 默认扣顶栏；工作流全屏编辑时置 0，业务页用 var(--app-content-height) 对齐 */
+  --app-topbar-height: 56px;
+  --app-content-height: calc(100vh - var(--app-topbar-height));
+}
+.layout--no-topbar {
+  --app-topbar-height: 0px;
 }
 
 /* ===== Topbar ===== */
@@ -1111,6 +1124,14 @@ watch(sessionLoadMoreRef, (el) => {
   min-height: 0;
   overflow: hidden;
   background: var(--color-canvas);
+  /* 建立高度上下文：子路由根节点吃满内容区，避免 height:100% 失效 */
+  display: flex;
+  flex-direction: column;
+}
+.main-content > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
 }
 
 .menu-item-with-badge {

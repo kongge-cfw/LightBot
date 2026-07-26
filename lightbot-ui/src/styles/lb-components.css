@@ -501,7 +501,7 @@
    内容区 .detail-page__body 自带 padding，让卡片与页面有间隔。
    避免每个详情页重复写 scoped 样式，也避免污染全局 .page（admin-page.css）。 */
 .detail-page {
-  height: 100vh;
+  height: var(--app-content-height, 100%);
   background: var(--color-canvas-soft);
   display: flex;
   flex-direction: column;
