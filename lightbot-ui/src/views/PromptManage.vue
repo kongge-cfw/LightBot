@@ -67,13 +67,13 @@
           <a-input
             v-model:value="form.promptKey"
             :disabled="!!form.id"
-            :maxlength="30"
+            :maxlength="100"
             show-count
-            placeholder="如: customer_service (不超过30字)"
+            placeholder="请输入 Prompt Key（例如：customer_service，不超过 100 字）"
           />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="3" :maxlength="50" show-count placeholder="Prompt 的用途描述 (不超过50字)" />
+          <a-textarea v-model:value="form.description" :rows="3" :maxlength="200" show-count placeholder="请输入 Prompt 用途描述（不超过 200 字）" />
         </a-form-item>
         <a-form-item label="标签">
           <TagInput v-model="form.tags" />

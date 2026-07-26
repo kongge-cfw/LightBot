@@ -84,7 +84,7 @@
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ flex: '0 0 110px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="请输入知识库名称（不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="描述">
           <a-textarea v-model:value="form.description" :rows="3" placeholder="知识库描述（不超过50字，可选）" :maxlength="50" show-count />
@@ -128,13 +128,13 @@
         </a-form-item>
         <template v-if="form.type === 'dify'">
           <a-form-item label="Dify API 地址" required>
-            <a-input v-model:value="form.difyConfig.apiUrl" placeholder="https://dify.example.com/v1" />
+            <a-input v-model:value="form.difyConfig.apiUrl" placeholder="请输入 Dify API 地址（以 /v1 结尾，不超过 512 字）" :maxlength="512" />
           </a-form-item>
           <a-form-item label="Dataset ID" required>
-            <a-input v-model:value="form.difyConfig.datasetId" placeholder="Dify Dataset ID" />
+            <a-input v-model:value="form.difyConfig.datasetId" placeholder="请输入 Dify Dataset ID（不超过 128 字）" :maxlength="128" />
           </a-form-item>
           <a-form-item label="Dataset Token" required>
-            <a-input-password v-model:value="form.difyConfig.token" placeholder="仅用于加密保存，不会回显" />
+            <a-input-password v-model:value="form.difyConfig.token" placeholder="请输入 Dataset API Token（仅加密保存，不超过 2048 字）" :maxlength="2048" />
           </a-form-item>
           <a-alert type="info" show-icon message="测试不会保存配置；创建时会再次验证连接。Dify Dataset 为只读知识库。" />
         </template>
@@ -301,7 +301,11 @@ onMounted(loadData)
   font-weight: 600;
   color: var(--color-ink);
   margin-bottom: 14px;
-  width: fit-content;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  width: 100%;
   max-width: 100%;
 }
 .card-desc {
@@ -311,7 +315,7 @@ onMounted(loadData)
   text-overflow: ellipsis;
   white-space: nowrap;
   margin-top: 6px;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
 }
 .card-stats {

@@ -2,6 +2,7 @@ package com.lightbot.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 /**
@@ -15,13 +16,16 @@ import lombok.Data;
 public class DocumentEditDTO {
 
     @NotBlank(message = "编辑内容不能为空")
+    @Size(max = 5 * 1024 * 1024, message = "编辑内容不能超过5MiB")
     @Schema(description = "编辑后的完整内容")
     private String content;
 
     @NotBlank(message = "编辑模式不能为空")
+    @Size(max = 32, message = "编辑模式不超过32字")
     @Schema(description = "编辑器模式：editor/richtext/spreadsheet")
     private String editMode;
 
     @Schema(description = "期望的文件哈希（乐观锁），为空时不校验")
+    @Size(max = 128, message = "文件哈希不超过128字")
     private String expectedHash;
 }

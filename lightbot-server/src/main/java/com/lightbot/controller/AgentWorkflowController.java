@@ -50,7 +50,7 @@ public class AgentWorkflowController {
 
     @Operation(summary = "暂存工作流草稿（跳过校验）")
     @PostMapping("/draft")
-    public Result<Void> saveDraft(@PathVariable Long agentId, @RequestBody WorkflowGraphDTO graph) {
+    public Result<Void> saveDraft(@PathVariable Long agentId, @Valid @RequestBody WorkflowGraphDTO graph) {
         workflowConfigService.saveDraft(agentId, graph);
         return Result.ok();
     }
@@ -91,13 +91,13 @@ public class AgentWorkflowController {
 
     @Operation(summary = "发布工作流（需通过校验）")
     @PostMapping("/publish")
-    public Result<Map<String, Object>> publish(@PathVariable Long agentId, @RequestBody WorkflowGraphDTO graph) {
+    public Result<Map<String, Object>> publish(@PathVariable Long agentId, @Valid @RequestBody WorkflowGraphDTO graph) {
         return Result.ok(workflowConfigService.publish(agentId, graph));
     }
 
     @Operation(summary = "校验工作流配置")
     @PostMapping("/validate")
-    public Result<List<String>> validate(@PathVariable Long agentId, @RequestBody WorkflowGraphDTO graph) {
+    public Result<List<String>> validate(@PathVariable Long agentId, @Valid @RequestBody WorkflowGraphDTO graph) {
         return Result.ok(workflowConfigService.validate(agentId, graph));
     }
 

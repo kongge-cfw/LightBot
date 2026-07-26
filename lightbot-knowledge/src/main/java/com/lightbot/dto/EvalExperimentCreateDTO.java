@@ -12,10 +12,10 @@ import lombok.Data;
 @Data
 public class EvalExperimentCreateDTO {
 
-    @Size(max = 30, message = "实验名称不超过30字")
+    @Size(max = 50, message = "实验名称不超过50字")
     private String name;
 
-    @Size(max = 50, message = "实验描述不超过50字")
+    @Size(max = 200, message = "实验描述不超过200字")
     private String description;
 
     private Long datasetId;

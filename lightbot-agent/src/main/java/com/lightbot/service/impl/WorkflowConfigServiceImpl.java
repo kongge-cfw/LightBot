@@ -78,6 +78,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
 
     @Override
     public void saveDraft(Long agentId, WorkflowGraphDTO graph) {
+        assertGraphPayload(graph);
         agentVersionService.saveWorkflowDraft(agentId, graph);
     }
 
@@ -94,6 +95,7 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
         if (hasBlocker(preview.getIssues()) || preview.getGraph() == null) {
             throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "Dify 工作流预检未通过，请先修复阻断问题");
         }
+        assertGraphPayload(preview.getGraph());
         // 仅覆盖当前草稿，已发布版本仍由 agent_version 保留。
         agentVersionService.saveWorkflowDraft(agentId, preview.getGraph());
         return preview;
@@ -621,6 +623,15 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
 
     private boolean hasBlocker(List<com.lightbot.dto.DifyWorkflowIssueVO> issues) {
         return issues != null && issues.stream().anyMatch(issue -> "BLOCKER".equals(issue.getSeverity()));
+    }
+
+    /** 校验所有可落库图载荷的基础结构与关键文本上限。 */
+    private void assertGraphPayload(WorkflowGraphDTO graph) {
+        List<String> errors = WorkflowGraphValidateUtil.validatePayload(
+                graph == null ? null : graph.getNodes(), graph == null ? null : graph.getEdges());
+        if (!errors.isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), String.join("；", errors));
+        }
     }
 
     private Map<String, Object> toGraphMap(WorkflowGraphDTO graph) {

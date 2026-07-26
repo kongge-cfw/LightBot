@@ -209,10 +209,10 @@
     >
       <a-form :model="datasetForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="datasetForm.name" :maxlength="30" show-count placeholder="如：客服问答评测集 (不超过30字)" />
+          <a-input v-model:value="datasetForm.name" :maxlength="50" show-count placeholder="请输入评测集名称（例如：客服问答评测集，不超过 50 字）" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="datasetForm.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
+          <a-textarea v-model:value="datasetForm.description" :rows="3" :maxlength="200" show-count placeholder="请输入评测集用途描述（不超过 200 字）" />
         </a-form-item>
       </a-form>
       <template #footer>
@@ -233,10 +233,10 @@
     >
       <a-form :model="evaluatorForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="evaluatorForm.name" :maxlength="30" show-count placeholder="如：准确性评估器 (不超过30字)" />
+          <a-input v-model:value="evaluatorForm.name" :maxlength="50" show-count placeholder="请输入评估器名称（例如：准确性评估器，不超过 50 字）" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="evaluatorForm.description" :rows="3" :maxlength="50" show-count placeholder="评估器的用途描述 (不超过50字)" />
+          <a-textarea v-model:value="evaluatorForm.description" :rows="3" :maxlength="200" show-count placeholder="请输入评估器用途描述（不超过 200 字）" />
         </a-form-item>
         <a-form-item label="标签">
           <TagInput v-model="evaluatorForm.tags" />
@@ -325,10 +325,10 @@
       <!-- Step 1: 基本信息 -->
       <a-form v-show="experimentStep === 0" :model="experimentForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="实验名称" required>
-          <a-input v-model:value="experimentForm.name" :maxlength="30" show-count placeholder="如：客服 Prompt v1 vs v2 对比 (不超过30字)" />
+          <a-input v-model:value="experimentForm.name" :maxlength="50" show-count placeholder="请输入实验名称（例如：客服 Prompt v1 vs v2 对比，不超过 50 字）" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="experimentForm.description" :rows="3" :maxlength="50" show-count placeholder="实验目的说明 (不超过50字)" />
+          <a-textarea v-model:value="experimentForm.description" :rows="3" :maxlength="200" show-count placeholder="请输入实验目的说明（不超过 200 字）" />
         </a-form-item>
       </a-form>
 

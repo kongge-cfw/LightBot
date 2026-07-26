@@ -70,10 +70,10 @@
     >
       <a-form :model="form" :label-col="{ flex: '0 0 80px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" :maxlength="30" show-count placeholder="如：客服问答评测集 (不超过30字)" />
+          <a-input v-model:value="form.name" :maxlength="50" show-count placeholder="请输入评测集名称（例如：客服问答评测集，不超过 50 字）" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="3" :maxlength="50" show-count placeholder="评测集的用途描述 (不超过50字)" />
+          <a-textarea v-model:value="form.description" :rows="3" :maxlength="200" show-count placeholder="请输入评测集用途描述（不超过 200 字）" />
         </a-form-item>
       </a-form>
       <template #footer>

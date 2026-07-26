@@ -2,6 +2,7 @@ package com.lightbot.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.lightbot.enums.AgentType;
+import com.lightbot.validation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
@@ -38,6 +39,8 @@ public class AgentSaveDTO {
     private String welcomeMessage;
 
     @Schema(description = "推荐问题列表（JSON数组）")
+    @JsonFormat(message = "推荐问题必须为合法JSON格式")
+    @Size(max = 8000, message = "推荐问题配置不超过8000字")
     private String recommendedQuestions;
 
     @Schema(description = "头像存储路径")
@@ -50,5 +53,7 @@ public class AgentSaveDTO {
     private AgentType agentType;
 
     @Schema(description = "扩展配置（JSON）")
+    @JsonFormat(message = "扩展配置必须为合法JSON格式")
+    @Size(max = 8000, message = "扩展配置不超过8000字")
     private String config;
 }

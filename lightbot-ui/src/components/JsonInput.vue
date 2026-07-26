@@ -3,6 +3,7 @@
     <a-textarea
       :value="modelValue"
       :readonly="readonly"
+      :maxlength="maxLength || undefined"
       @input="onInput"
       :placeholder="placeholder"
       :rows="rows"
@@ -21,6 +22,9 @@
         </button>
       </WorkflowTooltip>
     </div>
+    <div v-if="maxLength" class="json-char-count" :class="{ 'is-near-limit': (modelValue || '').length >= maxLength * 0.9 }">
+      {{ (modelValue || '').length }} / {{ maxLength }}
+    </div>
     <div v-if="error" class="json-error-msg">{{ error }}</div>
   </div>
 </template>
@@ -35,6 +39,7 @@ const props = defineProps({
   placeholder: { type: String, default: 'JSON 格式' },
   rows: { type: Number, default: 3 },
   readonly: { type: Boolean, default: false },
+  maxLength: { type: Number, default: 0 },
 })
 
 const emit = defineEmits(['update:modelValue'])
@@ -102,6 +107,16 @@ watch(() => props.modelValue, (val) => {
   gap: 4px;
   z-index: 1;
 }
+.json-char-count {
+  position: absolute;
+  bottom: 8px;
+  left: 10px;
+  color: var(--color-mute);
+  font-size: 11px;
+  line-height: 1;
+  pointer-events: none;
+}
+.json-char-count.is-near-limit { color: var(--color-warn); }
 .json-btn {
   display: inline-flex;
   align-items: center;

@@ -91,19 +91,19 @@
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ flex: '0 0 120px' }">
         <a-form-item label="slug" required v-if="!form.id || form.scope === 'global'">
-          <a-input v-model:value="form.slug" placeholder="英文-小写-短横线，如 deep-research（不超过30字）" :maxlength="30" show-count :disabled="form.id && form.isBuiltin === 1" />
+          <a-input v-model:value="form.slug" placeholder="请输入 slug（英文小写短横线，不超过 50 字）" :maxlength="50" show-count :disabled="form.id && form.isBuiltin === 1" />
         </a-form-item>
         <a-form-item label="技能名称" required>
-          <a-input v-model:value="form.name" placeholder="英文短名，对模型可读，如 deep_research（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="请输入技能名称（英文短名，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="显示名称">
-          <a-input v-model:value="form.displayName" placeholder="中文，如 深度研究（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.displayName" placeholder="请输入显示名称（例如：深度研究，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="图标">
           <IconPicker v-model:value="form.icon" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="什么场景启用这个技能（不超过50字）" :maxlength="50" show-count />
+          <a-textarea v-model:value="form.description" :rows="2" placeholder="请输入技能用途说明（不超过 200 字）" :maxlength="200" show-count />
         </a-form-item>
         <a-form-item label="依赖工具">
           <a-select v-model:value="form.toolIds" mode="multiple" placeholder="选择该 Skill 启用时附带的工具" style="width: 100%" option-label-prop="label">
@@ -132,7 +132,7 @@
           <a-input-number v-model:value="form.sortOrder" :min="0" style="width: 100%" />
         </a-form-item>
         <a-form-item label="扩展配置">
-          <JsonInput v-model="form.config" :rows="2" placeholder="JSON 格式的扩展配置（可选）" />
+          <JsonInput v-model="form.config" :rows="2" :max-length="8000" placeholder="JSON 格式的扩展配置（可选，不超过 8000 字）" />
         </a-form-item>
       </a-form>
       </div>

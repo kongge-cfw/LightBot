@@ -29,13 +29,13 @@
                 <a-input :value="profileForm.username" disabled />
               </a-form-item>
               <a-form-item label="昵称">
-                <a-input v-model:value="profileForm.nickname" placeholder="设置昵称" :maxlength="8" />
+                <a-input v-model:value="profileForm.nickname" placeholder="请输入昵称（不超过 8 字）" :maxlength="8" show-count />
               </a-form-item>
               <a-form-item label="邮箱">
-                <a-input v-model:value="profileForm.email" placeholder="设置邮箱" />
+                <a-input v-model:value="profileForm.email" placeholder="请输入邮箱（不超过 254 字）" :maxlength="254" show-count />
               </a-form-item>
               <a-form-item label="手机号">
-                <a-input v-model:value="profileForm.phone" placeholder="设置手机号" />
+                <a-input v-model:value="profileForm.phone" placeholder="请输入手机号（不超过 32 字）" :maxlength="32" show-count />
               </a-form-item>
               <a-form-item label="角色">
                 <a-tag :color="roleColor">{{ roleText }}</a-tag>
@@ -57,13 +57,13 @@
             </div>
             <a-form :model="passwordForm" :label-col="{ span: 6 }">
               <a-form-item label="原密码" required>
-                <a-input-password v-model:value="passwordForm.oldPassword" placeholder="请输入原密码" />
+                <a-input-password v-model:value="passwordForm.oldPassword" placeholder="请输入原密码（6-64 位）" :maxlength="64" />
               </a-form-item>
               <a-form-item label="新密码" required>
-                <a-input-password v-model:value="passwordForm.newPassword" placeholder="请输入新密码（6-64位）" />
+                <a-input-password v-model:value="passwordForm.newPassword" placeholder="请输入新密码（6-64 位）" :maxlength="64" />
               </a-form-item>
               <a-form-item label="确认密码" required>
-                <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码" />
+                <a-input-password v-model:value="passwordForm.confirmPassword" placeholder="请再次输入新密码（6-64 位）" :maxlength="64" />
               </a-form-item>
               <a-form-item :wrapper-col="{ offset: 6 }">
                 <button class="btn-primary" :disabled="changingPwd" @click.prevent="handleChangePassword">
@@ -301,7 +301,7 @@
           <a-textarea v-model:value="memoryForm.content" :rows="4" :maxlength="1000" show-count />
         </a-form-item>
         <a-form-item label="关键词">
-          <a-input v-model:value="memoryForm.keywordsText" placeholder="用逗号分隔，例如：回复风格, Java, 报告" />
+          <a-input v-model:value="memoryForm.keywordsText" placeholder="用逗号分隔，最多 10 个关键词、单个不超过 50 字" :maxlength="509" show-count />
         </a-form-item>
         <a-form-item label="置信度">
           <a-input-number v-model:value="memoryForm.confidence" :min="0" :max="1" :step="0.05" />

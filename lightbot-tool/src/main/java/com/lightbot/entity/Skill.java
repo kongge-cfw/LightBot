@@ -64,6 +64,7 @@ public class Skill {
     private String displayName;
 
     @TableField("icon")
+    @Size(max = 64, message = "图标标识不超过64字")
     @Schema(description = "图标标识（Ant Design 图标组件名，如 ExperimentOutlined），为空时前端降级首字母")
     private String icon;
 
@@ -73,10 +74,12 @@ public class Skill {
     private String description;
 
     @TableField("prompt_template")
+    @Size(max = 5000, message = "提示词模板不超过5000字")
     @Schema(description = "提示词模板（注入主 Agent 系统提示）")
     private String promptTemplate;
 
     @TableField(value = "config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "技能配置不超过8000字")
     @Schema(description = "扩展配置")
     private String config;
 
@@ -105,6 +108,7 @@ public class Skill {
     private String objectPrefix;
 
     @TableField("version")
+    @Size(max = 32, message = "版本号不超过32字")
     @Schema(description = "语义版本号")
     private String version;
 
@@ -113,6 +117,7 @@ public class Skill {
     private String skillDependencies;
 
     @TableField("source_type")
+    @Size(max = 20, message = "来源类型不超过20字")
     @Schema(description = "来源类型: builtin/upload/remote")
     private String sourceType;
 

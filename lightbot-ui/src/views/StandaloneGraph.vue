@@ -161,15 +161,15 @@
       <div class="dialog-scroll-body">
       <a-form :model="nodeForm" :label-col="{ flex: '0 0 90px' }">
         <a-form-item label="名称">
-          <a-input v-model:value="nodeForm.name" placeholder="实体名称（必填）" :maxlength="30" show-count />
+          <a-input v-model:value="nodeForm.name" placeholder="请输入实体名称（不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="类型">
-          <a-select v-model:value="nodeForm.entityType" placeholder="选择实体类型">
+          <a-select v-model:value="nodeForm.entityType" placeholder="选择实体类型（不超过 50 字）">
             <a-select-option v-for="t in entityTypes" :key="t" :value="t">{{ t }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="nodeForm.description" :rows="3" placeholder="实体描述（可选）" />
+          <a-textarea v-model:value="nodeForm.description" :rows="3" placeholder="请输入实体描述（可选，不超过 200 字）" :maxlength="200" show-count />
         </a-form-item>
       </a-form>
       </div>
@@ -204,7 +204,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="关系类型">
-          <a-input v-model:value="edgeForm.relationType" placeholder="如：担任、隶属于、使用（必填）" />
+          <a-input v-model:value="edgeForm.relationType" placeholder="请输入关系类型（例如：隶属于，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="目标节点">
           <a-input
@@ -223,7 +223,7 @@
           </a-select>
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="edgeForm.description" :rows="2" placeholder="关系描述（可选）" />
+          <a-textarea v-model:value="edgeForm.description" :rows="2" placeholder="请输入关系描述（可选，不超过 200 字）" :maxlength="200" show-count />
         </a-form-item>
       </a-form>
       </div>

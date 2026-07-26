@@ -4,6 +4,7 @@
       :value="modelValue"
       :placeholder="placeholder"
       :disabled="disabled"
+      :maxlength="maxLength || undefined"
       @update:value="onInput"
     />
     <a-dropdown :disabled="disabled" trigger="click">
@@ -43,6 +44,7 @@ const props = defineProps({
   modelValue: { type: String, default: '' },
   placeholder: { type: String, default: '{{query}}' },
   disabled: { type: Boolean, default: false },
+  maxLength: { type: Number, default: 0 },
   nodeId: { type: String, default: '' },
   nodes: { type: Array, default: () => [] },
   edges: { type: Array, default: () => [] },

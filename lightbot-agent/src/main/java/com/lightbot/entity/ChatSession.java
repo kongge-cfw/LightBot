@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.SessionStatus;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -46,6 +47,7 @@ public class ChatSession {
     private Long userId;
 
     @TableField("title")
+    @Size(max = 50, message = "会话标题不超过50字")
     @Schema(description = "会话标题")
     private String title;
 

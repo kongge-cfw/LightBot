@@ -1,6 +1,7 @@
 package com.lightbot.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.List;
@@ -23,5 +24,6 @@ public class WorkflowGraphDTO {
     private Map<String, Object> globalConfig;
 
     @Schema(description = "发布说明（选填，最多50字，仅发布时生效）")
+    @Size(max = 50, message = "发布说明不超过50字")
     private String publishDescription;
 }

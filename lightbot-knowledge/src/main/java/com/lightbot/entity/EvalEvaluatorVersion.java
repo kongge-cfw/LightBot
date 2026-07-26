@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.EvalVersionStatus;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -33,18 +34,22 @@ public class EvalEvaluatorVersion {
     private Long evaluatorId;
 
     @TableField("version")
+    @Size(max = 32, message = "版本号不超过32字")
     @Schema(description = "版本号")
     private String version;
 
     @TableField(value = "model_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "模型配置不超过8000字")
     @Schema(description = "模型配置")
     private String modelConfig;
 
     @TableField("prompt")
+    @Size(max = 5000, message = "评估提示词不超过5000字")
     @Schema(description = "评估提示词")
     private String prompt;
 
     @TableField(value = "variables", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "变量定义不超过8000字")
     @Schema(description = "变量定义")
     private String variables;
 

@@ -3,6 +3,7 @@ package com.lightbot.dto;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import com.lightbot.validation.JsonFormat;
 import lombok.Data;
 
 import java.util.List;
@@ -20,7 +21,7 @@ public class SkillRequestDTO {
     private Long id;
 
     /** 全局唯一标识（英文-小写-短横线）；新建 global Skill 必填 */
-    @Size(max = 30, message = "标识不超过30字")
+    @Size(max = 50, message = "标识不超过50字")
     private String slug;
 
     /** 兼容字段：旧的按 Agent 私有 Skill 使用 */
@@ -36,23 +37,25 @@ public class SkillRequestDTO {
     private Long modelId;
 
     @NotBlank(message = "Skill 名称不能为空")
-    @Size(max = 30, message = "技能名称不超过30字")
+    @Size(max = 50, message = "技能名称不超过50字")
     private String name;
 
-    @Size(max = 30, message = "显示名称不超过30字")
+    @Size(max = 50, message = "显示名称不超过50字")
     private String displayName;
 
     /** 图标标识（Ant Design 图标组件名，如 ExperimentOutlined） */
     @Size(max = 64, message = "图标标识不超过64字")
     private String icon;
 
-    @Size(max = 50, message = "技能描述不超过50字")
+    @Size(max = 200, message = "技能描述不超过200字")
     private String description;
 
     /** 提示词模板（注入主 Agent 系统提示） */
     @Size(max = 5000, message = "提示词模板不超过5000字")
     private String promptTemplate;
 
+    @JsonFormat(message = "技能配置必须为合法JSON格式")
+    @Size(max = 8000, message = "技能配置不超过8000字")
     private String config;
 
     private Integer sortOrder;
@@ -61,11 +64,13 @@ public class SkillRequestDTO {
     private String scope;
 
     /** 语义版本号 */
+    @Size(max = 32, message = "版本号不超过32字")
     private String version;
 
     /** 依赖其他 Skill 的 slug 列表 */
     private List<String> skillDependencies;
 
     /** 来源类型: builtin/upload/remote */
+    @Size(max = 20, message = "来源类型不超过20字")
     private String sourceType;
 }

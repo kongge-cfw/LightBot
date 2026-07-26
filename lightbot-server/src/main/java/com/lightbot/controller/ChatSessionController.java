@@ -13,6 +13,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.validation.annotation.Validated;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -29,6 +32,7 @@ import java.util.List;
  */
 @Tag(name = "对话会话管理", description = "对话会话的增删改查")
 @RestController
+@Validated
 @RequestMapping("/api/chat/sessions")
 @RequiredArgsConstructor
 public class ChatSessionController {
@@ -77,7 +81,9 @@ public class ChatSessionController {
 
     @Operation(summary = "更新会话标题")
     @PutMapping("/{id}/title")
-    public Result<Void> updateTitle(@PathVariable Long id, @RequestParam String title) {
+    public Result<Void> updateTitle(@PathVariable Long id,
+                                    @RequestParam @NotBlank(message = "会话标题不能为空")
+                                    @Size(max = 50, message = "会话标题不超过50字") String title) {
         chatSessionService.updateTitle(id, title);
         return Result.ok();
     }

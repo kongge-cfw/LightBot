@@ -77,21 +77,18 @@ public class StandaloneGraphController {
     @Operation(summary = "创建节点")
     @PostMapping("/nodes")
     public Result<GraphNodeVO> createNode(
-            @RequestParam String name,
-            @RequestParam(defaultValue = "其他") String entityType,
-            @RequestParam(required = false) String description,
-            @RequestParam(required = false) Long providerId) {
-        return Result.ok(standaloneGraphService.createNode(name, entityType, description, providerId));
+            @jakarta.validation.Valid @ModelAttribute GraphNodeRequestDTO request) {
+        return Result.ok(standaloneGraphService.createNode(
+                request.getName(), request.getEntityType(), request.getDescription(), request.getProviderId()));
     }
 
     @Operation(summary = "更新节点")
     @PutMapping("/nodes/{elementId}")
     public Result<GraphNodeVO> updateNode(
             @PathVariable String elementId,
-            @RequestParam String name,
-            @RequestParam(defaultValue = "其他") String entityType,
-            @RequestParam(required = false) String description) {
-        return Result.ok(standaloneGraphService.updateNode(elementId, name, entityType, description));
+            @jakarta.validation.Valid @ModelAttribute GraphNodeRequestDTO request) {
+        return Result.ok(standaloneGraphService.updateNode(
+                elementId, request.getName(), request.getEntityType(), request.getDescription()));
     }
 
     @Operation(summary = "删除节点")
@@ -104,21 +101,19 @@ public class StandaloneGraphController {
     @Operation(summary = "创建关系")
     @PostMapping("/edges")
     public Result<GraphEdgeVO> createEdge(
-            @RequestParam String headName,
-            @RequestParam String relationType,
-            @RequestParam String tailName,
-            @RequestParam(required = false) String description) {
-        return Result.ok(standaloneGraphService.createEdge(headName, relationType, tailName, description));
+            @jakarta.validation.Valid @ModelAttribute GraphEdgeRequestDTO request) {
+        return Result.ok(standaloneGraphService.createEdge(
+                request.getHeadName(), request.getRelationType(), request.getTailName(), request.getDescription()));
     }
 
     @Operation(summary = "更新关系")
     @PutMapping("/edges/{elementId}")
     public Result<GraphEdgeVO> updateEdge(
             @PathVariable String elementId,
-            @RequestParam(required = false) String relationType,
-            @RequestParam(required = false) String description,
+            @jakarta.validation.Valid @ModelAttribute GraphEdgeUpdateRequestDTO request,
             @RequestParam(required = false) Double weight) {
-        return Result.ok(standaloneGraphService.updateEdge(elementId, relationType, description, weight));
+        return Result.ok(standaloneGraphService.updateEdge(
+                elementId, request.getRelationType(), request.getDescription(), weight));
     }
 
     @Operation(summary = "删除关系")

@@ -23,7 +23,8 @@
               <input
                 v-model="form.username"
                 type="text"
-                placeholder="3-32个字符"
+                placeholder="请输入用户名（3-32 字）"
+                maxlength="32"
                 autocomplete="username"
                 @blur="validateUsername"
                 @input="clearError('username')"
@@ -39,7 +40,8 @@
               <input
                 v-model="form.password"
                 type="password"
-                placeholder="6-64个字符"
+                placeholder="请输入密码（6-64 位）"
+                maxlength="64"
                 autocomplete="new-password"
                 @blur="validatePassword"
                 @input="clearError('password')"
@@ -55,7 +57,8 @@
               <input
                 v-model="form.confirmPassword"
                 type="password"
-                placeholder="再次输入密码"
+                placeholder="请再次输入密码（6-64 位）"
+                maxlength="64"
                 autocomplete="new-password"
                 @blur="validateConfirmPassword"
                 @input="clearError('confirmPassword')"

@@ -605,6 +605,8 @@
           <a-textarea
             v-model:value="urlInput"
             placeholder="输入 URL，一行一个&#10;https://example.com/article1&#10;https://example.com/article2"
+            :maxlength="16000"
+            show-count
             :auto-size="{ minRows: 4, maxRows: 8 }"
             class="url-textarea"
           />
@@ -821,7 +823,7 @@
       <div class="dialog-scroll-body">
       <a-form :model="editForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="editForm.name" placeholder="知识库名称（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="editForm.name" placeholder="请输入知识库名称（不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="描述">
           <a-textarea v-model:value="editForm.description" :rows="3" placeholder="知识库描述（不超过50字）" :maxlength="50" show-count />
@@ -1786,11 +1788,19 @@ async function handleConfirmUrls() {
   }
   syncConfig.syncInterval = urlSyncInterval.value
   const syncConfigJson = JSON.stringify(syncConfig)
+  if (syncConfigJson.length > 8000) {
+    message.warning('URL 同步配置不能超过 8000 字')
+    return
+  }
 
   urlSaving.value = true
   let saved = 0
   const errors = []
   for (const item of successItems) {
+    if (item.url.length > 2048 || item.title?.length > 255 || item.content.length > 5 * 1024 * 1024) {
+      errors.push(`${item.url}: URL、标题或正文内容超过允许长度`)
+      continue
+    }
     try {
       await saveUrlDocument(knowledgeId, {
         url: item.url,

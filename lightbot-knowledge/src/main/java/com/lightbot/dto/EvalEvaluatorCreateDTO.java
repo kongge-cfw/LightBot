@@ -14,10 +14,10 @@ public class EvalEvaluatorCreateDTO {
 
     private Long id;
 
-    @Size(max = 30, message = "评估器名称不超过30字")
+    @Size(max = 50, message = "评估器名称不超过50字")
     private String name;
 
-    @Size(max = 50, message = "评估器描述不超过50字")
+    @Size(max = 200, message = "评估器描述不超过200字")
     private String description;
 
     @Size(max = 200, message = "标签不超过200字")

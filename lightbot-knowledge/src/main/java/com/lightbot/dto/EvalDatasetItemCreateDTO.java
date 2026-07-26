@@ -21,5 +21,9 @@ public class EvalDatasetItemCreateDTO {
     @Size(max = 2000, message = "数据内容不超过2000字")
     private String dataContent;
 
-    private List<String> dataContents;
+    @Size(max = 500, message = "元数据不超过500字")
+    private String metadata;
+
+    @Size(max = 1000, message = "批量数据最多1000条")
+    private List<@Size(max = 2000, message = "单条数据内容不超过2000字") String> dataContents;
 }

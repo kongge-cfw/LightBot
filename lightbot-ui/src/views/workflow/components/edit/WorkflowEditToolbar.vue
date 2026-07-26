@@ -6,7 +6,9 @@
     <a-tag v-if="workflowStatus === 'draft'" color="orange" class="publish-tag">{{ getStatusLabel('draft') }}</a-tag>
     <a-tag v-else-if="workflowStatus === 'published_editing'" color="gold" class="publish-tag">{{ getStatusLabel('published_editing') }}</a-tag>
     <a-tag v-else color="green" class="publish-tag">{{ getStatusLabel('published') }}</a-tag>
-    <h1 class="workflow-title">{{ agentName || '工作流配置' }}</h1>
+    <a-tooltip :title="agentName || '工作流配置'" placement="bottomLeft">
+      <h1 class="workflow-title">{{ agentName || '工作流配置' }}</h1>
+    </a-tooltip>
     <div class="toolbar-status">
       <a-dropdown v-if="validationErrors.length > 0" :trigger="['click']">
         <span class="status-error clickable">
@@ -64,9 +66,11 @@
             <UndoOutlined /> 撤回
           </a-button>
         </WorkflowTooltip>
-        <a-button type="default" @click="$emit('open-dify-workspace')">
-          <DeploymentUnitOutlined /> Dify 互通
-        </a-button>
+        <WorkflowTooltip title="工作流互通" placement="bottom">
+          <a-button type="default" aria-label="工作流互通" @click="$emit('open-workflow-exchange')">
+            <SwapOutlined />
+          </a-button>
+        </WorkflowTooltip>
         <a-button type="default" @click="$emit('open-global-config')">
           <SettingOutlined /> 全局设置
         </a-button>
@@ -92,7 +96,7 @@ import {
   ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   DownOutlined, UndoOutlined, AuditOutlined, RollbackOutlined, ApartmentOutlined,
   SettingOutlined, PlayCircleOutlined, HistoryOutlined, CloudUploadOutlined,
-  DeploymentUnitOutlined,
+  SwapOutlined,
 } from '@ant-design/icons-vue'
 import WorkflowTooltip from '../WorkflowTooltip.vue'
 
@@ -116,7 +120,7 @@ defineProps({
 defineEmits([
   'back', 'format-layout', 'validate', 'back-to-draft', 'open-version',
   'undo', 'open-global-config', 'open-test', 'save-draft', 'open-publish',
-  'exit-test-history', 'open-dify-workspace',
+  'exit-test-history', 'open-workflow-exchange',
 ])
 </script>
 
@@ -124,7 +128,7 @@ defineEmits([
 .workflow-toolbar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 12px 24px;
   background: var(--color-canvas);
   border-bottom: 1px solid var(--color-hairline);
@@ -132,13 +136,19 @@ defineEmits([
 }
 .publish-tag { flex-shrink: 0; }
 .workflow-title {
+  flex: 0 1 240px;
+  min-width: 0;
   font-size: 16px;
   font-weight: 600;
   color: var(--color-ink);
   margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .toolbar-status {
-  flex: 1;
+  flex: 1 1 180px;
+  min-width: 0;
   text-align: center;
   display: flex;
   align-items: center;
@@ -203,8 +213,15 @@ defineEmits([
   font-size: 12px;
 }
 .error-msg { color: #dc2626; flex: 1; }
-.toolbar-actions { display: flex; gap: 8px; }
+.toolbar-actions { display: flex; gap: 8px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
 .btn-validate { color: var(--color-link); }
 .auto-save-hint { font-size: 12px; color: var(--color-mute); white-space: nowrap; min-width: 128px; text-align: center; }
 .auto-save-hint.saving { color: var(--color-link); }
+
+@media (max-width: 1180px) {
+  .workflow-toolbar { align-items: flex-start; flex-wrap: wrap; }
+  .workflow-title { flex-basis: min(240px, calc(100vw - 180px)); }
+  .toolbar-status { order: 3; flex-basis: 100%; justify-content: flex-start; }
+  .toolbar-actions { margin-left: auto; }
+}
 </style>

@@ -6,6 +6,7 @@ import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.vo.AgentVersionListVO;
 import com.lightbot.dto.WorkflowGraphDTO;
+import com.lightbot.workflow.WorkflowGraphValidateUtil;
 import com.lightbot.vo.WorkflowVersionVO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.AgentVersion;
@@ -868,6 +869,11 @@ public class AgentVersionServiceImpl implements AgentVersionService {
         Map<String, Object> graph = extractWorkflowGraphFromSnap(sourceSnap);
         if (graph == null || graph.isEmpty()) {
             return;
+        }
+        WorkflowGraphDTO graphDto = objectMapper.convertValue(graph, WorkflowGraphDTO.class);
+        List<String> graphErrors = WorkflowGraphValidateUtil.validatePayload(graphDto.getNodes(), graphDto.getEdges());
+        if (!graphErrors.isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "源工作流图不合法：" + String.join("；", graphErrors));
         }
         // 3. 获取目标Agent草稿，将源工作流图写入
         AgentVersion targetDraft = getDraftRow(targetAgentId);

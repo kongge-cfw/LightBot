@@ -156,12 +156,12 @@
       <div class="panel-body">
         <a-form :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
           <a-form-item label="主标题">
-            <a-input v-model:value="landing.title" placeholder="LightBot" :maxlength="30" show-count />
+            <a-input v-model:value="landing.title" placeholder="请输入主标题（不超过 30 字）" :maxlength="30" show-count />
           </a-form-item>
           <a-form-item label="副标题轮播">
             <div class="subtitle-list">
               <div v-for="(sub, idx) in landing.subtitles" :key="(sub || 'subtitle') + '-' + idx" class="subtitle-row">
-                <a-input v-model:value="landing.subtitles[idx]" placeholder="副标题" style="flex:1" :maxlength="30" show-count />
+                <a-input v-model:value="landing.subtitles[idx]" placeholder="请输入副标题（不超过 30 字）" style="flex:1" :maxlength="30" show-count />
                 <button class="btn-icon-danger" @click="landing.subtitles.splice(idx, 1)">
                   <DeleteOutlined />
                 </button>
@@ -172,13 +172,13 @@
             </div>
           </a-form-item>
           <a-form-item label="描述文字">
-            <a-textarea v-model:value="landing.description" :rows="3" placeholder="平台介绍文字" :maxlength="200" show-count />
+            <a-textarea v-model:value="landing.description" :rows="3" placeholder="请输入平台介绍（不超过 200 字）" :maxlength="200" show-count />
           </a-form-item>
           <a-form-item label="GitHub 地址">
-            <a-input v-model:value="landing.github" placeholder="https://github.com/..." :maxlength="200" />
+            <a-input v-model:value="landing.github" placeholder="请输入 GitHub 地址（不超过 200 字）" :maxlength="200" show-count />
           </a-form-item>
           <a-form-item label="版权信息">
-            <a-input v-model:value="landing.copyright" placeholder="© 2026 LightBot" :maxlength="100" show-count />
+            <a-input v-model:value="landing.copyright" placeholder="请输入版权信息（不超过 100 字）" :maxlength="100" show-count />
           </a-form-item>
           <a-form-item label="功能展示">
             <div class="features-toggle-bar">
@@ -224,10 +224,10 @@
                   </a-select>
                 </a-form-item>
                 <a-form-item label="标题" :label-col="{ span: 3 }" :wrapper-col="{ span: 20 }">
-                  <a-input v-model:value="feat.title" placeholder="功能名称" :maxlength="20" show-count />
+                  <a-input v-model:value="feat.title" placeholder="请输入功能名称（不超过 20 字）" :maxlength="20" show-count />
                 </a-form-item>
                 <a-form-item label="描述" :label-col="{ span: 3 }" :wrapper-col="{ span: 20 }">
-                  <a-textarea v-model:value="feat.desc" :rows="2" placeholder="功能描述（建议不超过40字）" :maxlength="40" show-count />
+                  <a-textarea v-model:value="feat.desc" :rows="2" placeholder="请输入功能描述（不超过 40 字）" :maxlength="40" show-count />
                 </a-form-item>
               </div>
               <button class="btn-add" @click="landing.features.push({ icon: '', title: '', desc: '' })">
@@ -472,7 +472,7 @@
       <div class="dialog-scroll-body">
       <a-form :label-col="{ flex: '0 0 120px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="apiKeyForm.name" placeholder="如：生产环境API" :maxlength="64" />
+          <a-input v-model:value="apiKeyForm.name" placeholder="请输入 API Key 名称（例如：生产环境 API，不超过 64 字）" :maxlength="64" show-count />
         </a-form-item>
         <a-form-item label="权限">
           <a-select v-model:value="apiKeyForm.permissions">

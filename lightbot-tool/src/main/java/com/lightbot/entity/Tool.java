@@ -46,6 +46,7 @@ public class Tool {
     private String displayName;
 
     @TableField("icon")
+    @Size(max = 64, message = "图标标识不超过64字")
     @Schema(description = "图标标识（Ant Design 图标组件名，如 GlobalOutlined），为空时前端降级首字母")
     private String icon;
 
@@ -59,22 +60,27 @@ public class Tool {
     private ToolType toolType;
 
     @TableField(value = "input_schema", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 16000, message = "输入Schema不超过16000字")
     @Schema(description = "输入参数Schema")
     private String inputSchema;
 
     @TableField(value = "output_schema", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 16000, message = "输出Schema不超过16000字")
     @Schema(description = "输出参数Schema")
     private String outputSchema;
 
     @TableField(value = "output_example", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "输出示例不超过8000字")
     @Schema(description = "输出示例JSON")
     private String outputExample;
 
     @TableField(value = "config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "工具配置不超过8000字")
     @Schema(description = "扩展配置")
     private String config;
 
     @TableField("endpoint_url")
+    @Size(max = 2048, message = "端点地址不超过2048字")
     @Schema(description = "API端点地址")
     private String endpointUrl;
 
@@ -83,10 +89,12 @@ public class Tool {
     private AuthType authType;
 
     @TableField(value = "auth_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "认证配置不超过8000字")
     @Schema(description = "认证配置")
     private String authConfig;
 
     @TableField(value = "tags", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 200, message = "标签不超过200字")
     @Schema(description = "工具标签列表")
     private String tags;
 
@@ -99,6 +107,7 @@ public class Tool {
     private Boolean rateLimitEnabled;
 
     @TableField(value = "rate_limit_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "限流配置不超过8000字")
     @Schema(description = "限流配置 JSON：{\"limit\":10,\"window\":\"MINUTE|HOUR|DAY\"}")
     private String rateLimitConfig;
 

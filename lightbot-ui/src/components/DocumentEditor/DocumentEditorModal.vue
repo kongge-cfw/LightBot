@@ -235,6 +235,10 @@ async function loadContent() {
 
 async function handleSave() {
   if (!hasChanges.value) return
+  if (content.value.length > 5 * 1024 * 1024) {
+    message.warning('文档内容不能超过 5 MiB')
+    return
+  }
 
   saving.value = true
   try {
