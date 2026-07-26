@@ -37,6 +37,7 @@
     "ant-design-vue": "^4.2.6",
     "axios": "^1.7.9",
     "dagre": "^0.8.5",
+    "dayjs": "^1.11.21",
     "dompurify": "^3.4.11",
     "highlight.js": "^11.11.1",
     "katex": "^0.17.0",

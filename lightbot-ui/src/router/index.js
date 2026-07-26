@@ -116,8 +116,7 @@ const routes = [
       {
         path: 'data-center',
         name: 'DataCenter',
-        component: () => import('../views/ComingSoon.vue'),
-        meta: { title: '数据中心', emoji: '🗄️' },
+        component: () => import('../views/DataCenter.vue'),
       },
       {
         path: 'automation',

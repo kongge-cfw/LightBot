@@ -26,6 +26,10 @@ class ControllerRouteContractTest {
             Map.entry(ChatController.class, "/api/chat"),
             Map.entry(ChatSessionController.class, "/api/chat/sessions"),
             Map.entry(DashboardController.class, "/api/dashboard"),
+            Map.entry(DataModelCategoryController.class, "/api/data-model-categories"),
+            Map.entry(DataModelController.class, "/api/data-models"),
+            Map.entry(DataPoolAttachmentController.class, "/api/data-pools/attachments"),
+            Map.entry(DataPoolController.class, "/api/data-pools/{modelId}"),
             Map.entry(DocumentEditController.class, "/api/documents"),
             Map.entry(EnumController.class, "/api/enums"),
             Map.entry(EvalDatasetController.class, "/api/eval/datasets"),
@@ -43,6 +47,7 @@ class ControllerRouteContractTest {
             Map.entry(ModelController.class, "/api/models"),
             Map.entry(ModelProviderController.class, "/api/model-providers"),
             Map.entry(OcrController.class, "/api/ocr"),
+            Map.entry(OpenDataPoolController.class, "/api/open/v1/data-pools/{modelId}/records"),
             Map.entry(PromptController.class, "/api/prompts"),
             Map.entry(SkillController.class, "/api/skills"),
             Map.entry(StandaloneGraphController.class, "/api/graph"),
@@ -58,7 +63,7 @@ class ControllerRouteContractTest {
 
     @Test
     void test_controllerBasePaths_shouldRemainCompatible() {
-        assertEquals(37, EXPECTED_BASE_PATHS.size());
+        assertEquals(41, EXPECTED_BASE_PATHS.size());
 
         EXPECTED_BASE_PATHS.forEach((controllerClass, expectedPath) -> {
             RequestMapping requestMapping = controllerClass.getAnnotation(RequestMapping.class);

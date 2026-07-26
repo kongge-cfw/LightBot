@@ -186,7 +186,22 @@ public enum ErrorCode {
     EVAL_EXPERIMENT_STATUS_INVALID(100302, "实验状态不允许此操作", HttpStatus.BAD_REQUEST),
     EVAL_EXPERIMENT_LLM_CALL_FAILED(100303, "LLM调用失败: %s", HttpStatus.INTERNAL_SERVER_ERROR),
     EVAL_EXPERIMENT_SCORE_PARSE_FAILED(100304, "评分结果解析失败", HttpStatus.INTERNAL_SERVER_ERROR),
-    EVAL_EXPERIMENT_EVALUATOR_LIMIT(100305, "每个实验最多添加5个评估器", HttpStatus.BAD_REQUEST);
+    EVAL_EXPERIMENT_EVALUATOR_LIMIT(100305, "每个实验最多添加5个评估器", HttpStatus.BAD_REQUEST),
+
+    // ========== 数据中心 ==========
+    DATA_CATEGORY_NOT_FOUND(110001, "数据模型分类不存在", HttpStatus.BAD_REQUEST),
+    DATA_CATEGORY_NAME_EXISTS(110002, "分类名称已存在", HttpStatus.BAD_REQUEST),
+    DATA_CATEGORY_HAS_MODELS(110003, "分类下仍有数据模型，无法删除", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_NOT_FOUND(110004, "数据模型不存在", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_NAME_EXISTS(110005, "数据模型名称已存在", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_TABLE_EXISTS(110006, "物理表名已存在: %s", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_TABLE_INVALID(110007, "物理表名不合法: %s", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_SCHEMA_INVALID(110008, "数据模型配置不合法: %s", HttpStatus.BAD_REQUEST),
+    DATA_MODEL_DDL_FAILED(110009, "数据表结构同步失败: %s", HttpStatus.INTERNAL_SERVER_ERROR),
+    DATA_POOL_RECORD_NOT_FOUND(110010, "数据记录不存在", HttpStatus.BAD_REQUEST),
+    DATA_POOL_IMPORT_FAILED(110011, "数据导入失败: %s", HttpStatus.BAD_REQUEST),
+    DATA_POOL_FIELD_INVALID(110012, "字段值不合法: %s", HttpStatus.BAD_REQUEST),
+    DATA_POOL_UNIQUE_CONFLICT(110013, "唯一约束冲突: %s", HttpStatus.BAD_REQUEST);
 
     /** 业务错误码 */
     private final int code;
