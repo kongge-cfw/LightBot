@@ -103,16 +103,21 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task>
     }
 
     @Override
-    public void markStart(Long taskId, int attempts, String streamId) {
-        lambdaUpdate()
+    public boolean markStart(Long taskId, int attempts, String streamId) {
+        // CAS：仅 PENDING / PENDING_RETRY 可转入 RUNNING，避免 cg:default 与 cg:heavy 同时执行同一任务
+        boolean updated = lambdaUpdate()
                 .eq(Task::getId, taskId)
+                .in(Task::getStatus, TaskStatus.PENDING, TaskStatus.PENDING_RETRY)
                 .set(Task::getStatus, TaskStatus.RUNNING)
                 .set(Task::getAttempts, attempts)
                 .set(Task::getStreamId, streamId)
                 .set(Task::getStartedAt, LocalDateTime.now())
                 .set(Task::getUpdateTime, LocalDateTime.now())
                 .update();
-        broadcastTaskCountByTaskId(taskId);
+        if (updated) {
+            broadcastTaskCountByTaskId(taskId);
+        }
+        return updated;
     }
 
     @Override

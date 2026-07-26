@@ -18,6 +18,10 @@ function resolveHandleMeta(handleId, role, nodeType) {
     if (id === 'out_b') return { position: Position.Bottom, id }
     return { position: Position.Right, id }
   }
+  // 意图分类：nodeId_intentId / nodeId_default，保留原始 handleId 以便取到分行锚点
+  if (nodeType === 'classifier' && id && id !== HANDLE_OUT && id !== HANDLE_IN) {
+    return { position: Position.Right, id }
+  }
   return { position: Position.Right, id: HANDLE_OUT }
 }
 

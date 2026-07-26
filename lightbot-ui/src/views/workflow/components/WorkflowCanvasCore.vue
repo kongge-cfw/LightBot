@@ -12,8 +12,7 @@
     :edges-updatable="edgesUpdatable"
     :nodes-connectable="nodesConnectable"
     :elements-selectable="elementsSelectable"
-    :selection-key-code="readonly ? null : 'Shift'"
-    :multi-selection-key-code="readonly ? null : 'Control'"
+    v-bind="selectionKeyBindings"
     :default-edge-options="defaultEdgeOptions"
     :is-valid-connection="isValidConnection"
     :delete-key-code="null"
@@ -153,6 +152,13 @@ defineEmits([
 
 const { isDark } = useTheme()
 const patternColor = computed(() => (isDark.value ? '#3f3f46' : '#e5e7eb'))
+
+/** 可编辑时不传 keyCode，沿用 Vue Flow 默认 Shift/Control；只读时禁用框选快捷键 */
+const selectionKeyBindings = computed(() => (
+  props.readonly
+    ? { selectionKeyCode: null, multiSelectionKeyCode: null }
+    : {}
+))
 
 const edgeTypes = markRaw({
   'workflow-bezier': markRaw(WorkflowBezierEdge),

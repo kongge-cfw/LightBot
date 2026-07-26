@@ -40,12 +40,14 @@ public interface TaskService extends IService<Task> {
 
     /**
      * 标记任务开始执行（Stream 模式）：status=RUNNING + 记录 attempts/streamId
+     * <p>CAS：仅当当前状态为 PENDING / PENDING_RETRY 时更新成功，用于防止双消费组并发抢占</p>
      *
      * @param taskId   任务ID
      * @param attempts 本次执行的累计尝试次数（含本次）
      * @param streamId 主 Stream 消息 ID
+     * @return true 表示抢占成功并已置为 RUNNING；false 表示已被其他消费者抢占
      */
-    void markStart(Long taskId, int attempts, String streamId);
+    boolean markStart(Long taskId, int attempts, String streamId);
 
     /**
      * 标记任务为等待重试：status=PENDING_RETRY + 记录 attempts/nextRetryAt + 拼接错误信息

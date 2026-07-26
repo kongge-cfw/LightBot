@@ -374,7 +374,7 @@ const {
   screenToFlowCoordinate,
   updateNodeInternals,
   updateNode,
-} = useVueFlow({ id: WORKFLOW_FLOW_ID })
+} = useVueFlow(WORKFLOW_FLOW_ID)
 
 const workflowCanvasRef = ref(null)
 /** 子组件 defineExpose 的 ref 在父组件访问时会自动解包，勿再 .value */
@@ -1007,15 +1007,23 @@ function undoAction() {
   showWorkflowUndoToast(lastState.label)
 }
 
-// 初始化加载
-onMounted(async () => {
+/** 加载序号：避免快速切换 agent / HMR 重跑 setup 时旧请求回写状态 */
+let workflowLoadSeq = 0
+
+async function loadWorkflowPage() {
+  const seq = ++workflowLoadSeq
+  const currentAgentId = route.params.agentId
+  workflowLoaded.value = false
   try {
     agentStatusLabels.value = await loadAgentStatusLabels()
-    // 加载 Agent 数据
-    const res = await getAgentDetail(agentId)
+    if (seq !== workflowLoadSeq) return
+
+    const res = await getAgentDetail(currentAgentId)
+    if (seq !== workflowLoadSeq) return
     agent.value = res.data.agent
 
-    const wfRes = await getWorkflowConfig(agentId)
+    const wfRes = await getWorkflowConfig(currentAgentId)
+    if (seq !== workflowLoadSeq) return
     workflowStatus.value = wfRes.data.status || 'draft'
     publishedVersion.value = wfRes.data.publishedVersion || 0
     const draftGraph = wfRes.data.draft
@@ -1037,21 +1045,35 @@ onMounted(async () => {
       triggerRef(nodes)
     }
 
-    // 加载资源列表
     const [knowledgeRes, toolRes] = await Promise.all([
       getKnowledgeList({ pageNum: 1, pageSize: 100 }),
       getTools({ pageNum: 1, pageSize: 100 })
     ])
+    if (seq !== workflowLoadSeq) return
     knowledgeList.value = knowledgeRes.data.records || []
     tools.value = toolRes.data.records || []
 
     await nextTick()
     await finalizeWorkflowGraphAfterLoad()
-    workflowLoaded.value = true
+    if (seq !== workflowLoadSeq) return
     scheduleFitView(true)
-        } catch (e) {
-    notification.error({ message: '加载失败', description: e.message })
+  } catch (e) {
+    if (seq === workflowLoadSeq) {
+      notification.error({ message: '加载失败', description: e.message })
+    }
+  } finally {
+    if (seq === workflowLoadSeq) {
+      workflowLoaded.value = true
+    }
   }
+}
+
+// immediate：HMR 重跑 setup 时也会重新加载；纯 onMounted 在热更新后不会再执行
+watch(() => route.params.agentId, () => {
+  loadWorkflowPage()
+}, { immediate: true })
+
+onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   nextTick(() => {
     if (canvasAreaRef.value) {

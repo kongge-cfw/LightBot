@@ -112,7 +112,10 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         knowledge.setType(request.getType());
         knowledge.setConfig(buildKnowledgeConfig(request, true, null));
         knowledge.setQueryParams(request.getQueryParams());
-        knowledge.setGraphEnabled(request.getType() == KnowledgeType.DIFY ? false : request.getGraphEnabled());
+        // graphEnabled 前端新建时可不传；三元两侧类型需同为 Boolean，避免 false 触发拆箱 NPE
+        knowledge.setGraphEnabled(request.getType() == KnowledgeType.DIFY
+                ? Boolean.FALSE
+                : (request.getGraphEnabled() != null ? request.getGraphEnabled() : Boolean.FALSE));
 
         // 3. 初始化内部字段
         knowledge.setUserId(userId);
