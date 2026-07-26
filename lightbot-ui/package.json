@@ -36,6 +36,7 @@
     "@vue-flow/minimap": "^1.5.2",
     "ant-design-vue": "^4.2.6",
     "axios": "^1.7.9",
+    "cron-parser": "4.9.0",
     "dagre": "^0.8.5",
     "dayjs": "^1.11.21",
     "dompurify": "^3.4.11",

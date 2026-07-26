@@ -121,8 +121,8 @@ const routes = [
       {
         path: 'automation',
         name: 'Automation',
-        component: () => import('../views/ComingSoon.vue'),
-        meta: { title: '自动化', emoji: '⚡' },
+        component: () => import('../views/Automation.vue'),
+        meta: { title: '自动化' },
       },
       {
         path: 'dashboard',
