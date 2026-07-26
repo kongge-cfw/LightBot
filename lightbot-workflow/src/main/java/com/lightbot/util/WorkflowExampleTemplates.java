@@ -511,16 +511,10 @@ public final class WorkflowExampleTemplates {
                 node("condition_1", "condition", 650, 300, Map.of(
                         "label", "状态检查",
                         "conditionGroups", List.of(
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_a",
-                                        "rules", List.of(Map.of("variable", "statusCode", "operator", "eq", "value", "200"))
-                                ),
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_b",
-                                        "rules", List.of(Map.of("variable", "error", "operator", "not_empty", "value", ""))
-                                )
+                                conditionGroup("cg_ok", "成功", "and",
+                                        List.of(Map.of("variable", "statusCode", "operator", "eq", "value", "200"))),
+                                conditionGroup("cg_err", "有错误", "and",
+                                        List.of(Map.of("variable", "error", "operator", "not_empty", "value", "")))
                         )
                 )),
                 node("mcp_1", "mcp", 900, 300, Map.of(
@@ -555,8 +549,9 @@ public final class WorkflowExampleTemplates {
                 edge("e_start", "start_1", "api_1"),
                 edge("e_api", "api_1", "script_parse"),
                 edge("e_parse", "script_parse", "condition_1"),
-                edgeHandle("e_ok", "condition_1", "mcp_1", "out_a", "in"),
-                edgeHandle("e_err", "condition_1", "variable_err", "out_b", "in"),
+                edgeHandle("e_ok", "condition_1", "mcp_1", "condition_1_cg_ok", "in"),
+                edgeHandle("e_err", "condition_1", "variable_err", "condition_1_cg_err", "in"),
+                edgeHandle("e_fallback", "condition_1", "variable_err", "condition_1_default", "in"),
                 edge("e_mcp", "mcp_1", "llm_1"),
                 edge("e_llm", "llm_1", "output_ok"),
                 edge("e_out_ok", "output_ok", "end_1"),
@@ -808,16 +803,10 @@ public final class WorkflowExampleTemplates {
                 node("condition_1", "condition", 900, 280, Map.of(
                         "label", "审核分支",
                         "conditionGroups", List.of(
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_a",
-                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "通过"))
-                                ),
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_b",
-                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "驳回"))
-                                )
+                                conditionGroup("cg_pass", "通过", "and",
+                                        List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "通过"))),
+                                conditionGroup("cg_reject", "驳回", "and",
+                                        List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "驳回")))
                         )
                 )),
                 node("llm_final", "llm", 1150, 150, Map.of(
@@ -851,9 +840,9 @@ public final class WorkflowExampleTemplates {
                 edge("e_input", "input_1", "llm_draft"),
                 edge("e_draft_confirm", "llm_draft", "confirm_1"),
                 edge("e_confirm_cond", "confirm_1", "condition_1"),
-                edgeHandle("e_pass", "condition_1", "llm_final", "out_a", "in"),
-                edgeHandle("e_reject", "condition_1", "variable_reject", "out_b", "in"),
-                edgeHandle("e_fallback", "condition_1", "output_fallback", "out_c", "in"),
+                edgeHandle("e_pass", "condition_1", "llm_final", "condition_1_cg_pass", "in"),
+                edgeHandle("e_reject", "condition_1", "variable_reject", "condition_1_cg_reject", "in"),
+                edgeHandle("e_fallback", "condition_1", "output_fallback", "condition_1_default", "in"),
                 edge("e_final_out", "llm_final", "output_ok"),
                 edge("e_reject_out", "variable_reject", "output_reject"),
                 edge("e_ok_end", "output_ok", "end_1"),
@@ -936,16 +925,10 @@ public final class WorkflowExampleTemplates {
                 node("condition_1", "condition", 940, 280, Map.of(
                         "label", "复核分支",
                         "conditionGroups", List.of(
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_a",
-                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "确认"))
-                                ),
-                                Map.of(
-                                        "relation", "and",
-                                        "sourceHandle", "out_b",
-                                        "rules", List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "退回修改"))
-                                )
+                                conditionGroup("cg_pass", "确认", "and",
+                                        List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "确认"))),
+                                conditionGroup("cg_reject", "退回修改", "and",
+                                        List.of(Map.of("variable", "confirmed", "operator", "eq", "value", "退回修改")))
                         )
                 )),
                 node("llm_1", "llm", 1180, 150, Map.of(
@@ -979,9 +962,9 @@ public final class WorkflowExampleTemplates {
                 edge("e_input", "input_1", "sub_1"),
                 edge("e_sub_confirm", "sub_1", "confirm_1"),
                 edge("e_confirm_cond", "confirm_1", "condition_1"),
-                edgeHandle("e_pass", "condition_1", "llm_1", "out_a", "in"),
-                edgeHandle("e_reject", "condition_1", "variable_reject", "out_b", "in"),
-                edgeHandle("e_fallback", "condition_1", "output_fallback", "out_c", "in"),
+                edgeHandle("e_pass", "condition_1", "llm_1", "condition_1_cg_pass", "in"),
+                edgeHandle("e_reject", "condition_1", "variable_reject", "condition_1_cg_reject", "in"),
+                edgeHandle("e_fallback", "condition_1", "output_fallback", "condition_1_default", "in"),
                 edge("e_llm_out", "llm_1", "output_ok"),
                 edge("e_rej_out", "variable_reject", "output_reject"),
                 edge("e_ok_end", "output_ok", "end_1"),
@@ -1074,6 +1057,17 @@ public final class WorkflowExampleTemplates {
         e.put("sourceHandle", sourceHandle);
         e.put("targetHandle", targetHandle);
         return e;
+    }
+
+    /** 条件组（右侧动态出口，handle = {nodeId}_{id}） */
+    private static Map<String, Object> conditionGroup(String id, String label, String relation,
+                                                      List<Map<String, Object>> rules) {
+        Map<String, Object> g = new LinkedHashMap<>();
+        g.put("id", id);
+        g.put("label", label);
+        g.put("relation", relation);
+        g.put("rules", rules);
+        return g;
     }
 
     private static Map<String, Object> workflowSnapshot(List<Map<String, Object>> nodes,

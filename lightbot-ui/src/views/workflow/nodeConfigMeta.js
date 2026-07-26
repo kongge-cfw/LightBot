@@ -141,7 +141,7 @@ export const FIELD_HINTS = {
     instruction: '补充意图识别约束，如行业术语、分类边界',
   },
   condition: {
-    conditionGroups: '按顺序匹配条件组，命中后走对应出口（上/下/右）；均未命中走「否则」出口',
+    conditionGroups: '按顺序匹配条件组，命中后走右侧对应出口；均未命中走「都未命中」默认出口',
   },
   retrieval: {
     inputVariable: '用于检索的查询文本，常用 {{query}}',
@@ -238,20 +238,20 @@ export const NODE_EXAMPLES = {
   },
   condition: {
     title: '条件判断节点',
-    summary: '按条件组顺序匹配，分别走上方/下方/右侧出口；否则走默认分支。',
+    summary: '按条件组顺序匹配，右侧每组一个出口；均未命中走「都未命中」默认口。',
     example: {
       label: '意图路由',
       conditionGroups: [
         {
-          label: '如果',
+          id: 'cg_price',
+          label: '价格咨询',
           relation: 'and',
-          sourceHandle: 'out_a',
           rules: [{ variable: '{{query}}', operator: 'contains', value: '价格' }],
         },
         {
-          label: '否则如果',
+          id: 'cg_aftersale',
+          label: '售后咨询',
           relation: 'and',
-          sourceHandle: 'out_b',
           rules: [{ variable: '{{query}}', operator: 'contains', value: '售后' }],
         },
       ],

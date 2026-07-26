@@ -151,6 +151,7 @@
           v-model="node.data.conditionGroups"
           :disabled="readonly"
           @change="onConditionGroupsChange"
+          @remove-group="onRemoveConditionGroup"
         />
       </a-form-item>
     </template>
@@ -797,7 +798,7 @@ import { createConditionId } from '../nodeMeta'
 import { BUILTIN_VARIABLES, getFieldHint, getScriptExampleConfig } from '../nodeConfigMeta'
 import { supportsNodeResilience } from '../nodeResilienceMeta.js'
 import { truncateText } from '../../../utils/format'
-import { syncConditionBranches, ensureConditionGroups } from '../conditionUtils'
+import { syncConditionBranches, ensureConditionGroups, conditionGroupHandleId } from '../conditionUtils'
 import NodeResilienceConfig from './NodeResilienceConfig.vue'
 
 const props = defineProps({
@@ -819,6 +820,7 @@ const emit = defineEmits([
   'sync',
   'knowledge-change',
   'tool-change',
+  'remove-source-handles',
 ])
 
 const route = useRoute()
@@ -1219,6 +1221,15 @@ watch(
 function onConditionGroupsChange() {
   syncConditionBranches(props.node.data, props.edges, props.node.id)
   emitSync()
+}
+
+/** 删除条件组时同步摘掉对应出口的连线，避免幽灵边 */
+function onRemoveConditionGroup(groupId) {
+  if (!groupId || !props.node?.id) return
+  emit('remove-source-handles', {
+    nodeId: props.node.id,
+    handles: [conditionGroupHandleId(props.node.id, groupId)],
+  })
 }
 
 const SCRIPT_CONTENT_CACHE_KEY = '__scriptContentCache'

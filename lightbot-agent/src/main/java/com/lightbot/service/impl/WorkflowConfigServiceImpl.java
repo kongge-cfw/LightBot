@@ -638,13 +638,14 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
                     }
                 }
             }
-            // 条件分支节点必须有默认路径（out_c 边）
+            // 条件分支节点必须有未命中兜底边（{nodeId}_default）
             if ("condition".equals(type)) {
+                String defaultHandle = id + "_default";
                 boolean hasDefaultEdge = edges.stream().anyMatch(e ->
                         id.equals(String.valueOf(e.get("source")))
-                                && "out_c".equals(String.valueOf(e.get("sourceHandle"))));
+                                && defaultHandle.equals(String.valueOf(e.get("sourceHandle"))));
                 if (!hasDefaultEdge) {
-                    errors.add("条件分支节点缺少默认路径: " + id);
+                    errors.add("条件分支节点缺少「都未命中」默认路径: " + id);
                 }
             }
             try {

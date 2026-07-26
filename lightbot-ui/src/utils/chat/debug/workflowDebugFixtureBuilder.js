@@ -470,15 +470,25 @@ function buildRagAnswerFixture() {
 function buildConditionBranchFixture() {
   const nodes = [
     node('start', 'start', 80, 190),
-    node('condition-score', 'condition', 300, 178, { label: '置信度判断' }),
+    node('condition-score', 'condition', 300, 178, {
+      label: '置信度判断',
+      conditionGroups: [
+        {
+          id: 'cg_high',
+          label: '高置信',
+          relation: 'and',
+          rules: [{ id: 'r1', variable: '{{score}}', operator: 'contains', value: '0.7' }],
+        },
+      ],
+    }),
     node('llm-high', 'llm', 560, 80, { label: '高置信回答' }),
     node('llm-low', 'llm', 560, 280, { label: '低置信澄清' }),
     node('end', 'end', 840, 190),
   ]
   const edges = [
     edge('start', 'condition-score'),
-    edge('condition-score', 'llm-high', { sourceHandle: 'condition-score_out_a' }),
-    edge('condition-score', 'llm-low', { sourceHandle: 'condition-score_out_b' }),
+    edge('condition-score', 'llm-high', { sourceHandle: 'condition-score_cg_high' }),
+    edge('condition-score', 'llm-low', { sourceHandle: 'condition-score_default' }),
     edge('llm-high', 'end'),
     edge('llm-low', 'end'),
   ]

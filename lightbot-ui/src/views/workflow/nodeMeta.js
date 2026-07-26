@@ -17,7 +17,7 @@ export const NODE_META = {
   start: { title: '开始', color: '#22c55e', icon: PlayCircleOutlined, desc: '工作流入口' },
   end: { title: '结束', color: '#ef4444', icon: StopOutlined, desc: '工作流出口' },
   llm: { title: '大模型', color: '#7c3aed', icon: RobotOutlined, desc: '调用大模型生成内容' },
-  condition: { title: '条件判断', color: '#d97706', icon: ForkOutlined, desc: '条件组匹配后走上/下/右出口' },
+  condition: { title: '条件判断', color: '#d97706', icon: ForkOutlined, desc: '按条件组顺序匹配，右侧出口路由；未命中走默认口' },
   retrieval: { title: '知识检索', color: '#4f46e5', icon: BookOutlined, desc: '从知识库检索内容' },
   tool: { title: '工具调用', color: '#059669', icon: ToolOutlined, desc: '执行预设工具' },
   api: { title: 'HTTP API', color: '#0ea5e9', icon: ApiOutlined, desc: '调用外部 HTTP 接口' },
@@ -132,7 +132,14 @@ export function getDefaultNodeData(type) {
     },
     condition: {
       label: '条件判断',
-      conditionGroups: [],
+      conditionGroups: [
+        {
+          id: createConditionId(),
+          label: '如果',
+          relation: 'and',
+          rules: [{ id: createConditionId(), variable: '{{query}}', operator: 'contains', value: '' }],
+        },
+      ],
       branches: [],
     },
     retrieval: {

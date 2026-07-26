@@ -96,9 +96,7 @@ export function stepStatusIcon(step) {
 }
 
 const HANDLE_LABELS = {
-  out_a: '分支 A',
-  out_b: '分支 B',
-  out_c: '否则',
+  default: '都未命中',
 }
 
 function countContainerSteps(step) {
@@ -164,7 +162,11 @@ export function getStepSummary(step) {
     case 'api':
       return outputs.statusCode != null ? `HTTP ${outputs.statusCode}` : 'HTTP 完成'
     case 'condition': {
-      const label = outputs.matchedGroupLabel || HANDLE_LABELS[outputs.matchedHandle] || outputs.matchedHandle
+      const mh = outputs.matchedHandle
+      const label = outputs.matchedGroupLabel
+        || (mh && String(mh).endsWith('_default') ? '都未命中' : null)
+        || HANDLE_LABELS[mh]
+        || mh
       return label ? `命中 · ${label}` : '路由完成'
     }
     case 'classifier':
