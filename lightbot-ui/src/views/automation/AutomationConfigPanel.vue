@@ -28,8 +28,9 @@
     <div class="panel-table-wrap">
       <a-table
         :columns="columns"
-        :data-source="filteredJobs"
+        :data-source="jobs"
         :pagination="pagination"
+        :loading="loading"
         row-key="id"
         size="middle"
         :scroll="{ x: 1100 }"
@@ -57,10 +58,13 @@
               <span class="cell-ellipsis">{{ record.instruction }}</span>
             </a-tooltip>
           </template>
+          <template v-else-if="column.key === 'nextRunAt'">
+            {{ formatNextRun(record.nextRunAt) }}
+          </template>
           <template v-else-if="column.key === 'actions'">
             <button type="button" class="btn-link" @click="openEdit(record)">编辑</button>
-            <button type="button" class="btn-link" @click="onJobMenu('run', record)">执行</button>
-            <button type="button" class="btn-link btn-link--danger" @click="onJobMenu('delete', record)">删除</button>
+            <button type="button" class="btn-link" @click="runJob(record)">执行</button>
+            <button type="button" class="btn-link btn-link--danger" @click="removeJob(record)">删除</button>
           </template>
         </template>
         <template #emptyText>
@@ -68,13 +72,7 @@
             :icon="ThunderboltOutlined"
             title="暂无定时任务"
             desc="创建任务后，可按设定时间自动调用智能体执行文字指令"
-          >
-            <template #action>
-              <button type="button" class="lb-btn lb-btn--primary" @click="openCreate">
-                <PlusOutlined /> 新建定时任务
-              </button>
-            </template>
-          </LbEmptyState>
+          />
         </template>
       </a-table>
     </div>
@@ -84,6 +82,7 @@
       :title="editingId ? '编辑定时任务' : '新建定时任务'"
       :width="560"
       destroy-on-close
+      :confirm-loading="saving"
       @ok="saveJob"
       @cancel="formOpen = false"
     >
@@ -190,7 +189,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   PlusOutlined,
   SearchOutlined,
@@ -200,8 +199,18 @@ import { message, Modal } from 'ant-design-vue'
 import dayjs from 'dayjs'
 import LbEmptyState from '../../components/common/LbEmptyState.vue'
 import { getAgents } from '../../api/agent'
+import {
+  createAutomationJob,
+  deleteAutomationJob,
+  disableAutomationJob,
+  enableAutomationJob,
+  listAutomationJobs,
+  runAutomationJob,
+  updateAutomationJob,
+} from '../../api/automation'
 import { previewCronNextRuns } from '../../utils/cronPreview'
 
+/** ISO：1=周一 … 7=周日 */
 const weekdayOptions = [
   { value: 1, label: '周一' },
   { value: 2, label: '周二' },
@@ -209,7 +218,7 @@ const weekdayOptions = [
   { value: 4, label: '周四' },
   { value: 5, label: '周五' },
   { value: 6, label: '周六' },
-  { value: 0, label: '周日' },
+  { value: 7, label: '周日' },
 ]
 
 const monthDayOptions = Array.from({ length: 31 }, (_, i) => ({
@@ -234,53 +243,12 @@ const pagination = reactive({
   showTotal: (t) => `共 ${t} 条`,
 })
 
-/** 静态示例任务配置 */
-const jobs = ref([
-  {
-    id: 'c1',
-    name: '每日早报汇总',
-    agentId: '',
-    agentName: '运营助手',
-    instruction: '汇总昨日运营数据，生成简报',
-    scheduleType: 'daily',
-    time: '08:00',
-    weekdays: [],
-    cron: '',
-    enabled: true,
-    nextRunAt: '2026-07-27 08:00:00',
-  },
-  {
-    id: 'c2',
-    name: '知识库巡检',
-    agentId: '',
-    agentName: '知识库助手',
-    instruction: '检查知识库文档索引状态，列出异常项',
-    scheduleType: 'weekly',
-    time: '09:30',
-    weekdays: [1],
-    cron: '',
-    enabled: false,
-    nextRunAt: '—',
-  },
-  {
-    id: 'c3',
-    name: '季度复盘提醒',
-    agentId: '',
-    agentName: '运营助手',
-    instruction: '提醒团队完成本季度复盘材料',
-    scheduleType: 'once',
-    onceAt: '2026-09-30 10:00',
-    time: '',
-    weekdays: [],
-    cron: '',
-    enabled: true,
-    nextRunAt: '2026-09-30 10:00',
-  },
-])
-
+const jobs = ref([])
+const loading = ref(false)
 const keyword = ref('')
 const enabledFilter = ref(undefined)
 const formOpen = ref(false)
+const saving = ref(false)
 const editingId = ref(null)
 const agentsLoading = ref(false)
 const agentOptions = ref([])
@@ -300,16 +268,10 @@ const form = reactive({
 
 const cronPreview = computed(() => previewCronNextRuns(form.cron, 5))
 
-const filteredJobs = computed(() => {
-  const kw = keyword.value.trim().toLowerCase()
-  return jobs.value.filter((j) => {
-    if (enabledFilter.value !== undefined && enabledFilter.value !== null && j.enabled !== enabledFilter.value) {
-      return false
-    }
-    if (!kw) return true
-    return [j.name, j.agentName, j.instruction].some((v) => String(v || '').toLowerCase().includes(kw))
-  })
-})
+function formatNextRun(v) {
+  if (!v) return '—'
+  return dayjs(v).isValid() ? dayjs(v).format('YYYY-MM-DD HH:mm:ss') : String(v)
+}
 
 function scheduleText(job) {
   if (job.scheduleType === 'once') return `一次性 ${job.onceAt || '—'}`
@@ -356,7 +318,7 @@ function openCreate() {
 function openEdit(job) {
   editingId.value = job.id
   form.name = job.name
-  form.agentId = job.agentId || undefined
+  form.agentId = job.agentId != null ? String(job.agentId) : undefined
   form.instruction = job.instruction
   form.scheduleType = job.scheduleType || 'daily'
   form.time = job.time
@@ -364,138 +326,146 @@ function openEdit(job) {
   form.weekdays = [...(job.weekdays || [])]
   form.monthDay = job.monthDay || 1
   form.cron = job.cron
-  form.enabled = job.enabled
+  form.enabled = !!job.enabled
   formOpen.value = true
 }
 
-function saveJob() {
-  if (!form.name.trim()) {
-    message.warning('请填写任务名称')
-    return Promise.reject()
-  }
-  if (!form.agentId && !agentOptions.value.length) {
-    // 静态页：允许无真实智能体时用名称占位
-  } else if (!form.agentId) {
-    message.warning('请选择智能体')
-    return Promise.reject()
-  }
-  if (!form.instruction.trim()) {
-    message.warning('请填写文字指令')
-    return Promise.reject()
-  }
-  if (form.scheduleType === 'once') {
-    if (!form.onceAt) {
-      message.warning('请选择执行时刻')
-      return Promise.reject()
-    }
-    if (dayjs(form.onceAt).isBefore(dayjs())) {
-      message.warning('执行时刻不能早于当前时间')
-      return Promise.reject()
-    }
-  }
-  if (form.scheduleType === 'cron') {
-    if (!form.cron.trim()) {
-      message.warning('请填写 Cron 表达式')
-      return Promise.reject()
-    }
-    if (!cronPreview.value.ok) {
-      message.warning(cronPreview.value.error || 'Cron 表达式无效')
-      return Promise.reject()
-    }
-  }
-  if (form.scheduleType !== 'cron' && form.scheduleType !== 'once' && !form.time) {
-    message.warning('请选择执行时间')
-    return Promise.reject()
-  }
-  if (form.scheduleType === 'weekly' && !(form.weekdays || []).length) {
-    message.warning('请选择星期')
-    return Promise.reject()
-  }
-  if (form.scheduleType === 'monthly' && !form.monthDay) {
-    message.warning('请选择每月日期')
-    return Promise.reject()
-  }
-
-  const agentName = agentOptions.value.find((a) => a.value === form.agentId)?.label
-    || jobs.value.find((j) => j.id === editingId.value)?.agentName
-    || '未命名智能体'
-
-  let nextRunAt = '—'
-  if (form.enabled) {
-    if (form.scheduleType === 'once') {
-      nextRunAt = form.onceAt
-    } else if (form.scheduleType === 'cron' && cronPreview.value.ok) {
-      nextRunAt = cronPreview.value.times[0] || '—'
-    } else {
-      nextRunAt = '待计算（静态预览）'
-    }
-  }
-
-  const payload = {
+function buildPayload() {
+  return {
     name: form.name.trim(),
-    agentId: form.agentId || '',
-    agentName,
+    agentId: form.agentId,
     instruction: form.instruction.trim(),
     scheduleType: form.scheduleType,
     time: form.time,
     onceAt: form.onceAt,
     weekdays: [...(form.weekdays || [])],
     monthDay: form.monthDay,
-    cron: form.cron.trim(),
+    cron: (form.cron || '').trim(),
     enabled: !!form.enabled,
-    nextRunAt,
   }
-
-  if (editingId.value) {
-    const idx = jobs.value.findIndex((j) => j.id === editingId.value)
-    if (idx >= 0) jobs.value[idx] = { ...jobs.value[idx], ...payload }
-    message.success('已保存（静态预览，未提交后端）')
-  } else {
-    jobs.value.unshift({ id: `c_${Date.now()}`, ...payload })
-    message.success('已创建（静态预览，未提交后端）')
-  }
-  formOpen.value = false
 }
 
-function toggleEnabled(job, checked) {
+function validateForm() {
+  if (!form.name.trim()) {
+    message.warning('请填写任务名称')
+    return false
+  }
+  if (!form.agentId) {
+    message.warning('请选择智能体')
+    return false
+  }
+  if (!form.instruction.trim()) {
+    message.warning('请填写文字指令')
+    return false
+  }
+  if (form.scheduleType === 'once') {
+    if (!form.onceAt) {
+      message.warning('请选择执行时刻')
+      return false
+    }
+    if (dayjs(form.onceAt).isBefore(dayjs())) {
+      message.warning('执行时刻不能早于当前时间')
+      return false
+    }
+  }
+  if (form.scheduleType === 'cron') {
+    if (!form.cron.trim()) {
+      message.warning('请填写 Cron 表达式')
+      return false
+    }
+    if (!cronPreview.value.ok) {
+      message.warning(cronPreview.value.error || 'Cron 表达式无效')
+      return false
+    }
+  }
+  if (form.scheduleType !== 'cron' && form.scheduleType !== 'once' && !form.time) {
+    message.warning('请选择执行时间')
+    return false
+  }
+  if (form.scheduleType === 'weekly' && !(form.weekdays || []).length) {
+    message.warning('请选择星期')
+    return false
+  }
+  if (form.scheduleType === 'monthly' && !form.monthDay) {
+    message.warning('请选择每月日期')
+    return false
+  }
+  return true
+}
+
+async function saveJob() {
+  if (!validateForm()) return Promise.reject()
+  saving.value = true
+  try {
+    const payload = buildPayload()
+    if (editingId.value) {
+      await updateAutomationJob(editingId.value, payload)
+      message.success('已保存')
+    } else {
+      await createAutomationJob(payload)
+      message.success('已创建')
+    }
+    formOpen.value = false
+    await loadJobs()
+  } finally {
+    saving.value = false
+  }
+}
+
+async function toggleEnabled(job, checked) {
+  const prev = job.enabled
   job.enabled = !!checked
-  if (!job.enabled) {
-    job.nextRunAt = '—'
-  } else if (job.scheduleType === 'once' && job.onceAt) {
-    job.nextRunAt = job.onceAt
-  } else if (job.scheduleType === 'cron' && job.cron) {
-    const preview = previewCronNextRuns(job.cron, 1)
-    job.nextRunAt = preview.ok ? preview.times[0] : '待计算（静态预览）'
-  } else {
-    job.nextRunAt = '待计算（静态预览）'
+  try {
+    if (checked) {
+      const res = await enableAutomationJob(job.id)
+      Object.assign(job, res?.data || {})
+      message.success('已启用')
+    } else {
+      const res = await disableAutomationJob(job.id)
+      Object.assign(job, res?.data || {})
+      message.success('已停用')
+    }
+  } catch {
+    job.enabled = prev
   }
-  message.success(job.enabled ? '已启用' : '已停用')
 }
 
-function onJobMenu(key, job) {
-  if (key === 'edit') {
-    openEdit(job)
-    return
-  }
-  if (key === 'toggle') {
-    toggleEnabled(job, !job.enabled)
-    return
-  }
-  if (key === 'run') {
-    message.info('立即执行：静态页暂未对接运行时')
-    return
-  }
-  if (key === 'delete') {
-    Modal.confirm({
-      title: '确认删除该定时任务？',
-      content: `「${job.name}」删除后不可恢复`,
-      okType: 'danger',
-      okText: '删除',
-      onOk() {
-        jobs.value = jobs.value.filter((j) => j.id !== job.id)
-        message.success('已删除')
-      },
+function runJob(job) {
+  Modal.confirm({
+    title: '立即执行一次？',
+    content: `将调用「${job.agentName || '智能体'}」执行该任务指令`,
+    okText: '执行',
+    async onOk() {
+      await runAutomationJob(job.id)
+      message.success('已提交执行，可在任务记录中查看结果')
+    },
+  })
+}
+
+function removeJob(job) {
+  Modal.confirm({
+    title: '确认删除该定时任务？',
+    content: `「${job.name}」删除后不可恢复`,
+    okType: 'danger',
+    okText: '删除',
+    async onOk() {
+      await deleteAutomationJob(job.id)
+      message.success('已删除')
+      await loadJobs()
+    },
+  })
+}
+
+async function loadJobs() {
+  loading.value = true
+  try {
+    const res = await listAutomationJobs({
+      keyword: keyword.value?.trim() || undefined,
+      enabled: enabledFilter.value,
     })
+    jobs.value = res?.data || []
+  } finally {
+    loading.value = false
   }
 }
 
@@ -515,7 +485,15 @@ async function loadAgents() {
   }
 }
 
-onMounted(loadAgents)
+let filterTimer
+watch([keyword, enabledFilter], () => {
+  clearTimeout(filterTimer)
+  filterTimer = setTimeout(loadJobs, 250)
+})
+
+onMounted(async () => {
+  await Promise.all([loadAgents(), loadJobs()])
+})
 </script>
 
 <style scoped>

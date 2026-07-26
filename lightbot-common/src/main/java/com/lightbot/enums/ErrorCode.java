@@ -201,7 +201,12 @@ public enum ErrorCode {
     DATA_POOL_RECORD_NOT_FOUND(110010, "数据记录不存在", HttpStatus.BAD_REQUEST),
     DATA_POOL_IMPORT_FAILED(110011, "数据导入失败: %s", HttpStatus.BAD_REQUEST),
     DATA_POOL_FIELD_INVALID(110012, "字段值不合法: %s", HttpStatus.BAD_REQUEST),
-    DATA_POOL_UNIQUE_CONFLICT(110013, "唯一约束冲突: %s", HttpStatus.BAD_REQUEST);
+    DATA_POOL_UNIQUE_CONFLICT(110013, "唯一约束冲突: %s", HttpStatus.BAD_REQUEST),
+
+    // ========== 自动化定时任务 ==========
+    AUTOMATION_JOB_NOT_FOUND(120001, "定时任务不存在", HttpStatus.BAD_REQUEST),
+    AUTOMATION_SCHEDULE_INVALID(120002, "调度配置不合法: %s", HttpStatus.BAD_REQUEST),
+    AUTOMATION_AGENT_INVALID(120003, "智能体不可用或不存在", HttpStatus.BAD_REQUEST);
 
     /** 业务错误码 */
     private final int code;

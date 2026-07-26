@@ -67,4 +67,9 @@ public class ChatRequestDTO {
      * API Key ID（由拦截器注入，不从前端传入）
      */
     private transient Long apiKeyId;
+
+    /**
+     * 系统内部调用时的执行用户（无登录态时由 InitMiddleware 回退使用，不从前端传入）
+     */
+    private transient Long actorUserId;
 }
