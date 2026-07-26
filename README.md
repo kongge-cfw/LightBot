@@ -143,7 +143,7 @@ pnpm dev
 | 知识与图谱 | `/api/knowledge`、`/api/graph`、`/api/documents` |
 | Tool 与扩展 | `/api/tools`、`/api/mcp-servers`、`/api/skills`、`/api/subagents` |
 | 模型与 Prompt | `/api/model-providers`、`/api/models`、`/api/prompts` |
-| 评测与观测 | `/api/eval/*`、`/api/observability`、`/api/logs`、`/api/dashboard` |
+| 评测与观测 | `/api/eval/*`、`/api/observability`、`/api/dashboard` |
 
 ## 仓库结构
 

@@ -39,7 +39,6 @@ class ControllerRouteContractTest {
             Map.entry(KnowledgeRagController.class, "/api/knowledge"),
             Map.entry(LandingController.class, "/api/landing"),
             Map.entry(LlmTraceController.class, "/api/observability"),
-            Map.entry(LogController.class, "/api/logs"),
             Map.entry(McpServerController.class, "/api/mcp-servers"),
             Map.entry(ModelController.class, "/api/models"),
             Map.entry(ModelProviderController.class, "/api/model-providers"),

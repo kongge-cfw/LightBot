@@ -1,11 +1,11 @@
 <template>
   <div class="page">
     <LbManageHeader
-      title="Agent"
+      title="智能体"
       v-model="searchText"
-      search-placeholder="搜索 Agent 名称..."
+      search-placeholder="搜索智能体名称..."
       :refresh-disabled="loading"
-      create-text="新建 Agent"
+      create-text="新建智能体"
       @refresh="refresh"
       @create="openDialog()"
     >
@@ -91,7 +91,7 @@
       <LbEmptyState
         v-if="list.length === 0 && !loading"
         :icon="RobotOutlined"
-        :title="searchText ? '没有匹配的 Agent' : '还没有 Agent，点击右上角创建一个吧'"
+        :title="searchText ? '没有匹配的智能体' : '还没有智能体，点击右上角创建一个吧'"
       />
     </div>
     </a-spin>
@@ -99,7 +99,7 @@
     <!-- 创建/编辑弹窗 -->
     <a-modal
       v-model:open="dialogVisible"
-      :title="form.id ? '编辑 Agent' : '新建 Agent'"
+      :title="form.id ? '编辑智能体' : '新建智能体'"
       :width="560"
       @ok="handleSubmit"
       :confirm-loading="submitting"

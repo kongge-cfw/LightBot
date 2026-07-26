@@ -114,6 +114,18 @@ const routes = [
         component: () => import('../views/Extensions.vue'),
       },
       {
+        path: 'data-center',
+        name: 'DataCenter',
+        component: () => import('../views/ComingSoon.vue'),
+        meta: { title: '数据中心', emoji: '🗄️' },
+      },
+      {
+        path: 'automation',
+        name: 'Automation',
+        component: () => import('../views/ComingSoon.vue'),
+        meta: { title: '自动化', emoji: '⚡' },
+      },
+      {
         path: 'dashboard',
         name: 'Dashboard',
         component: () => import('../views/DashboardView.vue'),
@@ -189,11 +201,6 @@ const routes = [
         path: 'eval/experiments/:id',
         name: 'ExperimentDetail',
         component: () => import('../views/ExperimentDetail.vue'),
-      },
-      {
-        path: 'logs',
-        name: 'Logs',
-        component: () => import('../views/LogMonitor.vue'),
       },
       {
         path: 'profile',

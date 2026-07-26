@@ -7,15 +7,51 @@
           <img src="/lightbot-logo.png" alt="LightBot" class="brand-logo" />
         </a>
         <nav class="top-nav" aria-label="主导航">
-          <router-link
-            v-for="item in navItems"
-            :key="item.path"
-            :to="item.path"
-            :class="['top-nav-item', { active: isActive(item.path) }]"
-          >
-            <component :is="item.icon" class="top-nav-icon" />
-            <span>{{ item.label }}</span>
-          </router-link>
+          <template v-for="item in navItems" :key="item.key || item.path">
+            <a-dropdown
+              v-if="item.children"
+              :trigger="['hover', 'click']"
+              placement="bottomLeft"
+              :getPopupContainer="getPopupContainer"
+              overlayClassName="top-nav-lab-dropdown"
+            >
+              <button
+                type="button"
+                :class="['top-nav-item', 'top-nav-item--menu', { active: isGroupActive(item) }]"
+              >
+                <component :is="item.icon" class="top-nav-icon" />
+                <span>{{ item.label }}</span>
+                <DownOutlined class="top-nav-chevron" />
+              </button>
+              <template #overlay>
+                <a-menu
+                  class="lab-menu"
+                  :selectedKeys="labSelectedKeys"
+                  @click="({ key }) => router.push(String(key))"
+                >
+                  <a-menu-item v-for="child in item.children" :key="child.path">
+                    <div class="lab-menu-row">
+                      <span class="lab-menu-icon-wrap" :data-tone="child.tone">
+                        <component :is="child.icon" />
+                      </span>
+                      <span class="lab-menu-copy">
+                        <span class="lab-menu-title">{{ child.label }}</span>
+                        <span class="lab-menu-desc">{{ child.desc }}</span>
+                      </span>
+                    </div>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
+            <router-link
+              v-else
+              :to="item.path"
+              :class="['top-nav-item', { active: isActive(item.path) }]"
+            >
+              <component :is="item.icon" class="top-nav-icon" />
+              <span>{{ item.label }}</span>
+            </router-link>
+          </template>
         </nav>
       </div>
       <div class="topbar-right">
@@ -73,7 +109,6 @@
               <a-menu-item key="sessions"><span class="menu-item-content"><MessageOutlined /><span>会话管理</span></span></a-menu-item>
               <a-menu-item v-if="userStore.user?.role === 'admin'" key="settings"><span class="menu-item-content"><SettingOutlined /><span>系统管理</span></span></a-menu-item>
               <a-menu-item v-if="userStore.user?.role === 'admin'" key="model-providers"><span class="menu-item-content"><ApiOutlined /><span>模型管理</span></span></a-menu-item>
-              <a-menu-item v-if="userStore.user?.role === 'admin'" key="logs"><span class="menu-item-content"><FileTextOutlined /><span>日志</span></span></a-menu-item>
               <a-menu-divider />
               <a-menu-item key="theme" @click="toggleTheme">
                 <span class="menu-item-content">
@@ -203,12 +238,15 @@ import {
   RobotOutlined,
   DatabaseOutlined,
   ToolOutlined,
+  CloudServerOutlined,
+  ThunderboltOutlined,
   DashboardOutlined,
   EyeOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   FileTextOutlined,
   ExperimentOutlined,
+  BarChartOutlined,
   CheckSquareOutlined,
   MessageOutlined,
   SettingOutlined,
@@ -278,19 +316,51 @@ const taskBadgeCount = computed(() => {
 const taskBadgePopClass = useCountPop(() => taskStore.active)
 const taskBadgeStyle = { fontSize: '10px', boxShadow: 'none', backgroundColor: '#f5222d' }
 
-const navItems = [
-  { path: '/app/chat', label: '对话', icon: markRaw(MessageOutlined) },
-  { path: '/app/agents', label: 'Agent', icon: markRaw(RobotOutlined) },
-  { path: '/app/knowledge', label: '知识库', icon: markRaw(DatabaseOutlined) },
-  { path: '/app/extensions', label: '扩展', icon: markRaw(ToolOutlined) },
-  { path: '/app/prompts', label: 'Prompt', icon: markRaw(FileTextOutlined) },
-  { path: '/app/eval', label: '评测', icon: markRaw(ExperimentOutlined) },
-  { path: '/app/dashboard', label: 'Dashboard', icon: markRaw(DashboardOutlined) },
-  { path: '/app/observability', label: '可观测', icon: markRaw(EyeOutlined) },
+const labChildren = [
+  { path: '/app/chat', label: '对话调试', desc: '试聊智能体，快速验证效果', icon: markRaw(MessageOutlined), tone: 'blue' },
+  { path: '/app/prompts', label: '提示词', desc: '编写、管理与调试提示词', icon: markRaw(FileTextOutlined), tone: 'rose' },
+  { path: '/app/eval', label: '评测', desc: '评测集、评估器与实验', icon: markRaw(BarChartOutlined), tone: 'amber' },
+  { path: '/app/observability', label: '可观测', desc: '链路追踪与调用明细', icon: markRaw(EyeOutlined), tone: 'violet' },
 ]
+
+const navItems = [
+  { path: '/app/dashboard', label: '数据概览', icon: markRaw(DashboardOutlined) },
+  { path: '/app/agents', label: '智能体', icon: markRaw(RobotOutlined) },
+  { path: '/app/knowledge', label: '知识库', icon: markRaw(DatabaseOutlined) },
+  { path: '/app/extensions', label: '能力中心', icon: markRaw(ToolOutlined) },
+  { path: '/app/data-center', label: '数据中心', icon: markRaw(CloudServerOutlined) },
+  { path: '/app/automation', label: '自动化', icon: markRaw(ThunderboltOutlined) },
+  {
+    key: 'lab',
+    label: '实验室',
+    icon: markRaw(ExperimentOutlined),
+    children: labChildren,
+  },
+]
+
+/** 实验室子页匹配（含提示词相关的 Playground / 模板管理） */
+function matchLabChildPath(path) {
+  if (path.startsWith('/app/chat')) return '/app/chat'
+  if (path.startsWith('/app/prompts') || path.startsWith('/app/prompt-templates') || path.startsWith('/app/playground')) {
+    return '/app/prompts'
+  }
+  if (path.startsWith('/app/eval')) return '/app/eval'
+  if (path.startsWith('/app/observability')) return '/app/observability'
+  return null
+}
+
+const labSelectedKeys = computed(() => {
+  const key = matchLabChildPath(route.path)
+  return key ? [key] : []
+})
 
 function isActive(path) {
   return route.path.startsWith(path)
+}
+
+function isGroupActive(item) {
+  if (item.key === 'lab') return !!matchLabChildPath(route.path)
+  return (item.children || []).some((c) => route.path.startsWith(c.path))
 }
 
 function toggleSidebar() {
@@ -477,8 +547,6 @@ function handleCommand({ key }) {
     router.push('/app/settings')
   } else if (key === 'model-providers') {
     router.push('/app/model-providers')
-  } else if (key === 'logs') {
-    router.push('/app/logs')
   }
 }
 
@@ -634,14 +702,23 @@ watch(sessionLoadMoreRef, (el) => {
   gap: 6px;
   height: 100%;
   padding: 0 14px;
+  border: none;
   border-radius: 0;
+  background: transparent;
   color: var(--color-mute);
   text-decoration: none;
   font-size: 13px;
   font-weight: 500;
   letter-spacing: -0.01em;
   white-space: nowrap;
+  cursor: pointer;
+  font-family: inherit;
   transition: color 0.18s ease;
+}
+.top-nav-chevron {
+  font-size: 10px;
+  opacity: 0.65;
+  margin-left: -2px;
 }
 .top-nav-item::after {
   content: '';
@@ -678,6 +755,101 @@ watch(sessionLoadMoreRef, (el) => {
 }
 .top-nav-item.active::after {
   transform: scaleX(1);
+}
+/* 实验室下拉：带说明的双行菜单，弱化 Ant 默认蓝选中 */
+:global(.top-nav-lab-dropdown.ant-dropdown) {
+  padding-top: 6px;
+}
+:global(.top-nav-lab-dropdown .lab-menu.ant-dropdown-menu) {
+  min-width: 280px;
+  padding: 6px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 12px;
+  background: var(--color-canvas);
+  box-shadow:
+    0 0 0 1px rgba(23, 23, 23, 0.02),
+    0 8px 24px rgba(23, 23, 23, 0.08),
+    0 2px 6px rgba(23, 23, 23, 0.04);
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item) {
+  height: auto;
+  line-height: 1.3;
+  margin: 0;
+  padding: 10px 10px;
+  border-radius: 8px;
+  color: var(--color-ink);
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item + .ant-dropdown-menu-item) {
+  margin-top: 2px;
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item:hover),
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item-active) {
+  background: var(--color-canvas-soft-2) !important;
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item-selected) {
+  background: var(--color-canvas-soft-2) !important;
+  color: var(--color-ink) !important;
+  font-weight: 500;
+  box-shadow: inset 3px 0 0 0 var(--color-ink);
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item-selected:hover) {
+  background: var(--color-canvas-soft-3) !important;
+}
+.lab-menu-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.lab-menu-icon-wrap {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  font-size: 16px;
+  background: var(--color-canvas-soft-2);
+  color: var(--color-body);
+}
+.lab-menu-icon-wrap[data-tone='blue'] {
+  background: var(--blue-50, #eff6ff);
+  color: var(--blue-600, #2563eb);
+}
+.lab-menu-icon-wrap[data-tone='rose'] {
+  background: #fff1f2;
+  color: #e11d48;
+}
+.lab-menu-icon-wrap[data-tone='amber'] {
+  background: var(--color-warn-bg, #fffbeb);
+  color: var(--color-warning-deep, #ab570a);
+}
+.lab-menu-icon-wrap[data-tone='violet'] {
+  background: var(--purple-50, #f5f3ff);
+  color: var(--purple-600, #7c3aed);
+}
+.lab-menu-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding-top: 1px;
+}
+.lab-menu-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-ink);
+  letter-spacing: -0.01em;
+}
+.lab-menu-desc {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--color-mute);
+  line-height: 1.35;
+}
+:global(.top-nav-lab-dropdown .lab-menu .ant-dropdown-menu-item-selected .lab-menu-title) {
+  font-weight: 600;
 }
 
 .topbar-icon-btn,

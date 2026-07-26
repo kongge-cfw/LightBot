@@ -49,11 +49,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
 
         // 3. Sa-Token 拦截器
         registry.addInterceptor(new SaInterceptor(handle -> {
-            // 日志/任务监控接口：需要登录 + ADMIN 角色
-            SaRouter.match("/api/logs/**").check(r -> {
-                checkLoginOrApiKey();
-                StpUtil.checkRole(UserRole.ADMIN.getCode());
-            });
+            // 管理端接口：需要登录 + ADMIN 角色
             SaRouter.match("/api/admin/**").check(r -> {
                 checkLoginOrApiKey();
                 StpUtil.checkRole(UserRole.ADMIN.getCode());

@@ -1,7 +1,7 @@
 <template>
   <div class="extensions-page">
     <LbPageTabsHeader
-      title="扩展"
+      title="能力中心"
       :tabs="extensionTabs"
       :active-key="activeTab"
       @update:active-key="activeTab = $event"

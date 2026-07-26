@@ -32,7 +32,7 @@
     <template v-else>
     <!-- 顶部统计概览 -->
     <div class="stats-overview">
-      <LbStatCard :icon="RobotOutlined" accent="blue" :value="basic.agentCount ?? '-'" label="Agent" />
+      <LbStatCard :icon="RobotOutlined" accent="blue" :value="basic.agentCount ?? '-'" label="智能体" />
       <LbStatCard :icon="DatabaseOutlined" accent="green" :value="basic.knowledgeCount ?? '-'" label="知识库" />
       <LbStatCard :icon="MessageOutlined" accent="purple" :value="basic.sessionCount ?? '-'" label="对话会话" />
       <LbStatCard :icon="FileTextOutlined" accent="orange" :value="basic.messageCount ?? '-'" label="消息总数" />
