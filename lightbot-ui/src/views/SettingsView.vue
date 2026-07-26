@@ -5,145 +5,13 @@
     </div>
 
     <a-tabs v-model:activeKey="activeTab" class="settings-tabs">
-      <a-tab-pane key="model" tab="默认模型" />
       <a-tab-pane key="landing" tab="Landing配置" />
       <a-tab-pane key="users" tab="用户管理" />
       <a-tab-pane key="token" tab="Token限额" />
       <a-tab-pane key="apiKey" tab="API Key" />
     </a-tabs>
 
-    <!-- Tab 1: 默认模型管理 -->
-    <div v-show="activeTab === 'model'">
-    <a-spin :spinning="modelLoading">
-    <div class="content-grid">
-      <!-- 默认对话模型 -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h3>默认对话模型</h3>
-            <span class="panel-desc">系统级对话/生成场景使用</span>
-          </div>
-        </div>
-        <div class="panel-body">
-          <a-form :label-col="{ span: 6 }">
-            <a-form-item label="模型">
-              <ModelSelect
-                v-model:provider-id="chatProviderId"
-                v-model:model-id="chatModelId"
-                model-type="llm"
-                placeholder="选择对话模型"
-              />
-            </a-form-item>
-            <a-form-item :wrapper-col="{ offset: 6 }">
-              <button class="btn-primary" :disabled="chatSaving" @click="saveModel('chat')">
-                <SaveOutlined /> {{ chatSaving ? '保存中...' : '保存配置' }}
-              </button>
-            </a-form-item>
-          </a-form>
-          <div class="panel-tip">
-            <BulbOutlined />
-            <span>用于：AI 生成系统提示词、AI 生成推荐问题、知识库思维导图、内容安全扫描等</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 默认向量模型 -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h3>默认向量模型</h3>
-            <span class="panel-desc">向量化与检索场景使用</span>
-          </div>
-        </div>
-        <div class="panel-body">
-          <a-form :label-col="{ span: 6 }">
-            <a-form-item label="模型">
-              <ModelSelect
-                v-model:provider-id="embeddingProviderId"
-                v-model:model-id="embeddingModelId"
-                model-type="embedding"
-                placeholder="选择向量模型"
-              />
-            </a-form-item>
-            <a-form-item :wrapper-col="{ offset: 6 }">
-              <button class="btn-primary" :disabled="embeddingSaving" @click="saveModel('embedding')">
-                <SaveOutlined /> {{ embeddingSaving ? '保存中...' : '保存配置' }}
-              </button>
-            </a-form-item>
-          </a-form>
-          <div class="panel-tip">
-            <BulbOutlined />
-            <span>用于：知识库默认 Embedding（新建知识库未指定时使用）、文本相似度计算等</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 默认重排模型 -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h3>默认重排模型</h3>
-            <span class="panel-desc">RAG 召回后精排使用</span>
-          </div>
-        </div>
-        <div class="panel-body">
-          <a-form :label-col="{ span: 6 }">
-            <a-form-item label="模型">
-              <ModelSelect
-                v-model:provider-id="rerankProviderId"
-                v-model:model-id="rerankModelId"
-                model-type="rerank"
-                placeholder="选择重排模型"
-              />
-            </a-form-item>
-            <a-form-item :wrapper-col="{ offset: 6 }">
-              <button class="btn-primary" :disabled="rerankSaving" @click="saveModel('rerank')">
-                <SaveOutlined /> {{ rerankSaving ? '保存中...' : '保存配置' }}
-              </button>
-            </a-form-item>
-          </a-form>
-          <div class="panel-tip">
-            <BulbOutlined />
-            <span>用于：知识库检索结果重排序</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 默认TTS模型 -->
-      <div class="panel">
-        <div class="panel-header">
-          <div class="panel-title-wrap">
-            <h3>默认 TTS 模型</h3>
-            <span class="panel-desc">语音合成场景使用</span>
-          </div>
-        </div>
-        <div class="panel-body">
-          <a-form :label-col="{ span: 6 }">
-            <a-form-item label="模型">
-              <ModelSelect
-                v-model:provider-id="ttsProviderId"
-                v-model:model-id="ttsModelId"
-                model-type="tts"
-                placeholder="选择 TTS 模型"
-              />
-            </a-form-item>
-            <a-form-item :wrapper-col="{ offset: 6 }">
-              <button class="btn-primary" :disabled="ttsSaving" @click="saveModel('tts')">
-                <SaveOutlined /> {{ ttsSaving ? '保存中...' : '保存配置' }}
-              </button>
-            </a-form-item>
-          </a-form>
-          <div class="panel-tip">
-            <BulbOutlined />
-            <span>用于：文本转语音播放、AI 回复语音化等</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    </a-spin>
-    </div>
-
-    <!-- Tab 2: Landing 管理 -->
+    <!-- Tab: Landing 管理 -->
     <div v-show="activeTab === 'landing'">
     <a-spin :spinning="landingLoading">
     <div class="panel landing-panel">
@@ -520,51 +388,37 @@
 import { ref, reactive, onMounted, watch, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  SaveOutlined, BulbOutlined, PlusOutlined, DeleteOutlined,
+  SaveOutlined, PlusOutlined, DeleteOutlined,
   UpOutlined, DownOutlined,
   RobotOutlined, TeamOutlined, ApartmentOutlined, ApiOutlined,
   ToolOutlined, ThunderboltOutlined, ExperimentOutlined, EyeOutlined,
   FormOutlined, DatabaseOutlined, NodeIndexOutlined, BranchesOutlined,
   CloudOutlined, CodeOutlined, FileTextOutlined, RocketOutlined,
-  SafetyOutlined, SettingOutlined, ThunderboltFilled, SyncOutlined,
+  SafetyOutlined, SettingOutlined, SyncOutlined,
   AppstoreOutlined, ControlOutlined, ClusterOutlined, BlockOutlined,
   QuestionCircleOutlined, KeyOutlined, CopyOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
-import {
-  getAllDefaultModels,
-  updateDefaultChatModel,
-  updateDefaultEmbeddingModel,
-  updateDefaultTtsModel,
-  updateDefaultRerankModel,
-} from '../api/systemConfig'
 import { getLandingConfig, updateLandingConfig } from '../api/landing'
 import { getTokenBudgetConfig, updateTokenBudgetConfig, getTokenBudgetStats, getTokenBudgetRanking } from '../api/tokenBudget'
 import { listApiKeys, createApiKey, toggleApiKey, deleteApiKey } from '../api/apiKey'
 import AgentSelect from '../components/AgentSelect.vue'
-import ModelSelect from '../components/ModelSelect.vue'
 import UserManage from './UserManage.vue'
 import { copyToClipboard } from '../utils/clipboard'
 
 const route = useRoute()
 const router = useRouter()
-const VALID_TABS = ['model', 'landing', 'users', 'token', 'apiKey']
-const activeTab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : 'model')
-const modelLoading = ref(false)
+const VALID_TABS = ['landing', 'users', 'token', 'apiKey']
+// 旧链接 ?tab=model 跳转到模型管理
+if (route.query.tab === 'model') {
+  router.replace({ path: '/app/model-providers', query: { tab: 'defaults' } })
+}
+const activeTab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : 'landing')
 const landingLoading = ref(false)
 const loadedTabs = new Set()
 
-const chatProviderId = ref(null)
-const chatModelId = ref(null)
-const embeddingProviderId = ref(null)
-const embeddingModelId = ref(null)
-const rerankProviderId = ref(null)
-const rerankModelId = ref(null)
-const ttsProviderId = ref(null)
-const ttsModelId = ref(null)
-
 onMounted(() => {
-  loadTabData('model')
+  loadTabData(activeTab.value)
 })
 
 watch(activeTab, (tab) => {
@@ -576,19 +430,7 @@ watch(activeTab, (tab) => {
 async function loadTabData(tab) {
   if (loadedTabs.has(tab)) return
   loadedTabs.add(tab)
-  if (tab === 'model') {
-    modelLoading.value = true
-    try {
-      const res = await getAllDefaultModels()
-      const data = res.data || {}
-      applyModelConfig('chat', data.chat)
-      applyModelConfig('embedding', data.embedding)
-      applyModelConfig('tts', data.tts)
-      applyModelConfig('rerank', data.rerank)
-    } finally {
-      modelLoading.value = false
-    }
-  } else if (tab === 'landing') {
+  if (tab === 'landing') {
     landingLoading.value = true
     try {
       await loadLandingConfig()
@@ -609,41 +451,6 @@ async function loadTabData(tab) {
     } finally {
       apiKeyLoading.value = false
     }
-  }
-}
-
-const chatSaving = ref(false)
-const embeddingSaving = ref(false)
-const ttsSaving = ref(false)
-const rerankSaving = ref(false)
-
-function applyModelConfig(kind, cfg) {
-  const pid = cfg?.providerId ? String(cfg.providerId) : null
-  const mid = cfg?.modelId ? String(cfg.modelId) : null
-  if (kind === 'chat') { chatProviderId.value = pid; chatModelId.value = mid }
-  else if (kind === 'embedding') { embeddingProviderId.value = pid; embeddingModelId.value = mid }
-  else if (kind === 'rerank') { rerankProviderId.value = pid; rerankModelId.value = mid }
-  else if (kind === 'tts') { ttsProviderId.value = pid; ttsModelId.value = mid }
-}
-
-const modelSaveConfig = {
-  chat:      { providerId: chatProviderId,      modelId: chatModelId,      saving: chatSaving,      api: updateDefaultChatModel,      label: '默认对话模型' },
-  embedding: { providerId: embeddingProviderId, modelId: embeddingModelId, saving: embeddingSaving, api: updateDefaultEmbeddingModel, label: '默认向量模型' },
-  rerank:    { providerId: rerankProviderId,    modelId: rerankModelId,    saving: rerankSaving,    api: updateDefaultRerankModel,    label: '默认重排模型' },
-  tts:       { providerId: ttsProviderId,       modelId: ttsModelId,       saving: ttsSaving,       api: updateDefaultTtsModel,       label: '默认 TTS 模型' },
-}
-
-async function saveModel(kind) {
-  const cfg = modelSaveConfig[kind]
-  if (!cfg.providerId.value || !cfg.modelId.value) return message.warning('请选择模型')
-  cfg.saving.value = true
-  try {
-    await cfg.api({ providerId: cfg.providerId.value, modelId: cfg.modelId.value })
-    message.success(`${cfg.label}已保存`)
-  } catch (e) {
-    message.error(e.response?.data?.message || '保存失败')
-  } finally {
-    cfg.saving.value = false
   }
 }
 

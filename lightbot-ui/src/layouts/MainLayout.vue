@@ -1,145 +1,46 @@
 <template>
-  <div class="layout">
-    <!-- 左侧边栏 -->
-    <aside :class="['sidebar', { collapsed: sidebarCollapsed && !sidebarHidden, hidden: sidebarHidden }]">
-      <!-- Logo + 收起按钮 -->
-      <div class="sidebar-header">
-        <div class="sidebar-logo" @click="sidebarCollapsed ? toggleSidebar() : router.push('/')">
-          <img src="/lightbot-logo.png" alt="LightBot" class="logo-img logo-full" />
-          <img src="/lightbot-logo-single.png" alt="LightBot" class="logo-img logo-single" />
-          <div class="logo-unfold-icon">
-            <MenuUnfoldOutlined />
-          </div>
-        </div>
-        <div v-if="!sidebarCollapsed" class="sidebar-header-actions">
-          <div class="sidebar-toggle" @click="toggleSidebar">
-            <MenuFoldOutlined />
-          </div>
-        </div>
-      </div>
-
-      <!-- 新建对话按钮 -->
-      <a-tooltip v-if="sidebarCollapsed && !sidebarHidden" title="新建对话" placement="right">
-        <button class="btn-new-chat" @click="newChat">
-          <PlusOutlined />
-          <span class="sidebar-text">新建对话</span>
-        </button>
-      </a-tooltip>
-      <button v-else class="btn-new-chat" @click="newChat">
-        <PlusOutlined />
-        <span class="sidebar-text">新建对话</span>
-      </button>
-
-      <!-- 导航菜单 -->
-      <nav class="nav-menu">
-        <template v-for="item in navItems" :key="item.path">
-          <a-tooltip
-            v-if="sidebarCollapsed && !sidebarHidden"
-            :title="item.label"
-            placement="right"
-          >
-            <router-link
-              :to="item.path"
-              :class="['nav-item', { active: isActive(item.path) }]"
-            >
-              <component :is="item.icon" />
-              <span class="sidebar-text">{{ item.label }}</span>
-            </router-link>
-          </a-tooltip>
+  <div class="layout" :class="{ 'layout--rail-hidden': !sessionRailVisible, 'layout--rail-collapsed': sidebarCollapsed && sessionRailVisible }">
+    <!-- 顶部主导航 -->
+    <header v-show="!isWorkflowRoute" class="topbar">
+      <div class="topbar-left">
+        <a class="brand" href="/" @click.prevent="router.push('/')">
+          <img src="/lightbot-logo.png" alt="LightBot" class="brand-logo" />
+        </a>
+        <nav class="top-nav" aria-label="主导航">
           <router-link
-            v-else
+            v-for="item in navItems"
+            :key="item.path"
             :to="item.path"
-            :class="['nav-item', { active: isActive(item.path) }]"
+            :class="['top-nav-item', { active: isActive(item.path) }]"
           >
-            <component :is="item.icon" />
-            <span class="sidebar-text">{{ item.label }}</span>
+            <component :is="item.icon" class="top-nav-icon" />
+            <span>{{ item.label }}</span>
           </router-link>
-        </template>
-      </nav>
-
-      <!-- 对话历史 -->
-      <div v-show="!sidebarCollapsed" class="session-section">
-        <div class="section-title" @click="sessionsCollapsed = !sessionsCollapsed">
-          <span class="section-title-label" @click.stop="sessionsCollapsed = !sessionsCollapsed">最近对话</span>
-          <div class="section-title-actions">
-            <a-tooltip title="搜索历史对话" placement="bottom">
-              <span class="section-title-search" @click.stop="openConversationSearch">
-                <SearchOutlined />
-              </span>
-            </a-tooltip>
-            <DownOutlined class="collapse-icon" :class="{ 'is-expanded': !sessionsCollapsed }" />
-          </div>
-        </div>
-        <CollapseTransition :open="!sessionsCollapsed">
-          <div class="session-list" ref="sessionListRef">
-            <TransitionGroup name="lb-list">
-              <div
-                v-for="s in sessions"
-                :key="s.id"
-                :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
-                @click="switchSession(s)"
-              >
-                <span class="session-title">{{ s.title || '新对话' }}</span>
-                <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
-                <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
-                <a-dropdown :trigger="['click']" placement="bottomRight">
-                  <EllipsisOutlined class="session-more" @click.stop />
-                  <template #overlay>
-                    <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
-                      <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
-                      <a-menu-item key="rename">重命名</a-menu-item>
-                      <a-menu-item key="export">导出</a-menu-item>
-                      <a-menu-divider />
-                      <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
-              </div>
-            </TransitionGroup>
-            <div v-if="sessionLoading" class="session-loading-more">
-              <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
-              <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
-            </div>
-            <div v-if="sessionHasMore && !sessionLoading" ref="sessionLoadMoreRef" class="session-load-more-sentinel"></div>
-            <div v-if="sessions.length === 0 && !sessionLoading" class="session-empty">暂无对话</div>
-          </div>
-        </CollapseTransition>
+        </nav>
       </div>
-
-      <!-- 重命名弹窗 -->
-      <a-modal
-        v-model:open="renameVisible"
-        title="重命名对话"
-        :width="400"
-        @ok="confirmRename"
-        @cancel="renameVisible = false"
-      >
-        <a-input
-          v-model:value="renameValue"
-          placeholder="请输入新名称"
-          @press-enter="confirmRename"
-          :maxlength="50"
-        />
-      </a-modal>
-
-      <!-- 跨会话搜索弹窗 -->
-      <ConversationSearchModal
-        v-model:open="conversationSearchOpen"
-        @pick="handleConversationSearchPick"
-      />
-
-      <!-- 用户信息 -->
-      <div class="sidebar-footer">
-        <a-dropdown v-model:open="userDropdownOpen" :trigger="['click']" :getPopupContainer="getPopupContainer" overlayClassName="sidebar-user-dropdown" :overlayStyle="{ width: '160px' }">
-          <div class="user-info">
+      <div class="topbar-right">
+        <a-dropdown
+          v-model:open="userDropdownOpen"
+          :trigger="['click']"
+          :getPopupContainer="getPopupContainer"
+          overlayClassName="sidebar-user-dropdown"
+          :overlayStyle="{ width: '160px' }"
+        >
+          <button type="button" class="user-chip">
             <AvatarFrame :frame="userStore.user?.avatarFrame" :size="28">
               <div class="user-avatar">
-                <img v-if="userStore.user?.avatar" :src="userStore.user.avatar" alt="avatar" class="user-avatar-img" @error="userStore.user?.avatar && (userStore.user.avatar = '')" />
+                <img
+                  v-if="userStore.user?.avatar"
+                  :src="userStore.user.avatar"
+                  alt="avatar"
+                  class="user-avatar-img"
+                  @error="userStore.user?.avatar && (userStore.user.avatar = '')"
+                />
                 <span v-else>{{ (userStore.user?.username || userStore.user?.nickname || 'U')[0] }}</span>
               </div>
             </AvatarFrame>
-            <span class="sidebar-text user-name">{{ userStore.user?.username || userStore.user?.nickname || '用户' }}</span>
-            <LevelTag v-show="!sidebarCollapsed" :level="userStore.user?.level" size="small" />
+            <span class="user-name">{{ userStore.user?.username || userStore.user?.nickname || '用户' }}</span>
+            <LevelTag :level="userStore.user?.level" size="small" />
             <a-badge
               v-if="taskBadgeCount"
               :count="taskBadgeCount"
@@ -147,11 +48,8 @@
               :class="['sidebar-task-badge-inline', taskBadgePopClass]"
               @click.stop="router.push('/app/tasks')"
             />
-            <span class="sidebar-text">
-              <UpOutlined v-if="userDropdownOpen" />
-              <DownOutlined v-else />
-            </span>
-          </div>
+            <DownOutlined class="user-chevron" :class="{ open: userDropdownOpen }" />
+          </button>
           <template #overlay>
             <a-menu @click="handleCommand">
               <a-menu-item key="user-info" class="menu-user-info" @click="router.push('/app/profile')">
@@ -177,7 +75,6 @@
               <a-menu-item v-if="userStore.user?.role === 'admin'" key="model-providers"><span class="menu-item-content"><ApiOutlined /><span>模型管理</span></span></a-menu-item>
               <a-menu-item v-if="userStore.user?.role === 'admin'" key="logs"><span class="menu-item-content"><FileTextOutlined /><span>日志</span></span></a-menu-item>
               <a-menu-divider />
-              <a-menu-item key="about"><span class="menu-item-content"><InfoCircleOutlined /><span>关于</span></span></a-menu-item>
               <a-menu-item key="theme" @click="toggleTheme">
                 <span class="menu-item-content">
                   <BulbFilled v-if="isDark" />
@@ -191,33 +88,116 @@
           </template>
         </a-dropdown>
       </div>
+    </header>
 
-    </aside>
+    <div class="layout-body">
+      <!-- 左侧会话轨：仅「对话」菜单下展示 -->
+      <aside v-if="sessionRailVisible" :class="['session-rail', { collapsed: sidebarCollapsed }]">
+        <div class="rail-header">
+          <span v-show="!sidebarCollapsed" class="rail-title">最近对话</span>
+          <div class="rail-header-actions">
+            <a-tooltip v-if="!sidebarCollapsed" title="搜索历史对话" placement="bottom">
+              <button type="button" class="rail-icon-btn" @click="openConversationSearch">
+                <SearchOutlined />
+              </button>
+            </a-tooltip>
+            <a-tooltip :title="sidebarCollapsed ? '展开会话栏' : '收起会话栏'" placement="right">
+              <button type="button" class="rail-icon-btn" @click="toggleSidebar">
+                <MenuUnfoldOutlined v-if="sidebarCollapsed" />
+                <MenuFoldOutlined v-else />
+              </button>
+            </a-tooltip>
+          </div>
+        </div>
 
-    <!-- 主内容区 -->
-    <main class="main-content">
-      <router-view v-slot="{ Component, route: r }">
-        <transition name="lb-route" mode="out-in">
-          <keep-alive :include="cachedRouteNames">
-            <component
-              :is="Component"
-              :key="r.path.startsWith('/app/chat') ? '/app/chat' : r.path"
-            />
-          </keep-alive>
-        </transition>
-      </router-view>
-    </main>
+        <a-tooltip v-if="sidebarCollapsed" title="新建对话" placement="right">
+          <button type="button" class="btn-new-chat-rail" @click="newChat">
+            <PlusOutlined />
+          </button>
+        </a-tooltip>
+        <button v-else type="button" class="btn-new-chat-rail btn-new-chat-rail--full" @click="newChat">
+          <PlusOutlined />
+          <span>新建对话</span>
+        </button>
 
+        <div v-show="!sidebarCollapsed" class="session-section">
+          <div class="session-list" ref="sessionListRef">
+            <TransitionGroup name="lb-list">
+              <div
+                v-for="s in sessions"
+                :key="s.id"
+                :class="['session-item', { active: currentSessionId === s.id, 'session-item--pinned': s.pinned }]"
+                @click="switchSession(s)"
+              >
+                <span class="session-title">{{ s.title || '新对话' }}</span>
+                <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
+                <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
+                <a-dropdown :trigger="['click']" placement="bottomRight">
+                  <EllipsisOutlined class="session-more" @click.stop />
+                  <template #overlay>
+                    <a-menu @click="({ key }) => handleSessionMenu(key, s)">
+                      <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
+                      <a-menu-item key="rename">重命名</a-menu-item>
+                      <a-menu-item key="export">导出</a-menu-item>
+                      <a-menu-divider />
+                      <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </div>
+            </TransitionGroup>
+            <div v-if="sessionLoading" class="session-loading-more">
+              <LoadingOutlined spin style="font-size: 12px; color: var(--color-mute)" />
+              <span v-if="sessions.length === 0" class="session-loading-text">加载中...</span>
+            </div>
+            <div v-if="sessionHasMore && !sessionLoading" ref="sessionLoadMoreRef" class="session-load-more-sentinel"></div>
+            <div v-if="sessions.length === 0 && !sessionLoading" class="session-empty">暂无对话</div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <router-view v-slot="{ Component, route: r }">
+          <transition name="lb-route" mode="out-in">
+            <keep-alive :include="cachedRouteNames">
+              <component
+                :is="Component"
+                :key="r.path.startsWith('/app/chat') ? '/app/chat' : r.path"
+              />
+            </keep-alive>
+          </transition>
+        </router-view>
+      </main>
+    </div>
+
+    <a-modal
+      v-model:open="renameVisible"
+      title="重命名对话"
+      :width="400"
+      @ok="confirmRename"
+      @cancel="renameVisible = false"
+    >
+      <a-input
+        v-model:value="renameValue"
+        placeholder="请输入新名称"
+        :maxlength="50"
+        @press-enter="confirmRename"
+      />
+    </a-modal>
+
+    <ConversationSearchModal
+      v-model:open="conversationSearchOpen"
+      @pick="handleConversationSearchPick"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, markRaw, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   PlusOutlined,
   DownOutlined,
-  UpOutlined,
   EllipsisOutlined,
   PushpinFilled,
   RobotOutlined,
@@ -233,12 +213,10 @@ import {
   MessageOutlined,
   SettingOutlined,
   ApiOutlined,
-  InfoCircleOutlined,
   LogoutOutlined,
   LoadingOutlined,
   BulbOutlined,
   BulbFilled,
-  StarOutlined,
   SearchOutlined,
 } from '@ant-design/icons-vue'
 import { useUserStore } from '../stores/user'
@@ -250,14 +228,9 @@ import { getSessions, updateSessionTitle, deleteSession, togglePinSession, expor
 import AvatarFrame from '../components/AvatarFrame.vue'
 import LevelTag from '../components/LevelTag.vue'
 import ConversationSearchModal from '../components/chat/modals/ConversationSearchModal.vue'
-import CollapseTransition from '../components/common/CollapseTransition.vue'
 import { sseFetch } from '../utils/sseFetch'
 import { formatRelativeTime } from '../utils/format'
 
-// 启用 KeepAlive 缓存的页面：本地状态较多（长表单、编辑器），切走再回来不丢失
-// 对应组件已通过 defineOptions 声明 name 以便 :include 匹配
-// 注：WorkflowEdit 不缓存 —— Vue Flow 内部状态在 keep-alive 切走再回来时容易卡住，
-// 导致后续切到任意侧栏页面 router-view 渲染空白（URL 正常但内容不显示）
 const cachedRouteNames = ['AgentDetail', 'KnowledgeDetail', 'McpManage', 'SkillManage']
 
 const route = useRoute()
@@ -285,28 +258,28 @@ const renameValue = ref('')
 const renameTarget = ref(null)
 const conversationSearchOpen = ref(false)
 const userDropdownOpen = ref(false)
-const sessionsCollapsed = ref(false)
 const sidebarCollapsed = ref(localStorage.getItem('sidebar-collapsed') === 'true')
-const sidebarHidden = ref(false)
-let sidebarStateBeforeWorkflow = null
 let taskSSE = null
 let sseRetries = 0
-// SSE 无限重连：徽标实时性依赖长连接，断线必须自愈（指数退避封顶 30s）
 const SSE_BASE_DELAY = 3000
 
 const { isDark, toggleTheme } = useTheme()
+
+const isWorkflowRoute = computed(() => route.path.startsWith('/app/workflow/'))
+const isChatRoute = computed(() => route.path.startsWith('/app/chat'))
+/** 会话轨仅在「对话」页显示；其他菜单与工作流编辑页均隐藏 */
+const sessionRailVisible = computed(() => isChatRoute.value && !isWorkflowRoute.value)
 
 const taskBadgeCount = computed(() => {
   if (taskStore.active <= 0) return 0
   return taskStore.active > 10 ? '10+' : taskStore.active
 })
 
-// 任务徽章数字变化反馈：active 任务数变化时徽章短暂缩放着色
 const taskBadgePopClass = useCountPop(() => taskStore.active)
-
 const taskBadgeStyle = { fontSize: '10px', boxShadow: 'none', backgroundColor: '#f5222d' }
 
 const navItems = [
+  { path: '/app/chat', label: '对话', icon: markRaw(MessageOutlined) },
   { path: '/app/agents', label: 'Agent', icon: markRaw(RobotOutlined) },
   { path: '/app/knowledge', label: '知识库', icon: markRaw(DatabaseOutlined) },
   { path: '/app/extensions', label: '扩展', icon: markRaw(ToolOutlined) },
@@ -321,41 +294,22 @@ function isActive(path) {
 }
 
 function toggleSidebar() {
+  if (!sessionRailVisible.value) return
   sidebarCollapsed.value = !sidebarCollapsed.value
   localStorage.setItem('sidebar-collapsed', sidebarCollapsed.value)
 }
 
 function handleGlobalKeydown(e) {
-  // Ctrl+Shift+N — 新建对话
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyN') {
     e.preventDefault()
     newChat()
     return
   }
-  // Ctrl+Shift+O — 切换侧边栏
   if (e.ctrlKey && e.shiftKey && e.code === 'KeyO') {
     e.preventDefault()
     toggleSidebar()
   }
 }
-
-function syncSidebarForRoute(path) {
-  const hide = path.startsWith('/app/workflow/')
-  if (hide) {
-    if (sidebarStateBeforeWorkflow === null) {
-      sidebarStateBeforeWorkflow = sidebarCollapsed.value
-    }
-    sidebarHidden.value = true
-    return
-  }
-  if (sidebarHidden.value) {
-    sidebarCollapsed.value = sidebarStateBeforeWorkflow ?? sidebarCollapsed.value
-    sidebarStateBeforeWorkflow = null
-    sidebarHidden.value = false
-  }
-}
-
-watch(() => route.path, syncSidebarForRoute, { immediate: true })
 
 function getPopupContainer() {
   return document.body
@@ -396,7 +350,6 @@ function initSessionObserver() {
   }, { rootMargin: '50px' })
 }
 
-// 标题异步生成完成后刷新侧边栏（重试3次，间隔2秒，覆盖AI生成标题的延迟）
 function refreshSessions() {
   resetSessions()
 }
@@ -454,7 +407,6 @@ async function doExportSession(id, format, title) {
 async function handleTogglePin(session) {
   try {
     await togglePinSession(session.id)
-    // 重新加载列表以确保置顶排序正确
     resetSessions()
   } catch {
     // interceptor已处理错误提示
@@ -494,7 +446,6 @@ function openConversationSearch() {
 
 function handleConversationSearchPick(item) {
   if (!item || !item.sessionId) return
-  // 直接跳转到目标会话；messageId 可由 Chat 视图后续用于高亮定位（当前先不实现高亮）
   router.push(`/app/chat/${item.sessionId}`)
 }
 
@@ -528,8 +479,6 @@ function handleCommand({ key }) {
     router.push('/app/model-providers')
   } else if (key === 'logs') {
     router.push('/app/logs')
-  } else if (key === 'about') {
-    router.push('/app/about')
   }
 }
 
@@ -538,11 +487,9 @@ function connectTaskSSE() {
   const token = localStorage.getItem('token') || ''
   if (!token) return
 
-  // 使用 sseFetch 替代 EventSource：token 走 Authorization Header，避免暴露在 URL（Nginx 日志 / Referer / 浏览器 history）
   taskSSE = sseFetch('/api/tasks/stream', {
     token,
     onEvent: (evt) => {
-      // 后端推送 event: count \n data: {...}，sseFetch 已解析为 { event, data }
       if (evt.event === 'count') {
         try {
           const counts = JSON.parse(evt.data)
@@ -566,7 +513,6 @@ function connectTaskSSE() {
 }
 
 function disconnectTaskSSE() {
-  // sseFetch 返回的句柄提供 close 方法，会同步 abort 底层 fetch
   taskSSE?.close?.()
   taskSSE = null
 }
@@ -583,11 +529,8 @@ onMounted(async () => {
   }
   loadSessions()
   initSessionObserver()
-  // 监听对话标题更新事件（Chat.vue 轮询标题接口后触发，刷新侧边栏）
   window.addEventListener('session-title-updated', refreshSessions)
-  // 全局快捷键
   document.addEventListener('keydown', handleGlobalKeydown)
-  // SSE 实时监听任务计数（需等 user 加载完成后才有 userId）
   connectTaskSSE()
 })
 
@@ -602,14 +545,12 @@ watch(() => route.path, (path) => {
     const match = path.match(/\/app\/chat\/(\d+)/)
     const newId = match ? match[1] : null
     if (newId && newId !== currentSessionId.value) {
-      // 新会话创建后刷新侧边栏列表
       resetSessions()
     }
     currentSessionId.value = newId
   }
 })
 
-// 观察 sentinel 元素以触发无限滚动
 watch(sessionLoadMoreRef, (el) => {
   if (sessionObserver && el) {
     sessionObserver.observe(el)
@@ -620,255 +561,322 @@ watch(sessionLoadMoreRef, (el) => {
 <style scoped>
 .layout {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-canvas-soft);
+  font-family: var(--font-sans);
 }
 
-/* ===== 侧边栏 ===== */
-.sidebar {
-  width: 260px;
-  background: var(--sidebar-bg);
-  color: var(--color-mute);
-  display: flex;
-  flex-direction: column;
+/* ===== Topbar ===== */
+.topbar {
+  height: 56px;
   flex-shrink: 0;
-  overflow: hidden;
-  transition: width 0.25s ease;
-  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 16px 0 12px;
+  background: var(--color-canvas);
+  border-bottom: 1px solid var(--color-hairline);
+  z-index: 20;
 }
-.sidebar.collapsed {
-  width: 60px;
-}
-.sidebar.hidden {
-  width: 0 !important;
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
   min-width: 0;
-  padding: 0;
-  border: none;
-  overflow: hidden;
-  pointer-events: none;
 }
-.sidebar.collapsed .sidebar-text {
+.topbar-left {
+  flex: 1;
+  gap: 8px;
+}
+.topbar-right {
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 4px 8px 4px 4px;
+  border-radius: 8px;
+  transition: background 0.15s;
+}
+.brand:hover {
+  background: var(--color-canvas-soft-2);
+}
+.brand-logo {
+  height: 36px;
+  object-fit: contain;
+  display: block;
+}
+
+.top-nav {
+  display: flex;
+  align-items: stretch;
+  align-self: stretch;
+  gap: 0;
+  min-width: 0;
+  height: 56px;
+  margin: 0 0 0 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.top-nav::-webkit-scrollbar {
   display: none;
 }
-.sidebar.collapsed .logo-img {
-  height: 32px;
-}
-.sidebar.collapsed .btn-new-chat {
-  margin: 0 8px 12px;
-  padding: 10px 0;
-  justify-content: center;
-}
-.sidebar.collapsed .nav-item {
-  justify-content: center;
-  padding: 10px 0;
-}
-.sidebar.collapsed .user-info {
-  justify-content: center;
-  padding: 8px 4px;
+.top-nav-item {
   position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 14px;
+  border-radius: 0;
+  color: var(--color-mute);
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: color 0.18s ease;
+}
+.top-nav-item::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 2px;
+  background: var(--color-ink);
+  border-radius: 2px 2px 0 0;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.2s var(--easing-standard, cubic-bezier(0.2, 0.8, 0.2, 1));
+}
+.top-nav-icon {
+  font-size: 14px;
+  opacity: 0.72;
+  transition: opacity 0.18s ease;
+}
+.top-nav-item:hover {
+  color: var(--color-ink);
+  background: transparent;
+}
+.top-nav-item:hover .top-nav-icon {
+  opacity: 0.9;
+}
+.top-nav-item.active {
+  color: var(--color-ink);
+  font-weight: 600;
+  background: transparent;
+}
+.top-nav-item.active .top-nav-icon {
+  opacity: 1;
+}
+.top-nav-item.active::after {
+  transform: scaleX(1);
+}
+
+.topbar-icon-btn,
+.rail-icon-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-mute);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.topbar-icon-btn:hover,
+.rail-icon-btn:hover {
+  background: var(--color-canvas-soft-2);
+  color: var(--color-ink);
+}
+
+.user-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 10px 0 6px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 999px;
+  background: var(--color-canvas);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.user-chip:hover {
+  border-color: var(--color-hairline-strong);
+  background: var(--color-canvas-soft);
+}
+.user-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--color-link);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.user-name {
+  max-width: 96px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-chevron {
+  font-size: 10px;
+  color: var(--color-mute);
+  transition: transform 0.2s ease;
+}
+.user-chevron.open {
+  transform: rotate(180deg);
 }
 .sidebar-task-badge-inline {
   cursor: pointer;
   flex-shrink: 0;
 }
-/* 数字变化反馈：useCountPop 在元素上加 .lb-count-pop，让徽章本体跟随缩放；
-   ant-badge-count 是数字内层元素，跟随外层动画即可 */
 .sidebar-task-badge-inline.lb-count-pop {
   animation: lb-count-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.sidebar.collapsed .sidebar-task-badge-inline {
-  display: none;
-}
-.sidebar.collapsed .sidebar-footer {
-  padding: 12px 6px;
+
+/* ===== Body ===== */
+.layout-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
 }
 
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 8px 8px;
+/* ===== Session rail ===== */
+.session-rail {
+  width: 260px;
   flex-shrink: 0;
-}
-.sidebar.collapsed .sidebar-header {
-  padding: 12px 6px 8px;
-  justify-content: center;
-}
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  flex: 1;
-  position: relative;
-}
-.logo-single,
-.logo-unfold-icon {
-  display: none;
-}
-.sidebar.collapsed .logo-full {
-  display: none;
-}
-.sidebar.collapsed .logo-single {
-  display: block;
-}
-.sidebar.collapsed .logo-unfold-icon {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-mute);
-  font-size: 18px;
-  background: var(--sidebar-bg);
-}
-.sidebar.collapsed .sidebar-logo:hover .logo-unfold-icon {
-  display: flex;
-}
-.logo-img {
-  height: 56px;
-  object-fit: contain;
-}
-.btn-new-chat {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  margin: 0 12px 12px;
-  padding: 10px 0;
-  background: transparent;
-  border: 1px solid var(--sidebar-border);
-  border-radius: 8px;
-  color: var(--sidebar-text-bright);
-  font-size: 14px;
-  cursor: pointer;
-  transition: border-color 0.15s;
-}
-.btn-new-chat:hover {
-  border-color: var(--color-link);
-}
-
-/* 导航 */
-.nav-menu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 8px;
-  margin-bottom: 12px;
+  background: var(--color-canvas-soft);
+  border-right: 1px solid var(--color-hairline);
+  overflow: hidden;
+  transition: width 0.22s ease;
 }
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  color: var(--color-mute);
-  text-decoration: none;
-  font-size: 14px;
-  transition: background 0.15s, color 0.15s;
+.session-rail.collapsed {
+  width: 56px;
 }
-.nav-item:hover {
-  background: var(--sidebar-bg-hover);
-  color: var(--sidebar-text-bright);
-}
-.nav-item.active {
-  background: var(--sidebar-bg-hover);
-  color: var(--sidebar-text-bright);
+.session-rail.hidden {
+  width: 0 !important;
+  min-width: 0;
+  border: none;
+  pointer-events: none;
 }
 
-/* 对话历史 */
-.session-section {
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 8px;
-}
-.section-title {
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--sidebar-bg);
+.rail-header {
+  height: 48px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 0 14px;
+  border-bottom: 1px solid var(--color-hairline);
+}
+.session-rail.collapsed .rail-header {
+  justify-content: center;
+  padding: 0;
+}
+.rail-title {
   font-size: 12px;
-  font-weight: 500;
-  color: var(--color-mute);
-  padding: 8px 12px 4px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  user-select: none;
+  color: var(--color-mute);
 }
-.section-title-label {
-  flex: 1;
-  min-width: 0;
-}
-.section-title-actions {
+.rail-header-actions {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
-.section-title-search {
-  display: inline-flex;
+.session-rail.collapsed .rail-header-actions .rail-icon-btn:not(:last-child) {
+  display: none;
+}
+
+.btn-new-chat-rail {
+  display: flex;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--color-mute);
-  transition: background 0.15s, color 0.15s;
+  gap: 6px;
+  margin: 10px 10px 8px;
+  height: 36px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 8px;
+  background: var(--color-canvas-soft);
+  color: var(--color-ink);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
 }
-.section-title-search:hover {
-  background: var(--sidebar-bg-hover);
-  color: var(--sidebar-text-bright);
+.btn-new-chat-rail:hover {
+  border-color: var(--color-ink);
+  background: var(--color-canvas);
 }
-.section-title:hover {
-  color: var(--color-mute);
+.session-rail.collapsed .btn-new-chat-rail {
+  margin: 10px 8px;
+  padding: 0;
 }
-.collapse-icon {
-  font-size: 10px;
-  color: var(--color-mute);
-  transition: transform 0.24s ease;
-}
-.collapse-icon.is-expanded {
-  transform: rotate(180deg);
+
+.session-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 8px 12px;
 }
 .session-list {
-  position: relative;
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding-bottom: 8px;
 }
 .session-item {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px 8px 12px;
-  border-radius: 6px;
-  border-left: 2px solid transparent;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s;
 }
 .session-item:hover {
-  background: var(--sidebar-bg-hover);
+  background: var(--color-canvas-soft-2);
 }
 .session-item.active {
-  background: var(--sidebar-bg-hover);
+  background: var(--color-canvas-soft-2);
+  border-color: var(--color-hairline);
 }
 .session-item--pinned {
-  background: rgba(99, 102, 241, 0.1);
-  border-left-color: #6366f1;
-}
-.session-item--pinned:hover {
-  background: rgba(99, 102, 241, 0.16);
+  background: rgba(99, 102, 241, 0.06);
 }
 .session-item--pinned.active {
-  background: rgba(99, 102, 241, 0.22);
+  border-color: rgba(99, 102, 241, 0.35);
 }
 .session-title {
   flex: 1;
@@ -877,44 +885,37 @@ watch(sessionLoadMoreRef, (el) => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
-  color: var(--sidebar-text);
-}
-.session-item--pinned .session-title {
-  color: var(--sidebar-text-bright);
-  font-weight: 500;
+  color: var(--color-ink);
 }
 .session-time {
   flex-shrink: 0;
   font-size: 11px;
   color: var(--color-mute);
-  white-space: nowrap;
 }
 .session-pin-icon {
   flex-shrink: 0;
   font-size: 12px;
   color: #818cf8;
-  opacity: 0.95;
 }
 .session-more {
   opacity: 0;
   color: var(--color-mute);
   font-size: 14px;
-  transition: opacity 0.15s;
-  cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
-}
-.session-more:hover {
-  background: var(--sidebar-border);
-  color: var(--sidebar-text);
+  transition: opacity 0.15s;
 }
 .session-item:hover .session-more {
   opacity: 1;
 }
+.session-more:hover {
+  background: var(--color-canvas-soft-3);
+  color: var(--color-ink);
+}
 .session-empty {
-  padding: 12px;
+  padding: 24px 12px;
   font-size: 13px;
-  color: var(--color-body);
+  color: var(--color-mute);
   text-align: center;
 }
 .session-loading-more {
@@ -932,53 +933,14 @@ watch(sessionLoadMoreRef, (el) => {
   height: 1px;
 }
 
-/* 用户信息 */
-.sidebar-footer {
-  flex-shrink: 0;
-  background: var(--sidebar-bg);
-  padding: 12px;
-  border-top: 1px solid var(--sidebar-border);
-  margin-top: auto;
-}
-.user-info {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.user-info:hover {
-  background: var(--sidebar-bg-hover);
-}
-.user-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  background: #0070f3;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-.user-avatar-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.user-name {
+.main-content {
   flex: 1;
-  font-size: 13px;
-  color: var(--sidebar-text);
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: var(--color-canvas);
 }
+
 .menu-item-with-badge {
   display: flex;
   align-items: center;
@@ -1031,43 +993,21 @@ watch(sessionLoadMoreRef, (el) => {
   color: var(--color-mute);
   background: var(--color-canvas-soft-2);
   border-radius: 10px;
-  white-space: nowrap;
 }
 .user-info-meta {
-  display: flex;
-  gap: 10px;
   font-size: 12px;
   color: var(--color-mute);
 }
 
-/* 收起/展开按钮 */
-.sidebar-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-.sidebar-toggle {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: var(--color-body);
-  font-size: 14px;
-  border-radius: 6px;
-  flex-shrink: 0;
-  transition: background 0.15s, color 0.15s;
-}
-.sidebar-toggle:hover {
-  background: var(--sidebar-bg-hover);
-  color: var(--color-mute);
-}
-
-/* ===== 主内容区 ===== */
-.main-content {
-  flex: 1;
-  overflow: hidden;
-  background: var(--color-canvas);
+@media (max-width: 960px) {
+  .top-nav-item span {
+    display: none;
+  }
+  .top-nav-item {
+    padding: 0 10px;
+  }
+  .user-name {
+    display: none;
+  }
 }
 </style>

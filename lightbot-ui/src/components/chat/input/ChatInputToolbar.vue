@@ -7,21 +7,42 @@
           系统里还没有智能体，<router-link to="/app/agents">点击创建智能体</router-link>
         </div>
       </template>
-      <button type="button" class="btn-agent">
-        <RobotOutlined />
+      <button type="button" class="btn-agent-chip" :disabled="loading">
+        <span class="btn-agent-avatar-wrap">
+          <RobotOutlined />
+        </span>
+        <span class="btn-agent-chip-name">选择智能体</span>
+        <DownOutlined class="btn-agent-chevron" />
       </button>
     </a-popover>
-    <!-- Agent 列表不为空时正常下拉 -->
-    <a-dropdown v-else :trigger="['click']" placement="topLeft">
-      <a-tooltip :title="currentAgent?.name || '选择 Agent'">
-        <button type="button" class="btn-agent">
+    <!-- 整块芯片可点击切换智能体 -->
+    <a-dropdown
+      v-else
+      :trigger="['click']"
+      placement="topLeft"
+      :disabled="loading"
+      :getPopupContainer="getPopupContainer"
+    >
+      <button
+        type="button"
+        class="btn-agent-chip"
+        :disabled="loading"
+        :title="currentAgent?.name ? `当前：${currentAgent.name}（点击切换）` : '选择智能体'"
+      >
+        <span class="btn-agent-avatar-wrap">
           <RobotOutlined v-if="!currentAgent" />
           <img v-else-if="currentAgent.avatar" :src="currentAgent.avatar" alt="" class="btn-agent-avatar" />
-          <span v-else class="btn-agent-initial" :style="agentIconStyle(currentAgent?.agentType)">{{ currentAgent.name[0] }}</span>
-        </button>
-      </a-tooltip>
+          <span v-else class="btn-agent-initial" :style="agentIconStyle(currentAgent?.agentType)">{{ currentAgent.name?.[0] || 'A' }}</span>
+        </span>
+        <span class="btn-agent-chip-name">{{ currentAgent?.name || '选择智能体' }}</span>
+        <DownOutlined class="btn-agent-chevron" />
+      </button>
       <template #overlay>
-        <a-menu @click="onAgentSelect" :selectedKeys="selectedAgentId ? [String(selectedAgentId)] : []">
+        <a-menu
+          class="agent-switch-menu"
+          :selectedKeys="selectedAgentId ? [String(selectedAgentId)] : []"
+          @click="onAgentSelect"
+        >
           <a-menu-item v-for="a in agents" :key="String(a.id)">
             <div class="agent-menu-item">
               <img v-if="a.avatar" :src="a.avatar" alt="" class="agent-menu-icon" />
@@ -34,7 +55,6 @@
         </a-menu>
       </template>
     </a-dropdown>
-    <span v-if="currentAgent?.name" class="chat-toolbar-agent-name">{{ currentAgent.name }}</span>
     <a-select
       v-if="selectedAgentId && configVersionOptions.length > 0"
       :value="selectedConfigVersion"
@@ -67,7 +87,7 @@
 </template>
 
 <script setup>
-import { RobotOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
+import { RobotOutlined, ThunderboltOutlined, DownOutlined } from '@ant-design/icons-vue'
 import { agentAvatarGradient } from '../../../utils/bindingTheme'
 
 defineProps({
@@ -81,6 +101,10 @@ defineProps({
 })
 
 const emit = defineEmits(['agent-select', 'config-version-change'])
+
+function getPopupContainer() {
+  return document.body
+}
 
 function agentIconStyle(agentType) {
   return { background: agentAvatarGradient(agentType) }
@@ -120,44 +144,52 @@ function onConfigVersionChange(value) {
   border-bottom: 1px solid var(--color-hairline);
   position: relative;
 }
-.chat-toolbar-agent-name {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-ink);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
-/* Agent 选择按钮 */
-.btn-agent {
-  width: 36px;
+/* Agent 切换芯片：头像 + 名称 + 箭头，整块可点 */
+.btn-agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(360px, 52vw);
   height: 36px;
-  border-radius: 8px;
-  border: none;
-  background: var(--color-canvas-soft-2);
-  color: var(--color-mute);
+  padding: 0 10px 0 4px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 999px;
+  background: var(--color-canvas);
+  color: var(--color-ink);
   cursor: pointer;
-  display: flex;
+  flex-shrink: 1;
+  min-width: 0;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.btn-agent-chip:hover:not(:disabled) {
+  border-color: var(--color-hairline-strong);
+  background: var(--color-canvas-soft);
+}
+.btn-agent-chip:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.btn-agent-avatar-wrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  font-size: 16px;
-  transition: background 0.15s;
-  overflow: hidden;
-}
-.btn-agent:hover {
-  background: var(--color-hairline);
+  background: var(--color-canvas-soft-2);
+  color: var(--color-mute);
+  font-size: 14px;
 }
 .btn-agent-avatar {
-  width: 36px;
-  height: 36px;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
 }
 .btn-agent-initial {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: #fff;
   display: flex;
@@ -167,13 +199,27 @@ function onConfigVersionChange(value) {
   height: 100%;
   line-height: 1;
 }
+.btn-agent-chip-name {
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.btn-agent-chevron {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--color-mute);
+}
 
 /* Agent 下拉菜单项 */
 .agent-menu-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 160px;
+  min-width: 200px;
+  max-width: 320px;
 }
 .agent-menu-icon {
   width: 24px;
@@ -189,10 +235,6 @@ span.agent-menu-icon {
   font-size: 11px;
   font-weight: 600;
   line-height: 1;
-  color: #fff;
-}
-.agent-menu-icon.default-icon {
-  background: #0070f3;
   color: #fff;
 }
 .agent-menu-name {
