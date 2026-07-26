@@ -111,15 +111,46 @@
         v-model:open="renameVisible"
         title="重命名对话"
         :width="400"
+        wrap-class-name="rename-session-modal"
+        ok-text="确定"
+        cancel-text="取消"
+        :mask-closable="true"
+        destroy-on-close
         @ok="confirmRename"
-        @cancel="renameVisible = false"
+        @cancel="closeRename"
       >
-        <a-input
-          v-model:value="renameValue"
-          placeholder="请输入新名称"
-          @press-enter="confirmRename"
-          :maxlength="50"
-        />
+        <div class="rename-session-body">
+          <a-input
+            v-model:value="renameValue"
+            placeholder="请输入会话名称"
+            :maxlength="SESSION_TITLE_MAX"
+            show-count
+            allow-clear
+            @press-enter="confirmRename"
+          />
+        </div>
+      </a-modal>
+
+      <!-- 导出会话弹窗 -->
+      <a-modal
+        v-model:open="exportVisible"
+        title="导出会话"
+        :width="420"
+        ok-text="导出"
+        cancel-text="取消"
+        :confirm-loading="exportLoading"
+        :mask-closable="true"
+        destroy-on-close
+        @ok="confirmExport"
+        @cancel="closeExport"
+      >
+        <div class="export-session-body">
+          <p class="export-session-hint">选择导出格式</p>
+          <a-radio-group v-model:value="exportFormat" class="export-format-group">
+            <a-radio value="markdown">Markdown（.md）</a-radio>
+            <a-radio value="json">JSON（.json）</a-radio>
+          </a-radio-group>
+        </div>
       </a-modal>
 
       <!-- 跨会话搜索弹窗 -->
@@ -283,6 +314,12 @@ let sessionObserver = null
 const renameVisible = ref(false)
 const renameValue = ref('')
 const renameTarget = ref(null)
+/** 与后端 ChatSession.title @Size(max=50) 对齐 */
+const SESSION_TITLE_MAX = 50
+const exportVisible = ref(false)
+const exportTarget = ref(null)
+const exportFormat = ref('markdown')
+const exportLoading = ref(false)
 const conversationSearchOpen = ref(false)
 const userDropdownOpen = ref(false)
 const sessionsCollapsed = ref(false)
@@ -423,15 +460,30 @@ function handleSessionMenu(key, session) {
   }
 }
 
-async function handleExportSession(session) {
-  Modal.confirm({
-    title: '导出会话',
-    content: '选择导出格式',
-    okText: 'Markdown',
-    cancelText: 'JSON',
-    onOk: () => doExportSession(session.id, 'markdown', session.title),
-    onCancel: () => doExportSession(session.id, 'json', session.title),
-  })
+function handleExportSession(session) {
+  exportTarget.value = session
+  exportFormat.value = 'markdown'
+  exportVisible.value = true
+}
+
+function closeExport() {
+  exportVisible.value = false
+  exportTarget.value = null
+}
+
+async function confirmExport() {
+  if (!exportTarget.value || exportLoading.value) return
+  exportLoading.value = true
+  try {
+    const ok = await doExportSession(
+      exportTarget.value.id,
+      exportFormat.value,
+      exportTarget.value.title,
+    )
+    if (ok) closeExport()
+  } finally {
+    exportLoading.value = false
+  }
 }
 
 async function doExportSession(id, format, title) {
@@ -446,8 +498,10 @@ async function doExportSession(id, format, title) {
     a.click()
     URL.revokeObjectURL(url)
     message.success('导出成功')
+    return true
   } catch {
     message.error('导出失败')
+    return false
   }
 }
 
@@ -484,8 +538,15 @@ function handleDeleteSession(session) {
 
 function startRename(session) {
   renameTarget.value = session
-  renameValue.value = session.title || ''
+  // 打开时截断超长历史标题，避免回填超过上限
+  const raw = session.title || ''
+  renameValue.value = raw.length > SESSION_TITLE_MAX ? raw.slice(0, SESSION_TITLE_MAX) : raw
   renameVisible.value = true
+}
+
+function closeRename() {
+  renameVisible.value = false
+  renameTarget.value = null
 }
 
 function openConversationSearch() {
@@ -500,7 +561,14 @@ function handleConversationSearchPick(item) {
 
 async function confirmRename() {
   const val = renameValue.value.trim()
-  if (!val) return
+  if (!val) {
+    message.warning('会话名称不能为空')
+    return
+  }
+  if (val.length > SESSION_TITLE_MAX) {
+    message.warning(`会话名称不超过 ${SESSION_TITLE_MAX} 字`)
+    return
+  }
   if (renameTarget.value) {
     const oldTitle = renameTarget.value.title
     renameTarget.value.title = val
@@ -509,9 +577,10 @@ async function confirmRename() {
     } catch {
       renameTarget.value.title = oldTitle
       message.error('重命名失败')
+      return
     }
   }
-  renameVisible.value = false
+  closeRename()
 }
 
 function handleCommand({ key }) {
@@ -1069,5 +1138,30 @@ watch(sessionLoadMoreRef, (el) => {
   flex: 1;
   overflow: hidden;
   background: var(--color-canvas);
+}
+
+/* 导出会话弹窗 */
+.export-session-body {
+  padding: 4px 0 8px;
+}
+.export-session-hint {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--color-body);
+}
+.export-format-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* 重命名弹窗：单输入场景去掉全局 min-height 造成的大块空白 */
+:global(.rename-session-modal .ant-modal-body) {
+  min-height: 0;
+  padding-top: 12px;
+  padding-bottom: 4px;
+}
+.rename-session-body {
+  padding: 0;
 }
 </style>
