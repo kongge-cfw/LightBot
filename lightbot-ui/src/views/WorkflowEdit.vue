@@ -26,8 +26,7 @@
       @exit-test-history="backToLiveTest"
       @save-draft="saveDraft"
       @open-publish="openPublishModal"
-      @open-dify-import="openDifyImportModal"
-      @open-dify-export="openDifyExportModal"
+      @open-dify-workspace="openDifyWorkspace"
     />
 
     <!-- 加载遮罩 -->
@@ -210,6 +209,72 @@
     />
 
     <WorkflowNodeHelpModal v-model:open="nodeHelpVisible" />
+
+    <a-modal v-model:open="difyDialogVisible" title="Dify 工作流互通" :width="720" :footer="null">
+      <a-tabs v-model:active-key="difyActiveTab" @change="onDifyTabChange">
+        <a-tab-pane key="import" tab="导入 Dify">
+          <a-alert type="info" show-icon class="dify-modal-intro">
+            <template #message>导入逻辑说明</template>
+            <template #description>
+              上传 Dify Workflow YAML 后先预检，再写入当前草稿。常见节点会转换为 LightBot 节点；没有等价运行时的节点将保留已脱敏的 Dify 原始结构，确保可以再次导出。模型、知识库、工具和认证需要重新绑定，导入不会覆盖已发布版本。
+            </template>
+          </a-alert>
+          <a-upload :max-count="1" accept=".yml,.yaml" :before-upload="selectDifyImportFile" :file-list="difyImportFileList" @remove="clearDifyImportFile">
+            <a-button><UploadOutlined /> 选择 Dify YAML</a-button>
+          </a-upload>
+          <a-spin :spinning="difyImportLoading">
+            <div v-if="difyImportPreview" class="dify-preview-summary">
+              <a-descriptions size="small" :column="3" bordered>
+                <a-descriptions-item label="应用">{{ difyImportPreview.appName || '-' }}</a-descriptions-item>
+                <a-descriptions-item label="节点">{{ difyImportPreview.nodeCount }}</a-descriptions-item>
+                <a-descriptions-item label="连线">{{ difyImportPreview.edgeCount }}</a-descriptions-item>
+              </a-descriptions>
+              <div v-if="difyImportPreview.issues?.length" class="dify-issue-list">
+                <div v-for="issue in difyImportPreview.issues" :key="`dialog-import-${issue.code}-${issue.nodeId || 'global'}`" class="dify-issue-item">
+                  <a-tag :color="issue.severity === 'BLOCKER' ? 'red' : issue.severity === 'WARNING' ? 'gold' : 'blue'">{{ issue.severity }}</a-tag>
+                  <span>{{ issue.nodeId ? `[${issue.nodeId}] ` : '' }}{{ issue.message }}</span>
+                </div>
+              </div>
+              <a-alert v-else type="success" show-icon message="预检通过，可导入到当前草稿" />
+            </div>
+          </a-spin>
+          <div class="dify-modal-footer">
+            <a-button @click="difyDialogVisible = false">取消</a-button>
+            <a-button :disabled="!difyImportFile" :loading="difyImportLoading" @click="previewDifyImport">预检</a-button>
+            <a-button type="primary" :disabled="!canCommitDifyImport" :loading="difyImportCommitting" @click="commitDifyImport">确认导入</a-button>
+          </div>
+        </a-tab-pane>
+        <a-tab-pane key="export" tab="导出 Dify">
+          <a-alert type="info" show-icon class="dify-modal-intro">
+            <template #message>导出逻辑说明</template>
+            <template #description>
+              导出服务器已保存的当前草稿，不调用 Dify API。节点会按 Dify DSL 映射，从 Dify 导入的节点将保留已脱敏的原始结构。API Key、Token、密码、认证等敏感信息不会写入 YAML；知识库、工具、MCP 和模型需在目标 Dify 环境重新绑定。
+            </template>
+          </a-alert>
+          <a-spin :spinning="difyExportLoading">
+            <div v-if="difyExportPreview" class="dify-preview-summary">
+              <a-descriptions size="small" :column="3" bordered>
+                <a-descriptions-item label="节点">{{ difyExportPreview.nodeCount }}</a-descriptions-item>
+                <a-descriptions-item label="连线">{{ difyExportPreview.edgeCount }}</a-descriptions-item>
+                <a-descriptions-item label="可导出">{{ difyExportPreview.exportableCount }}</a-descriptions-item>
+              </a-descriptions>
+              <div v-if="difyExportPreview.issues?.length" class="dify-issue-list">
+                <div v-for="issue in difyExportPreview.issues" :key="`dialog-export-${issue.code}-${issue.nodeId || 'global'}`" class="dify-issue-item">
+                  <a-tag :color="issue.severity === 'BLOCKER' ? 'red' : issue.severity === 'WARNING' ? 'gold' : 'blue'">{{ issue.severity }}</a-tag>
+                  <span>{{ issue.nodeId ? `[${issue.nodeId}] ` : '' }}{{ issue.message }}</span>
+                </div>
+              </div>
+              <a-alert v-else type="success" show-icon message="预检通过，可下载 Dify YAML" />
+            </div>
+          </a-spin>
+          <div class="dify-modal-footer">
+            <a-button @click="difyDialogVisible = false">取消</a-button>
+            <a-button :loading="difyExportLoading" @click="previewDifyExport">重新预检</a-button>
+            <a-button type="primary" :disabled="!canDownloadDifyExport" :loading="difyExportDownloading" @click="downloadDifyExport">下载 YAML</a-button>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
+    </a-modal>
 
     <a-modal v-model:open="difyImportVisible" title="导入 Dify Workflow" :width="680" :footer="null">
       <a-alert type="info" show-icon class="dify-modal-intro">
@@ -470,6 +535,8 @@ const saving = ref(false)
 const panelCollapsed = ref(false)
 const nodeSearch = ref('')
 const nodeHelpVisible = ref(false)
+const difyDialogVisible = ref(false)
+const difyActiveTab = ref('import')
 const difyImportVisible = ref(false)
 const difyExportVisible = ref(false)
 const difyImportFile = ref(null)
@@ -2650,12 +2717,18 @@ async function saveDraft() {
   }
 }
 
-function openDifyImportModal() {
+function openDifyWorkspace() {
   if (isVersionPreview.value) {
     message.warning('历史版本只读，请回到当前草稿后导入')
     return
   }
-  difyImportVisible.value = true
+  difyActiveTab.value = 'import'
+  difyDialogVisible.value = true
+}
+
+async function onDifyTabChange(tab) {
+  if (tab !== 'export' || isVersionPreview.value) return
+  await previewDifyExport()
 }
 
 function selectDifyImportFile(file) {
@@ -2704,6 +2777,7 @@ async function commitDifyImport() {
     applyWorkflowGraph(graph)
     await finalizeWorkflowGraphAfterLoad()
     workflowStatus.value = workflowStatus.value === 'published' ? 'published_editing' : 'draft'
+    difyDialogVisible.value = false
     difyImportVisible.value = false
     clearDifyImportFile()
     message.success('Dify 工作流已导入到当前草稿，请补齐待修复配置后再发布')

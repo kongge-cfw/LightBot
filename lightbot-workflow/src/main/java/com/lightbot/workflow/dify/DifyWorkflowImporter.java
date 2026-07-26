@@ -135,25 +135,37 @@ public class DifyWorkflowImporter {
             case "if-else" -> "condition";
             case "knowledge-retrieval" -> "retrieval";
             case "question-classifier" -> "classifier";
-            default -> null;
+            case "code", "document-extractor" -> "script";
+            case "http-request" -> "api";
+            case "tool" -> "tool";
+            case "iteration" -> "loop";
+            case "assigner" -> "variable";
+            case "template-transform", "variable-aggregator", "list-operator" -> "variable_handle";
+            case "parameter-extractor" -> "parameter_extractor";
+            case "answer" -> "output";
+            case "agent" -> "app_component";
+            case "mcp" -> "mcp";
+            default -> "script";
         };
-        if (lightBotType == null) {
-            addIssue(issues, "BLOCKER", "UNSUPPORTED_NODE", id, "暂不支持导入 Dify 节点：" + difyType);
-            return null;
-        }
 
         Map<String, Object> node = new LinkedHashMap<>();
         node.put("id", id);
         node.put("type", lightBotType);
         node.put("position", normalizePosition(mapValue(difyNode.get("position"))));
-        node.put("data", mapNodeData(lightBotType, sourceData, issues, id));
+        node.put("data", mapNodeData(lightBotType, difyType, sourceData, issues, id));
+        if (!isKnownDifyType(difyType)) {
+            addIssue(issues, "REPAIR_REQUIRED", "PASSTHROUGH_NODE", id,
+                    "LightBot 暂无等价运行时节点，已作为脚本占位导入；再次导出会保留原始 Dify 节点配置");
+        }
         return node;
     }
 
-    private Map<String, Object> mapNodeData(String type, Map<String, Object> sourceData,
+    private Map<String, Object> mapNodeData(String type, String difyType, Map<String, Object> sourceData,
                                              List<DifyWorkflowIssueVO> issues, String nodeId) {
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("label", defaultValue(stringValue(sourceData.get("title")), nodeTitle(type)));
+        data.put("difySourceType", difyType);
+        data.put("difySourceData", sanitizeDifyData(sourceData, issues, nodeId));
         switch (type) {
             case "llm" -> mapLlmData(sourceData, data, issues, nodeId);
             case "condition" -> mapConditionData(sourceData, data);
@@ -167,10 +179,113 @@ public class DifyWorkflowImporter {
                         "请在 LightBot 中重新选择知识库");
             }
             case "classifier" -> mapClassifierData(sourceData, data, issues, nodeId);
+            case "script" -> mapScriptData(sourceData, data);
+            case "api" -> mapApiData(sourceData, data, issues, nodeId);
+            case "tool" -> mapToolData(sourceData, data, issues, nodeId);
+            case "loop" -> mapLoopData(sourceData, data, issues, nodeId);
+            case "variable" -> mapVariableData(sourceData, data);
+            case "variable_handle" -> mapVariableHandleData(sourceData, data);
+            case "parameter_extractor" -> mapParameterExtractorData(sourceData, data, issues, nodeId);
+            case "output" -> data.put("output", defaultValue(stringValue(sourceData.get("answer")), "{{input}}"));
+            case "app_component" -> mapAppComponentData(sourceData, data, issues, nodeId);
+            case "mcp" -> mapMcpData(sourceData, data, issues, nodeId);
             case "end" -> data.put("textTemplate", "{{output}}");
             default -> { }
         }
         return data;
+    }
+
+    private void mapScriptData(Map<String, Object> sourceData, Map<String, Object> data) {
+        data.put("scriptLanguage", defaultValue(stringValue(sourceData.get("code_language")), "javascript"));
+        data.put("scriptContent", stringValue(sourceData.get("code")));
+        data.put("inputParams", mapInputParameters(sourceData.get("variables")));
+        data.put("outputParams", mapOutputParameters(sourceData.get("outputs")));
+    }
+
+    private void mapApiData(Map<String, Object> sourceData, Map<String, Object> data,
+                            List<DifyWorkflowIssueVO> issues, String nodeId) {
+        data.put("url", stringValue(sourceData.get("url")));
+        data.put("method", defaultValue(stringValue(sourceData.get("method")), "GET").toUpperCase());
+        data.put("headers", "{}");
+        data.put("body", "{}");
+        addIssue(issues, "REPAIR_REQUIRED", "HTTP_AUTH_REBIND_REQUIRED", nodeId,
+                "HTTP 节点已导入；认证信息不会迁移，请在 LightBot 中重新配置请求头或认证");
+    }
+
+    private void mapToolData(Map<String, Object> sourceData, Map<String, Object> data,
+                             List<DifyWorkflowIssueVO> issues, String nodeId) {
+        data.put("toolId", null);
+        data.put("toolName", defaultValue(stringValue(sourceData.get("tool_name")), stringValue(sourceData.get("title"))));
+        data.put("inputMappings", mapInputParameters(sourceData.get("tool_parameters")));
+        data.put("outputMappings", List.of(Map.of("key", "toolResult", "value", "{{output}}")));
+        addIssue(issues, "REPAIR_REQUIRED", "TOOL_BINDING_REQUIRED", nodeId,
+                "工具节点已导入；请在 LightBot 中重新选择本地工具或 MCP 工具");
+    }
+
+    private void mapLoopData(Map<String, Object> sourceData, Map<String, Object> data,
+                             List<DifyWorkflowIssueVO> issues, String nodeId) {
+        String iterator = selectorToVariable(sourceData.get("iterator_selector"));
+        data.put("iterator_type", "byArray");
+        data.put("arrayVariable", iterator);
+        data.put("input_params", List.of(Map.of("key", "item", "type", "Object", "value_from", "refer", "value", iterator)));
+        data.put("output_params", List.of(Map.of("key", "result", "type", "Object")));
+        data.put("count_limit", numberValue(sourceData.get("max_count"), 100));
+        addIssue(issues, "REPAIR_REQUIRED", "ITERATION_LAYOUT_REVIEW_REQUIRED", nodeId,
+                "迭代节点已导入；请检查 LightBot 画布中的循环体和变量引用");
+    }
+
+    private void mapVariableData(Map<String, Object> sourceData, Map<String, Object> data) {
+        List<Map<String, Object>> items = mapList(sourceData.get("items"));
+        if (!items.isEmpty()) {
+            Map<String, Object> item = items.get(0);
+            data.put("variableName", selectorToName(item.get("variable_selector")));
+            data.put("variableValue", defaultValue(stringValue(item.get("input")), selectorToVariable(item.get("input_variable_selector"))));
+            return;
+        }
+        data.put("variableName", stringValue(sourceData.get("variable_name")));
+        data.put("variableValue", stringValue(sourceData.get("value")));
+    }
+
+    private void mapVariableHandleData(Map<String, Object> sourceData, Map<String, Object> data) {
+        data.put("handleType", "template-transform".equals(stringValue(sourceData.get("type"))) ? "template" : "group");
+        data.put("templateContent", defaultValue(stringValue(sourceData.get("template")), "{{input}}"));
+        data.put("groupStrategy", "firstNotNull");
+        data.put("groups", List.of(Map.of("variables", List.of())));
+    }
+
+    private void mapParameterExtractorData(Map<String, Object> sourceData, Map<String, Object> data,
+                                           List<DifyWorkflowIssueVO> issues, String nodeId) {
+        Map<String, Object> model = mapValue(sourceData.get("model"));
+        data.put("providerId", null);
+        data.put("providerName", stringValue(model.get("provider")));
+        data.put("modelId", null);
+        data.put("modelName", stringValue(model.get("name")));
+        data.put("inputVariable", selectorToVariable(sourceData.get("query")));
+        data.put("instruction", stringValue(sourceData.get("instruction")));
+        data.put("extractParams", mapOutputParameters(sourceData.get("parameters")));
+        addIssue(issues, "REPAIR_REQUIRED", "MODEL_BINDING_REQUIRED", nodeId,
+                "参数提取节点已导入；请在 LightBot 中重新选择模型");
+    }
+
+    private void mapAppComponentData(Map<String, Object> sourceData, Map<String, Object> data,
+                                     List<DifyWorkflowIssueVO> issues, String nodeId) {
+        data.put("componentCode", stringValue(sourceData.get("app_id")));
+        data.put("componentName", defaultValue(stringValue(sourceData.get("title")), "Dify Agent"));
+        data.put("componentType", "workflow");
+        data.put("inputMappings", List.of(Map.of("key", "query", "value", "{{query}}")));
+        data.put("outputMappings", List.of(Map.of("key", "result", "value", "{{result}}")));
+        addIssue(issues, "REPAIR_REQUIRED", "APP_COMPONENT_BINDING_REQUIRED", nodeId,
+                "Agent 节点已导入；请在 LightBot 中重新绑定子工作流或 Agent");
+    }
+
+    private void mapMcpData(Map<String, Object> sourceData, Map<String, Object> data,
+                            List<DifyWorkflowIssueVO> issues, String nodeId) {
+        data.put("mcpServerId", null);
+        data.put("mcpServerName", stringValue(sourceData.get("provider_id")));
+        data.put("toolName", stringValue(sourceData.get("tool_name")));
+        data.put("inputParams", "{}");
+        addIssue(issues, "REPAIR_REQUIRED", "MCP_BINDING_REQUIRED", nodeId,
+                "MCP 节点已导入；请在 LightBot 中重新选择 MCP Server 和工具");
     }
 
     private void mapLlmData(Map<String, Object> sourceData, Map<String, Object> data,
@@ -339,6 +454,106 @@ public class DifyWorkflowImporter {
             return "{{" + defaultValue(last, "query") + "}}";
         }
         return "{{query}}";
+    }
+
+    private String selectorToName(Object selector) {
+        if (selector instanceof List<?> list && !list.isEmpty()) {
+            return stringValue(list.get(list.size() - 1));
+        }
+        return "";
+    }
+
+    private List<Map<String, Object>> mapInputParameters(Object source) {
+        List<Map<String, Object>> parameters = new ArrayList<>();
+        if (source instanceof Map<?, ?> map) {
+            castMap(map).forEach((key, value) -> parameters.add(Map.of("key", key,
+                    "value", value instanceof List<?> ? selectorToVariable(value) : stringValue(value))));
+            return parameters;
+        }
+        for (Map<String, Object> parameter : mapList(source)) {
+            String key = defaultValue(stringValue(parameter.get("variable")), stringValue(parameter.get("name")));
+            if (key.isBlank()) {
+                continue;
+            }
+            Object value = parameter.containsKey("value") ? parameter.get("value")
+                    : parameter.get("value_selector");
+            parameters.add(Map.of("key", key, "value", value instanceof List<?> ? selectorToVariable(value) : stringValue(value)));
+        }
+        return parameters;
+    }
+
+    private List<Map<String, Object>> mapOutputParameters(Object source) {
+        List<Map<String, Object>> parameters = new ArrayList<>();
+        if (source instanceof Map<?, ?> map) {
+            castMap(map).forEach((key, value) -> parameters.add(Map.of("key", key,
+                    "type", defaultValue(stringValue(value), "String"))));
+            return parameters;
+        }
+        for (Map<String, Object> parameter : mapList(source)) {
+            String key = defaultValue(stringValue(parameter.get("name")), stringValue(parameter.get("key")));
+            if (key.isBlank()) {
+                continue;
+            }
+            Map<String, Object> output = new LinkedHashMap<>();
+            output.put("key", key);
+            output.put("type", defaultValue(stringValue(parameter.get("type")), "String"));
+            output.put("required", Boolean.TRUE.equals(parameter.get("required")));
+            output.put("desc", defaultValue(stringValue(parameter.get("description")), stringValue(parameter.get("desc"))));
+            parameters.add(output);
+        }
+        return parameters;
+    }
+
+    private Map<String, Object> sanitizeDifyData(Map<String, Object> sourceData,
+                                                  List<DifyWorkflowIssueVO> issues, String nodeId) {
+        boolean[] removed = {false};
+        @SuppressWarnings("unchecked")
+        Map<String, Object> sanitized = (Map<String, Object>) sanitizeDifyValue(sourceData, "", removed);
+        if (removed[0]) {
+            addIssue(issues, "REPAIR_REQUIRED", "SENSITIVE_CONFIG_REMOVED", nodeId,
+                    "导入时已移除 Dify 节点中的凭证或密钥，导出后请在目标 Dify 环境重新配置");
+        }
+        return sanitized;
+    }
+
+    private Object sanitizeDifyValue(Object value, String key, boolean[] removed) {
+        if (isSensitiveKey(key)) {
+            removed[0] = true;
+            return null;
+        }
+        if (value instanceof Map<?, ?> map) {
+            Map<String, Object> result = new LinkedHashMap<>();
+            castMap(map).forEach((childKey, childValue) -> {
+                if (isSensitiveKey(childKey)) {
+                    removed[0] = true;
+                    return;
+                }
+                result.put(childKey, sanitizeDifyValue(childValue, childKey, removed));
+            });
+            return result;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> result = new ArrayList<>();
+            for (Object item : list) {
+                result.add(sanitizeDifyValue(item, key, removed));
+            }
+            return result;
+        }
+        return value;
+    }
+
+    private boolean isSensitiveKey(String key) {
+        String normalized = key == null ? "" : key.toLowerCase().replaceAll("[^a-z]", "");
+        return normalized.contains("apikey") || normalized.contains("secret") || normalized.contains("token")
+                || normalized.contains("password") || normalized.contains("credential")
+                || normalized.contains("authorization");
+    }
+
+    private boolean isKnownDifyType(String type) {
+        return Set.of("start", "end", "llm", "if-else", "knowledge-retrieval", "question-classifier",
+                "code", "document-extractor", "http-request", "tool", "iteration", "assigner",
+                "template-transform", "variable-aggregator", "list-operator", "parameter-extractor",
+                "answer", "agent", "mcp").contains(type);
     }
 
     private String selectorName(Map<String, Object> variable) {
