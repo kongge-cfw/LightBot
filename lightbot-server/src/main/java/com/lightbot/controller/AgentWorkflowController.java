@@ -2,6 +2,9 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.WorkflowGraphDTO;
+import com.lightbot.dto.DifyWorkflowExportPreviewVO;
+import com.lightbot.dto.DifyWorkflowExportResult;
+import com.lightbot.dto.DifyWorkflowImportPreviewVO;
 import com.lightbot.dto.WorkflowNodeTestDTO;
 import com.lightbot.dto.WorkflowAbandonDTO;
 import com.lightbot.dto.WorkflowResumeDTO;
@@ -16,9 +19,15 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 
@@ -44,6 +53,40 @@ public class AgentWorkflowController {
     public Result<Void> saveDraft(@PathVariable Long agentId, @RequestBody WorkflowGraphDTO graph) {
         workflowConfigService.saveDraft(agentId, graph);
         return Result.ok();
+    }
+
+    @Operation(summary = "预检Dify工作流导入")
+    @PostMapping(value = "/import/dify/preview", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<DifyWorkflowImportPreviewVO> previewDifyImport(
+            @PathVariable Long agentId,
+            @RequestPart("file") MultipartFile file) throws IOException {
+        return Result.ok(workflowConfigService.previewDifyImport(agentId, readUtf8File(file)));
+    }
+
+    @Operation(summary = "导入Dify工作流到当前草稿")
+    @PostMapping(value = "/import/dify", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public Result<DifyWorkflowImportPreviewVO> importDifyWorkflow(
+            @PathVariable Long agentId,
+            @RequestPart("file") MultipartFile file) throws IOException {
+        return Result.ok(workflowConfigService.importDifyWorkflow(agentId, readUtf8File(file)));
+    }
+
+    @Operation(summary = "预检Dify工作流导出")
+    @GetMapping("/export/dify/preview")
+    public Result<DifyWorkflowExportPreviewVO> previewDifyExport(@PathVariable Long agentId) {
+        return Result.ok(workflowConfigService.previewDifyExport(agentId));
+    }
+
+    @Operation(summary = "导出当前草稿为Dify YAML")
+    @GetMapping(value = "/export/dify", produces = "application/x-yaml")
+    public ResponseEntity<ByteArrayResource> exportDifyWorkflow(@PathVariable Long agentId) {
+        DifyWorkflowExportResult result = workflowConfigService.exportDifyWorkflow(agentId);
+        ByteArrayResource resource = new ByteArrayResource(result.getContent().getBytes(StandardCharsets.UTF_8));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + result.getFileName() + "\"")
+                .contentType(MediaType.parseMediaType("application/x-yaml"))
+                .contentLength(resource.contentLength())
+                .body(resource);
     }
 
     @Operation(summary = "发布工作流（需通过校验）")
@@ -162,5 +205,16 @@ public class AgentWorkflowController {
     public Result<Void> clearTestRuns(@PathVariable Long agentId) {
         workflowConfigService.clearTestRuns(agentId);
         return Result.ok();
+    }
+
+    private String readUtf8File(MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("请选择 Dify YAML 文件");
+        }
+        String fileName = file.getOriginalFilename();
+        if (fileName == null || (!fileName.endsWith(".yml") && !fileName.endsWith(".yaml"))) {
+            throw new IllegalArgumentException("仅支持 .yml 或 .yaml 文件");
+        }
+        return new String(file.getBytes(), StandardCharsets.UTF_8);
     }
 }

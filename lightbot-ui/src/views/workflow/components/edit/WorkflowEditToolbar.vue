@@ -64,6 +64,12 @@
             <UndoOutlined /> 撤回
           </a-button>
         </WorkflowTooltip>
+        <a-button type="default" @click="$emit('open-dify-import')">
+          <ImportOutlined /> 导入 Dify
+        </a-button>
+        <a-button type="default" @click="$emit('open-dify-export')">
+          <ExportOutlined /> 导出 Dify
+        </a-button>
         <a-button type="default" @click="$emit('open-global-config')">
           <SettingOutlined /> 全局设置
         </a-button>
@@ -89,6 +95,7 @@ import {
   ArrowLeftOutlined, SaveOutlined, CheckCircleOutlined, ExclamationCircleOutlined,
   DownOutlined, UndoOutlined, AuditOutlined, RollbackOutlined, ApartmentOutlined,
   SettingOutlined, PlayCircleOutlined, HistoryOutlined, CloudUploadOutlined,
+  ImportOutlined, ExportOutlined,
 } from '@ant-design/icons-vue'
 import WorkflowTooltip from '../WorkflowTooltip.vue'
 
@@ -112,7 +119,7 @@ defineProps({
 defineEmits([
   'back', 'format-layout', 'validate', 'back-to-draft', 'open-version',
   'undo', 'open-global-config', 'open-test', 'save-draft', 'open-publish',
-  'exit-test-history',
+  'exit-test-history', 'open-dify-import', 'open-dify-export',
 ])
 </script>
 
