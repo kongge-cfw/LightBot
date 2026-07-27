@@ -610,10 +610,6 @@ defineExpose({ openDialog, search, refresh, openImportModal, openRemoteInstallMo
 .help-icon:hover {
   color: #db2777;
 }
-.guide {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 .guide-section {
   margin-bottom: 20px;
 }

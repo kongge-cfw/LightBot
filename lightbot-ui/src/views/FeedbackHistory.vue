@@ -4,7 +4,8 @@
     title="反馈记录"
     :footer="null"
     width="760px"
-    :bodyStyle="{ padding: '0' }"
+    wrap-class-name="feedback-history-modal"
+    :bodyStyle="{ padding: '0', overflow: 'hidden' }"
     @update:open="$emit('update:open', $event)"
   >
     <div class="feedback-page">

@@ -969,11 +969,6 @@ function truncate(str, len) {
   font-size: 14px;
   line-height: 1.8;
 }
-.restart-form-scroll {
-  max-height: 55vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
 .evaluator-config-block {
   background: var(--color-canvas-soft);
   border: 1px solid var(--color-hairline);
@@ -993,9 +988,7 @@ function truncate(str, len) {
   color: var(--color-ink);
 }
 .result-detail-scroll {
-  max-height: 65vh;
-  overflow-y: auto;
-  padding-right: 12px;
+  /* 滚动交给全局 .ant-modal-body，避免双滚动条 */
   display: flex;
   flex-direction: column;
   gap: 16px;

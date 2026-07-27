@@ -4,7 +4,8 @@
     title="收藏消息"
     :footer="null"
     width="760px"
-    :bodyStyle="{ padding: '0' }"
+    wrap-class-name="starred-messages-modal"
+    :bodyStyle="{ padding: '0', overflow: 'hidden' }"
     @update:open="$emit('update:open', $event)"
   >
     <div class="starred-page">

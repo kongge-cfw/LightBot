@@ -80,20 +80,24 @@
                 @click="switchSession(s)"
               >
                 <span class="session-title">{{ s.title || '新对话' }}</span>
-                <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
                 <PushpinFilled v-if="s.pinned" class="session-pin-icon" aria-label="已置顶" />
-                <a-dropdown :trigger="['click']" placement="bottomRight">
-                  <EllipsisOutlined class="session-more" @click.stop />
-                  <template #overlay>
-                    <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
-                      <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
-                      <a-menu-item key="rename">重命名</a-menu-item>
-                      <a-menu-item key="export">导出</a-menu-item>
-                      <a-menu-divider />
-                      <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
-                    </a-menu>
-                  </template>
-                </a-dropdown>
+                <span class="session-trailing">
+                  <span v-if="s.lastMessageAt" class="session-time">{{ formatRelativeTime(s.lastMessageAt) }}</span>
+                  <a-dropdown :trigger="['click']" placement="bottomRight">
+                    <span class="session-more" @click.stop>
+                      <EllipsisOutlined />
+                    </span>
+                    <template #overlay>
+                      <a-menu @click="({ key }) => handleSessionMenu(key, s)" >
+                        <a-menu-item key="pin">{{ s.pinned ? '取消置顶' : '置顶' }}</a-menu-item>
+                        <a-menu-item key="rename">重命名</a-menu-item>
+                        <a-menu-item key="export">导出</a-menu-item>
+                        <a-menu-divider />
+                        <a-menu-item key="delete" class="menu-danger">删除</a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
+                </span>
               </div>
             </TransitionGroup>
             <div v-if="sessionLoading" class="session-loading-more">
@@ -957,6 +961,7 @@ watch(sessionLoadMoreRef, (el) => {
   font-size: 11px;
   color: var(--color-mute);
   white-space: nowrap;
+  transition: opacity 0.15s;
 }
 .session-pin-icon {
   flex-shrink: 0;
@@ -964,21 +969,46 @@ watch(sessionLoadMoreRef, (el) => {
   color: #818cf8;
   opacity: 0.95;
 }
+/* 右侧时间 / 更多：同一槽位，默认展示时间；悬停才出现更多按钮（绝对定位不占位） */
+.session-trailing {
+  position: relative;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 2.75em;
+  min-height: 22px;
+}
 .session-more {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
+  pointer-events: none;
   color: var(--color-mute);
   font-size: 14px;
-  transition: opacity 0.15s;
+  line-height: 1;
   cursor: pointer;
   padding: 2px 4px;
   border-radius: 4px;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
 }
 .session-more:hover {
   background: var(--sidebar-border);
   color: var(--sidebar-text);
 }
-.session-item:hover .session-more {
+.session-item:hover .session-more,
+.session-trailing:has(.ant-dropdown-open) .session-more {
   opacity: 1;
+  pointer-events: auto;
+}
+.session-item:hover .session-time,
+.session-trailing:has(.ant-dropdown-open) .session-time {
+  opacity: 0;
 }
 .session-empty {
   padding: 12px;

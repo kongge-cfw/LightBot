@@ -1206,10 +1206,6 @@ defineExpose({ openDialog, search, refresh, loading })
 .help-icon:hover {
   color: var(--color-link);
 }
-.guide {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 .guide-section {
   margin-bottom: 20px;
 }

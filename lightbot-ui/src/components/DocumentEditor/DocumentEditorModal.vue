@@ -530,10 +530,7 @@ function resetState() {
   border-color: #f87171;
 }
 .version-content-pre {
-  max-height: 50vh;
-  overflow: auto;
-  scrollbar-gutter: stable;
-  padding-right: var(--scroll-content-gap, 8px);
+  /* 滚动交给全局 .ant-modal-body，避免双滚动条 */
   font-size: 13px;
   line-height: 1.6;
   white-space: pre-wrap;

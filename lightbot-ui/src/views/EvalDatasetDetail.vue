@@ -563,8 +563,7 @@ function truncate(str, len) {
 }
 .dialog-footer-right { display: flex; gap: 8px; }
 .version-detail-list {
-  max-height: 60vh;
-  overflow-y: auto;
+  /* 滚动交给全局 .ant-modal-body，避免双滚动条 */
   display: flex;
   flex-direction: column;
   gap: 8px;

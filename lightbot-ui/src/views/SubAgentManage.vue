@@ -751,10 +751,6 @@ defineExpose({ openDialog, search, refresh, loading })
   border-color: var(--color-ink);
   color: var(--color-ink);
 }
-.guide {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 .guide-section {
   margin-bottom: 20px;
 }

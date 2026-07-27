@@ -1318,12 +1318,6 @@ defineExpose({ openDialog, search, refresh, loading })
   background: var(--color-purple-bg);
 }
 
-/* 工具详情弹窗样式 */
-.detail-section-container {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
 .raw-toggle-bar {
   display: flex;
   justify-content: flex-end;

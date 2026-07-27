@@ -12,7 +12,6 @@
       <span>搜索历史对话</span>
     </template>
 
-    <div class="dialog-scroll-body">
     <div class="conv-search-input">
       <a-input-search
         ref="inputRef"
@@ -58,7 +57,6 @@
           <div class="conv-search-snippet" v-html="renderSnippet(item.snippet, item.messageRole)"></div>
         </div>
       </div>
-    </div>
     </div>
   </a-modal>
 </template>
@@ -150,7 +148,9 @@ defineExpose({ runSearch })
 
 <style lang="less">
 .conversation-search-modal .ant-modal-body {
+  /* 外层禁滚（见 modal-scroll.css 豁免）；仅结果区 .conv-search-body 滚动，搜索框固定 */
   padding: 12px 16px 16px;
+  min-height: 0;
 }
 .conv-search-input {
   margin-bottom: 12px;
