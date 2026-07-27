@@ -36,8 +36,9 @@ public class AutomationJobController {
     @GetMapping("/jobs")
     @Operation(summary = "任务配置列表")
     public Result<List<AutomationJobVO>> listJobs(@RequestParam(required = false) String keyword,
-                                                  @RequestParam(required = false) Boolean enabled) {
-        return Result.ok(automationJobService.listMine(keyword, enabled));
+                                                  @RequestParam(required = false) Boolean enabled,
+                                                  @RequestParam(required = false) Long agentId) {
+        return Result.ok(automationJobService.listMine(keyword, enabled, agentId));
     }
 
     @GetMapping("/jobs/{id}")
@@ -89,9 +90,10 @@ public class AutomationJobController {
     @Operation(summary = "执行记录分页")
     public Result<Page<AutomationJobRunVO>> pageRuns(@RequestParam(required = false) String keyword,
                                                      @RequestParam(required = false) String status,
+                                                     @RequestParam(required = false) Long agentId,
                                                      @RequestParam(defaultValue = "1") int pageNum,
                                                      @RequestParam(defaultValue = "10") int pageSize) {
-        return Result.ok(automationJobService.pageRuns(keyword, status, pageNum, pageSize));
+        return Result.ok(automationJobService.pageRuns(keyword, status, agentId, pageNum, pageSize));
     }
 
     @GetMapping("/runs/{id}")

@@ -10,6 +10,16 @@
         <template #prefix><SearchOutlined /></template>
       </a-input>
       <a-select
+        v-model:value="agentFilter"
+        allow-clear
+        show-search
+        placeholder="智能体"
+        style="width: 180px"
+        :options="agentOptions"
+        :filter-option="filterAgent"
+        :loading="agentsLoading"
+      />
+      <a-select
         v-model:value="statusFilter"
         allow-clear
         placeholder="执行状态"
@@ -110,6 +120,7 @@ import dayjs from 'dayjs'
 import LbEmptyState from '../../components/common/LbEmptyState.vue'
 import ChatMessageBody from '../../components/chat/message/ChatMessageBody.vue'
 import { parseMessage } from '../../composables/chat/useChatMessageModel.js'
+import { getAgents } from '../../api/agent'
 import { getAutomationRun, pageAutomationRuns } from '../../api/automation'
 
 const statusLabel = {
@@ -144,7 +155,10 @@ const columns = [
 const records = ref([])
 const loading = ref(false)
 const keyword = ref('')
+const agentFilter = ref(undefined)
 const statusFilter = ref(undefined)
+const agentsLoading = ref(false)
+const agentOptions = ref([])
 const detailOpen = ref(false)
 const detailRecord = ref(null)
 const detailMsg = ref(null)
@@ -184,12 +198,33 @@ function toggleReasoning() {
   }
 }
 
+function filterAgent(input, option) {
+  return String(option?.label || '').toLowerCase().includes(String(input || '').toLowerCase())
+}
+
+async function loadAgents() {
+  agentsLoading.value = true
+  try {
+    const res = await getAgents({ pageNum: 1, pageSize: 200, includeDefault: false })
+    const list = res?.data?.records || []
+    agentOptions.value = list.map((a) => ({
+      value: String(a.id),
+      label: a.name || `智能体 ${a.id}`,
+    }))
+  } catch {
+    agentOptions.value = []
+  } finally {
+    agentsLoading.value = false
+  }
+}
+
 async function loadRecords() {
   loading.value = true
   try {
     const res = await pageAutomationRuns({
       keyword: keyword.value?.trim() || undefined,
       status: statusFilter.value || undefined,
+      agentId: agentFilter.value || undefined,
       pageNum: pagination.current,
       pageSize: pagination.pageSize,
     })
@@ -228,7 +263,7 @@ async function openDetail(record) {
 }
 
 let filterTimer
-watch([keyword, statusFilter], () => {
+watch([keyword, statusFilter, agentFilter], () => {
   clearTimeout(filterTimer)
   filterTimer = setTimeout(() => {
     pagination.current = 1
@@ -236,7 +271,9 @@ watch([keyword, statusFilter], () => {
   }, 250)
 })
 
-onMounted(loadRecords)
+onMounted(async () => {
+  await Promise.all([loadAgents(), loadRecords()])
+})
 </script>
 
 <style scoped>

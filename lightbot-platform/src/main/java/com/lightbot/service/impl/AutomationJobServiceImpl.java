@@ -52,11 +52,12 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     private final ObjectMapper objectMapper;
 
     @Override
-    public List<AutomationJobVO> listMine(String keyword, Boolean enabled) {
+    public List<AutomationJobVO> listMine(String keyword, Boolean enabled, Long agentId) {
         long userId = StpUtil.getLoginIdAsLong();
         LambdaQueryWrapper<AutomationJob> qw = new LambdaQueryWrapper<AutomationJob>()
                 .eq(AutomationJob::getUserId, userId)
                 .eq(enabled != null, AutomationJob::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0)
+                .eq(agentId != null, AutomationJob::getAgentId, agentId)
                 .orderByDesc(AutomationJob::getUpdateTime);
         if (StringUtils.hasText(keyword)) {
             String kw = keyword.trim();
@@ -75,7 +76,39 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AutomationJobVO create(AutomationJobSaveDTO dto) {
-        long userId = StpUtil.getLoginIdAsLong();
+        return doCreate(StpUtil.getLoginIdAsLong(), dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AutomationJobVO update(Long id, AutomationJobSaveDTO dto) {
+        AutomationJob job = requireOwned(id);
+        return doUpdate(job.getUserId(), id, dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void delete(Long id) {
+        requireOwned(id);
+        removeById(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AutomationJobVO setEnabled(Long id, boolean enabled) {
+        return doSetEnabled(requireOwned(id), enabled);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long prepareManualRun(Long id) {
+        return doPrepareManualRun(requireOwned(id));
+    }
+
+    private AutomationJobVO doCreate(Long userId, AutomationJobSaveDTO dto) {
+        if (dto.getAgentId() == null) {
+            throw new BizException(ErrorCode.AUTOMATION_AGENT_INVALID);
+        }
         AutomationScheduleType type = AutomationScheduleUtil.parseType(dto.getScheduleType());
         String configJson = AutomationScheduleUtil.buildConfigJson(type, dto);
         String agentName = agentPort().requireAgentName(dto.getAgentId(), userId);
@@ -85,7 +118,9 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
                 ? AutomationScheduleUtil.computeNextRun(type, configJson, LocalDateTime.now(AutomationScheduleUtil.ZONE))
                 : null;
         if (enabled && type == AutomationScheduleType.ONCE && next == null) {
-            throw new BizException(ErrorCode.AUTOMATION_SCHEDULE_INVALID, "执行时刻不能早于当前时间");
+            LocalDateTime once = AutomationScheduleUtil.parseOnceAt(dto.getOnceAt());
+            throw new BizException(ErrorCode.AUTOMATION_SCHEDULE_INVALID,
+                    AutomationScheduleUtil.pastOnceMessage(once, LocalDateTime.now(AutomationScheduleUtil.ZONE)));
         }
 
         AutomationJob job = new AutomationJob();
@@ -102,13 +137,17 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
         return toJobVo(job);
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public AutomationJobVO update(Long id, AutomationJobSaveDTO dto) {
-        AutomationJob job = requireOwned(id);
+    private AutomationJobVO doUpdate(Long userId, Long id, AutomationJobSaveDTO dto) {
+        AutomationJob job = getById(id);
+        if (job == null || job.getUserId() == null || !job.getUserId().equals(userId)) {
+            throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
+        }
+        if (dto.getAgentId() == null) {
+            throw new BizException(ErrorCode.AUTOMATION_AGENT_INVALID);
+        }
         AutomationScheduleType type = AutomationScheduleUtil.parseType(dto.getScheduleType());
         String configJson = AutomationScheduleUtil.buildConfigJson(type, dto);
-        String agentName = agentPort().requireAgentName(dto.getAgentId(), job.getUserId());
+        String agentName = agentPort().requireAgentName(dto.getAgentId(), userId);
 
         boolean enabled = dto.getEnabled() == null || Boolean.TRUE.equals(dto.getEnabled());
         LocalDateTime next = enabled
@@ -127,17 +166,7 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
         return toJobVo(job);
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void delete(Long id) {
-        requireOwned(id);
-        removeById(id);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public AutomationJobVO setEnabled(Long id, boolean enabled) {
-        AutomationJob job = requireOwned(id);
+    private AutomationJobVO doSetEnabled(AutomationJob job, boolean enabled) {
         job.setEnabled(enabled ? 1 : 0);
         if (!enabled) {
             job.setNextRunAt(null);
@@ -154,10 +183,7 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
         return toJobVo(job);
     }
 
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public Long prepareManualRun(Long id) {
-        AutomationJob job = requireOwned(id);
+    private Long doPrepareManualRun(AutomationJob job) {
         if (hasActiveLease(job.getId())) {
             throw new BizException(ErrorCode.PARAM_INVALID, "任务正在执行中，请稍后再试");
         }
@@ -167,11 +193,12 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     }
 
     @Override
-    public Page<AutomationJobRunVO> pageRuns(String keyword, String status, int pageNum, int pageSize) {
+    public Page<AutomationJobRunVO> pageRuns(String keyword, String status, Long agentId, int pageNum, int pageSize) {
         long userId = StpUtil.getLoginIdAsLong();
         Page<AutomationJobRun> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<AutomationJobRun> qw = new LambdaQueryWrapper<AutomationJobRun>()
                 .eq(AutomationJobRun::getUserId, userId)
+                .eq(agentId != null, AutomationJobRun::getAgentId, agentId)
                 .orderByDesc(AutomationJobRun::getTriggerTime);
         if (StringUtils.hasText(status)) {
             qw.eq(AutomationJobRun::getStatus, AutomationRunStatus.fromValue(status.trim()));
@@ -286,6 +313,103 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
         return n;
     }
 
+    @Override
+    public List<AutomationJobVO> listByAgent(Long userId, Long agentId, String keyword, Boolean enabled) {
+        requireUserAgent(userId, agentId);
+        LambdaQueryWrapper<AutomationJob> qw = new LambdaQueryWrapper<AutomationJob>()
+                .eq(AutomationJob::getUserId, userId)
+                .eq(AutomationJob::getAgentId, agentId)
+                .eq(enabled != null, AutomationJob::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0)
+                .orderByDesc(AutomationJob::getUpdateTime);
+        if (StringUtils.hasText(keyword)) {
+            String kw = keyword.trim();
+            qw.and(w -> w.like(AutomationJob::getName, kw)
+                    .or().like(AutomationJob::getInstruction, kw));
+        }
+        return list(qw).stream().map(this::toJobVo).toList();
+    }
+
+    @Override
+    public AutomationJobVO getByAgent(Long userId, Long agentId, Long id) {
+        return toJobVo(requireOwnedByAgent(userId, agentId, id));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AutomationJobVO createForAgent(Long userId, Long agentId, AutomationJobSaveDTO dto) {
+        requireUserAgent(userId, agentId);
+        dto.setAgentId(agentId);
+        return doCreate(userId, dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AutomationJobVO updateForAgent(Long userId, Long agentId, Long id, AutomationJobSaveDTO dto) {
+        requireOwnedByAgent(userId, agentId, id);
+        dto.setAgentId(agentId);
+        return doUpdate(userId, id, dto);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteForAgent(Long userId, Long agentId, Long id) {
+        requireOwnedByAgent(userId, agentId, id);
+        removeById(id);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AutomationJobVO setEnabledForAgent(Long userId, Long agentId, Long id, boolean enabled) {
+        AutomationJob job = requireOwnedByAgent(userId, agentId, id);
+        return doSetEnabled(job, enabled);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long prepareManualRunForAgent(Long userId, Long agentId, Long id) {
+        AutomationJob job = requireOwnedByAgent(userId, agentId, id);
+        return doPrepareManualRun(job);
+    }
+
+    @Override
+    public Page<AutomationJobRunVO> pageRunsByAgent(Long userId, Long agentId, Long jobId,
+                                                    String keyword, String status,
+                                                    int pageNum, int pageSize) {
+        requireUserAgent(userId, agentId);
+        int pn = Math.max(pageNum, 1);
+        int ps = Math.min(Math.max(pageSize, 1), 50);
+        Page<AutomationJobRun> page = new Page<>(pn, ps);
+        LambdaQueryWrapper<AutomationJobRun> qw = new LambdaQueryWrapper<AutomationJobRun>()
+                .eq(AutomationJobRun::getUserId, userId)
+                .eq(AutomationJobRun::getAgentId, agentId)
+                .eq(jobId != null, AutomationJobRun::getJobId, jobId)
+                .orderByDesc(AutomationJobRun::getTriggerTime);
+        if (StringUtils.hasText(status)) {
+            qw.eq(AutomationJobRun::getStatus, AutomationRunStatus.fromValue(status.trim()));
+        }
+        if (StringUtils.hasText(keyword)) {
+            String kw = keyword.trim();
+            qw.and(w -> w.like(AutomationJobRun::getJobName, kw)
+                    .or().like(AutomationJobRun::getInstruction, kw));
+        }
+        Page<AutomationJobRun> raw = runMapper.selectPage(page, qw);
+        Page<AutomationJobRunVO> voPage = new Page<>(raw.getCurrent(), raw.getSize(), raw.getTotal());
+        voPage.setRecords(raw.getRecords().stream().map(r -> toRunVo(r, false)).toList());
+        return voPage;
+    }
+
+    @Override
+    public AutomationJobRunVO getRunByAgent(Long userId, Long agentId, Long runId) {
+        requireUserAgent(userId, agentId);
+        AutomationJobRun run = runMapper.selectById(runId);
+        if (run == null
+                || run.getUserId() == null || !run.getUserId().equals(userId)
+                || run.getAgentId() == null || !run.getAgentId().equals(agentId)) {
+            throw new BizException("执行记录不存在或无权查看");
+        }
+        return toRunVo(run, true);
+    }
+
     private AutomationJob requireOwned(Long id) {
         long userId = StpUtil.getLoginIdAsLong();
         AutomationJob job = getById(id);
@@ -293,6 +417,23 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
             throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
         }
         return job;
+    }
+
+    private AutomationJob requireOwnedByAgent(Long userId, Long agentId, Long id) {
+        requireUserAgent(userId, agentId);
+        AutomationJob job = getById(id);
+        if (job == null
+                || job.getUserId() == null || !job.getUserId().equals(userId)
+                || job.getAgentId() == null || !job.getAgentId().equals(agentId)) {
+            throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
+        }
+        return job;
+    }
+
+    private static void requireUserAgent(Long userId, Long agentId) {
+        if (userId == null || agentId == null) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "缺少用户或智能体上下文");
+        }
     }
 
     private boolean hasActiveLease(Long jobId) {

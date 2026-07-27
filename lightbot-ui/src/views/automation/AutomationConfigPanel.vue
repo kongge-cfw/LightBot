@@ -10,6 +10,16 @@
         <template #prefix><SearchOutlined /></template>
       </a-input>
       <a-select
+        v-model:value="agentFilter"
+        allow-clear
+        show-search
+        placeholder="智能体"
+        style="width: 180px"
+        :options="agentOptions"
+        :filter-option="filterAgent"
+        :loading="agentsLoading"
+      />
+      <a-select
         v-model:value="enabledFilter"
         allow-clear
         placeholder="启用状态"
@@ -246,6 +256,7 @@ const pagination = reactive({
 const jobs = ref([])
 const loading = ref(false)
 const keyword = ref('')
+const agentFilter = ref(undefined)
 const enabledFilter = ref(undefined)
 const formOpen = ref(false)
 const saving = ref(false)
@@ -462,6 +473,7 @@ async function loadJobs() {
     const res = await listAutomationJobs({
       keyword: keyword.value?.trim() || undefined,
       enabled: enabledFilter.value,
+      agentId: agentFilter.value || undefined,
     })
     jobs.value = res?.data || []
   } finally {
@@ -486,7 +498,7 @@ async function loadAgents() {
 }
 
 let filterTimer
-watch([keyword, enabledFilter], () => {
+watch([keyword, enabledFilter, agentFilter], () => {
   clearTimeout(filterTimer)
   filterTimer = setTimeout(loadJobs, 250)
 })

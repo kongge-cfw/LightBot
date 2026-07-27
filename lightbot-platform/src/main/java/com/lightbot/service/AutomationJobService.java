@@ -17,7 +17,7 @@ import java.util.List;
  */
 public interface AutomationJobService extends IService<AutomationJob> {
 
-    List<AutomationJobVO> listMine(String keyword, Boolean enabled);
+    List<AutomationJobVO> listMine(String keyword, Boolean enabled, Long agentId);
 
     AutomationJobVO getMine(Long id);
 
@@ -37,7 +37,7 @@ public interface AutomationJobService extends IService<AutomationJob> {
      */
     Long prepareManualRun(Long id);
 
-    Page<AutomationJobRunVO> pageRuns(String keyword, String status, int pageNum, int pageSize);
+    Page<AutomationJobRunVO> pageRuns(String keyword, String status, Long agentId, int pageNum, int pageSize);
 
     AutomationJobRunVO getRunMine(Long runId);
 
@@ -54,4 +54,55 @@ public interface AutomationJobService extends IService<AutomationJob> {
 
     /** 回收超时 running */
     int reclaimExpiredRuns(int limit);
+
+    // ========== Agent Tool 作用域（强制 userId + agentId，不依赖 StpUtil）==========
+
+    /**
+     * 列出指定用户下某智能体的定时任务
+     */
+    List<AutomationJobVO> listByAgent(Long userId, Long agentId, String keyword, Boolean enabled);
+
+    /**
+     * 获取任务详情（须属于该 user + agent）
+     */
+    AutomationJobVO getByAgent(Long userId, Long agentId, Long id);
+
+    /**
+     * 为指定智能体创建任务（强制写入 agentId，忽略 dto 中的其他 agent）
+     */
+    AutomationJobVO createForAgent(Long userId, Long agentId, AutomationJobSaveDTO dto);
+
+    /**
+     * 更新任务（须属于该 agent；强制保持 agentId 不变）
+     */
+    AutomationJobVO updateForAgent(Long userId, Long agentId, Long id, AutomationJobSaveDTO dto);
+
+    /**
+     * 删除任务（须属于该 agent）
+     */
+    void deleteForAgent(Long userId, Long agentId, Long id);
+
+    /**
+     * 启停任务（须属于该 agent）
+     */
+    AutomationJobVO setEnabledForAgent(Long userId, Long agentId, Long id, boolean enabled);
+
+    /**
+     * 立即执行（须属于该 agent），返回 runId
+     */
+    Long prepareManualRunForAgent(Long userId, Long agentId, Long id);
+
+    /**
+     * 分页查询某智能体的执行记录（列表不含 detail 大字段）
+     *
+     * @param jobId 可选：按任务过滤
+     */
+    Page<AutomationJobRunVO> pageRunsByAgent(Long userId, Long agentId, Long jobId,
+                                             String keyword, String status,
+                                             int pageNum, int pageSize);
+
+    /**
+     * 执行记录详情（须属于该 user + agent，含 detail）
+     */
+    AutomationJobRunVO getRunByAgent(Long userId, Long agentId, Long runId);
 }

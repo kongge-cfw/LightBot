@@ -288,7 +288,7 @@ function handleStart() {
     return
   }
   if (userStore.token) {
-    router.push('/app/chat')
+    router.push('/app/dashboard')
   } else {
     router.push('/login')
   }
