@@ -68,6 +68,15 @@ public class DataModelDdlUtil {
      * 对比现有表结构/索引后增量同步（新增列、新增/重建索引；不删列以免丢数据）
      */
     public void syncTable(String tableName, DataModelSchema schema) {
+        syncTable(tableName, schema, null);
+    }
+
+    /**
+     * 对比现有表结构/索引后增量同步
+     *
+     * @param previousSchema 保存前的旧 schema；用于识别「仅改英文名」并执行 RENAME COLUMN
+     */
+    public void syncTable(String tableName, DataModelSchema schema, DataModelSchema previousSchema) {
         schemaSupport.assertSafeTableName(tableName);
         schemaSupport.validateSchema(schema);
         if (!tableExists(tableName)) {
@@ -77,6 +86,10 @@ public class DataModelDdlUtil {
 
         try {
             Set<String> existingCols = listColumns(tableName);
+            // 先尝试一对一改名（如 field_1 → plate_no），避免只加新列留下孤儿列
+            applySingleFieldRenames(tableName, previousSchema, schema, existingCols);
+            existingCols = listColumns(tableName);
+
             for (DataModelSchema.FieldDef field : schemaSupport.customFields(schema)) {
                 String col = schemaSupport.toColumnName(field.getKey());
                 if (!existingCols.contains(col)) {
@@ -98,6 +111,53 @@ public class DataModelDdlUtil {
         } catch (Exception e) {
             throw new BizException(ErrorCode.DATA_MODEL_DDL_FAILED, e.getMessage());
         }
+    }
+
+    /**
+     * 旧 schema 相对新 schema：恰好少 1 个 key、多 1 个 key，且类型相同 → 视为改英文名并 RENAME
+     */
+    private void applySingleFieldRenames(String tableName,
+                                         DataModelSchema previousSchema,
+                                         DataModelSchema schema,
+                                         Set<String> existingCols) {
+        if (previousSchema == null) {
+            return;
+        }
+        Map<String, DataModelSchema.FieldDef> oldMap = schemaSupport.customFields(previousSchema).stream()
+                .collect(Collectors.toMap(DataModelSchema.FieldDef::getKey, f -> f, (a, b) -> a, LinkedHashMap::new));
+        Map<String, DataModelSchema.FieldDef> newMap = schemaSupport.customFields(schema).stream()
+                .collect(Collectors.toMap(DataModelSchema.FieldDef::getKey, f -> f, (a, b) -> a, LinkedHashMap::new));
+        Set<String> removed = new LinkedHashSet<>(oldMap.keySet());
+        removed.removeAll(newMap.keySet());
+        Set<String> added = new LinkedHashSet<>(newMap.keySet());
+        added.removeAll(oldMap.keySet());
+        if (removed.size() != 1 || added.size() != 1) {
+            return;
+        }
+        String oldKey = removed.iterator().next();
+        String newKey = added.iterator().next();
+        DataModelSchema.FieldDef oldField = oldMap.get(oldKey);
+        DataModelSchema.FieldDef newField = newMap.get(newKey);
+        if (oldField == null || newField == null) {
+            return;
+        }
+        String oldType = oldField.getType() != null ? oldField.getType() : "";
+        String newType = newField.getType() != null ? newField.getType() : "";
+        if (!oldType.equalsIgnoreCase(newType)) {
+            return;
+        }
+        String oldCol = schemaSupport.toColumnName(oldKey);
+        String newCol = schemaSupport.toColumnName(newKey);
+        if (!existingCols.contains(oldCol) || existingCols.contains(newCol) || oldCol.equals(newCol)) {
+            return;
+        }
+        String sql = "ALTER TABLE " + schemaSupport.quoteIdent(tableName)
+                + " RENAME COLUMN " + schemaSupport.quoteIdent(oldCol)
+                + " TO " + schemaSupport.quoteIdent(newCol);
+        jdbcTemplate.execute(sql);
+        existingCols.remove(oldCol);
+        existingCols.add(newCol);
+        log.info("[DataCenter] 重命名列 table={} {} → {}", tableName, oldCol, newCol);
     }
 
     public void dropTableIfExists(String tableName) {

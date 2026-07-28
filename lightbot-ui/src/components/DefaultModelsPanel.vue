@@ -26,7 +26,7 @@
           </a-form>
           <div class="panel-tip">
             <BulbOutlined />
-            <span>用于：AI 生成系统提示词、AI 生成推荐问题、知识库思维导图、内容安全扫描等</span>
+            <span>用于：AI 生成系统提示词、AI 生成推荐问题、知识库思维导图、内容安全扫描、数据模型补全字段英文名等</span>
           </div>
         </div>
       </div>

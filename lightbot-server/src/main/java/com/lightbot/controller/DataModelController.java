@@ -2,9 +2,11 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.datacenter.DataModelCreateDTO;
+import com.lightbot.dto.datacenter.DataModelFieldKeySuggestDTO;
 import com.lightbot.dto.datacenter.DataModelSchemaUpdateDTO;
 import com.lightbot.dto.datacenter.DataModelUpdateDTO;
 import com.lightbot.service.DataModelService;
+import com.lightbot.vo.DataModelFieldKeySuggestVO;
 import com.lightbot.vo.DataModelVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -59,6 +61,13 @@ public class DataModelController {
     public Result<DataModelVO> updateSchema(@PathVariable Long id,
                                             @Valid @RequestBody DataModelSchemaUpdateDTO dto) {
         return Result.ok(dataModelService.updateSchema(id, dto.getSchema()));
+    }
+
+    @PostMapping("/suggest-field-keys")
+    @Operation(summary = "AI 补全字段英文名（仅针对请求中的空英文名字段）")
+    public Result<DataModelFieldKeySuggestVO> suggestFieldKeys(
+            @Valid @RequestBody DataModelFieldKeySuggestDTO dto) {
+        return Result.ok(dataModelService.suggestFieldKeys(dto));
     }
 
     @DeleteMapping("/{id}")

@@ -112,6 +112,16 @@
             >索引与检索</button>
           </div>
           <div class="designer-header__actions">
+            <button
+              v-if="designerTab === 'form'"
+              type="button"
+              class="btn-ai-assist"
+              :disabled="suggestingKeys"
+              @click="suggestEmptyFieldKeys"
+            >
+              <ThunderboltOutlined :spin="suggestingKeys" />
+              {{ suggestingKeys ? '补全中…' : '补全字段英文名' }}
+            </button>
             <button type="button" class="lb-btn" @click="confirmCancelDesigner">取消</button>
             <button type="button" class="lb-btn lb-btn--primary" @click="confirmSaveDesigner">
               <SaveOutlined /> 保存
@@ -192,6 +202,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import {
   ArrowLeftOutlined, PlusOutlined, SearchOutlined, EllipsisOutlined, InboxOutlined, SaveOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import DataModelFormDesigner from '../../components/data-center/DataModelFormDesigner.vue'
@@ -206,6 +217,7 @@ import {
   createDataModel,
   updateDataModel,
   updateDataModelSchema,
+  suggestDataModelFieldKeys,
   deleteDataModel,
 } from '../../api/dataCenter'
 
@@ -218,6 +230,7 @@ const designerOpen = ref(false)
 const designerTab = ref('form')
 const designerRef = ref(null)
 const constraintRef = ref(null)
+const suggestingKeys = ref(false)
 const editingModel = ref(null)
 const constraintFields = ref([])
 const constraintDraft = ref({
@@ -530,12 +543,23 @@ function buildMergedSchema() {
 }
 
 function confirmSaveDesigner() {
+  const fieldErr = designerRef.value?.validate?.()
+  if (fieldErr) {
+    message.warning(fieldErr)
+    if (designerTab.value !== 'form') switchDesignerTab('form')
+    return
+  }
   Modal.confirm({
     title: '确认保存？',
     content: '保存后将同步物理表结构与索引，并返回列表。',
     okText: '保存',
     cancelText: '再看看',
     async onOk() {
+      const err = designerRef.value?.validate?.()
+      if (err) {
+        message.warning(err)
+        return Promise.reject(new Error(err))
+      }
       syncConstraintFields()
       const schema = buildMergedSchema()
       if (!editingModel.value?.id) return
@@ -562,6 +586,49 @@ function confirmCancelDesigner() {
       closeDesigner()
     },
   })
+}
+
+/**
+ * AI 补全英文名为空的字段；已填写的英文名保持不变
+ */
+async function suggestEmptyFieldKeys() {
+  if (designerTab.value !== 'form') {
+    switchDesignerTab('form')
+    await nextTick()
+  }
+  const designer = designerRef.value
+  if (!designer?.collectEmptyKeyTargets) return
+  const { targets, occupiedKeys } = designer.collectEmptyKeyTargets()
+  if (!targets.length) {
+    message.info('没有需要补全的字段（英文名均为空才可补全）')
+    return
+  }
+  const missingLabel = targets.find((f) => !String(f.label || '').trim())
+  if (missingLabel) {
+    message.warning('请先填写字段中文名，再补全英文名')
+    return
+  }
+  suggestingKeys.value = true
+  try {
+    const res = await suggestDataModelFieldKeys({
+      names: targets.map((f) => String(f.label).trim()),
+      occupiedKeys,
+    })
+    const keys = res?.data?.keys || []
+    const filled = designer.applySuggestedKeys(targets, keys)
+    if (filled > 0) {
+      message.success(`已补全 ${filled} 个字段英文名`)
+    } else {
+      message.warning('未能生成有效英文名，请稍后重试或手动填写')
+    }
+  } catch (e) {
+    // request 拦截器通常已提示；此处兜底
+    if (!e?.__handled) {
+      message.error(e?.message || '补全失败')
+    }
+  } finally {
+    suggestingKeys.value = false
+  }
 }
 </script>
 
@@ -840,6 +907,31 @@ function confirmCancelDesigner() {
   align-items: center;
   gap: 8px;
   flex-shrink: 0;
+}
+/* 辅助 AI 操作：轻量文本按钮，与取消/保存主操作区分 */
+.btn-ai-assist {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-right: 4px;
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--color-link);
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  line-height: 1.5;
+}
+.btn-ai-assist:hover:not(:disabled) {
+  background: var(--color-info-bg, rgba(0, 112, 243, 0.08));
+  border-color: var(--color-link);
+}
+.btn-ai-assist:disabled {
+  color: var(--color-mute);
+  cursor: not-allowed;
 }
 .designer-view :deep(.form-designer),
 .designer-view :deep(.constraint-config) {

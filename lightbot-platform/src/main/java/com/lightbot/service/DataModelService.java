@@ -2,9 +2,11 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.dto.datacenter.DataModelCreateDTO;
+import com.lightbot.dto.datacenter.DataModelFieldKeySuggestDTO;
 import com.lightbot.dto.datacenter.DataModelSchema;
 import com.lightbot.dto.datacenter.DataModelUpdateDTO;
 import com.lightbot.entity.DataModel;
+import com.lightbot.vo.DataModelFieldKeySuggestVO;
 import com.lightbot.vo.DataModelVO;
 
 import java.util.List;
@@ -34,6 +36,14 @@ public interface DataModelService extends IService<DataModel> {
      * 保存 schema 并对比同步物理表结构/索引
      */
     DataModelVO updateSchema(Long id, DataModelSchema schema);
+
+    /**
+     * AI 补全字段英文名（仅针对请求中给出的中文名列表）
+     *
+     * @param dto 待补全显示名与已占用英文名
+     * @return 与 names 顺序对应的英文名
+     */
+    DataModelFieldKeySuggestVO suggestFieldKeys(DataModelFieldKeySuggestDTO dto);
 
     void delete(Long id);
 }

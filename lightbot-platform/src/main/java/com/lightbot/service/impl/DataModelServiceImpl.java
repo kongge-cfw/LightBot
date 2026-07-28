@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.datacenter.DataModelCreateDTO;
+import com.lightbot.dto.datacenter.DataModelFieldKeySuggestDTO;
 import com.lightbot.dto.datacenter.DataModelSchema;
 import com.lightbot.dto.datacenter.DataModelUpdateDTO;
 import com.lightbot.entity.DataModel;
@@ -13,14 +14,18 @@ import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.DataModelCategoryMapper;
 import com.lightbot.mapper.DataModelMapper;
 import com.lightbot.service.DataModelService;
+import com.lightbot.service.port.DataModelFieldKeySuggestPort;
 import com.lightbot.util.DataModelDdlUtil;
 import com.lightbot.util.DataModelSchemaSupport;
+import com.lightbot.vo.DataModelFieldKeySuggestVO;
 import com.lightbot.vo.DataModelVO;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -37,6 +42,7 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
     private final DataModelCategoryMapper categoryMapper;
     private final DataModelSchemaSupport schemaSupport;
     private final DataModelDdlUtil ddlUtil;
+    private final ObjectProvider<DataModelFieldKeySuggestPort> fieldKeySuggestPort;
 
     @Override
     public List<DataModelVO> listMine(Long categoryId, String keyword) {
@@ -130,12 +136,42 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
         DataModel model = requireOwned(id);
         // 1. 校验 schema
         schemaSupport.validateSchema(schema);
-        // 2. 对比并同步物理表 / 索引
-        ddlUtil.syncTable(model.getTableName(), schema);
+        // 2. 对比并同步物理表 / 索引（传入旧 schema 以支持单字段英文名改名 → RENAME COLUMN）
+        DataModelSchema previous = schemaSupport.parseSchema(model.getSchemaJson());
+        ddlUtil.syncTable(model.getTableName(), schema, previous);
         // 3. 持久化元数据
         model.setSchemaJson(schemaSupport.toSchemaJson(schema));
         updateById(model);
         return toVo(model);
+    }
+
+    @Override
+    public DataModelFieldKeySuggestVO suggestFieldKeys(DataModelFieldKeySuggestDTO dto) {
+        // 1. 清洗待补全显示名
+        List<String> names = new ArrayList<>();
+        for (String raw : dto.getNames()) {
+            if (!StringUtils.hasText(raw) || !StringUtils.hasText(raw.trim())) {
+                throw new BizException(ErrorCode.PARAM_INVALID, "字段显示名不能为空");
+            }
+            names.add(raw.trim());
+        }
+        List<String> occupied = dto.getOccupiedKeys() == null
+                ? List.of()
+                : dto.getOccupiedKeys().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+
+        // 2. 通过 AI Port 生成英文名（平台不直接依赖模型 SDK）
+        DataModelFieldKeySuggestPort port = fieldKeySuggestPort.getIfAvailable();
+        if (port == null) {
+            throw new BizException(ErrorCode.AI_GENERATE_FAILED);
+        }
+        List<String> keys = port.suggestKeys(names, occupied);
+        if (keys == null || keys.size() != names.size()) {
+            throw new BizException(ErrorCode.AI_GENERATE_FAILED);
+        }
+        return new DataModelFieldKeySuggestVO(keys);
     }
 
     @Override

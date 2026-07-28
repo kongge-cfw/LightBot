@@ -38,6 +38,11 @@ export function updateDataModelSchema(id, schema) {
   return request.put(`/data-models/${id}/schema`, { schema })
 }
 
+/** AI 补全字段英文名（仅传英文名为空的中文显示名） */
+export function suggestDataModelFieldKeys(data) {
+  return request.post('/data-models/suggest-field-keys', data)
+}
+
 export function deleteDataModel(id) {
   return request.delete(`/data-models/${id}`)
 }

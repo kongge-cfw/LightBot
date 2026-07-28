@@ -57,15 +57,35 @@
             <span class="type-badge">{{ getTypeLabel(field.type) }}</span>
             <a-input
               :value="field.label"
-              placeholder="字段名称（中文/字母/数字/下划线，≤20）"
+              placeholder="中文名（≤20）"
               :maxlength="20"
               show-count
               class="field-row__label"
               @update:value="(v) => (field.label = filterLabel(v ?? ''))"
             />
+            <div class="field-row__key-wrap">
+              <a-input
+                :value="field._key"
+                placeholder="英文名（数据库列名）"
+                :maxlength="64"
+                class="field-row__key"
+                :disabled="field._keyLocked"
+                :status="keyErrorOf(field) ? 'error' : undefined"
+                @update:value="(v) => onKeyInput(field, v)"
+                @blur="field._keyTouched = true"
+              />
+              <span v-if="keyErrorOf(field)" class="field-row__key-error">{{ keyErrorOf(field) }}</span>
+              <span
+                v-else-if="field._key"
+                class="field-row__key-hint"
+                :title="'物理列: ' + toColumnPreview(field._key)"
+              >
+                → {{ toColumnPreview(field._key) }}
+              </span>
+            </div>
             <a-input
               v-model:value="field.description"
-              placeholder="字段描述（供大模型分析 / DDL 备注）"
+              placeholder="字段描述（大模型 / DDL 备注）"
               :maxlength="100"
               show-count
               class="field-row__description"
@@ -169,10 +189,90 @@ const optionsDialog = reactive({
 const customFields = computed(() => fields.value.filter((f) => !f.system))
 
 const LABEL_REG = /[\u4e00-\u9fa5a-zA-Z0-9_]/g
+/** 英文名：字母开头，字母数字下划线（与后端列名规则对齐） */
+const KEY_REG = /[a-zA-Z0-9_]/g
+const RESERVED_KEYS = new Set([
+  'id', 'deleted', 'createTime', 'updateTime',
+  'create_time', 'update_time', 'createtime', 'updatetime',
+])
 
 function filterLabel(value) {
   if (value == null || typeof value !== 'string') return ''
   return value.match(LABEL_REG)?.join('')?.slice(0, 20) ?? ''
+}
+
+function filterKey(value) {
+  if (value == null || typeof value !== 'string') return ''
+  // 仅过滤非法字符，保留数字开头以便页面即时提示「必须以字母开头」
+  return value.match(KEY_REG)?.join('')?.slice(0, 64) ?? ''
+}
+
+function onKeyInput(field, value) {
+  field._key = filterKey(value ?? '')
+  field._keyTouched = true
+}
+
+/**
+ * 英文名校验错误（用于输入框下方提示）
+ * @param {object} field
+ * @returns {string}
+ */
+function keyErrorOf(field) {
+  if (!field || field.system || field._keyLocked) return ''
+  const key = String(field._key || '').trim()
+  if (!key) {
+    return field._keyTouched ? '请填写英文名（将作为数据库列名）' : ''
+  }
+  if (/^[0-9]/.test(key)) {
+    return '英文名必须以字母开头，不能以数字开头'
+  }
+  if (key.startsWith('_')) {
+    return '英文名必须以字母开头，不能以下划线开头'
+  }
+  if (!/^[a-zA-Z][a-zA-Z0-9_]{0,63}$/.test(key)) {
+    return '仅允许字母、数字、下划线'
+  }
+  if (RESERVED_KEYS.has(key) || RESERVED_KEYS.has(key.toLowerCase())) {
+    return `与系统字段冲突：${key}`
+  }
+  const col = toColumnPreview(key)
+  if (!/^[a-z][a-z0-9_]{0,62}$/.test(col)) {
+    return '无法生成合法数据库列名'
+  }
+  const dup = fields.value.some(
+    (f) => !f.system && f._id !== field._id && String(f._key || '').trim() === key,
+  )
+  if (dup) {
+    return '英文名与其它字段重复'
+  }
+  const colDup = fields.value.some((f) => {
+    if (f.system || f._id === field._id) return false
+    const other = String(f._key || '').trim()
+    return other && toColumnPreview(other) === col
+  })
+  if (colDup) {
+    return `列名 ${col} 与其它字段冲突`
+  }
+  return ''
+}
+
+/** 预览物理列名（camelCase → snake_case，与后端 toColumnName 一致） */
+function toColumnPreview(key) {
+  const raw = String(key || '').trim()
+  if (!raw) return ''
+  if (raw === 'createTime') return 'create_time'
+  if (raw === 'updateTime') return 'update_time'
+  let out = ''
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i]
+    if (c >= 'A' && c <= 'Z') {
+      if (i > 0) out += '_'
+      out += c.toLowerCase()
+    } else {
+      out += c.toLowerCase()
+    }
+  }
+  return out
 }
 
 function getTypeLabel(type) {
@@ -219,6 +319,8 @@ function onDrop() {
   custom.push({
     _id: genId(),
     _key: '',
+    _keyLocked: false,
+    _keyTouched: false,
     label: dragType.label,
     description: '',
     type: dragType.type,
@@ -289,17 +391,34 @@ function confirmOptions() {
   optionsDialog.visible = false
 }
 
-function resolveFieldKey(field, index) {
-  if (field._key && String(field._key).trim()) return String(field._key).trim()
-  const label = (field.label || '').trim()
-  if (/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(label)) return label
-  return `field_${index + 1}`
+function resolveFieldKey(field) {
+  return String(field._key || '').trim()
+}
+
+/**
+ * 保存前校验自定义字段英文名
+ * @returns {string|null} 错误信息，null 表示通过
+ */
+function validate() {
+  const customs = fields.value.filter((f) => !f.system)
+  for (const field of customs) {
+    field._keyTouched = true
+  }
+  for (let i = 0; i < customs.length; i++) {
+    const field = customs[i]
+    const err = keyErrorOf(field)
+    if (err) {
+      const label = field.label || `第 ${i + 1} 个字段`
+      return `「${label}」${err}`
+    }
+  }
+  return null
 }
 
 function schemaFromFields() {
-  return fields.value.map((field, index) => {
+  return fields.value.map((field) => {
     const result = {
-      key: resolveFieldKey(field, index),
+      key: field.system ? field._key : resolveFieldKey(field),
       label: field.label || '未命名',
       type: field.type,
       required: !!field.required,
@@ -341,14 +460,20 @@ function mapRawField(field, index) {
   if (field.type === 'number' && field.props) fieldProps = { min: field.props.min, max: field.props.max }
   if (field.type === 'upload' && field.props) fieldProps = { limit: field.props.limit ?? 10 }
   if (field.type === 'datetime' && field.props) fieldProps = { ...field.props }
+  const key = field.key || ''
+  const isSystem = !!field.system || SYSTEM_KEYS.has(key)
+  // 自动生成的 field_N 允许改成可读英文名；已手工命名的锁定，避免改 key 产生孤儿列
+  const autoKey = /^field_\d+$/.test(key)
   return {
-    _id: field.key || `field_${index}`,
-    _key: field.key || '',
+    _id: key || `field_${index}`,
+    _key: key,
+    _keyLocked: !isSystem && !!key && !autoKey,
+    _keyTouched: false,
     label: field.label || '',
     description: field.description || '',
     type: field.type || 'input',
     required: !!field.required,
-    system: !!field.system || SYSTEM_KEYS.has(field.key),
+    system: isSystem,
     options,
     props: fieldProps,
   }
@@ -364,6 +489,52 @@ watch(
   { immediate: true, deep: true },
 )
 
+/**
+ * 收集英文名为空、可编辑的自定义字段（供 AI 补全）
+ * @returns {{ targets: object[], occupiedKeys: string[] }}
+ */
+function collectEmptyKeyTargets() {
+  const targets = []
+  const occupiedKeys = []
+  for (const field of fields.value) {
+    const key = String(field._key || '').trim()
+    if (field.system) {
+      if (key) occupiedKeys.push(key)
+      continue
+    }
+    if (key) {
+      occupiedKeys.push(key)
+      continue
+    }
+    // 已锁定且为空极少见；仍跳过，避免覆盖
+    if (field._keyLocked) continue
+    targets.push(field)
+  }
+  return { targets, occupiedKeys }
+}
+
+/**
+ * 将 AI 返回的英文名写入目标字段（仅写入仍为空的项）
+ * @param {object[]} targets
+ * @param {string[]} keys
+ * @returns {number} 实际写入数量
+ */
+function applySuggestedKeys(targets, keys) {
+  if (!Array.isArray(targets) || !Array.isArray(keys)) return 0
+  let filled = 0
+  for (let i = 0; i < targets.length; i++) {
+    const field = targets[i]
+    if (!field || field.system || field._keyLocked) continue
+    if (String(field._key || '').trim()) continue
+    const next = filterKey(keys[i] ?? '')
+    if (!next) continue
+    field._key = next
+    field._keyTouched = true
+    filled += 1
+  }
+  return filled
+}
+
 defineExpose({
   getSchema() {
     return { fields: schemaFromFields() }
@@ -372,6 +543,9 @@ defineExpose({
   getFields() {
     return schemaFromFields()
   },
+  validate,
+  collectEmptyKeyTargets,
+  applySuggestedKeys,
 })
 </script>
 
@@ -462,18 +636,28 @@ defineExpose({
 .field-row:hover {
   border-color: var(--color-hairline-strong);
 }
-/* 自定义字段：固定列宽，保证名称/描述输入框跨行对齐 */
+/* 自定义字段：固定列宽；顶部对齐以便英文名错误提示换行时不错位 */
 .field-row--custom {
   display: grid;
+  align-items: start;
   grid-template-columns:
     28px
     72px
     88px
-    minmax(160px, 200px)
-    minmax(180px, 1fr)
+    minmax(120px, 150px)
+    minmax(140px, 180px)
+    minmax(140px, 1fr)
     56px
-    minmax(0, 220px)
+    minmax(0, 180px)
     40px;
+}
+.field-row--custom > .field-row__index,
+.field-row--custom > .field-row__actions,
+.field-row--custom > .type-badge,
+.field-row--custom > .field-row__required,
+.field-row--custom > .field-row__extra,
+.field-row--custom > .field-row__delete {
+  margin-top: 6px;
 }
 .field-row--system {
   display: flex;
@@ -500,6 +684,36 @@ defineExpose({
 }
 .field-row__label :deep(.ant-input) {
   width: 100%;
+}
+.field-row__key-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  width: 100%;
+}
+.field-row__key {
+  width: 100% !important;
+  min-width: 0;
+}
+.field-row__key :deep(.ant-input) {
+  width: 100%;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 12px;
+}
+.field-row__key-hint {
+  font-size: 11px;
+  color: var(--color-mute);
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.field-row__key-error {
+  font-size: 11px;
+  color: var(--color-error, #ff4d4f);
+  line-height: 1.25;
+  word-break: break-all;
 }
 .field-row__description {
   width: 100% !important;
