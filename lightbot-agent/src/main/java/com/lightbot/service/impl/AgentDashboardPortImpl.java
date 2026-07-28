@@ -53,7 +53,7 @@ public class AgentDashboardPortImpl implements AgentDashboardPort {
         List<Agent> recent = agentMapper.selectList(
                 new LambdaQueryWrapper<Agent>()
                         .orderByDesc(Agent::getCreateTime)
-                        .last("LIMIT 5"));
+                        .last("LIMIT 3"));
         List<Map<String, Object>> recentList = recent.stream().map(a -> {
             Map<String, Object> item = new LinkedHashMap<>();
             item.put("id", a.getId().toString());

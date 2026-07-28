@@ -71,8 +71,10 @@ public class ChatDashboardPortImpl implements ChatDashboardPort {
         stats.put("totalSessions", chatSessionMapper.countByCreateDateRange(rangeStartStr, rangeEndStr));
         stats.put("totalMessages", messageMapper.countByDateRange(rangeStartStr, rangeEndStr));
 
-        List<Map<String, Object>> raw = messageMapper.countMessagesPerDayRange(rangeStartStr, rangeEndStr);
-        stats.put("messagesPerDay", fillMissingDays(raw, rangeStart, rangeEnd));
+        List<Map<String, Object>> rawMessages = messageMapper.countMessagesPerDayRange(rangeStartStr, rangeEndStr);
+        List<Map<String, Object>> rawSessions = chatSessionMapper.countSessionsPerDayRange(rangeStartStr, rangeEndStr);
+        stats.put("messagesPerDay", fillMissingDays(rawMessages, rangeStart, rangeEnd));
+        stats.put("sessionsPerDay", fillMissingDays(rawSessions, rangeStart, rangeEnd));
         stats.put("trendStartDate", rangeStartStr);
         stats.put("trendEndDate", rangeEndStr);
         return stats;

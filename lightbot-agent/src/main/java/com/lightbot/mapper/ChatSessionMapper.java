@@ -7,6 +7,9 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+import java.util.Map;
+
 @Mapper
 public interface ChatSessionMapper extends BaseMapper<ChatSession> {
 
@@ -23,4 +26,18 @@ public interface ChatSessionMapper extends BaseMapper<ChatSession> {
               AND create_time < (#{endDate}::date + INTERVAL '1 day')
             """)
     long countByCreateDateRange(@Param("startDate") String startDate, @Param("endDate") String endDate);
+
+    /**
+     * 统计指定日期区间内每天新建的会话数（含起止日）
+     */
+    @Select("""
+            SELECT TO_CHAR(create_time, 'YYYY-MM-DD') AS date, COUNT(*) AS count
+            FROM chat_session
+            WHERE create_time >= #{startDate}::date
+              AND create_time < (#{endDate}::date + INTERVAL '1 day')
+            GROUP BY TO_CHAR(create_time, 'YYYY-MM-DD')
+            ORDER BY date
+            """)
+    List<Map<String, Object>> countSessionsPerDayRange(@Param("startDate") String startDate,
+                                                       @Param("endDate") String endDate);
 }

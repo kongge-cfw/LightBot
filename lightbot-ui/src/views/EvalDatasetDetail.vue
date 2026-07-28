@@ -48,12 +48,15 @@
         <div v-if="itemTotal > 0" class="item-pagination">
           <a-pagination
             v-model:current="pageNum"
-            :page-size="pageSize"
+            v-model:page-size="pageSize"
             :total="itemTotal"
             size="small"
             show-less-items
+            show-size-changer
+            :page-size-options="['10', '20', '50', '100']"
             :show-total="(total) => `共 ${total} 条`"
-            @change="loadItems"
+            @change="onItemPageChange"
+            @show-size-change="onItemPageSizeChange"
           />
         </div>
       </div>
@@ -201,7 +204,7 @@ const items = ref([])
 const itemsLoading = ref(false)
 const itemTotal = ref(0)
 const pageNum = ref(1)
-const pageSize = 20
+const pageSize = ref(20)
 const versionDialogVisible = ref(false)
 const itemDialogVisible = ref(false)
 const versionDetailVisible = ref(false)
@@ -231,12 +234,28 @@ async function loadVersions() {
 async function loadItems() {
   itemsLoading.value = true
   try {
-    const res = await getEvalDatasetItems({ datasetId, pageNum: pageNum.value, pageSize })
+    const res = await getEvalDatasetItems({
+      datasetId,
+      pageNum: pageNum.value,
+      pageSize: pageSize.value,
+    })
     items.value = res.data?.records || []
     itemTotal.value = res.data?.total || 0
   } finally {
     itemsLoading.value = false
   }
+}
+
+function onItemPageChange(page, size) {
+  pageNum.value = page
+  pageSize.value = size
+  loadItems()
+}
+
+function onItemPageSizeChange(_current, size) {
+  pageSize.value = size
+  pageNum.value = 1
+  loadItems()
 }
 
 function openVersionDialog() {
@@ -513,8 +532,10 @@ function truncate(str, len) {
 }
 .item-pagination {
   display: flex;
-  justify-content: center;
-  padding: 8px 0;
+  justify-content: flex-end;
+  padding: 8px 12px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .version-list {
