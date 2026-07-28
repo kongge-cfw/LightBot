@@ -22,10 +22,10 @@
 
 ### 2.1 初始化全新数据库
 
-`sql/2026-07-12-init.sql` 会创建 `lightbot` 数据库、启用 `vector` 扩展并写入完整 2.1 基线结构。执行账号需要具备创建数据库和扩展的权限。
+`sql/2026-07-28-init.sql` 会创建 `lightbot` 数据库、启用 `vector` 扩展并写入完整 2.1 基线结构。执行账号需要具备创建数据库和扩展的权限。
 
 ```bash
-psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-12-init.sql
+psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-28-init.sql
 ```
 
 验证：
@@ -157,7 +157,7 @@ PostgreSQL 尚未安装 pgvector，或当前账号无权执行 `CREATE EXTENSION
 
 ### 数据库已存在
 
-不要对已部署环境重跑 `2026-07-12-init.sql`。从旧版本升级时先备份，再按 [sql/README.md](sql/README.md) 列出的日期顺序执行增量迁移。
+不要对已部署环境重跑 `2026-07-28-init.sql`。从旧版本升级时先备份，再按 [sql/README.md](sql/README.md) 执行尚未应用的增量迁移。
 
 ## 下一步
 

@@ -31,8 +31,6 @@ LightBot 是一个 Java First 的 AI Agent 平台，服务于需要将大模型�
 
 ## 项目演示
 
-截图统一存放于 `docs/assets/screenshots/`，按模块两两并排（五五开）展示。后续新增请使用 16:9、宽度不小于 1440px 的 PNG 或 WebP。
-
 | 平台概览 | Agent 配置与版本 |
 | :---: | :---: |
 | <img src="docs/assets/screenshots/image-20260618224412024.png" alt="LightBot 平台概览" width="100%"> | <img src="docs/assets/screenshots/image-20260619102651488.png" alt="Agent 配置与模型能力" width="100%"> |
@@ -119,7 +117,7 @@ lightbot-framework → lightbot-common
 
 ```bash
 # 1. 初始化全新数据库（会创建 lightbot 数据库）
-psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-12-init.sql
+psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-28-init.sql
 
 # 2. 配置模型密钥（PowerShell 示例）
 $env:DASHSCOPE_API_KEY = "sk-xxx"
@@ -141,9 +139,9 @@ pnpm dev
 
 ## 数据库与升级
 
-- 全新安装执行 `sql/2026-07-12-init.sql`；该文件是 2.1 的完整基线快照。
-- 已部署环境只按日期顺序执行增量迁移，**不要**重跑基线快照。
-- SQL 以模块索引管理，历史迁移保持不可变，避免升级环境重复执行 DDL。
+- 全新安装执行 `sql/2026-07-28-init.sql`；该文件是 2.1 的完整基线快照。
+- 已部署环境只按日期顺序执行尚未应用的增量迁移，**不要**重跑基线快照。
+- SQL 以模块索引管理；已并入基线的增量脚本会从仓库移除，后续变更继续用 `YYYY-MM-DD-NNN.sql`。
 
 详情见[SQL 迁移说明](sql/README.md)与[SQL 模块索引](sql/module-index.md)。
 
@@ -167,4 +165,3 @@ LightBot 希望成为 Java 团队构建 AI 应用的可靠底座：让模型、�
   <img src="docs/assets/wechat-official-account.png" alt="LightBot 公众号" width="260">
 </p>
 
-## 
