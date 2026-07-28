@@ -60,7 +60,11 @@
       <span class="model-select-dropdown-anchor" :style="dropdownAnchorStyle" />
     </a-tooltip>
     <div class="model-select-suffix-icons">
-      <a-tooltip :title="displayValue ? '检查连通性' : '请先选择模型'">
+      <a-tooltip
+        :title="checkTooltipTitle"
+        :overlay-style="checkStatus === 'error' ? { maxWidth: '420px' } : undefined"
+        overlay-class-name="model-select-tooltip"
+      >
         <span class="suffix-icon-btn" :class="{ disabled: !displayValue }" @click.stop="handleCheck">
           <LoadingOutlined v-if="checking" spin />
           <CheckCircleOutlined v-else-if="checkStatus === 'success'" style="color: #52c41a" />
@@ -117,6 +121,8 @@ const loading = ref(false)
 const checking = ref(false)
 const refreshing = ref(false)
 const checkStatus = ref(null)
+/** 连通性检测失败时的错误信息，展示在检测按钮 tooltip */
+const checkErrorMsg = ref('')
 const refreshStatus = ref(null)
 const options = ref([])
 const dropdownOpen = ref(false)
@@ -294,6 +300,14 @@ const selectorTooltipOpen = computed(() =>
   selectorHovered.value && !dropdownOpen.value && !!selectedTooltipText.value
 )
 
+const checkTooltipTitle = computed(() => {
+  if (!displayValue.value) return '请先选择模型'
+  if (checking.value) return '检测中…'
+  if (checkStatus.value === 'success') return '连通性正常'
+  if (checkStatus.value === 'error') return checkErrorMsg.value || '连通性检测失败'
+  return '检查连通性'
+})
+
 const searchText = ref('')
 const debouncedSearch = ref('')
 const searching = ref(false)
@@ -395,6 +409,7 @@ function emitSelection(parsed) {
 
 function handleUpdate(val) {
   checkStatus.value = null
+  checkErrorMsg.value = ''
   if (!val) {
     resetSearch()
     emitSelection({ providerId: null, modelId: null })
@@ -409,11 +424,13 @@ async function handleCheck() {
   if (!providerId) return
   checking.value = true
   checkStatus.value = null
+  checkErrorMsg.value = ''
   try {
     await checkModelProvider(providerId, { silent: true })
     checkStatus.value = 'success'
-  } catch {
+  } catch (e) {
     checkStatus.value = 'error'
+    checkErrorMsg.value = e?.message || '连通性检测失败'
   } finally {
     checking.value = false
   }
@@ -422,6 +439,7 @@ async function handleCheck() {
 async function handleRefresh() {
   refreshing.value = true
   checkStatus.value = null
+  checkErrorMsg.value = ''
   refreshStatus.value = null
   try {
     await refreshModelProviderCache({ silent: true })
