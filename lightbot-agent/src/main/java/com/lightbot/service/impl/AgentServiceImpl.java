@@ -25,6 +25,8 @@ import com.lightbot.service.McpServerService;
 import com.lightbot.service.SystemConfigService;
 import com.lightbot.service.ToolService;
 import com.lightbot.entity.Tool;
+import com.lightbot.entity.SubAgent;
+import com.lightbot.dto.SubAgentRequestDTO;
 import com.lightbot.util.LlmTraceContext;
 import com.lightbot.util.MinioUtil;
 import com.lightbot.util.WorkflowExampleTemplates;
@@ -681,7 +683,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
         long userId = StpUtil.getLoginIdAsLong();
         Map<String, Long> toolIds = resolveExampleToolIds();
-        Map<String, Long> subAgentIds = createPublishedSubWorkflowExamples(key, userId, toolIds);
+        Map<String, Long> subWorkflowAgentIds = createPublishedSubWorkflowExamples(key, userId, toolIds);
+        Map<String, Long> capabilitySubAgentIds = resolveOrCreateExampleCapabilitySubAgents(key);
 
         // 2. 构建 Agent 实体
         Agent agent = new Agent();
@@ -697,7 +700,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         save(agent);
 
         // 3. 解析占位符并初始化草稿版本
-        Map<String, Object> snapshot = WorkflowExampleTemplates.buildResolvedSnapshot(key, subAgentIds, toolIds);
+        Map<String, Object> snapshot = WorkflowExampleTemplates.buildResolvedSnapshot(
+                key, subWorkflowAgentIds, toolIds, capabilitySubAgentIds);
         if (snapshot == null) {
             throw new BizException("示例工作流快照不存在: " + key);
         }
@@ -721,7 +725,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     /** 创建并发布示例子工作流，返回 subKey → agentId */
     private Map<String, Long> createPublishedSubWorkflowExamples(String key, long userId, Map<String, Long> toolIds) {
-        Map<String, Long> subAgentIds = new HashMap<>();
+        Map<String, Long> subWorkflowAgentIds = new HashMap<>();
         for (String subKey : WorkflowExampleTemplates.getSubWorkflowKeys(key)) {
             Map<String, Object> subSnapshot = WorkflowExampleTemplates.buildResolvedSubSnapshot(subKey, toolIds);
             if (subSnapshot == null) {
@@ -742,9 +746,39 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
             agentVersionService.initDraftWithWorkflow(subAgent, subSnapshot);
             publishExampleWorkflowSnapshot(subAgent.getId(), subSnapshot);
-            subAgentIds.put(subKey, subAgent.getId());
+            subWorkflowAgentIds.put(subKey, subAgent.getId());
         }
-        return subAgentIds;
+        return subWorkflowAgentIds;
+    }
+
+    /**
+     * 准备示例用 SubAgent 能力实例：已存在则复用并确保启用，不存在则创建
+     */
+    private Map<String, Long> resolveOrCreateExampleCapabilitySubAgents(String key) {
+        Map<String, Long> capabilityIds = new LinkedHashMap<>();
+        for (String saKey : WorkflowExampleTemplates.getCapabilitySubAgentKeys(key)) {
+            String name = WorkflowExampleTemplates.getCapabilitySubAgentName(saKey);
+            SubAgent existing = subAgentService.getByName(name);
+            if (existing != null) {
+                if (!Integer.valueOf(1).equals(existing.getEnabled())) {
+                    subAgentService.setEnabled(existing.getId(), true);
+                }
+                capabilityIds.put(saKey, existing.getId());
+                continue;
+            }
+            SubAgentRequestDTO request = new SubAgentRequestDTO();
+            request.setName(name);
+            request.setDisplayName(WorkflowExampleTemplates.getCapabilitySubAgentDisplayName(saKey));
+            request.setDescription("工作流示例用摘要助手");
+            request.setSystemPrompt(
+                    "你是摘要助手。请把用户给出的内容整理为简洁、可执行的要点列表（3-5 条），不要编造事实。");
+            request.setIcon("TeamOutlined");
+            request.setEnabled(true);
+            request.setToolIds(List.of());
+            SubAgent created = subAgentService.create(request);
+            capabilityIds.put(saKey, created.getId());
+        }
+        return capabilityIds;
     }
 
     private void publishExampleWorkflowSnapshot(Long agentId, Map<String, Object> workflowSnapshot) {

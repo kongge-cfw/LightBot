@@ -219,6 +219,12 @@ export const FIELD_HINTS = {
     outputMappings: '子流程出参写入父流程：key 为父流程变量名，value 引用子流程结果如 {{result}}',
     streamSwitch: '子流程输出是否流式追加到对话',
   },
+  sub_agent: {
+    subAgentId: '选择已启用的 SubAgent（节点级选择，无需绑定到主 Agent）',
+    task: '任务描述模板，支持 {{query}} / {{上游节点.字段}}',
+    outputMappings: '将 SubAgent 结果写入流程变量：value 可引用 {{reply}} / {{threadId}}',
+    streamSwitch: '是否将 SubAgent 回复追加到对话流',
+  },
 }
 
 /** 节点示例配置（点击节点详情 ? 展示） */
@@ -437,6 +443,18 @@ export const NODE_EXAMPLES = {
       streamSwitch: false,
     },
   },
+  sub_agent: {
+    title: 'SubAgent 节点',
+    summary: '委派子智能体执行任务，可使用工具循环；模型优先用 SubAgent 自带配置，否则继承工作流 Agent。',
+    example: {
+      label: '调研助手',
+      subAgentId: '1',
+      subAgentName: 'researcher',
+      task: '请调研并总结：{{query}}',
+      streamSwitch: false,
+      outputMappings: [{ key: 'reply', value: '{{reply}}' }],
+    },
+  },
   start: {
     title: '开始节点',
     summary: '工作流入口，每个画布有且仅有一个；所有执行从此出发。',
@@ -481,6 +499,7 @@ const NODE_TYPES_DISABLE_APPLY = new Set([
   'classifier',
   'parameter_extractor',
   'app_component',
+  'sub_agent',
 ])
 
 /**

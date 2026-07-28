@@ -12,7 +12,7 @@ export const ALL_WORKFLOW_NODE_TYPES = [
   'start', 'end', 'llm', 'condition', 'retrieval', 'tool', 'script', 'api',
   'loop', 'loop_start', 'loop_end', 'variable', 'classifier', 'batch',
   'batch_start', 'batch_end', 'mcp', 'input', 'output', 'variable_handle',
-  'parameter_extractor', 'app_component', 'confirm',
+  'parameter_extractor', 'app_component', 'sub_agent', 'confirm',
 ]
 
 /** Chat 中隐藏的内置容器边界节点 */
@@ -50,6 +50,7 @@ export const NODE_CHAT_STYLE = {
   variable_handle: { color: 'var(--color-warning-deep)', bg: 'var(--color-warn-bg)', border: 'var(--color-warning-soft)' },
   parameter_extractor: { color: 'var(--color-error)', bg: 'var(--color-error-bg)', border: 'var(--color-error-soft)' },
   app_component: { color: 'var(--blue-600)', bg: 'var(--blue-50)', border: 'var(--blue-200)' },
+  sub_agent: { color: 'var(--color-warning)', bg: 'var(--color-warn-bg)', border: 'var(--color-warning-soft)' },
   loop_start: { color: 'var(--blue-400)', bg: 'var(--color-purple-bg)', border: 'var(--color-purple-border)' },
   loop_end: { color: 'var(--blue-400)', bg: 'var(--color-purple-bg)', border: 'var(--color-purple-border)' },
   batch_start: { color: 'var(--green-500)', bg: 'var(--green-50)', border: 'var(--green-200)' },
@@ -179,6 +180,8 @@ export function getStepSummary(step) {
       return '已提交'
     case 'app_component':
       return outputs.componentName ? `子流程 · ${outputs.componentName}` : '子工作流完成'
+    case 'sub_agent':
+      return outputs.subAgentName ? `SubAgent · ${outputs.subAgentName}` : 'SubAgent 完成'
     case 'loop': {
       const stat = countContainerSteps(step)
       if (stat) {

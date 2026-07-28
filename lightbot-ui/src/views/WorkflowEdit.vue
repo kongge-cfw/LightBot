@@ -2561,6 +2561,14 @@ function validateWorkflow(showToast = true) {
     if (n.type === 'app_component' && !n.data.componentCode?.trim()) {
       errors.push({ nodeId: n.id, field: 'componentCode', message: '请选择子工作流' })
     }
+    if (n.type === 'sub_agent') {
+      if (n.data.subAgentId == null || n.data.subAgentId === '') {
+        errors.push({ nodeId: n.id, field: 'subAgentId', message: '请选择 SubAgent' })
+      }
+      if (!n.data.task?.trim()) {
+        errors.push({ nodeId: n.id, field: 'task', message: '请填写任务描述' })
+      }
+    }
   })
 
   // 5. 变量引用静态校验（命名空间 {{nodeId.field}}）

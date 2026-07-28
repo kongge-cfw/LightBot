@@ -74,6 +74,7 @@
     <template #node-variable_handle="slotProps"><GenericWorkflowNode v-bind="slotProps" node-type="variable_handle" /></template>
     <template #node-parameter_extractor="slotProps"><GenericWorkflowNode v-bind="slotProps" node-type="parameter_extractor" /></template>
     <template #node-app_component="slotProps"><GenericWorkflowNode v-bind="slotProps" node-type="app_component" summary-key="componentName" /></template>
+    <template #node-sub_agent="slotProps"><GenericWorkflowNode v-bind="slotProps" node-type="sub_agent" summary-key="subAgentName" /></template>
 
     <template v-if="showConnectionLine" #connection-line="lineProps">
       <WorkflowConnectionLine v-bind="lineProps" />
