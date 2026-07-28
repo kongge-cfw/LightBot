@@ -523,6 +523,17 @@ public class LightBotMcpServer {
 
 ## 开发准则
 
+### 0. 中大型需求走 SDD
+
+**先写规格，再写代码。** 完整规范见 [`docs/sdd/README.md`](docs/sdd/README.md)，一页速查见 [`docs/sdd/CHEATSHEET.md`](docs/sdd/CHEATSHEET.md)，进行中的规格索引见 [`docs/specs/README.md`](docs/specs/README.md)。
+
+- 新模块 / 跨模块改动 / 新核心能力：完整 SDD（`spec.md` → `design.md` → `tasks.md` → 实现 → 验收）。
+- 单模块新功能、重构/性能优化：轻量 SDD（spec 可与 design 合并）。
+- typo、样式、紧急 bugfix：可免 SDD，PR 说明即可。
+- 判断标准：是否影响**模块边界、数据模型、对外接口** — 是则走 SDD。
+- 产物统一放 `docs/specs/{feature}/`；空白模板在 `docs/sdd/templates/`。
+- PR 必须填写「关联 Spec」并列出完成的 AC（见 `.github/PULL_REQUEST_TEMPLATE.md`）。
+
 ### 1. 编码前思考
 
 **不要假设，不要隐藏困惑，暴露权衡。**
@@ -577,6 +588,21 @@ public class LightBotMcpServer {
 ---
 
 ## AI 编码规则
+
+### 先读 Spec 再编码
+
+中大型需求动手前必须：
+
+```text
+1. 读取 docs/specs/{feature}/spec.md（目标、非目标、验收标准）
+2. 读取 design.md（方案、模块边界、接口契约）
+3. 读取 tasks.md，只实现列出的任务，不顺手扩 scope
+4. 对照 CLAUDE.md / AGENTS.md 禁止事项与必须遵守
+5. spec 不清晰时停下来提问，不擅自决策
+6. PR 描述引用 SPEC 编号，逐条勾选完成的 AC
+```
+
+无关联 spec 且改动触及模块边界/数据模型/对外接口时：先补 Draft spec，再编码。
 
 ### 如何生成代码
 
