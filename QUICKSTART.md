@@ -22,10 +22,11 @@
 
 ### 2.1 初始化全新数据库
 
-`sql/2026-07-28-init.sql` 会创建 `lightbot` 数据库、启用 `vector` 扩展并写入完整 2.1 基线结构。执行账号需要具备创建数据库和扩展的权限。
+`sql/2026-07-28-init.sql` 为全量 DDL（建库、扩展、建表）；`sql/insert-sql.sql` 为预制数据。请在仓库根目录依次执行；执行账号需要具备创建数据库和扩展的权限。
 
 ```bash
 psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-28-init.sql
+psql -v ON_ERROR_STOP=1 -U postgres -h localhost -d lightbot -f sql/insert-sql.sql
 ```
 
 验证：

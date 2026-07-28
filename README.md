@@ -118,14 +118,16 @@ lightbot-framework → lightbot-common
 ```bash
 # 1. 初始化全新数据库（会创建 lightbot 数据库）
 psql -v ON_ERROR_STOP=1 -U postgres -h localhost -f sql/2026-07-28-init.sql
+# 2. 写入预制数据
+psql -v ON_ERROR_STOP=1 -U postgres -h localhost -d lightbot -f sql/insert-sql.sql
 
-# 2. 配置模型密钥（PowerShell 示例）
+# 3. 配置模型密钥（PowerShell 示例）
 $env:DASHSCOPE_API_KEY = "sk-xxx"
 
-# 3. 启动后端（仓库根目录）
+# 4. 启动后端（仓库根目录）
 mvn -pl lightbot-server -am spring-boot:run
 
-# 4. 启动前端（另开终端）
+# 5. 启动前端（另开终端）
 cd lightbot-ui
 pnpm install
 pnpm dev
@@ -139,9 +141,9 @@ pnpm dev
 
 ## 数据库与升级
 
-- 全新安装执行 `sql/2026-07-28-init.sql`；该文件是 2.1 的完整基线快照。
-- 已部署环境只按日期顺序执行尚未应用的增量迁移，**不要**重跑基线快照。
-- SQL 以模块索引管理；已并入基线的增量脚本会从仓库移除，后续变更继续用 `YYYY-MM-DD-NNN.sql`。
+- 全新安装依次执行 `sql/2026-07-28-init.sql`（DDL）与 `sql/insert-sql.sql`（预制数据）。
+- 已部署环境只按日期顺序执行尚未应用的增量迁移，**不要**重跑基线 init。
+- 基线固定两个 SQL：带日期的全量 DDL，以及 `insert-sql.sql`。
 
 详情见[SQL 迁移说明](sql/README.md)与[SQL 模块索引](sql/module-index.md)。
 
