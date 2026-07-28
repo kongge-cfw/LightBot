@@ -1,24 +1,17 @@
 <template>
   <div class="constraint-config">
-    <!-- 搜索条件：模糊搜索 + 筛选项 -->
+    <!-- 搜索条件：模糊搜索 + 筛选项（紧凑双行） -->
     <section class="section">
-      <div class="section__header">
-        <div>
-          <h4>搜索条件</h4>
-          <p>配置数据池检索能力：模糊搜索对应关键词框，筛选项对应分字段过滤</p>
-        </div>
-      </div>
-
-      <div class="subsection">
-        <div class="subsection__header">
-          <div>
-            <h5>模糊搜索</h5>
-            <p>指定一个或多个字段参与关键词模糊匹配（OR）；未配置则不展示关键词搜索</p>
+      <div class="row-block">
+        <div class="row-block__head">
+          <div class="row-block__title">
+            <h4>模糊搜索</h4>
+            <span>关键词 OR 匹配；未配则不展示搜索框</span>
           </div>
           <a-select
             v-model:value="fuzzyAddKey"
             placeholder="添加字段"
-            style="width: 200px"
+            class="row-block__select"
             :options="fuzzyCandidateOptions"
             allow-clear
             @change="onAddFuzzyField"
@@ -41,19 +34,19 @@
             </div>
           </div>
         </div>
-        <div v-else class="section__empty section__empty--sm">尚未配置模糊搜索字段</div>
+        <div v-else class="section__empty">尚未配置</div>
       </div>
 
-      <div class="subsection">
-        <div class="subsection__header">
-          <div>
-            <h5>筛选项</h5>
-            <p>按顺序配置分字段筛选；未配置则无高级筛选</p>
+      <div class="row-block row-block--divided">
+        <div class="row-block__head">
+          <div class="row-block__title">
+            <h4>筛选项</h4>
+            <span>分字段筛选；未配则无高级筛选</span>
           </div>
           <a-select
             v-model:value="searchAddKey"
             placeholder="添加字段"
-            style="width: 200px"
+            class="row-block__select"
             :options="searchCandidateOptions"
             allow-clear
             @change="onAddSearchField"
@@ -76,21 +69,21 @@
             </div>
           </div>
         </div>
-        <div v-else class="section__empty section__empty--sm">尚未配置筛选项</div>
+        <div v-else class="section__empty">尚未配置</div>
       </div>
     </section>
 
-    <!-- 唯一约束：与筛选项同交互，规则内可继续添加字段组成联合唯一 -->
+    <!-- 唯一约束 -->
     <section class="section">
-      <div class="section__header">
-        <div>
+      <div class="row-block__head">
+        <div class="row-block__title">
           <h4>唯一约束</h4>
-          <p>下拉添加字段新建一条约束；可在约束内继续添加字段组成联合唯一，顺序即约束键顺序</p>
+          <span>添加字段新建；可继续追加组成联合唯一</span>
         </div>
         <a-select
           v-model:value="uniqueAddKey"
           placeholder="添加字段"
-          style="width: 200px"
+          class="row-block__select"
           :options="indexableFieldOptions"
           allow-clear
           @change="(key) => onAddRuleSeed('unique', key)"
@@ -104,14 +97,14 @@
               <a-select
                 :value="ruleAddKeys[rule.id]"
                 placeholder="添加字段"
-                style="width: 180px"
+                class="rule-block__select"
                 :options="ruleFieldOptions(rule)"
                 allow-clear
                 @update:value="(v) => (ruleAddKeys[rule.id] = v)"
                 @change="(key) => onAddFieldToRule('unique', rule, key)"
               />
               <button type="button" class="btn-link btn-link--danger" @click="removeRule('unique', rule.id)">
-                删除约束
+                删除
               </button>
             </div>
           </div>
@@ -143,20 +136,20 @@
           </div>
         </div>
       </div>
-      <div v-else class="section__empty">尚未配置唯一约束</div>
+      <div v-else class="section__empty">尚未配置</div>
     </section>
 
-    <!-- 普通索引：交互同唯一约束 -->
+    <!-- 普通索引 -->
     <section class="section">
-      <div class="section__header">
-        <div>
+      <div class="row-block__head">
+        <div class="row-block__title">
           <h4>普通索引</h4>
-          <p>下拉添加字段新建一条索引；可在索引内继续添加字段，顺序影响最左匹配</p>
+          <span>添加字段新建；顺序影响最左匹配</span>
         </div>
         <a-select
           v-model:value="indexAddKey"
           placeholder="添加字段"
-          style="width: 200px"
+          class="row-block__select"
           :options="indexableFieldOptions"
           allow-clear
           @change="(key) => onAddRuleSeed('index', key)"
@@ -167,20 +160,20 @@
           <div class="rule-block__header">
             <div class="rule-block__title-wrap">
               <span class="rule-block__title">索引 {{ ruleIdx + 1 }}</span>
-              <span v-if="isCoveredByUnique(rule.fields)" class="rule-block__tip">与某条唯一约束字段序列相同</span>
+              <span v-if="isCoveredByUnique(rule.fields)" class="rule-block__tip">与某条唯一约束序列相同</span>
             </div>
             <div class="rule-block__header-actions">
               <a-select
                 :value="ruleAddKeys[rule.id]"
                 placeholder="添加字段"
-                style="width: 180px"
+                class="rule-block__select"
                 :options="ruleFieldOptions(rule)"
                 allow-clear
                 @update:value="(v) => (ruleAddKeys[rule.id] = v)"
                 @change="(key) => onAddFieldToRule('index', rule, key)"
               />
               <button type="button" class="btn-link btn-link--danger" @click="removeRule('index', rule.id)">
-                删除索引
+                删除
               </button>
             </div>
           </div>
@@ -212,7 +205,7 @@
           </div>
         </div>
       </div>
-      <div v-else class="section__empty">尚未配置普通索引</div>
+      <div v-else class="section__empty">尚未配置</div>
     </section>
   </div>
 </template>
@@ -506,105 +499,93 @@ defineExpose({ getConfig })
 .constraint-config {
   flex: 1;
   min-height: 0;
-  height: 100%;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  justify-content: flex-start;
+  gap: 10px;
   padding-right: 4px;
 }
 .section {
+  flex: 0 0 auto;
   border: 1px solid var(--color-hairline);
-  /* 同心圆角：内层 item 8px + padding 16px ≈ 24px */
-  border-radius: 16px;
+  border-radius: 12px;
   background: var(--color-canvas);
-  padding: 16px;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  padding: 10px 12px;
 }
-.section:hover {
-  border-color: var(--color-hairline-strong);
-}
-.section__header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-.section__header h4 {
-  margin: 0 0 4px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-ink);
-}
-.section__header p {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-mute);
-  line-height: 1.5;
-}
-.subsection + .subsection {
-  padding-top: 12px;
-  margin-top: 12px;
+.row-block--divided {
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid var(--color-hairline);
 }
-.subsection__header {
+.row-block__head {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 10px;
+  min-height: 32px;
 }
-.subsection__header h5 {
-  margin: 0 0 4px;
+.row-block__title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  min-width: 0;
+}
+.row-block__title h4 {
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--color-ink);
+  white-space: nowrap;
 }
-.subsection__header p {
-  margin: 0;
+.row-block__title span {
   font-size: 12px;
   color: var(--color-mute);
-  line-height: 1.5;
+  line-height: 1.3;
+}
+.row-block__select,
+.rule-block__select {
+  width: 168px;
+  flex-shrink: 0;
 }
 .section__empty {
-  padding: 20px;
-  text-align: center;
-  font-size: 13px;
+  margin-top: 6px;
+  padding: 0;
+  text-align: left;
+  font-size: 12px;
   color: var(--color-mute);
-  background: var(--color-canvas-soft);
-  border-radius: 8px;
-}
-.section__empty--sm {
-  padding: 14px;
+  line-height: 1.4;
 }
 .ordered-list,
 .rule-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
+  margin-top: 8px;
 }
 .rule-list {
-  gap: 12px;
+  gap: 8px;
 }
 .rule-block {
   border: 1px solid var(--color-hairline);
-  border-radius: 12px;
+  border-radius: 8px;
   background: var(--color-canvas-soft);
-  padding: 12px;
+  padding: 8px 10px;
 }
 .rule-block__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 10px;
+  gap: 8px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 .rule-block__title-wrap {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 6px 10px;
   min-width: 0;
 }
 .rule-block__title {
@@ -619,22 +600,22 @@ defineExpose({ getConfig })
 .rule-block__header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   margin-left: auto;
 }
 .ordered-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
+  gap: 8px;
+  padding: 6px 10px;
   border: 1px solid var(--color-hairline);
-  border-radius: 8px;
+  border-radius: 6px;
   background: var(--color-canvas);
 }
 .ordered-item__index {
   color: var(--color-mute);
-  font-size: 13px;
-  min-width: 20px;
+  font-size: 12px;
+  min-width: 18px;
 }
 .ordered-item__label {
   font-size: 13px;
@@ -649,14 +630,14 @@ defineExpose({ getConfig })
 .ordered-item__actions {
   margin-left: auto;
   display: flex;
-  gap: 4px;
+  gap: 2px;
   flex-shrink: 0;
 }
 .btn-link {
   border: none;
   background: transparent;
   color: var(--color-link);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   padding: 0 4px;
 }
