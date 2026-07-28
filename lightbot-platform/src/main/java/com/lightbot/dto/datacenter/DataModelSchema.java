@@ -28,7 +28,12 @@ public class DataModelSchema {
     public static class FieldDef {
         /** 字段标识（API/前端 key） */
         private String key;
+        /** 字段中文名（展示名） */
         private String label;
+        /**
+         * 字段描述（供大模型分析；DDL 列备注格式为「字段名：描述」）
+         */
+        private String description;
         /** input/textarea/number/date/datetime/select/radio/checkbox/upload */
         private String type;
         private Boolean required;

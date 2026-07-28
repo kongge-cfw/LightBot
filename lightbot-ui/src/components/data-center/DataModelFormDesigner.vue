@@ -63,6 +63,14 @@
               class="field-row__label"
               @update:value="(v) => (field.label = filterLabel(v ?? ''))"
             />
+            <a-input
+              v-model:value="field.description"
+              placeholder="字段描述（供大模型分析 / DDL 备注）"
+              :maxlength="100"
+              show-count
+              class="field-row__description"
+              allow-clear
+            />
             <a-checkbox v-model:checked="field.required" class="field-row__required">必填</a-checkbox>
             <div class="field-row__extra">
               <template v-if="['select', 'radio', 'checkbox'].includes(field.type)">
@@ -212,6 +220,7 @@ function onDrop() {
     _id: genId(),
     _key: '',
     label: dragType.label,
+    description: '',
     type: dragType.type,
     required: false,
     system: false,
@@ -304,6 +313,10 @@ function schemaFromFields() {
       }
       return result
     }
+    const desc = String(field.description || '').trim()
+    if (desc) {
+      result.description = desc.slice(0, 100)
+    }
     if (field.props && Object.keys(field.props).length) {
       result.props = { ...field.props }
     }
@@ -332,6 +345,7 @@ function mapRawField(field, index) {
     _id: field.key || `field_${index}`,
     _key: field.key || '',
     label: field.label || '',
+    description: field.description || '',
     type: field.type || 'input',
     required: !!field.required,
     system: !!field.system || SYSTEM_KEYS.has(field.key),
@@ -448,16 +462,17 @@ defineExpose({
 .field-row:hover {
   border-color: var(--color-hairline-strong);
 }
-/* 自定义字段：固定列宽，保证名称输入框跨行对齐 */
+/* 自定义字段：固定列宽，保证名称/描述输入框跨行对齐 */
 .field-row--custom {
   display: grid;
   grid-template-columns:
     28px
     72px
     88px
-    minmax(220px, 280px)
+    minmax(160px, 200px)
+    minmax(180px, 1fr)
     56px
-    minmax(0, 1fr)
+    minmax(0, 220px)
     40px;
 }
 .field-row--system {
@@ -484,6 +499,13 @@ defineExpose({
   min-width: 0;
 }
 .field-row__label :deep(.ant-input) {
+  width: 100%;
+}
+.field-row__description {
+  width: 100% !important;
+  min-width: 0;
+}
+.field-row__description :deep(.ant-input) {
   width: 100%;
 }
 .field-row__required {

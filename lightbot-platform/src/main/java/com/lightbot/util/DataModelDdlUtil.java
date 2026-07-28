@@ -56,6 +56,7 @@ public class DataModelDdlUtil {
 
         try {
             jdbcTemplate.execute(ddl.toString());
+            applyColumnComments(tableName, schema);
             ensureConstraints(tableName, schema, Collections.emptySet(), Collections.emptyMap());
             log.info("[DataCenter] 创建物理表成功 table={}", tableName);
         } catch (Exception e) {
@@ -86,6 +87,8 @@ public class DataModelDdlUtil {
                     log.info("[DataCenter] 新增列 table={} column={}", tableName, col);
                 }
             }
+            // 新建/已有列都同步备注（「字段名：描述」），供库内注释与大模型分析对齐
+            applyColumnComments(tableName, schema);
 
             Map<String, List<String>> existingIndexes = listManagedIndexes(tableName);
             ensureConstraints(tableName, schema, existingIndexes.keySet(), existingIndexes);
@@ -100,6 +103,44 @@ public class DataModelDdlUtil {
     public void dropTableIfExists(String tableName) {
         schemaSupport.assertSafeTableName(tableName);
         jdbcTemplate.execute("DROP TABLE IF EXISTS " + schemaSupport.quoteIdent(tableName) + " CASCADE");
+    }
+
+    /**
+     * 同步物理表备注：有描述时为「名称：描述」，否则仅为名称
+     *
+     * @param tableName   物理表名
+     * @param name        数据模型名称
+     * @param description 数据模型描述（可空）
+     */
+    public void applyTableComment(String tableName, String name, String description) {
+        schemaSupport.assertSafeTableName(tableName);
+        if (!tableExists(tableName)) {
+            return;
+        }
+        String comment = buildTableComment(name, description);
+        String sql = "COMMENT ON TABLE " + schemaSupport.quoteIdent(tableName)
+                + " IS " + quoteLiteral(comment);
+        try {
+            jdbcTemplate.execute(sql);
+            log.info("[DataCenter] 更新表备注 table={} comment={}", tableName, comment);
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.DATA_MODEL_DDL_FAILED, e.getMessage());
+        }
+    }
+
+    /**
+     * @return 表备注文本，格式「名称：描述」或仅「名称」
+     */
+    static String buildTableComment(String name, String description) {
+        String modelName = name != null ? name.trim() : "";
+        if (!StringUtils.hasText(modelName)) {
+            modelName = "未命名";
+        }
+        String desc = description != null ? description.trim() : "";
+        if (!StringUtils.hasText(desc)) {
+            return modelName;
+        }
+        return modelName + "：" + desc;
     }
 
     public boolean tableExists(String tableName) {
@@ -209,6 +250,40 @@ public class DataModelDdlUtil {
             throw new BizException(ErrorCode.DATA_MODEL_SCHEMA_INVALID, "索引字段为空");
         }
         return cols;
+    }
+
+    /**
+     * 为自定义列写入 COMMENT：有描述时为「字段名：描述」，否则仅为字段名
+     */
+    private void applyColumnComments(String tableName, DataModelSchema schema) {
+        String qTable = schemaSupport.quoteIdent(tableName);
+        for (DataModelSchema.FieldDef field : schemaSupport.customFields(schema)) {
+            String col = schemaSupport.toColumnName(field.getKey());
+            String comment = buildColumnComment(field);
+            String sql = "COMMENT ON COLUMN " + qTable + "." + schemaSupport.quoteIdent(col)
+                    + " IS " + quoteLiteral(comment);
+            jdbcTemplate.execute(sql);
+        }
+    }
+
+    /**
+     * @return DDL 列备注文本，格式「字段名：xxx」或仅「字段名」
+     */
+    static String buildColumnComment(DataModelSchema.FieldDef field) {
+        String label = field.getLabel() != null ? field.getLabel().trim() : "";
+        if (!StringUtils.hasText(label)) {
+            label = field.getKey() != null ? field.getKey() : "";
+        }
+        String description = field.getDescription() != null ? field.getDescription().trim() : "";
+        if (!StringUtils.hasText(description)) {
+            return label;
+        }
+        return label + "：" + description;
+    }
+
+    private static String quoteLiteral(String value) {
+        String safe = value == null ? "" : value.replace("'", "''");
+        return "'" + safe + "'";
     }
 
     private record DesiredIndex(String name, boolean unique, List<String> columns) {

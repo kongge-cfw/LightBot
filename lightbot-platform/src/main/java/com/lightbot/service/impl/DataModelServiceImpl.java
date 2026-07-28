@@ -98,6 +98,8 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
         model.setSchemaJson(schemaSupport.toSchemaJson(empty));
         save(model);
         ddlUtil.createTable(tableName, empty);
+        // 表备注：名称：描述（与列备注风格一致，供大模型分析）
+        ddlUtil.applyTableComment(tableName, model.getName(), model.getDescription());
         return toVo(model);
     }
 
@@ -117,6 +119,8 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
         model.setCategoryId(dto.getCategoryId());
         model.setDescription(dto.getDescription());
         updateById(model);
+        // 名称/描述变更后同步物理表 COMMENT
+        ddlUtil.applyTableComment(model.getTableName(), model.getName(), model.getDescription());
         return toVo(model);
     }
 

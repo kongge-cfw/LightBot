@@ -144,6 +144,10 @@ public class DataModelSchemaSupport {
             if (!StringUtils.hasText(field.getType())) {
                 throw new BizException(ErrorCode.DATA_MODEL_SCHEMA_INVALID, "字段类型不能为空: " + field.getKey());
             }
+            if (field.getDescription() != null && field.getDescription().length() > 100) {
+                throw new BizException(ErrorCode.DATA_MODEL_SCHEMA_INVALID,
+                        "字段描述不能超过100字: " + field.getKey());
+            }
             // 校验可生成列名
             if (!isSystemFieldKey(field.getKey())) {
                 toColumnName(field.getKey());
