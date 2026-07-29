@@ -11,7 +11,8 @@
     <header v-show="!isWorkflowRoute" class="topbar">
       <div class="topbar-left">
         <a class="brand" href="/" @click.prevent="router.push('/')">
-          <img src="/lightbot-logo.png" alt="LightBot" class="brand-logo" />
+          <img src="/lightbot-logo.png" alt="智元" class="brand-logo" />
+          <span class="brand-name">智元</span>
         </a>
         <nav class="top-nav" aria-label="主导航">
           <template v-for="item in navItems" :key="item.key || item.path">
@@ -680,18 +681,29 @@ watch(sessionLoadMoreRef, (el) => {
 .brand {
   display: flex;
   align-items: center;
+  gap: 8px;
   flex-shrink: 0;
-  padding: 4px 8px 4px 4px;
+  padding: 4px 10px 4px 4px;
   border-radius: 8px;
   transition: background 0.15s;
+  text-decoration: none;
+  color: inherit;
 }
 .brand:hover {
   background: var(--color-canvas-soft-2);
 }
 .brand-logo {
   height: 36px;
+  width: 36px;
   object-fit: contain;
   display: block;
+}
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--color-ink);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .top-nav {

@@ -42,9 +42,6 @@
           <a-form-item label="描述文字">
             <a-textarea v-model:value="landing.description" :rows="3" placeholder="平台介绍文字" :maxlength="200" show-count />
           </a-form-item>
-          <a-form-item label="GitHub 地址">
-            <a-input v-model:value="landing.github" placeholder="https://github.com/..." :maxlength="200" />
-          </a-form-item>
           <a-form-item label="版权信息">
             <a-input v-model:value="landing.copyright" placeholder="© 2026 LightBot" :maxlength="100" show-count />
           </a-form-item>
