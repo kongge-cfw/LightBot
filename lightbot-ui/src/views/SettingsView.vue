@@ -24,7 +24,7 @@
       <div class="panel-body">
         <a-form :label-col="{ span: 4 }" :wrapper-col="{ span: 18 }">
           <a-form-item label="主标题">
-            <a-input v-model:value="landing.title" placeholder="LightBot" :maxlength="30" show-count />
+            <a-input v-model:value="landing.title" placeholder="智元" :maxlength="30" show-count />
           </a-form-item>
           <a-form-item label="副标题轮播">
             <div class="subtitle-list">
@@ -43,7 +43,7 @@
             <a-textarea v-model:value="landing.description" :rows="3" placeholder="平台介绍文字" :maxlength="200" show-count />
           </a-form-item>
           <a-form-item label="版权信息">
-            <a-input v-model:value="landing.copyright" placeholder="© 2026 LightBot" :maxlength="100" show-count />
+            <a-input v-model:value="landing.copyright" placeholder="© 2026 智元" :maxlength="100" show-count />
           </a-form-item>
           <a-form-item label="功能展示">
             <div class="features-toggle-bar">
@@ -235,7 +235,7 @@
         <div class="panel-title-wrap">
           <h3>API Key 管理</h3>
         </div>
-        <span class="panel-desc">用于外部系统调用 LightBot 接口的认证凭证</span>
+        <span class="panel-desc">用于外部系统调用智元接口的认证凭证</span>
         <a class="apikey-docs-link" href="/docs" target="_blank" rel="noopener noreferrer">在线文档</a>
         <button class="btn-primary" style="margin-left: auto;" @click="showCreateApiKey">
           <PlusOutlined /> 创建 API Key

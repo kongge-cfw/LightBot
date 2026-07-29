@@ -128,7 +128,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         // 4. Dify Token 独立加密保存，避免通过知识库详情或日志泄露。
         if (knowledge.getType() == KnowledgeType.DIFY) {
             // 新建即校验真实连通性；失败时事务回滚，不留下不可用的外部知识库。
-            knowledgeRetrievalService.retrieve(knowledge, "LightBot connection test", 1, 0.0, Map.of());
+            knowledgeRetrievalService.retrieve(knowledge, "智元 connection test", 1, 0.0, Map.of());
         }
 
         // 5. 创建者自动成为成员（CREATOR角色）
@@ -172,7 +172,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
             existing.setEmbeddingModel(null);
             existing.setGraphEnabled(false);
             existing.setConfig(buildKnowledgeConfig(request, false, existing.getConfig()));
-            knowledgeRetrievalService.retrieve(existing, "LightBot connection test", 1, 0.0, Map.of());
+            knowledgeRetrievalService.retrieve(existing, "智元 connection test", 1, 0.0, Map.of());
         }
         updateById(existing);
         return sanitizeForResponse(existing);
@@ -859,7 +859,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
         }
 
         // 2. 调用 Dify retrieve 接口；空结果同样表示连接和鉴权成功。
-        knowledgeRetrievalService.retrieve(knowledge, "LightBot connection test", 1, 0.0, Map.of());
+        knowledgeRetrievalService.retrieve(knowledge, "智元 connection test", 1, 0.0, Map.of());
 
         // 3. 只返回非敏感的连接结果。
         DifyConnectionTestVO result = new DifyConnectionTestVO();
@@ -878,7 +878,7 @@ public class KnowledgeServiceImpl extends ServiceImpl<KnowledgeMapper, Knowledge
 
         // 2. 空结果仍代表地址、Dataset 与鉴权均有效。
         difyDatasetClient.retrieve(config.getApiUrl().trim(), config.getDatasetId().trim(), config.getToken().trim(),
-                "LightBot connection test", 1, 0.0, "vector");
+                "智元 connection test", 1, 0.0, "vector");
 
         DifyConnectionTestVO result = new DifyConnectionTestVO();
         result.setConnected(true);

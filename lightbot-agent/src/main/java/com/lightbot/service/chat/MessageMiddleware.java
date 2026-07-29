@@ -143,7 +143,7 @@ public class MessageMiddleware implements ChatMiddleware {
             """;
 
     private static final String DEFAULT_SYSTEM_PROMPT = """
-            你是 LightBot 智能助手。请根据用户的提问，利用可用的工具来提供准确、清晰的回答。
+            你是智元智能助手。请根据用户的提问，利用可用的工具来提供准确、清晰的回答。
 
             ## 工具使用原则
             - 当工具返回了检索结果时，必须基于这些结果回答，但须**总结归纳**，不要原文复述
@@ -163,7 +163,7 @@ public class MessageMiddleware implements ChatMiddleware {
             """;
 
     private static final String DEFAULT_SYSTEM_PROMPT_NO_TOOLS = """
-            你是 LightBot 智能助手。请根据用户的提问提供准确、清晰的回答。
+            你是智元智能助手。请根据用户的提问提供准确、清晰的回答。
 
             ## 回答规范
             - 使用中文回答

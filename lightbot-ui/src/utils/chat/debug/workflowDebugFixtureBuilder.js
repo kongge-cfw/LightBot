@@ -418,8 +418,8 @@ function buildLinearBasicFixture() {
     edge('llm-summary', 'end'),
   ]
   const events = buildEvents([
-    { nodeId: 'start', nodeType: 'start', nodeLabel: '开始', outputs: { query: '总结 LightBot Debug 能力' }, message: '工作流已启动' },
-    { nodeId: 'llm-summary', nodeType: 'llm', nodeLabel: '大模型总结', input: { prompt: '总结 LightBot Debug 能力' }, outputs: { text: 'Debug Lab 用于验证前端渲染链路。' }, durationMs: 860 },
+    { nodeId: 'start', nodeType: 'start', nodeLabel: '开始', outputs: { query: '总结 智元 Debug 能力' }, message: '工作流已启动' },
+    { nodeId: 'llm-summary', nodeType: 'llm', nodeLabel: '大模型总结', input: { prompt: '总结 智元 Debug 能力' }, outputs: { text: 'Debug Lab 用于验证前端渲染链路。' }, durationMs: 860 },
     { nodeId: 'end', nodeType: 'end', nodeLabel: '结束', outputs: { answer: 'Debug Lab 可复现工作流渲染问题。' }, durationMs: 8 },
   ])
   return { graph: { nodes, edges }, events }
@@ -428,7 +428,7 @@ function buildLinearBasicFixture() {
 function buildRagAnswerFixture() {
   const nodes = [
     node('start', 'start', 80, 160),
-    node('retrieval-docs', 'retrieval', 300, 146, { label: '检索 Debug 文档', knowledgeName: 'LightBot Docs' }),
+    node('retrieval-docs', 'retrieval', 300, 146, { label: '检索 Debug 文档', knowledgeName: '智元 Docs' }),
     node('llm-answer', 'llm', 560, 146, { label: '生成答案', modelName: 'Debug Mock Model' }),
     node('end', 'end', 820, 160),
   ]

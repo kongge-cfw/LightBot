@@ -15,9 +15,9 @@
       <!-- 右侧表单 -->
       <div class="card-right">
         <div class="form-header">
-          <img src="/lightbot-logo-single.png" alt="LightBot" class="form-logo" />
+          <img src="/lightbot-logo-single.png" alt="智元" class="form-logo" />
           <h2>欢迎回来</h2>
-          <p>登录你的 LightBot 账号</p>
+          <p>登录你的智元账号</p>
         </div>
 
         <form class="login-form" @submit.prevent="handleLogin">
@@ -65,9 +65,9 @@
       <div class="footer-links">
         <a href="https://github.com/finch04" target="_blank" rel="noopener">联系我们</a>
         <span class="divider">|</span>
-        <a href="https://github.com/finch04/LightBot" target="_blank" rel="noopener">使用帮助</a>
+        <a href="/docs" target="_blank" rel="noopener">使用帮助</a>
       </div>
-      <div class="footer-copyright">© 2026 LightBot. All Rights Reserved.</div>
+      <div class="footer-copyright">© 2026 智元. All Rights Reserved.</div>
     </div>
   </div>
 </template>

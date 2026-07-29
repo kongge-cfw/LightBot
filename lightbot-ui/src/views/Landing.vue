@@ -2,9 +2,9 @@
   <div class="landing-container">
     <!-- 后端不可用 -->
     <div v-if="isBackendDown" class="loading-container">
-      <img src="/lightbot-logo-single.png" alt="LightBot" class="error-logo" />
+      <img src="/lightbot-logo-single.png" alt="智元" class="error-logo" />
       <h2 class="error-title">服务连接失败</h2>
-      <p class="error-desc">无法连接到 LightBot 后端服务，请确认服务已启动。</p>
+      <p class="error-desc">无法连接到智元后端服务，请确认服务已启动。</p>
       <button class="button-base primary retry-btn" @click="retryHealthCheck">
         <SyncOutlined />
         <span>重新连接</span>
@@ -74,7 +74,7 @@
         <div class="hero-layout">
           <!-- 左侧文案 -->
           <div class="hero-content">
-            <h1 class="title reveal-up delay-1">{{ config.title || 'LightBot' }}</h1>
+            <h1 class="title reveal-up delay-1">{{ config.title || '智元' }}</h1>
             <Transition name="subtitle-switch" mode="out-in">
               <p v-if="currentSubtitle" class="subtitle reveal-up delay-2" :key="currentSubtitle">
                 {{ currentSubtitle }}
@@ -121,7 +121,7 @@
 
       <!-- 底部 -->
       <footer class="footer">
-        <p class="copyright">{{ config.copyright || '© 2026 LightBot. All Rights Reserved.' }}</p>
+        <p class="copyright">{{ config.copyright || '© 2026 智元. All Rights Reserved.' }}</p>
       </footer>
     </template>
   </div>
@@ -291,7 +291,7 @@ async function loadLandingConfig() {
   } catch (e) {
     console.error('加载 Landing 配置失败:', e)
     config.value = {
-      title: 'LightBot',
+      title: '智元',
       subtitle: 'AI Native 智能体平台',
       subtitles: ['AI Native 智能体平台', '一站式 RAG 知识库引擎', '可视化 Workflow 编排'],
       description: '构建智能体、知识库、工作流与工具集成的统一平台。',
@@ -307,8 +307,7 @@ async function loadLandingConfig() {
         { icon: 'Eval', title: '评测中心', desc: '数据集管理与自动评估' },
         { icon: 'Observability', title: '可观测性', desc: '全链路 Trace 追踪与监控' },
       ],
-      github: 'https://github.com/finch04/LightBot',
-      copyright: '© 2026 LightBot. All Rights Reserved.',
+      copyright: '© 2026 智元. All Rights Reserved.',
     }
   }
 }

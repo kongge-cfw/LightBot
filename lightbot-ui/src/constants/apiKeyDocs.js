@@ -104,12 +104,12 @@ export const API_DOC_GROUPS = [
 }`,
         responseFields: [
           ...RESULT_FIELDS,
-          { name: 'data', type: 'string', desc: '助手完整回复文本', example: '你好！我是 LightBot 智能助手……' },
+          { name: 'data', type: 'string', desc: '助手完整回复文本', example: '你好！我是 智元智能助手……' },
         ],
         responseExample: `{
   "code": 200,
   "message": "success",
-  "data": "你好！我是 LightBot 智能助手……"
+  "data": "你好！我是 智元智能助手……"
 }`,
       },
       {
@@ -122,13 +122,13 @@ export const API_DOC_GROUPS = [
         testable: true,
         params: [
           { name: 'agentId', type: 'string', required: true, in: 'body', desc: 'Agent ID', example: '2056961707612393473' },
-          { name: 'message', type: 'string', required: false, in: 'body', desc: '用户消息', example: '用三句话介绍 LightBot' },
+          { name: 'message', type: 'string', required: false, in: 'body', desc: '用户消息', example: '用三句话介绍智元' },
           { name: 'sessionId', type: 'string', required: false, in: 'body', desc: '会话 ID', example: '2056961707612393500' },
           { name: 'bizParams', type: 'object', required: false, in: 'body', desc: '入参变量', example: '{ "role": "助手" }' },
         ],
         bodyExample: `{
   "agentId": "2056961707612393473",
-  "message": "用三句话介绍 LightBot"
+  "message": "用三句话介绍智元"
 }`,
         responseFields: [
           { name: 'id', type: 'string', desc: 'SSE 事件序号，可用于断线重连', example: '1' },
@@ -244,14 +244,14 @@ data: [DONE]{"type":"done","requestId":"req_abc123","totalTokens":128}`,
         testable: true,
         params: [
           { name: 'sessionId', type: 'string', required: true, in: 'query', desc: '会话 ID', example: '2056961707612393500' },
-          { name: 'question', type: 'string', required: true, in: 'query', desc: '问题文本', example: 'LightBot 支持哪些能力？' },
+          { name: 'question', type: 'string', required: true, in: 'query', desc: '问题文本', example: '智元支持哪些能力？' },
           { name: 'agentId', type: 'string', required: false, in: 'query', desc: 'Agent ID', example: '2056961707612393473' },
         ],
         responseFields: [
           ...RESULT_FIELDS,
           { name: 'data', type: 'array', desc: '引用片段列表', example: '[]' },
           { name: 'data[].documentName', type: 'string', desc: '来源文档名', example: '产品手册.pdf' },
-          { name: 'data[].contentPreview', type: 'string', desc: '片段预览（约 200 字）', example: 'LightBot 支持 Agent...' },
+          { name: 'data[].contentPreview', type: 'string', desc: '片段预览（约 200 字）', example: '智元支持 Agent...' },
           { name: 'data[].score', type: 'number', desc: '相似度分数', example: '0.86' },
           { name: 'data[].knowledgeId', type: 'string', desc: '知识库 ID', example: '2056...' },
           { name: 'data[].documentId', type: 'string', desc: '文档 ID', example: '2056...' },
@@ -264,7 +264,7 @@ data: [DONE]{"type":"done","requestId":"req_abc123","totalTokens":128}`,
   "message": "success",
   "data": [{
     "documentName": "产品手册.pdf",
-    "contentPreview": "LightBot 支持 Agent...",
+    "contentPreview": "智元支持 Agent...",
     "score": 0.86,
     "sourceType": "chunk"
   }]

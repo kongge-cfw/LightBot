@@ -1145,9 +1145,9 @@ COMMENT ON TABLE subagent_task_event IS 'SubAgent任务运行事件表，支持�
 -- 内置默认Agent（id=1）
 INSERT INTO agent (id, user_id, name, description, agent_type, system_prompt, welcome_message, status, is_default, version, create_time, update_time, deleted)
 VALUES (
-    1, 1, 'LightBot 助手', '默认AI助手', 'chat',
-    '你是 LightBot 智能助手，请用中文回答用户问题。回答应简洁准确，遇到不确定的信息请如实告知。',
-    '## 你好，我是 LightBot
+    1, 1, '智元助手', '默认AI助手', 'chat',
+    '你是智元智能助手，请用中文回答用户问题。回答应简洁准确，遇到不确定的信息请如实告知。',
+    '## 你好，我是智元
 有什么可以帮你的？',
     'published', FALSE, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0
 ) ON CONFLICT (id) DO NOTHING;
@@ -1165,7 +1165,7 @@ ON CONFLICT (config_key) DO NOTHING;
 INSERT INTO system_config (config_key, config_value, description) VALUES (
   'landing_config',
   '{
-    "title": "LightBot",
+    "title": "智元",
     "subtitle": "AI Native 智能体平台",
     "subtitles": [
       "AI Native 智能体平台",
@@ -1174,7 +1174,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES (
       "MCP 协议生态集成",
       "全链路评测与可观测"
     ],
-    "description": "构建智能体、知识库、工作流与工具集成的统一平台。从 Prompt 工程到 RAG 检索增强，从 Workflow 编排到 MCP 工具生态，LightBot 为 AI 应用开发提供全栈能力支撑。",
+    "description": "构建智能体、知识库、工作流与工具集成的统一平台。从 Prompt 工程到 RAG 检索增强，从 Workflow 编排到 MCP 工具生态，智元为 AI 应用开发提供全栈能力支撑。",
     "features": [
       {"icon": "Agent", "title": "智能体", "desc": "多模型驱动的自主推理 Agent，支持工具调用、记忆管理和多轮对话"},
       {"icon": "SubAgent", "title": "子智能体", "desc": "多 Agent 协作编排，支持任务分解与子智能体调度"},
@@ -1187,8 +1187,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES (
       {"icon": "Eval", "title": "评测中心", "desc": "数据集管理、自动评估、实验对比，量化 Agent 质量持续优化"},
       {"icon": "Observability", "title": "可观测性", "desc": "全链路 Trace 追踪、Token 消耗统计、工具调用日志实时监控"}
     ],
-    "github": "https://github.com/finch04/LightBot",
-    "copyright": "© 2026 LightBot. All Rights Reserved."
+    "copyright": "© 2026 智元. All Rights Reserved."
   }',
   'Landing 页面配置（标题、描述、功能列表等）'
 )

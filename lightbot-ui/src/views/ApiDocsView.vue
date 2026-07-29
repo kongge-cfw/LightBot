@@ -2,8 +2,8 @@
   <div class="docs-shell">
     <header class="docs-topbar">
       <div class="docs-brand" @click="openHome">
-        <img src="/lightbot-logo-single.png" alt="LightBot" class="docs-logo" />
-        <span>LightBot 在线文档</span>
+        <img src="/lightbot-logo-single.png" alt="智元" class="docs-logo" />
+        <span>智元 在线文档</span>
       </div>
       <div class="docs-topbar-right">
         <span class="docs-topbar-hint">API Key 开放能力</span>
