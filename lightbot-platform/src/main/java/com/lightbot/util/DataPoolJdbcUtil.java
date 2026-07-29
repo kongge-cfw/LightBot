@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.datacenter.DataModelSchema;
 import com.lightbot.enums.ErrorCode;
+import com.lightbot.vo.DataPoolRecordMap;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -129,7 +130,7 @@ public class DataPoolJdbcUtil {
                 Object[] args = new Object[columns.size()];
                 int i = 0;
                 args[i++] = id;
-                Map<String, Object> apiRow = new LinkedHashMap<>();
+                Map<String, Object> apiRow = new DataPoolRecordMap();
                 apiRow.put("id", String.valueOf(id));
                 for (DataModelSchema.FieldDef f : fields) {
                     Object val = normalizeValue(f, data.get(f.getKey()), true);
@@ -295,7 +296,8 @@ public class DataPoolJdbcUtil {
     }
 
     private Map<String, Object> toApiRow(Map<String, Object> dbRow, DataModelSchema schema) {
-        Map<String, Object> api = new LinkedHashMap<>();
+        // 使用 DataPoolRecordMap：保留 null 字段，避免全局 Jackson NON_NULL 省略空值
+        Map<String, Object> api = new DataPoolRecordMap();
         Object id = dbRow.get("id");
         api.put("id", id != null ? String.valueOf(id) : null);
         for (DataModelSchema.FieldDef f : schemaSupport.customFields(schema)) {

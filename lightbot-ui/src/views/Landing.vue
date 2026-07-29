@@ -33,6 +33,7 @@
           <span class="logo-text">LightBot</span>
         </div>
         <div class="header-actions">
+          <a class="docs-link" href="/docs" target="_blank" rel="noopener noreferrer">在线文档</a>
           <a
             class="github-link"
             :href="config.github || 'https://github.com/finch04/LightBot'"
@@ -498,6 +499,22 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+.docs-link {
+  display: inline-flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-mute);
+  text-decoration: none;
+  transition: color 0.2s, background 0.2s;
+}
+.docs-link:hover {
+  color: var(--color-link);
+  background: rgba(0, 112, 243, 0.06);
 }
 .github-link {
   display: flex;
@@ -1004,6 +1021,13 @@ onUnmounted(() => {
   }
   .button-base.primary:hover {
     background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  }
+  .docs-link {
+    color: var(--color-mute);
+  }
+  .docs-link:hover {
+    color: var(--color-link);
+    background: rgba(255, 255, 255, 0.06);
   }
   .github-link {
     color: var(--color-mute);

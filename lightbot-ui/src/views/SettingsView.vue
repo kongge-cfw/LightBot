@@ -237,33 +237,9 @@
       <div class="panel-header">
         <div class="panel-title-wrap">
           <h3>API Key 管理</h3>
-          <a-popover trigger="click" placement="right" :overlay-style="{ maxWidth: '480px' }">
-            <template #content>
-              <div style="font-size: 13px; line-height: 1.8; padding: 4px 0;">
-                <p style="font-weight: 600; font-size: 14px; margin-bottom: 8px;">API Key 使用说明</p>
-                <p><b>什么是 API Key？</b></p>
-                <p>API Key 是用于外部系统调用 LightBot 接口的认证凭证，格式为 <code>lbkey_xxxx...</code>，支持通过 HTTP Header 传递。</p>
-                <p style="margin-top: 8px;"><b>如何使用？</b></p>
-                <p>在请求头中添加：</p>
-                <p><code>Authorization: Bearer lbkey_your_key_here</code></p>
-                <p style="margin-top: 8px;"><b>支持的接口：</b></p>
-                <ul style="padding-left: 16px; margin: 4px 0;">
-                  <li><code>chat</code> 权限：仅可调用对话相关接口（/api/chat/**）</li>
-                  <li><code>full</code> 权限：可调用所有已认证接口</li>
-                </ul>
-                <p style="margin-top: 8px;"><b>注意事项：</b></p>
-                <ul style="padding-left: 16px; margin: 4px 0;">
-                  <li>密钥仅在创建时显示一次，请妥善保管</li>
-                  <li>可随时启用/禁用或删除密钥</li>
-                  <li>支持设置过期时间，过期后自动失效</li>
-                  <li>如密钥泄露，请立即删除并重新生成</li>
-                </ul>
-              </div>
-            </template>
-            <QuestionCircleOutlined style="font-size: 15px; color: var(--color-mute); cursor: pointer; margin-left: 6px;" />
-          </a-popover>
         </div>
         <span class="panel-desc">用于外部系统调用 LightBot 接口的认证凭证</span>
+        <a class="apikey-docs-link" href="/docs" target="_blank" rel="noopener noreferrer">在线文档</a>
         <button class="btn-primary" style="margin-left: auto;" @click="showCreateApiKey">
           <PlusOutlined /> 创建 API Key
         </button>
@@ -396,7 +372,7 @@ import {
   CloudOutlined, CodeOutlined, FileTextOutlined, RocketOutlined,
   SafetyOutlined, SettingOutlined, SyncOutlined,
   AppstoreOutlined, ControlOutlined, ClusterOutlined, BlockOutlined,
-  QuestionCircleOutlined, KeyOutlined, CopyOutlined,
+  KeyOutlined, CopyOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { getLandingConfig, updateLandingConfig } from '../api/landing'
@@ -1010,6 +986,15 @@ async function handleDeleteApiKey(key) {
 .ranking-username {
   font-weight: 500;
   color: var(--color-ink);
+}
+.apikey-docs-link {
+  margin-left: 8px;
+  font-size: 13px;
+  color: var(--color-link);
+  text-decoration: none;
+}
+.apikey-docs-link:hover {
+  text-decoration: underline;
 }
 .apikey-cards-grid {
   display: grid;

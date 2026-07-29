@@ -47,7 +47,7 @@ class ControllerRouteContractTest {
             Map.entry(ModelController.class, "/api/models"),
             Map.entry(ModelProviderController.class, "/api/model-providers"),
             Map.entry(OcrController.class, "/api/ocr"),
-            Map.entry(OpenDataPoolController.class, "/api/open/v1/data-pools/{modelId}/records"),
+            Map.entry(OpenDataPoolController.class, "/api/open/v1/data-pools/records"),
             Map.entry(PromptController.class, "/api/prompts"),
             Map.entry(SkillController.class, "/api/skills"),
             Map.entry(StandaloneGraphController.class, "/api/graph"),

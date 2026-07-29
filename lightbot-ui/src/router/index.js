@@ -9,6 +9,12 @@ const routes = [
     meta: { public: true },
   },
   {
+    path: '/docs',
+    name: 'ApiDocs',
+    component: () => import('../views/ApiDocsView.vue'),
+    meta: { public: true, title: '在线文档' },
+  },
+  {
     path: '/login',
     name: 'Login',
     component: () => import('../views/Login.vue'),

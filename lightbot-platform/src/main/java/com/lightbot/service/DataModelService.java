@@ -28,6 +28,14 @@ public interface DataModelService extends IService<DataModel> {
      */
     DataModel requireOwned(Long id);
 
+    /**
+     * 按物理表名加载当前用户拥有的数据模型（开放 API 使用）。
+     *
+     * @param tableName 完整表名，如 sjc_data_customer
+     * @return 数据模型
+     */
+    DataModel requireOwnedByTableName(String tableName);
+
     DataModelVO create(DataModelCreateDTO dto);
 
     DataModelVO updateInfo(Long id, DataModelUpdateDTO dto);

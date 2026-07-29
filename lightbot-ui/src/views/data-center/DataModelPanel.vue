@@ -59,7 +59,10 @@
             <div class="model-card__top">
               <div class="model-card__info">
                 <h3>{{ item.name }}</h3>
-                <span class="model-card__cat">{{ categoryName(item.categoryId) }}</span>
+                <div class="model-card__sub">
+                  <span class="model-card__cat">{{ categoryName(item.categoryId) }}</span>
+                  <code v-if="item.tableName" class="model-card__table" :title="item.tableName">{{ item.tableName }}</code>
+                </div>
               </div>
             </div>
             <p class="model-card__desc">{{ item.description || '暂无描述' }}</p>
@@ -776,18 +779,44 @@ async function suggestEmptyFieldKeys() {
   gap: 12px;
   align-items: flex-start;
 }
+.model-card__info {
+  min-width: 0;
+  width: 100%;
+}
 .model-card__info h3 {
   margin: 0 0 4px;
   font-size: 15px;
   font-weight: 600;
   color: var(--color-ink);
 }
+.model-card__sub {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
 .model-card__cat {
+  flex-shrink: 0;
   font-size: 12px;
   color: var(--color-mute);
   background: var(--color-canvas-soft-2);
   padding: 1px 8px;
   border-radius: 999px;
+}
+.model-card__table {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 11px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  color: var(--color-mute);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .model-card__desc {
   margin: 0;

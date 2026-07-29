@@ -75,6 +75,22 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
     }
 
     @Override
+    public DataModel requireOwnedByTableName(String tableName) {
+        // 1. 校验表名格式（须为 sjc_data_ 合法后缀）
+        schemaSupport.assertSafeTableName(tableName);
+        // 2. 按归属查询元数据
+        long userId = StpUtil.getLoginIdAsLong();
+        DataModel model = getOne(new LambdaQueryWrapper<DataModel>()
+                .eq(DataModel::getTableName, tableName.trim())
+                .eq(DataModel::getUserId, userId)
+                .last("LIMIT 1"));
+        if (model == null) {
+            throw new BizException(ErrorCode.DATA_MODEL_NOT_FOUND);
+        }
+        return model;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public DataModelVO create(DataModelCreateDTO dto) {
         long userId = StpUtil.getLoginIdAsLong();
