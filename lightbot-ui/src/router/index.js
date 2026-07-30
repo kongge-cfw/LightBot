@@ -22,9 +22,7 @@ const routes = [
   },
   {
     path: '/register',
-    name: 'Register',
-    component: () => import('../views/Register.vue'),
-    meta: { public: true },
+    redirect: '/login',
   },
   {
     path: '/init',
@@ -76,7 +74,7 @@ const routes = [
         path: 'model-providers',
         name: 'ModelProviders',
         component: () => import('../views/ModelProviderManage.vue'),
-        meta: { requiresAdmin: true },
+        // 建设者可维护模型渠道；默认模型写操作仍由后端 checkAdmin 收口
       },
       {
         path: 'agents',

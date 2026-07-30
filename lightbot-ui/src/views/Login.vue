@@ -54,8 +54,7 @@
         </form>
 
         <div class="form-footer">
-          <span>没有账号？</span>
-          <router-link to="/register" class="link">立即注册</router-link>
+          <span>没有账号？请联系管理员创建</span>
         </div>
       </div>
     </div>
@@ -304,16 +303,6 @@ function resolveRedirectTarget() {
   text-align: center;
   font-size: 14px;
   color: var(--color-mute);
-}
-
-.form-footer .link {
-  color: var(--color-link);
-  text-decoration: none;
-  margin-left: 4px;
-}
-
-.form-footer .link:hover {
-  color: #0761d1;
 }
 
 /* 底部链接 */

@@ -178,7 +178,7 @@ const avatarInitial = computed(() => {
 const userRoleText = computed(() => {
   const role = userStore.user?.role
   if (role === 'admin') return '管理员'
-  if (role === 'user') return '普通用户'
+  if (role === 'user') return '建设者'
   return '未知角色'
 })
 

@@ -64,7 +64,6 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -152,7 +151,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     /**
-     * 校验当前登录用户对 Agent 的访问权（owner / 默认 Agent / 管理员）
+     * 校验 Agent 存在（企业资产：任意登录建设者可读写，userId 仅作创建人审计）
      *
      * @param id Agent ID
      * @return 已通过校验的 Agent 实体
@@ -161,13 +160,6 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         Agent agent = getById(id);
         if (agent == null) {
             throw new BizException(ErrorCode.AGENT_NOT_FOUND);
-        }
-        long currentUserId = StpUtil.getLoginIdAsLong();
-        boolean isAdmin = StpUtil.hasRole("admin");
-        boolean isOwner = Objects.equals(agent.getUserId(), currentUserId);
-        boolean isDefault = Boolean.TRUE.equals(agent.getIsDefault());
-        if (!isAdmin && !isOwner && !isDefault) {
-            throw new BizException(ErrorCode.FORBIDDEN);
         }
         return agent;
     }
@@ -246,11 +238,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public Page<Agent> listMyAgents(int pageNum, int pageSize, String name, String agentType, boolean includeDefault) {
-        long userId = StpUtil.getLoginIdAsLong();
+        // 企业资产：返回全量 Agent 列表（不再按创建人过滤；includeDefault 保留兼容，语义上已包含全部）
         LambdaQueryWrapper<Agent> wrapper = new LambdaQueryWrapper<Agent>()
-                .and(includeDefault
-                        ? w -> w.eq(Agent::getUserId, userId).or().eq(Agent::getIsDefault, true)
-                        : w -> w.eq(Agent::getUserId, userId))
                 .like(StringUtils.hasText(name), Agent::getName, name)
                 .orderByDesc(Agent::getIsDefault)
                 .orderByDesc(Agent::getCreateTime);
@@ -642,8 +631,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
 
     @Override
     public Agent getDefaultAgent(long userId) {
+        // 企业默认 Agent：全平台唯一，不再按用户维度查找（userId 参数保留兼容调用方）
         return getOne(new LambdaQueryWrapper<Agent>()
-                .eq(Agent::getUserId, userId)
                 .eq(Agent::getIsDefault, true)
                 .last("LIMIT 1"));
     }
@@ -651,13 +640,11 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void setDefaultAgent(long agentId) {
-        // 1. 校验Agent存在性 + 所有权
+        // 1. 校验 Agent 存在
         Agent agent = checkOwnership(agentId);
 
-        // 2. 清除该用户其他Agent的默认标记（1 条 SQL）
-        long userId = agent.getUserId();
+        // 2. 清除企业内其他 Agent 的默认标记（全平台唯一默认）
         lambdaUpdate()
-                .eq(Agent::getUserId, userId)
                 .eq(Agent::getIsDefault, true)
                 .set(Agent::getIsDefault, false)
                 .update();

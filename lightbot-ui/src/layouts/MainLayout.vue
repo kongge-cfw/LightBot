@@ -116,7 +116,7 @@
               </a-menu-item>
               <a-menu-item key="sessions"><span class="menu-item-content"><MessageOutlined /><span>会话管理</span></span></a-menu-item>
               <a-menu-item v-if="userStore.user?.role === 'admin'" key="settings"><span class="menu-item-content"><SettingOutlined /><span>系统管理</span></span></a-menu-item>
-              <a-menu-item v-if="userStore.user?.role === 'admin'" key="model-providers"><span class="menu-item-content"><ApiOutlined /><span>模型管理</span></span></a-menu-item>
+              <a-menu-item key="model-providers"><span class="menu-item-content"><ApiOutlined /><span>模型管理</span></span></a-menu-item>
               <a-menu-divider />
               <a-menu-item key="theme" @click="toggleTheme">
                 <span class="menu-item-content">
@@ -287,7 +287,7 @@ const taskStore = useTaskStore()
 const userRoleText = computed(() => {
   const role = userStore.user?.role
   if (role === 'admin') return '管理员'
-  if (role === 'user') return '普通用户'
+  if (role === 'user') return '建设者'
   return '未知角色'
 })
 

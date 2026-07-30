@@ -3,6 +3,7 @@ package com.lightbot.interceptor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.Result;
 import com.lightbot.entity.ApiKey;
+import com.lightbot.enums.ErrorCode;
 import com.lightbot.service.ApiKeyService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -15,7 +16,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 /**
  * API Key 认证拦截器
  * <p>在 Sa-Token 拦截器之前执行，识别 lbkey_ 前缀的 Bearer Token 并走 API Key 认证</p>
- * <p>同时执行：请求频率限制、Agent 作用域校验</p>
+ * <p>企业 API Key 仅允许对话入口（POST /api/chat、POST /api/chat/stream），不可访问控制台资产接口</p>
  *
  * @author finch
  * @since 2026-06-25
@@ -42,44 +43,53 @@ public class ApiKeyAuthInterceptor implements HandlerInterceptor {
             return true;
         }
 
-        // 1. API Key 认证
+        // 1. 企业 API Key 仅放行对话接口，避免被当作全站登录态
+        if (!isChatApiPath(request)) {
+            writeError(response, HttpServletResponse.SC_FORBIDDEN,
+                    ErrorCode.API_KEY_PATH_FORBIDDEN.getCode(),
+                    ErrorCode.API_KEY_PATH_FORBIDDEN.getMessage());
+            return false;
+        }
+
+        // 2. API Key 认证
         ApiKey apiKey = apiKeyService.authenticateWithDetails(token);
         if (apiKey == null) {
-            writeError(response, HttpServletResponse.SC_UNAUTHORIZED, "API Key无效或已过期");
+            writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                    ErrorCode.API_KEY_INVALID.getCode(), "API Key无效或已过期");
             return false;
         }
 
-        // 2. 请求频率限制
+        // 3. 请求频率限制
         if (!apiKeyService.checkRateLimit(apiKey.getId(), apiKey.getRateLimit())) {
             writeError(response, HttpStatus.TOO_MANY_REQUESTS.value(),
-                    "请求过于频繁，限制 " + apiKey.getRateLimit() + " 次/分钟");
+                    10005, "请求过于频繁，限制 " + apiKey.getRateLimit() + " 次/分钟");
             return false;
         }
 
-        // 3. Agent 作用域校验（仅 /api/chat/** 路径）
-        String uri = request.getRequestURI();
-        if (uri.startsWith("/api/chat")) {
-            String agentId = request.getParameter("agentId");
-            if (agentId != null && !agentId.isBlank()) {
-                if (!apiKeyService.checkAgentScope(apiKey, agentId)) {
-                    writeError(response, HttpServletResponse.SC_FORBIDDEN, "该 API Key 无权访问此 Agent");
-                    return false;
-                }
-            }
-        }
-
-        // 4. 将 userId 存入 request，Sa-Token 拦截器检查时跳过
-        request.setAttribute(ATTR_API_KEY_USER_ID, apiKey.getUserId());
+        // 4. Agent 作用域在 InitMiddleware 按请求体 agentId 校验（query 参数不可靠）
+        request.setAttribute(ATTR_API_KEY_USER_ID, com.lightbot.constant.EnterpriseActors.API_KEY);
         request.setAttribute(ATTR_API_KEY_ENTITY, apiKey);
-        // 同时登录 Sa-Token，使下游 getLoginIdAsLong() 可用
-        cn.dev33.satoken.stp.StpUtil.login(apiKey.getUserId(), "apikey");
         return true;
     }
 
-    private void writeError(HttpServletResponse response, int status, String message) throws Exception {
+    /**
+     * 企业 API Key 允许的对话相关入口（不含会话管理/资产 CRUD）
+     */
+    private boolean isChatApiPath(HttpServletRequest request) {
+        if (!"POST".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String uri = request.getRequestURI();
+        return "/api/chat".equals(uri)
+                || "/api/chat/stream".equals(uri)
+                || "/api/chat/stream/stop".equals(uri)
+                || "/api/chat/reconnect".equals(uri);
+    }
+
+    private void writeError(HttpServletResponse response, int status, int code, String message) throws Exception {
         response.setStatus(status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
-        response.getWriter().write(objectMapper.writeValueAsString(Result.fail(10005, message)));
+        response.getWriter().write(objectMapper.writeValueAsString(Result.fail(code, message)));
     }
 }

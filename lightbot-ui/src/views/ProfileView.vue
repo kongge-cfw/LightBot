@@ -413,8 +413,8 @@ const initialLetter = computed(() => {
 })
 
 const roleText = computed(() => {
-  const map = { ADMIN: '管理员', USER: '普通用户' }
-  return map[profileForm.role] || profileForm.role || '普通用户'
+  const map = { ADMIN: '管理员', USER: '建设者', admin: '管理员', user: '建设者' }
+  return map[profileForm.role] || profileForm.role || '建设者'
 })
 
 const roleColor = computed(() => {

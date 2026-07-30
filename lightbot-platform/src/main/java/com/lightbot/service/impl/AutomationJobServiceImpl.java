@@ -53,9 +53,8 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
 
     @Override
     public List<AutomationJobVO> listMine(String keyword, Boolean enabled, Long agentId) {
-        long userId = StpUtil.getLoginIdAsLong();
+        // 企业资产：建设者可见全部自动化任务
         LambdaQueryWrapper<AutomationJob> qw = new LambdaQueryWrapper<AutomationJob>()
-                .eq(AutomationJob::getUserId, userId)
                 .eq(enabled != null, AutomationJob::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0)
                 .eq(agentId != null, AutomationJob::getAgentId, agentId)
                 .orderByDesc(AutomationJob::getUpdateTime);
@@ -139,7 +138,7 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
 
     private AutomationJobVO doUpdate(Long userId, Long id, AutomationJobSaveDTO dto) {
         AutomationJob job = getById(id);
-        if (job == null || job.getUserId() == null || !job.getUserId().equals(userId)) {
+        if (job == null) {
             throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
         }
         if (dto.getAgentId() == null) {
@@ -194,10 +193,9 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
 
     @Override
     public Page<AutomationJobRunVO> pageRuns(String keyword, String status, Long agentId, int pageNum, int pageSize) {
-        long userId = StpUtil.getLoginIdAsLong();
+        // 企业资产：建设者可见全部运行记录
         Page<AutomationJobRun> page = new Page<>(pageNum, pageSize);
         LambdaQueryWrapper<AutomationJobRun> qw = new LambdaQueryWrapper<AutomationJobRun>()
-                .eq(AutomationJobRun::getUserId, userId)
                 .eq(agentId != null, AutomationJobRun::getAgentId, agentId)
                 .orderByDesc(AutomationJobRun::getTriggerTime);
         if (StringUtils.hasText(status)) {
@@ -218,9 +216,8 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
 
     @Override
     public AutomationJobRunVO getRunMine(Long runId) {
-        long userId = StpUtil.getLoginIdAsLong();
         AutomationJobRun run = runMapper.selectById(runId);
-        if (run == null || run.getUserId() == null || !run.getUserId().equals(userId)) {
+        if (run == null) {
             throw new BizException(ErrorCode.NOT_FOUND);
         }
         return toRunVo(run, true);
@@ -317,7 +314,6 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     public List<AutomationJobVO> listByAgent(Long userId, Long agentId, String keyword, Boolean enabled) {
         requireUserAgent(userId, agentId);
         LambdaQueryWrapper<AutomationJob> qw = new LambdaQueryWrapper<AutomationJob>()
-                .eq(AutomationJob::getUserId, userId)
                 .eq(AutomationJob::getAgentId, agentId)
                 .eq(enabled != null, AutomationJob::getEnabled, Boolean.TRUE.equals(enabled) ? 1 : 0)
                 .orderByDesc(AutomationJob::getUpdateTime);
@@ -380,7 +376,6 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
         int ps = Math.min(Math.max(pageSize, 1), 50);
         Page<AutomationJobRun> page = new Page<>(pn, ps);
         LambdaQueryWrapper<AutomationJobRun> qw = new LambdaQueryWrapper<AutomationJobRun>()
-                .eq(AutomationJobRun::getUserId, userId)
                 .eq(AutomationJobRun::getAgentId, agentId)
                 .eq(jobId != null, AutomationJobRun::getJobId, jobId)
                 .orderByDesc(AutomationJobRun::getTriggerTime);
@@ -402,18 +397,15 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     public AutomationJobRunVO getRunByAgent(Long userId, Long agentId, Long runId) {
         requireUserAgent(userId, agentId);
         AutomationJobRun run = runMapper.selectById(runId);
-        if (run == null
-                || run.getUserId() == null || !run.getUserId().equals(userId)
-                || run.getAgentId() == null || !run.getAgentId().equals(agentId)) {
+        if (run == null || run.getAgentId() == null || !run.getAgentId().equals(agentId)) {
             throw new BizException("执行记录不存在或无权查看");
         }
         return toRunVo(run, true);
     }
 
     private AutomationJob requireOwned(Long id) {
-        long userId = StpUtil.getLoginIdAsLong();
         AutomationJob job = getById(id);
-        if (job == null || job.getUserId() == null || !job.getUserId().equals(userId)) {
+        if (job == null) {
             throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
         }
         return job;
@@ -422,17 +414,16 @@ public class AutomationJobServiceImpl extends ServiceImpl<AutomationJobMapper, A
     private AutomationJob requireOwnedByAgent(Long userId, Long agentId, Long id) {
         requireUserAgent(userId, agentId);
         AutomationJob job = getById(id);
-        if (job == null
-                || job.getUserId() == null || !job.getUserId().equals(userId)
-                || job.getAgentId() == null || !job.getAgentId().equals(agentId)) {
+        if (job == null || job.getAgentId() == null || !job.getAgentId().equals(agentId)) {
             throw new BizException(ErrorCode.AUTOMATION_JOB_NOT_FOUND);
         }
         return job;
     }
 
     private static void requireUserAgent(Long userId, Long agentId) {
-        if (userId == null || agentId == null) {
-            throw new BizException(ErrorCode.PARAM_INVALID, "缺少用户或智能体上下文");
+        // 企业资产：仅校验 Agent 上下文；userId 用于创建审计与会话归属
+        if (agentId == null) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "缺少智能体上下文");
         }
     }
 

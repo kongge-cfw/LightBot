@@ -32,9 +32,8 @@ public class DataModelCategoryServiceImpl extends ServiceImpl<DataModelCategoryM
 
     @Override
     public List<DataModelCategory> listMine() {
-        long userId = StpUtil.getLoginIdAsLong();
+        // 企业资产：建设者可见全部分类
         return list(new LambdaQueryWrapper<DataModelCategory>()
-                .eq(DataModelCategory::getUserId, userId)
                 .orderByAsc(DataModelCategory::getSortOrder)
                 .orderByAsc(DataModelCategory::getCreateTime));
     }
@@ -43,14 +42,13 @@ public class DataModelCategoryServiceImpl extends ServiceImpl<DataModelCategoryM
     @Transactional(rollbackFor = Exception.class)
     public DataModelCategory create(DataModelCategorySaveDTO dto) {
         long userId = StpUtil.getLoginIdAsLong();
-        // 1. 同用户下名称唯一
+        // 1. 企业维度名称唯一
         long exists = count(new LambdaQueryWrapper<DataModelCategory>()
-                .eq(DataModelCategory::getUserId, userId)
                 .eq(DataModelCategory::getName, dto.getName().trim()));
         if (exists > 0) {
             throw new BizException(ErrorCode.DATA_CATEGORY_NAME_EXISTS);
         }
-        // 2. 保存
+        // 2. 保存（userId 记创建人审计）
         DataModelCategory category = new DataModelCategory();
         category.setUserId(userId);
         category.setName(dto.getName().trim());
@@ -62,10 +60,8 @@ public class DataModelCategoryServiceImpl extends ServiceImpl<DataModelCategoryM
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DataModelCategory update(Long id, DataModelCategorySaveDTO dto) {
-        DataModelCategory category = requireOwned(id);
-        long userId = category.getUserId();
+        DataModelCategory category = requireExists(id);
         long exists = count(new LambdaQueryWrapper<DataModelCategory>()
-                .eq(DataModelCategory::getUserId, userId)
                 .eq(DataModelCategory::getName, dto.getName().trim())
                 .ne(DataModelCategory::getId, id));
         if (exists > 0) {
@@ -82,26 +78,20 @@ public class DataModelCategoryServiceImpl extends ServiceImpl<DataModelCategoryM
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void delete(Long id) {
-        DataModelCategory category = requireOwned(id);
+        DataModelCategory category = requireExists(id);
         Long modelCount = dataModelMapper.selectCount(new LambdaQueryWrapper<DataModel>()
-                .eq(DataModel::getCategoryId, category.getId())
-                .eq(DataModel::getUserId, category.getUserId()));
+                .eq(DataModel::getCategoryId, category.getId()));
         if (modelCount != null && modelCount > 0) {
             throw new BizException(ErrorCode.DATA_CATEGORY_HAS_MODELS);
         }
         removeById(id);
     }
 
-    private DataModelCategory requireOwned(Long id) {
-        long userId = StpUtil.getLoginIdAsLong();
+    private DataModelCategory requireExists(Long id) {
         DataModelCategory category = getById(id);
-        if (category == null || !userIdEquals(category.getUserId(), userId)) {
+        if (category == null) {
             throw new BizException(ErrorCode.DATA_CATEGORY_NOT_FOUND);
         }
         return category;
-    }
-
-    private boolean userIdEquals(Long a, long b) {
-        return a != null && a == b;
     }
 }

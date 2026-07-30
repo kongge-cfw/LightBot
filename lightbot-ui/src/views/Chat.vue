@@ -10,7 +10,7 @@
       :runtime-panel-open="sessionRuntimePanelOpen"
       :show-subagent-drawer="!!sessionId"
       :subagent-running-count="runningSubagentCount"
-      :title-editable="!!sessionId"
+      :title-editable="!!sessionId && !enterpriseReadonly"
       @start-title-edit="startTitleEdit"
       @confirm-title-edit="confirmTitleEdit"
       @cancel-title-edit="cancelTitleEdit"
@@ -115,9 +115,10 @@
       ref="chatInputAreaRef"
       v-model:input="input"
       :loading="loading"
-      :can-send="canSend"
+      :can-send="canSend && !enterpriseReadonly"
       :workflow-confirm-blocked="workflowConfirmBlocked"
       :ask-user-blocked="askUserModal.visible"
+      :read-only="enterpriseReadonly"
       :switching-session="inputMaskLoading"
       :agents="agents"
       :selected-agent-id="selectedAgentId"
@@ -247,6 +248,7 @@ import ChatSessionFilesDrawer from '../components/chat/session/ChatSessionFilesD
 import ChatSubAgentRuntimeDrawer from '../components/chat/session/ChatSubAgentRuntimeDrawer.vue'
 import ChatSessionRuntimePanel from '../components/chat/session/ChatSessionRuntimePanel.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
+import { getSession } from '../api/chatSession'
 import { buildSubagentLiveStatusBadges } from '../components/capabilities/subagentEventUtils.js'
 import { useChatAgents } from '../composables/useChatAgents'
 import { useChatAttachments } from '../composables/useChatAttachments'
@@ -274,6 +276,23 @@ const route = useRoute()
 const router = useRouter()
 
 const sessionId = computed(() => route.params.sessionId || null)
+/** API 集成 / 自动化会话：只读排障，禁止控制台续聊 */
+const enterpriseReadonly = ref(false)
+
+async function refreshEnterpriseReadonly() {
+  const sid = sessionId.value
+  if (!sid) {
+    enterpriseReadonly.value = false
+    return
+  }
+  try {
+    const res = await getSession(sid)
+    const source = res.data?.source
+    enterpriseReadonly.value = source === 'api' || source === 'automation'
+  } catch {
+    enterpriseReadonly.value = false
+  }
+}
 
 const input = ref('')
 const inputHistory = ref([])
@@ -620,6 +639,7 @@ const scrollHandler = createScrollHandler({ loadOlderMessages, hasMoreMessages, 
 
 onMounted(async () => {
   const queryAgentId = route.query.agentId
+  refreshEnterpriseReadonly()
   loadHistory()
   await loadAgents(queryAgentId || undefined)
   if (queryAgentId) {
@@ -663,6 +683,7 @@ watch(() => route.params.sessionId, () => {
   liveSubagentEvents.value = []
   currentRequestStartIndex.value = null
   messageRowComponentRefs.clear()
+  refreshEnterpriseReadonly()
   loadHistory()
 })
 

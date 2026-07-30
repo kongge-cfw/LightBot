@@ -50,7 +50,7 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
     private final ObjectProvider<ChatSessionService> chatSessionServiceProvider;
 
     /**
-     * 校验当前登录用户拥有指定 session
+     * 校验当前登录用户拥有指定 platform 会话（写操作）
      * <p>Message 无独立 userId 字段，归属通过 chat_session.user_id 反查；ChatSessionServiceImpl
      * 反向依赖 MessageService，故用 ObjectProvider 打破构造期循环</p>
      *
@@ -60,18 +60,18 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         if (sessionId == null) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND);
         }
-        chatSessionServiceProvider.getObject().ensureOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
+        chatSessionServiceProvider.getObject().ensurePlatformOwnedByUser(sessionId, StpUtil.getLoginIdAsLong());
     }
 
     /**
-     * 反查 message.sessionId 后校验归属
+     * 反查 message.sessionId 后做可读校验（platform 本人；api/automation 建设者可排障）
      */
-    private void requireMessageOwnedByCurrentUser(Long messageId) {
+    private void requireMessageReadableByCurrentUser(Long messageId) {
         Message message = getById(messageId);
         if (message == null) {
             throw new BizException(ErrorCode.MESSAGE_NOT_FOUND);
         }
-        requireSessionOwnedByCurrentUser(message.getSessionId());
+        chatSessionServiceProvider.getObject().ensureReadableByUser(message.getSessionId(), StpUtil.getLoginIdAsLong());
     }
 
     @Override
@@ -147,8 +147,8 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         if (call == null) {
             return null;
         }
-        // 越权校验：toolCallId → messageId → sessionId → chat_session.user_id
-        requireMessageOwnedByCurrentUser(call.getMessageId());
+        // 越权校验：toolCallId → messageId → session 可读（含 API/自动化排障）
+        requireMessageReadableByCurrentUser(call.getMessageId());
         return call.getToolOutput();
     }
 
@@ -312,9 +312,12 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
 
     @Override
     public Page<Message> listStarred(int pageNum, int pageSize) {
+        // 个人隐私：仅返回当前用户会话下的收藏消息
+        long userId = StpUtil.getLoginIdAsLong();
         return page(new Page<>(pageNum, pageSize),
                 new LambdaQueryWrapper<Message>()
                         .eq(Message::getStarred, true)
+                        .apply("session_id IN (SELECT id FROM chat_session WHERE user_id = {0} AND deleted = 0 AND (source = 'platform' OR source IS NULL))", userId)
                         .orderByDesc(Message::getCreateTime));
     }
 

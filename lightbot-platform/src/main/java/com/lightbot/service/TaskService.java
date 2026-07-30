@@ -88,37 +88,27 @@ public interface TaskService extends IService<Task> {
     void markCancelled(Long taskId, String message);
 
     /**
-     * 分页查询用户任务
+     * 分页查询企业任务（userId 传 null 表示全企业）
      */
     Page<Task> listByUserId(Long userId, int pageNum, int pageSize, String name, String status, String type);
 
     /**
-     * 获取任务详情（校验用户归属）
+     * 获取任务详情（企业共享；userId 仅兼容旧签名，不再做归属校验）
      */
     Task getTaskById(Long taskId, Long userId);
 
     /**
-     * 统计用户指定状态的任务数量
-     *
-     * @param userId 用户ID
-     * @param status 任务状态
-     * @return 任务数量
+     * 统计指定状态的任务数量（userId 传 null 表示全企业）
      */
     Long countByStatus(Long userId, String status);
 
     /**
-     * 按类型统计用户任务数量（仅统计进行中+等待中的任务）
-     *
-     * @param userId 用户ID
-     * @return 类型 -> 数量
+     * 按类型统计进行中任务数量（userId 传 null 表示全企业）
      */
     Map<String, Long> countByType(Long userId);
 
     /**
-     * 删除任务（仅已终态任务可删除）
-     *
-     * @param taskId 任务ID
-     * @param userId 用户ID（校验归属）
+     * 删除任务（仅已终态；企业共享，建设者可删）
      */
     void deleteTask(Long taskId, Long userId);
 }

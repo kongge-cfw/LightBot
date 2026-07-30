@@ -15,10 +15,11 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * 任务事件 SSE 推送，实时通知前端运行中任务数量变化
- * <p>任务创建/状态变更时由 TaskServiceImpl 主动触发推送</p>
+ * <p>企业版：推送全企业任务计数，所有在线建设者共享同一视图</p>
  *
  * @author finch
  * @since 2026-05-21
@@ -32,70 +33,60 @@ public class TaskEventController implements TaskCountNotifier {
 
     private final TaskService taskService;
 
-    /** 每个用户一个 SSE 连接 */
-    private static final Map<Long, SseEmitter> USER_EMITTERS = new ConcurrentHashMap<>();
+    private static final AtomicLong EMITTER_SEQ = new AtomicLong();
+    /** 所有在线建设者的 SSE 连接 */
+    private static final Map<Long, SseEmitter> EMITTERS = new ConcurrentHashMap<>();
 
     @Operation(summary = "任务计数实时推送（SSE）")
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream() {
-        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
+        // 需登录；计数为企业维度，不按用户隔离
+        cn.dev33.satoken.stp.StpUtil.checkLogin();
+        long emitterId = EMITTER_SEQ.incrementAndGet();
         SseEmitter emitter = new SseEmitter(30 * 60 * 1000L);
-
-        // 关闭同一用户的旧连接
-        SseEmitter old = USER_EMITTERS.put(userId, emitter);
-        if (old != null) {
-            old.complete();
-        }
-        emitter.onCompletion(() -> USER_EMITTERS.remove(userId, emitter));
-        emitter.onTimeout(() -> USER_EMITTERS.remove(userId, emitter));
-        emitter.onError(e -> USER_EMITTERS.remove(userId, emitter));
-
-        // 立即推送当前计数
-        sendCount(userId, emitter);
-
+        EMITTERS.put(emitterId, emitter);
+        emitter.onCompletion(() -> EMITTERS.remove(emitterId, emitter));
+        emitter.onTimeout(() -> EMITTERS.remove(emitterId, emitter));
+        emitter.onError(e -> EMITTERS.remove(emitterId, emitter));
+        sendCount(emitter);
         return emitter;
     }
 
     @Operation(summary = "任务计数查询（HTTP 兜底）", description = "SSE 断线或首次进入任务中心时拉取一次纠正徽标")
     @GetMapping("/count")
     public Result<Map<String, Long>> count() {
-        Long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
-        return Result.ok(buildCounts(userId));
+        return Result.ok(buildCounts());
     }
 
-    /**
-     * 供 TaskServiceImpl 在任务创建/状态变更时调用，立即推送最新计数给对应用户
-     */
     @Override
     public void notifyUser(Long userId) {
-        SseEmitter emitter = USER_EMITTERS.get(userId);
-        if (emitter != null) {
-            sendCount(userId, emitter);
+        notifyAllUsers();
+    }
+
+    @Override
+    public void notifyAllUsers() {
+        for (Map.Entry<Long, SseEmitter> entry : EMITTERS.entrySet()) {
+            sendCount(entry.getValue());
         }
     }
 
-    private void sendCount(Long userId, SseEmitter emitter) {
+    private void sendCount(SseEmitter emitter) {
         try {
-            // 推送分状态计数 JSON，前端同时用于导航角标和任务中心
-            emitter.send(SseEmitter.event().name("count").data(buildCounts(userId)));
+            emitter.send(SseEmitter.event().name("count").data(buildCounts()));
         } catch (IOException | IllegalStateException e) {
-            USER_EMITTERS.remove(userId, emitter);
+            EMITTERS.values().removeIf(e2 -> e2 == emitter);
         } catch (Exception e) {
-            log.warn("[TaskEvent] 推送失败, userId={}", userId, e);
+            log.warn("[TaskEvent] 推送失败", e);
         }
     }
 
     /**
-     * 汇总用户各未完结状态任务数，SSE 推送与 HTTP 查询共用，避免双写逻辑漂移
-     *
-     * @param userId 当前登录用户ID
-     * @return active=未完结总数；pending/running/pendingRetry 为分状态计数
+     * 汇总企业各未完结状态任务数
      */
-    private Map<String, Long> buildCounts(Long userId) {
-        long pending = taskService.countByStatus(userId, TaskStatus.PENDING.getCode());
-        long running = taskService.countByStatus(userId, TaskStatus.RUNNING.getCode());
-        long pendingRetry = taskService.countByStatus(userId, TaskStatus.PENDING_RETRY.getCode());
-        // active 涵盖所有未完结状态：等待中 + 执行中 + 等待重试
+    private Map<String, Long> buildCounts() {
+        long pending = taskService.countByStatus(null, TaskStatus.PENDING.getCode());
+        long running = taskService.countByStatus(null, TaskStatus.RUNNING.getCode());
+        long pendingRetry = taskService.countByStatus(null, TaskStatus.PENDING_RETRY.getCode());
         long active = pending + running + pendingRetry;
         return Map.of(
                 "active", active,

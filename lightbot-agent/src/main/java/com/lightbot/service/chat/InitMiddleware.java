@@ -2,15 +2,20 @@ package com.lightbot.service.chat;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.lightbot.model.ProviderResolver;
+import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
+import com.lightbot.constant.EnterpriseActors;
 import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Agent;
+import com.lightbot.entity.ApiKey;
 import com.lightbot.entity.ChatSession;
 import com.lightbot.enums.AgentStatus;
+import com.lightbot.enums.ErrorCode;
 import com.lightbot.model.ModelFactory;
+import com.lightbot.model.ProviderResolver;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
+import com.lightbot.service.ApiKeyService;
 import com.lightbot.service.ChatSessionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +39,7 @@ public class InitMiddleware implements ChatMiddleware {
     private final ChatSessionService chatSessionService;
     private final AgentService agentService;
     private final AgentVersionService agentVersionService;
+    private final ApiKeyService apiKeyService;
     private final ModelFactory modelFactory;
     private final ObjectMapper objectMapper;
     private final ProviderResolver providerResolver;
@@ -46,15 +52,18 @@ public class InitMiddleware implements ChatMiddleware {
         resolveUserId(ctx);
 
         // 1. 解析会话ID，并在对话中切换智能体时更新会话绑定
-        Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(), ctx.getUserId());
+        Long apiKeyId = ctx.getRequest().getApiKeyId();
+        Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
+                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId());
         ctx.setSessionId(sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
         long t1 = System.currentTimeMillis();
         log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}", t1 - t0, sessionId);
         ctx.getSpans().add(LlmTraceSpanDTO.of("s1", null, "session_resolve", t0, t1 - t0, "OK", Map.of("sessionId", sessionId)));
 
-        // 2. 加载Agent配置
-        Agent agent = loadAgent(ctx.getRequest().getAgentId());
+        // 2. 加载Agent配置，并校验企业 API Key 作用域
+        Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
+        enforceApiKeyAgentAccess(apiKeyId, agent);
         ctx.setAgent(agent);
         long t2 = System.currentTimeMillis();
         log.info("[Chat][Trace] Agent加载: {}ms, agentId={}", t2 - t1, agent != null ? agent.getId() : null);
@@ -76,11 +85,14 @@ public class InitMiddleware implements ChatMiddleware {
     public void init(ChatContext ctx) {
         resolveUserId(ctx);
 
-        Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(), ctx.getUserId());
+        Long apiKeyId = ctx.getRequest().getApiKeyId();
+        Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
+                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId());
         ctx.setSessionId(sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
 
-        Agent agent = loadAgent(ctx.getRequest().getAgentId());
+        Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
+        enforceApiKeyAgentAccess(apiKeyId, agent);
         ctx.setAgent(agent);
 
         Map<String, Object> configMap = resolveRuntimeConfigMap(agent, ctx.getRequest(), ctx);
@@ -88,8 +100,12 @@ public class InitMiddleware implements ChatMiddleware {
         ctx.setProviderId(providerResolver.resolveFromConfig(configMap));
     }
 
-    /** 优先登录态，其次请求内 actorUserId（自动化调度等无登录线程） */
+    /** 优先企业 API Key 虚拟身份，其次登录态，再次 actorUserId（自动化调度） */
     private void resolveUserId(ChatContext ctx) {
+        if (ctx.getRequest() != null && ctx.getRequest().getApiKeyId() != null) {
+            ctx.setUserId(com.lightbot.constant.EnterpriseActors.API_KEY);
+            return;
+        }
         try {
             ctx.setUserId(cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong());
         } catch (Exception ignored) {
@@ -236,9 +252,22 @@ public class InitMiddleware implements ChatMiddleware {
 
     /**
      * 加载Agent配置。
-     * agentId非空时加载指定Agent；为空时查询用户的默认Agent。
+     * agentId非空时加载指定Agent；为空时查询用户的默认Agent（企业 API Key 路径必须显式指定）。
+     *
+     * @param agentId  Agent ID
+     * @param apiKeyId 企业 API Key ID（非空表示对外集成调用）
+     * @return Agent，可能为 null
      */
     public Agent loadAgent(Long agentId) {
+        return loadAgent(agentId, null);
+    }
+
+    /**
+     * @param agentId  Agent ID
+     * @param apiKeyId 企业 API Key ID
+     * @return Agent
+     */
+    public Agent loadAgent(Long agentId, Long apiKeyId) {
         if (agentId != null) {
             Agent agent = agentService.getById(agentId);
             if (agent == null) {
@@ -246,8 +275,37 @@ public class InitMiddleware implements ChatMiddleware {
             }
             return agent;
         }
+        if (apiKeyId != null) {
+            throw new BizException(ErrorCode.API_KEY_AGENT_REQUIRED);
+        }
         long userId = cn.dev33.satoken.stp.StpUtil.getLoginIdAsLong();
         return agentService.getDefaultAgent(userId);
+    }
+
+    /**
+     * 企业 API Key：必须命中已发布 Agent，且在 Key 绑定白名单内
+     *
+     * @param apiKeyId API Key ID
+     * @param agent    已加载 Agent
+     */
+    private void enforceApiKeyAgentAccess(Long apiKeyId, Agent agent) {
+        if (apiKeyId == null) {
+            return;
+        }
+        if (agent == null || agent.getId() == null) {
+            throw new BizException(ErrorCode.AGENT_NOT_FOUND);
+        }
+        AgentStatus status = agent.getStatus();
+        if (status != AgentStatus.PUBLISHED && status != AgentStatus.PUBLISHED_EDITING) {
+            throw new BizException(ErrorCode.API_KEY_AGENT_NOT_PUBLISHED);
+        }
+        ApiKey apiKey = apiKeyService.getById(apiKeyId);
+        if (apiKey == null) {
+            throw new BizException(ErrorCode.API_KEY_NOT_FOUND);
+        }
+        if (!apiKeyService.checkAgentScope(apiKey, String.valueOf(agent.getId()))) {
+            throw new BizException(ErrorCode.API_KEY_AGENT_FORBIDDEN);
+        }
     }
 
     /**
@@ -299,11 +357,37 @@ public class InitMiddleware implements ChatMiddleware {
     }
 
     /**
-     * 解析会话ID：有则复用，无则新建
+     * 解析会话ID：有则复用并校验归属，无则按来源新建
+     *
+     * @param actorUserId 自动化调度身份（非空表示内部任务，非控制台续聊）
      */
-    private Long resolveSessionId(Long sessionId, Long agentId, Long userId) {
+    private Long resolveSessionId(Long sessionId, Long agentId, Long userId, Long apiKeyId, Long actorUserId) {
         if (sessionId != null) {
+            if (apiKeyId != null) {
+                chatSessionService.ensureOwnedByApiKey(sessionId, apiKeyId);
+                return sessionId;
+            }
+            ChatSession existing = chatSessionService.getById(sessionId);
+            if (existing == null) {
+                throw new BizException(ErrorCode.SESSION_NOT_FOUND);
+            }
+            // 自动化：仅内部调度（actorUserId）可续跑；控制台建设者只读排障，不可续聊
+            if (EnterpriseActors.SESSION_SOURCE_AUTOMATION.equals(existing.getSource())) {
+                if (actorUserId != null && actorUserId.equals(existing.getUserId())) {
+                    return sessionId;
+                }
+                throw new BizException(ErrorCode.SESSION_NOT_FOUND);
+            }
+            // API 集成会话：控制台不可续聊
+            if (EnterpriseActors.SESSION_SOURCE_API.equals(existing.getSource())) {
+                throw new BizException(ErrorCode.SESSION_NOT_FOUND);
+            }
+            // 控制台对话：仅本人 platform 调试会话可续聊
+            chatSessionService.ensurePlatformOwnedByUser(sessionId, userId);
             return sessionId;
+        }
+        if (apiKeyId != null) {
+            return chatSessionService.createApiSession(apiKeyId, agentId).getId();
         }
         return chatSessionService.createSession(userId, agentId).getId();
     }

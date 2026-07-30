@@ -199,6 +199,8 @@ CREATE TABLE chat_session (
     user_id         BIGINT          NOT NULL,
     title           VARCHAR(256),
     status          VARCHAR(20)     NOT NULL DEFAULT 'active',
+    source          VARCHAR(20)     NOT NULL DEFAULT 'platform',
+    api_key_id      BIGINT          NULL,
     context         JSONB           DEFAULT '{}',
     message_count   INT             NOT NULL DEFAULT 0,
     total_tokens    BIGINT          NOT NULL DEFAULT 0,
@@ -215,7 +217,11 @@ CREATE INDEX idx_chat_session_user_id ON chat_session (user_id);
 CREATE INDEX idx_chat_session_status ON chat_session (status);
 CREATE INDEX idx_chat_session_last_message ON chat_session (last_message_at DESC);
 CREATE INDEX idx_chat_session_pinned ON chat_session (user_id, pinned DESC, last_message_at DESC);
+CREATE INDEX idx_chat_session_source ON chat_session (source);
+CREATE INDEX idx_chat_session_api_key_id ON chat_session (api_key_id);
 COMMENT ON TABLE chat_session IS '对话会话表';
+COMMENT ON COLUMN chat_session.source IS '会话来源：platform=平台调试，api=企业API Key集成，automation=自动化';
+COMMENT ON COLUMN chat_session.api_key_id IS '企业 API Key ID（source=api 时有值）';
 COMMENT ON COLUMN chat_session.attachments IS '会话附件索引 JSON 数组（source: user_upload|ai_image|ai_sandbox|ai_deliver）';
 
 -- ========================================

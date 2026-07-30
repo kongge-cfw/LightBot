@@ -30,6 +30,7 @@ public enum ErrorCode {
     USERNAME_EXISTS(20002, "用户名已存在", HttpStatus.BAD_REQUEST),
     USERNAME_OR_PASSWORD_ERROR(20003, "用户名或密码错误", HttpStatus.BAD_REQUEST),
     ACCOUNT_DISABLED(20004, "账号已被禁用", HttpStatus.FORBIDDEN),
+    PUBLIC_REGISTER_DISABLED(20005, "系统已关闭公开注册，请联系管理员创建账号", HttpStatus.FORBIDDEN),
 
     // ========== Agent模块 ==========
     AGENT_NOT_FOUND(30000, "Agent不存在", HttpStatus.BAD_REQUEST),
@@ -162,6 +163,10 @@ public enum ErrorCode {
     API_KEY_EXPIRED(94002, "API Key已过期", HttpStatus.UNAUTHORIZED),
     API_KEY_DISABLED(94003, "API Key已被禁用", HttpStatus.UNAUTHORIZED),
     API_KEY_INVALID(94004, "API Key无效", HttpStatus.UNAUTHORIZED),
+    API_KEY_PATH_FORBIDDEN(94005, "企业 API Key 仅可用于对话接口", HttpStatus.FORBIDDEN),
+    API_KEY_AGENT_FORBIDDEN(94006, "该 API Key 无权访问此 Agent", HttpStatus.FORBIDDEN),
+    API_KEY_AGENT_REQUIRED(94007, "企业 API Key 调用对话时必须指定 agentId", HttpStatus.BAD_REQUEST),
+    API_KEY_AGENT_NOT_PUBLISHED(94008, "企业 API Key 仅可调用已发布的 Agent", HttpStatus.FORBIDDEN),
 
     // ========== Prompt模块 ==========
     PROMPT_NOT_FOUND(100001, "Prompt不存在", HttpStatus.BAD_REQUEST),

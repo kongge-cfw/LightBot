@@ -30,7 +30,7 @@ public class ApiKey {
     private Long id;
 
     @TableField("user_id")
-    @Schema(description = "所属用户ID")
+    @Schema(description = "创建人用户ID（审计字段，不作为运行时身份）")
     @JsonSerialize(using = ToStringSerializer.class)
     private Long userId;
 

@@ -236,6 +236,9 @@ public interface AgentService extends IService<Agent> {
      * @param userId 用户ID
      * @return Agent列表
      */
+    /**
+     * 按创建人查询 Agent（管理员审计用，非访问控制）
+     */
     List<Agent> listByUserId(Long userId);
 
     /**

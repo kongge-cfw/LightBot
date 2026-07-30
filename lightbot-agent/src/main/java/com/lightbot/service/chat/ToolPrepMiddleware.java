@@ -309,6 +309,9 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     toolCtxMap.put("requestId", requestId);
                 }
                 if (ctx != null) toolCtxMap.put("userId", ctx.getUserId());
+                if (ctx != null && ctx.getRequest() != null && ctx.getRequest().getApiKeyId() != null) {
+                    toolCtxMap.put("apiKeyId", ctx.getRequest().getApiKeyId());
+                }
                 // 当前会话 todos 快照：供 WriteTodosTool 按 id 合并，避免 AI 漏传导致丢项
                 toolCtxMap.put("currentTodos", loadCurrentTodos(sessionId, requestId));
                 // MCP serializes ToolContext as JSON-RPC _meta; ChatContext is injected only for non-MCP execution.
@@ -336,6 +339,11 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
     private boolean shouldInjectUserMemoryTools(ChatContext ctx) {
         if (ctx == null || ctx.getUserId() == null) {
+            return false;
+        }
+        // 企业 API / 自动化：不注入个人记忆工具，避免挂到虚拟身份或触发人账号
+        if (ctx.getRequest() != null
+                && (ctx.getRequest().getApiKeyId() != null || ctx.getRequest().getActorUserId() != null)) {
             return false;
         }
         try {

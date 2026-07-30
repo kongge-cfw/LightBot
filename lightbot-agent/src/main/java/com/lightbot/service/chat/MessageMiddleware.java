@@ -633,6 +633,11 @@ public class MessageMiddleware implements ChatMiddleware {
     }
 
     private String appendUserMemoryPrompt(String systemPrompt, ChatContext ctx, Agent agent, String userMessage) {
+        // 企业 API / 自动化：不注入个人偏好/长期记忆
+        if (ctx != null && ctx.getRequest() != null
+                && (ctx.getRequest().getApiKeyId() != null || ctx.getRequest().getActorUserId() != null)) {
+            return systemPrompt;
+        }
         if (ctx == null || ctx.getUserId() == null) {
             return systemPrompt;
         }

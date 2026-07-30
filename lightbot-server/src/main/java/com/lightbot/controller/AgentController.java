@@ -14,6 +14,7 @@ import com.lightbot.entity.McpServer;
 import com.lightbot.entity.Tool;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
+import com.lightbot.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -39,6 +40,7 @@ public class AgentController {
 
     private final AgentService agentService;
     private final AgentVersionService agentVersionService;
+    private final UserService userService;
 
     @Operation(summary = "创建Agent")
     @PostMapping
@@ -237,9 +239,10 @@ public class AgentController {
         return Result.ok(agentService.generateRecommendedQuestions(id));
     }
 
-    @Operation(summary = "设置为默认Agent")
+    @Operation(summary = "设置为默认Agent（管理员）")
     @PutMapping("/{id}/default")
     public Result<Void> setDefault(@PathVariable Long id) {
+        userService.checkAdmin();
         agentService.setDefaultAgent(id);
         return Result.ok();
     }

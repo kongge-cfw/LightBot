@@ -163,14 +163,12 @@ public class ChatServiceImpl implements ChatService {
                 reply, metadataStr, toolEventsStr, totalTokens, MessageType.TEXT, null, null);
         ctx.setAssistantMessageId(messageId);
 
-        // 3.0 记录 Token 消耗
-        if (ctx.getUserId() != null) {
-            tokenBudgetService.recordUsage(ctx.getUserId(), ctx.getInputTokenHolder()[0], ctx.getOutputTokenHolder()[0]);
-        }
-        // 3.0.1 API Key 配额扣减
-        Long apiKeyId = ctx.getRequest().getApiKeyId();
+        // 3.0 Token：API Key 走企业配额；平台调试走个人预算
+        Long apiKeyId = ctx.getRequest() != null ? ctx.getRequest().getApiKeyId() : null;
         if (apiKeyId != null) {
             apiKeyService.checkAndConsumeQuota(apiKeyId, totalTokens);
+        } else if (ctx.getUserId() != null) {
+            tokenBudgetService.recordUsage(ctx.getUserId(), ctx.getInputTokenHolder()[0], ctx.getOutputTokenHolder()[0]);
         }
 
         // 3.1 批量写入工具调用记录
@@ -446,14 +444,12 @@ public class ChatServiceImpl implements ChatService {
         try {
             Long agentId = ctx.getAgent() != null ? ctx.getAgent().getId() : null;
 
-            // 0. 记录 Token 消耗到预算服务
-            if (ctx.getUserId() != null) {
-                tokenBudgetService.recordUsage(ctx.getUserId(), ctx.getInputTokenHolder()[0], ctx.getOutputTokenHolder()[0]);
-            }
-            // 0.1 API Key 配额扣减
-            Long apiKeyId = ctx.getRequest().getApiKeyId();
+            // 0. Token：API Key 走企业配额；平台调试走个人预算
+            Long apiKeyId = ctx.getRequest() != null ? ctx.getRequest().getApiKeyId() : null;
             if (apiKeyId != null) {
                 apiKeyService.checkAndConsumeQuota(apiKeyId, totalTokens);
+            } else if (ctx.getUserId() != null) {
+                tokenBudgetService.recordUsage(ctx.getUserId(), ctx.getInputTokenHolder()[0], ctx.getOutputTokenHolder()[0]);
             }
 
             // 1. 持久化 AI 回复
@@ -489,11 +485,14 @@ public class ChatServiceImpl implements ChatService {
             // 1.2 助手消息已落库，异步生成会话标题（须晚于 TraceMiddleware.doOnComplete）
             scheduleTitleGeneration(ctx);
 
-            // 1.3 助手消息已落库后再异步抽取长期记忆，避免影响主回复完成事件
-            try {
-                userMemoryService.extractAsync(buildMemoryExtractRequest(ctx));
-            } catch (Exception e) {
-                log.warn("[Chat] 调度长期记忆抽取失败: {}", e.getMessage());
+            // 1.3 助手消息已落库后再异步抽取长期记忆（API / 自动化不写入个人记忆）
+            Long actorUserId = ctx.getRequest() != null ? ctx.getRequest().getActorUserId() : null;
+            if (apiKeyId == null && actorUserId == null) {
+                try {
+                    userMemoryService.extractAsync(buildMemoryExtractRequest(ctx));
+                } catch (Exception e) {
+                    log.warn("[Chat] 调度长期记忆抽取失败: {}", e.getMessage());
+                }
             }
 
             // 2. 返回带消息ID、Token数和完整metadata的 [DONE] 事件

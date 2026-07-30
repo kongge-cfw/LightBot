@@ -46,9 +46,8 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
 
     @Override
     public List<DataModelVO> listMine(Long categoryId, String keyword) {
-        long userId = StpUtil.getLoginIdAsLong();
+        // 企业资产：建设者可见全部数据模型
         LambdaQueryWrapper<DataModel> qw = new LambdaQueryWrapper<DataModel>()
-                .eq(DataModel::getUserId, userId)
                 .eq(categoryId != null, DataModel::getCategoryId, categoryId)
                 .orderByDesc(DataModel::getUpdateTime);
         if (StringUtils.hasText(keyword)) {
@@ -66,9 +65,8 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
 
     @Override
     public DataModel requireOwned(Long id) {
-        long userId = StpUtil.getLoginIdAsLong();
         DataModel model = getById(id);
-        if (model == null || model.getUserId() == null || model.getUserId() != userId) {
+        if (model == null) {
             throw new BizException(ErrorCode.DATA_MODEL_NOT_FOUND);
         }
         return model;
@@ -78,11 +76,9 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
     public DataModel requireOwnedByTableName(String tableName) {
         // 1. 校验表名格式（须为 sjc_data_ 合法后缀）
         schemaSupport.assertSafeTableName(tableName);
-        // 2. 按归属查询元数据
-        long userId = StpUtil.getLoginIdAsLong();
+        // 2. 企业资产：按表名查询，不再按用户过滤
         DataModel model = getOne(new LambdaQueryWrapper<DataModel>()
                 .eq(DataModel::getTableName, tableName.trim())
-                .eq(DataModel::getUserId, userId)
                 .last("LIMIT 1"));
         if (model == null) {
             throw new BizException(ErrorCode.DATA_MODEL_NOT_FOUND);
@@ -94,7 +90,7 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
     @Transactional(rollbackFor = Exception.class)
     public DataModelVO create(DataModelCreateDTO dto) {
         long userId = StpUtil.getLoginIdAsLong();
-        // 1. 校验分类归属
+        // 1. 校验分类存在
         requireOwnedCategory(dto.getCategoryId(), userId);
         // 2. 表名唯一
         String tableName = schemaSupport.buildTableName(dto.getTableNameSuffix().trim().toLowerCase());
@@ -102,9 +98,8 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
         if (tableExists > 0 || ddlUtil.tableExists(tableName)) {
             throw new BizException(ErrorCode.DATA_MODEL_TABLE_EXISTS, tableName);
         }
-        // 3. 名称唯一（同用户）
+        // 3. 名称唯一（企业维度）
         long nameExists = count(new LambdaQueryWrapper<DataModel>()
-                .eq(DataModel::getUserId, userId)
                 .eq(DataModel::getName, dto.getName().trim()));
         if (nameExists > 0) {
             throw new BizException(ErrorCode.DATA_MODEL_NAME_EXISTS);
@@ -131,7 +126,6 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
         DataModel model = requireOwned(id);
         requireOwnedCategory(dto.getCategoryId(), model.getUserId());
         long nameExists = count(new LambdaQueryWrapper<DataModel>()
-                .eq(DataModel::getUserId, model.getUserId())
                 .eq(DataModel::getName, dto.getName().trim())
                 .ne(DataModel::getId, id));
         if (nameExists > 0) {
@@ -200,8 +194,9 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
     }
 
     private void requireOwnedCategory(Long categoryId, Long userId) {
+        // 企业资产：仅校验分类存在（userId 参数保留兼容调用方）
         DataModelCategory category = categoryMapper.selectById(categoryId);
-        if (category == null || category.getUserId() == null || !category.getUserId().equals(userId)) {
+        if (category == null) {
             throw new BizException(ErrorCode.DATA_CATEGORY_NOT_FOUND);
         }
     }

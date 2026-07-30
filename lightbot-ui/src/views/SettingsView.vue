@@ -8,7 +8,7 @@
       <a-tab-pane key="landing" tab="Landing配置" />
       <a-tab-pane key="users" tab="用户管理" />
       <a-tab-pane key="token" tab="Token限额" />
-      <a-tab-pane key="apiKey" tab="API Key" />
+      <a-tab-pane key="apiKey" tab="企业 API Key" />
     </a-tabs>
 
     <!-- Tab: Landing 管理 -->
@@ -233,16 +233,16 @@
     <div class="panel" style="grid-column: 1 / -1;">
       <div class="panel-header">
         <div class="panel-title-wrap">
-          <h3>API Key 管理</h3>
+          <h3>企业 API Key</h3>
         </div>
         <span class="panel-desc">用于外部系统调用智元接口的认证凭证</span>
         <a class="apikey-docs-link" href="/docs" target="_blank" rel="noopener noreferrer">在线文档</a>
         <button class="btn-primary" style="margin-left: auto;" @click="showCreateApiKey">
-          <PlusOutlined /> 创建 API Key
+          <PlusOutlined /> 创建企业 API Key
         </button>
       </div>
       <div class="panel-body">
-        <div v-if="apiKeyList.length === 0 && !apiKeyLoading" class="empty-tip">暂无 API Key，点击上方按钮创建一个</div>
+        <div v-if="apiKeyList.length === 0 && !apiKeyLoading" class="empty-tip">暂无企业 API Key，点击上方按钮创建一个</div>
         <div v-else class="apikey-cards-grid">
           <div v-for="key in apiKeyList" :key="key.id" class="apikey-card">
             <div class="apikey-card-header">
@@ -286,7 +286,7 @@
                 <a-switch :checked="key.isEnabled === 1" size="small" @change="handleToggleApiKey(key)" />
               </div>
               <div class="apikey-card-actions">
-                <a-popconfirm title="确定要删除此 API Key 吗？" @confirm="handleDeleteApiKey(key)" ok-text="确定" cancel-text="取消">
+                <a-popconfirm title="确定要删除此企业 API Key 吗？" @confirm="handleDeleteApiKey(key)" ok-text="确定" cancel-text="取消">
                   <a-button type="text" size="small" danger>
                     <DeleteOutlined /> 删除
                   </a-button>
@@ -303,7 +303,7 @@
     <!-- 创建 API Key 弹窗 -->
     <a-modal
       v-model:open="apiKeyCreateVisible"
-      title="创建 API Key"
+      title="创建企业 API Key"
       :maskClosable="false"
       @ok="handleCreateApiKey"
       :confirmLoading="apiKeyCreateLoading"
@@ -341,7 +341,7 @@
     <!-- 密钥展示弹窗（创建后一次性显示） -->
     <a-modal
       v-model:open="apiKeySecretVisible"
-      title="API Key 已创建"
+      title="企业 API Key 已创建"
       :maskClosable="false"
       :footer="null"
       width="720px"

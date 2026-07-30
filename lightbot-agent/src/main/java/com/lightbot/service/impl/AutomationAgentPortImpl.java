@@ -50,8 +50,8 @@ public class AutomationAgentPortImpl implements AutomationAgentPort {
     @Override
     public AutomationAgentRunResult run(Long userId, Long agentId, String instruction, String sessionTitle) {
         requireOwnedAgent(agentId, userId);
-        // 1. 新建会话（与手动开聊一致）
-        ChatSession session = chatSessionService.createSession(userId, agentId);
+        // 1. 新建自动化会话（source=automation，不进入个人调试列表）
+        ChatSession session = chatSessionService.createAutomationSession(userId, agentId);
         if (StringUtils.hasText(sessionTitle)) {
             try {
                 chatSessionService.updateTitle(session.getId(), sessionTitle.trim());
@@ -125,11 +125,12 @@ public class AutomationAgentPortImpl implements AutomationAgentPort {
     }
 
     private Agent requireOwnedAgent(Long agentId, Long userId) {
-        if (agentId == null || userId == null) {
+        // 企业资产：仅校验 Agent 存在；userId 用于会话归属，不限制 Agent 归属
+        if (agentId == null) {
             throw new BizException(ErrorCode.AUTOMATION_AGENT_INVALID);
         }
         Agent agent = agentService.getById(agentId);
-        if (agent == null || agent.getUserId() == null || !agent.getUserId().equals(userId)) {
+        if (agent == null) {
             throw new BizException(ErrorCode.AUTOMATION_AGENT_INVALID);
         }
         return agent;

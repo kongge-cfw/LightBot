@@ -63,7 +63,7 @@
             <button class="btn-icon" @click.stop.prevent><MoreOutlined /></button>
             <template #overlay>
               <a-menu>
-                <a-menu-item v-if="!a.isDefault" @click="handleSetDefault(a.id)">
+                <a-menu-item v-if="isAdmin && !a.isDefault" @click="handleSetDefault(a.id)">
                   <StarOutlined style="margin-right: 6px" /> 设为默认
                 </a-menu-item>
                 <a-menu-item @click="handleClone(a.id)">
@@ -167,7 +167,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, watch, onMounted } from 'vue'
+import { ref, reactive, watch, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { PlusOutlined, EditOutlined, DeleteOutlined, CopyOutlined, RobotOutlined, SearchOutlined, ReloadOutlined, StarOutlined, ExperimentOutlined, MoreOutlined, LikeOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
@@ -180,8 +180,11 @@ import EntityCard from '../components/EntityCard.vue'
 import LbManageHeader from '../components/common/LbManageHeader.vue'
 import LbEmptyState from '../components/common/LbEmptyState.vue'
 import { resolveAgentBindingType } from '../utils/bindingTheme'
+import { useUserStore } from '../stores/user'
 
 const router = useRouter()
+const userStore = useUserStore()
+const isAdmin = computed(() => userStore.user?.role === 'admin')
 const list = ref([])
 const loading = ref(false)
 const agentStatusLabels = ref(null)
