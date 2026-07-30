@@ -255,8 +255,8 @@
             <div class="apikey-card-body">
               <div class="apikey-card-row">
                 <span class="apikey-card-label">权限</span>
-                <a-tag :color="key.permissions === 'full' ? 'blue' : 'default'">
-                  {{ key.permissions === 'full' ? '完全访问' : '仅对话' }}
+                <a-tag :color="isFullApiKeyPermission(key.permissions) ? 'blue' : 'default'">
+                  {{ apiKeyPermissionLabel(key.permissions) }}
                 </a-tag>
               </div>
               <div class="apikey-card-row">
@@ -277,7 +277,7 @@
               </div>
               <div class="apikey-card-row">
                 <span class="apikey-card-label">最近使用</span>
-                <span>{{ key.lastUsedAt || '-' }}</span>
+                <span>{{ key.lastUsedAt ? formatTime(key.lastUsedAt) : '-' }}</span>
               </div>
             </div>
             <div class="apikey-card-footer">
@@ -317,8 +317,8 @@
         </a-form-item>
         <a-form-item label="权限">
           <a-select v-model:value="apiKeyForm.permissions">
-            <a-select-option value="chat">仅对话</a-select-option>
-            <a-select-option value="full">完全访问</a-select-option>
+            <a-select-option value="chat">仅对话（对话接口）</a-select-option>
+            <a-select-option value="full">完全访问（对话 + 开放数据 API）</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="每分钟限流">
@@ -378,6 +378,7 @@ import { listApiKeys, createApiKey, toggleApiKey, deleteApiKey } from '../api/ap
 import AgentSelect from '../components/AgentSelect.vue'
 import UserManage from './UserManage.vue'
 import { copyToClipboard } from '../utils/clipboard'
+import { formatTime } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
@@ -593,6 +594,14 @@ const apiKeyCreateLoading = ref(false)
 const apiKeySecretVisible = ref(false)
 const apiKeyCreatedSecret = ref('')
 const apiKeyForm = reactive({ name: '', permissions: 'chat', rateLimit: 60, dailyQuota: 100000, agentIds: [] })
+
+function isFullApiKeyPermission(permissions) {
+  return permissions === 'full' || permissions === 'FULL' || permissions === '完全访问'
+}
+
+function apiKeyPermissionLabel(permissions) {
+  return isFullApiKeyPermission(permissions) ? '完全访问' : '仅对话'
+}
 
 async function loadApiKeys() {
   const res = await listApiKeys()

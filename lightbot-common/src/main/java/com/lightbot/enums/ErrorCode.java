@@ -163,10 +163,11 @@ public enum ErrorCode {
     API_KEY_EXPIRED(94002, "API Key已过期", HttpStatus.UNAUTHORIZED),
     API_KEY_DISABLED(94003, "API Key已被禁用", HttpStatus.UNAUTHORIZED),
     API_KEY_INVALID(94004, "API Key无效", HttpStatus.UNAUTHORIZED),
-    API_KEY_PATH_FORBIDDEN(94005, "企业 API Key 仅可用于对话接口", HttpStatus.FORBIDDEN),
+    API_KEY_PATH_FORBIDDEN(94005, "企业 API Key 无权访问该接口", HttpStatus.FORBIDDEN),
     API_KEY_AGENT_FORBIDDEN(94006, "该 API Key 无权访问此 Agent", HttpStatus.FORBIDDEN),
     API_KEY_AGENT_REQUIRED(94007, "企业 API Key 调用对话时必须指定 agentId", HttpStatus.BAD_REQUEST),
     API_KEY_AGENT_NOT_PUBLISHED(94008, "企业 API Key 仅可调用已发布的 Agent", HttpStatus.FORBIDDEN),
+    API_KEY_PERMISSION_INSUFFICIENT(94009, "该 API Key 权限不足（仅对话不可访问开放数据接口，请使用「完全访问」）", HttpStatus.FORBIDDEN),
 
     // ========== Prompt模块 ==========
     PROMPT_NOT_FOUND(100001, "Prompt不存在", HttpStatus.BAD_REQUEST),

@@ -60,7 +60,7 @@ public class ApiKeyServiceImpl extends ServiceImpl<ApiKeyMapper, ApiKey>
         apiKey.setName(name);
         apiKey.setKeyPrefix(keyPrefix);
         apiKey.setKeyHash(keyHash);
-        apiKey.setPermissions(ApiKeyPermission.valueOf(permissions != null ? permissions.toUpperCase() : "CHAT"));
+        apiKey.setPermissions(ApiKeyPermission.fromValue(permissions != null ? permissions : "chat"));
         apiKey.setAgentIds(agentIds != null && !agentIds.isEmpty() ? agentIds : null);
         apiKey.setRateLimit(rateLimit != null ? rateLimit : 60);
         apiKey.setDailyQuota(dailyQuota != null ? dailyQuota : 100000);

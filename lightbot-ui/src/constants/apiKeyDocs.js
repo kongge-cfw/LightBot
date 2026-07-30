@@ -63,8 +63,8 @@ export const API_DOC_GROUPS = [
       <p>密钥仅在创建时显示一次；支持限流、每日 Token 配额、绑定 Agent 作用域。</p>
       <h3>权限说明</h3>
       <ul>
-        <li><code>chat</code> 仅对话：推荐调用「对话 / 会话」接口</li>
-        <li><code>full</code> 完全访问：以 Key 所属用户身份访问已认证接口（含开放数据池、任务等）</li>
+        <li><code>chat</code> 仅对话：可调用对话相关接口（同步/流式对话、附件、停止/重连）</li>
+        <li><code>full</code> 完全访问：在对话能力之外，还可调用 <code>/api/open/v1/**</code> 开放数据接口（如数据池）；不可访问控制台管理接口</li>
       </ul>
       <h3>通用返回</h3>
       <pre>{

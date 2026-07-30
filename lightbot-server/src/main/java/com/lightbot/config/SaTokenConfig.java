@@ -61,7 +61,7 @@ public class SaTokenConfig implements WebMvcConfigurer {
             SaRouter.match("GET", "/api/landing/config").stop();
             SaRouter.match("GET", "/api/ocr/health").stop();
             SaRouter.match("GET", "/api/system-config/health").stop();
-            // 其余接口：对话路径可用企业 API Key；其它接口必须登录
+            // 其余接口：已通过 API Key 拦截器放行的请求跳过登录；否则必须登录
             checkLoginOrApiKey();
         })).addPathPatterns("/api/**").order(2);
     }
