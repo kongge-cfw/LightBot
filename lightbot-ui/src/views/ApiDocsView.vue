@@ -155,7 +155,7 @@
 
               <div v-show="contentTab === 'test'" class="docs-tab-panel" role="tabpanel">
                 <template v-if="activeApi.testable === false">
-                  <div class="docs-empty">该接口暂不支持页面内测试（如文件上传），请使用 curl / Postman。</div>
+                  <div class="docs-empty">该接口暂不支持页面内测试，请使用 curl / Postman。</div>
                 </template>
                 <template v-else>
                   <div class="docs-test">
@@ -185,6 +185,22 @@
                     >
                       <label>Query {{ p.name }}</label>
                       <a-input v-model:value="queryValues[p.name]" :placeholder="p.example || p.desc" />
+                    </div>
+                    <div
+                      v-for="p in fileParams"
+                      :key="'file-' + p.name + '-' + fileInputKey"
+                      class="docs-test-row"
+                    >
+                      <label>文件 {{ p.name }}</label>
+                      <div class="docs-file-field">
+                        <input
+                          type="file"
+                          class="docs-file-input"
+                          @change="onFileChange(p.name, $event)"
+                        />
+                        <span v-if="fileValues[p.name]" class="docs-file-name">{{ fileValues[p.name].name }}</span>
+                        <span v-else class="docs-mute">未选择文件</span>
+                      </div>
                     </div>
                     <div v-if="needsBody" class="docs-test-row docs-test-row--block">
                       <label>Body (JSON)</label>
@@ -255,6 +271,9 @@ const contentTab = ref('spec')
 const apiKey = ref(localStorage.getItem(STORAGE_KEY) || '')
 const pathValues = reactive({})
 const queryValues = reactive({})
+/** @type {Record<string, File>} */
+const fileValues = reactive({})
+const fileInputKey = ref(0)
 const bodyText = ref('')
 const testing = ref(false)
 const testResult = ref(null)
@@ -268,11 +287,15 @@ const activeApi = computed(() => {
 
 const pathParams = computed(() => (activeApi.value?.params || []).filter((p) => p.in === 'path'))
 const queryParams = computed(() => (activeApi.value?.params || []).filter((p) => p.in === 'query'))
+const fileParams = computed(() =>
+  (activeApi.value?.params || []).filter((p) => p.type === 'file')
+)
 const needsBody = computed(() => {
   const api = activeApi.value
   if (!api) return false
+  if (api.contentType === 'multipart' || api.contentType === 'sse') return false
   if (api.contentType === 'json') return true
-  return (api.params || []).some((p) => p.in === 'body')
+  return (api.params || []).some((p) => p.in === 'body' && p.type !== 'file')
 })
 
 function selectGroup(groupId) {
@@ -308,10 +331,18 @@ function resetTestForm() {
   if (!api) return
   Object.keys(pathValues).forEach((k) => delete pathValues[k])
   Object.keys(queryValues).forEach((k) => delete queryValues[k])
+  Object.keys(fileValues).forEach((k) => delete fileValues[k])
+  fileInputKey.value += 1
   for (const p of pathParams.value) pathValues[p.name] = p.example || ''
   for (const p of queryParams.value) queryValues[p.name] = p.example || ''
   bodyText.value = api.bodyExample && api.bodyExample.startsWith('{') ? api.bodyExample : ''
   clearTestOutput()
+}
+
+function onFileChange(name, event) {
+  const file = event?.target?.files?.[0]
+  if (file) fileValues[name] = file
+  else delete fileValues[name]
 }
 
 watch(activeApi, () => {
@@ -347,6 +378,13 @@ async function runTest() {
     return
   }
 
+  for (const p of queryParams.value) {
+    if (p.required && !String(queryValues[p.name] ?? '').trim()) {
+      message.warning(`请填写 Query 参数：${p.name}`)
+      return
+    }
+  }
+
   let url
   try {
     url = buildUrl(api)
@@ -370,12 +408,23 @@ async function runTest() {
     }
   }
 
+  if (api.contentType === 'multipart') {
+    for (const p of fileParams.value) {
+      if (p.required !== false && !fileValues[p.name]) {
+        message.warning(`请选择文件：${p.name}`)
+        return
+      }
+    }
+  }
+
   testing.value = true
   clearTestOutput()
   const started = performance.now()
   try {
     if (api.contentType === 'sse') {
       await runSseTest(url, api.method, body, key, started)
+    } else if (api.contentType === 'multipart') {
+      await runMultipartTest(url, api.method, key, started)
     } else {
       await runJsonTest(url, api.method, body, key, started)
     }
@@ -404,7 +453,32 @@ async function runJsonTest(url, method, body, key, started) {
     // keep raw
   }
   testMeta.value = `HTTP ${res.status} · ${Math.round(performance.now() - started)}ms`
-  testResult.value = pretty
+  testResult.value = pretty || `（空响应体，HTTP ${res.status}）`
+}
+
+/** multipart/form-data：浏览器自动带 boundary，勿手动设 Content-Type */
+async function runMultipartTest(url, method, key, started) {
+  const form = new FormData()
+  for (const p of fileParams.value) {
+    const file = fileValues[p.name]
+    if (file) form.append(p.name, file, file.name)
+  }
+  const res = await fetch(url, {
+    method,
+    headers: {
+      Authorization: `Bearer ${key}`,
+    },
+    body: form,
+  })
+  const text = await res.text()
+  let pretty = text
+  try {
+    pretty = text ? JSON.stringify(JSON.parse(text), null, 2) : ''
+  } catch {
+    // keep raw
+  }
+  testMeta.value = `HTTP ${res.status} · ${Math.round(performance.now() - started)}ms`
+  testResult.value = pretty || text || `（空响应体，HTTP ${res.status}）`
 }
 
 async function runSseTest(url, method, body, key, started) {
@@ -853,6 +927,22 @@ async function runSseTest(url, method, body, key, started) {
 .docs-test-row label {
   font-size: 13px;
   color: var(--color-mute);
+}
+.docs-file-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.docs-file-input {
+  font-size: 13px;
+  max-width: 100%;
+}
+.docs-file-name {
+  font-size: 12px;
+  color: var(--color-ink);
+  word-break: break-all;
 }
 .docs-test-body {
   font-family: 'SFMono-Regular', Consolas, monospace;

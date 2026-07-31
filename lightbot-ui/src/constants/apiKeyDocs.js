@@ -209,13 +209,13 @@ data: [DONE]{"sessionId":"2056961707612393500","requestId":"req_abc123","totalTo
         summary: '上传对话附件',
         description: '上传图片/视频/文档，返回附件描述供后续对话引用。multipart/form-data。',
         contentType: 'multipart',
-        testable: false,
+        testable: true,
         params: [
           { name: 'agentId', type: 'string', required: true, in: 'query', desc: 'Agent ID', example: '2056961707612393473' },
-          { name: 'sessionId', type: 'string', required: false, in: 'query', desc: '会话 ID', example: '2056961707612393500' },
-          { name: 'file', type: 'file', required: true, in: 'body', desc: '文件本体', example: 'a.png' },
+          { name: 'sessionId', type: 'string', required: false, in: 'query', desc: '会话 ID（可选）', example: '2056961707612393500' },
+          { name: 'file', type: 'file', required: true, in: 'form', desc: '文件本体（multipart 字段名 file）', example: 'a.png' },
         ],
-        bodyExample: '(multipart form-data: file=...)',
+        bodyExample: '(multipart form-data: file=<binary>)',
         responseFields: [
           ...RESULT_FIELDS,
           { name: 'data.id', type: 'string', desc: '附件 ID', example: '2056961707612393900' },
