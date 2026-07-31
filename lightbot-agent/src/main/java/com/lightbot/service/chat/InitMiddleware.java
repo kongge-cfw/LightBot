@@ -76,7 +76,9 @@ public class InitMiddleware implements ChatMiddleware {
         ctx.setProviderId(providerResolver.resolveFromConfig(configMap));
 
         ctx.setStartTime(t0);
-        return next.proceed(ctx);
+        // 会话已解析后再回传 SESSION_ID（勿在链外提前发，否则恒为 null）
+        return Flux.just(ToolEventGenerator.SESSION_ID_PREFIX + sessionId)
+                .concatWith(next.proceed(ctx));
     }
 
     /**
@@ -297,7 +299,9 @@ public class InitMiddleware implements ChatMiddleware {
         }
         AgentStatus status = agent.getStatus();
         if (status != AgentStatus.PUBLISHED && status != AgentStatus.PUBLISHED_EDITING) {
-            throw new BizException(ErrorCode.API_KEY_AGENT_NOT_PUBLISHED);
+            // 「完全访问」只放开接口范围，不放开未发布 Agent；提示当前状态便于排查
+            String statusDesc = status != null ? status.getDesc() : "未知";
+            throw new BizException(ErrorCode.API_KEY_AGENT_NOT_PUBLISHED, statusDesc);
         }
         ApiKey apiKey = apiKeyService.getById(apiKeyId);
         if (apiKey == null) {

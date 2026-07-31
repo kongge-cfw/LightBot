@@ -415,7 +415,8 @@ async function runSseTest(url, method, body, key, started) {
       method,
       headers: {
         Authorization: `Bearer ${key}`,
-        Accept: 'text/event-stream',
+        // 同时接受 JSON，便于流式接口在启动前返回业务错误（Result）
+        Accept: 'text/event-stream, application/json',
         ...(body != null ? { 'Content-Type': 'application/json' } : {}),
       },
       body: body != null ? JSON.stringify(body) : undefined,
@@ -424,7 +425,13 @@ async function runSseTest(url, method, body, key, started) {
     if (!res.ok || !res.body) {
       const text = await res.text()
       testMeta.value = `HTTP ${res.status} · ${Math.round(performance.now() - started)}ms`
-      testResult.value = text
+      let pretty = text
+      try {
+        pretty = text ? JSON.stringify(JSON.parse(text), null, 2) : ''
+      } catch {
+        // SSE error 事件等非纯 JSON，保留原文
+      }
+      testResult.value = pretty || text || `（空响应体，HTTP ${res.status}）`
       return
     }
     const reader = res.body.getReader()

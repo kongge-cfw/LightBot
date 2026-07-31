@@ -395,6 +395,7 @@ public class ChatServiceImpl implements ChatService {
                 skillPrepMiddleware, messageMiddleware, toolPrepMiddleware, traceMiddleware);
         ChatServiceCore core = this::streamCore;
 
+        // requestId 可立即回传；sessionId 在 InitMiddleware 解析会话后发出（见 SESSION_ID 事件）
         return Flux.just(REQUEST_ID_PREFIX + ctx.getRequestId())
                 .concatWith(ChatMiddlewareChain.of(middlewares, core).proceed(ctx))
                 .concatWith(Mono.fromCallable(() -> buildDoneEvent(ctx)))
@@ -431,14 +432,14 @@ public class ChatServiceImpl implements ChatService {
     private String buildDoneEvent(ChatContext ctx) {
         long totalTokens = ctx.getInputTokenHolder()[0] + ctx.getOutputTokenHolder()[0];
         if (ctx.isStreamFailed()) {
-            return toolEventGenerator.doneWithMetadata(ctx.getUserMessageId(), null, totalTokens,
+            return toolEventGenerator.doneWithMetadata(ctx.getSessionId(), ctx.getUserMessageId(), null, totalTokens,
                     buildStreamFailureMetadata(ctx));
         }
         // 用户输入敏感词拦截：UserSensitiveMiddleware 已落库 USER + ASSISTANT 两条消息，
         // 直接返回带 IDs 的 [DONE]，跳过助手消息重复保存与标题/记忆抽取等后置流程
         if (ctx.isSensitiveUserBlocked()) {
             return toolEventGenerator.doneWithMetadata(
-                    ctx.getUserMessageId(), ctx.getAssistantMessageId(), totalTokens, null);
+                    ctx.getSessionId(), ctx.getUserMessageId(), ctx.getAssistantMessageId(), totalTokens, null);
         }
 
         try {
@@ -496,7 +497,8 @@ public class ChatServiceImpl implements ChatService {
             }
 
             // 2. 返回带消息ID、Token数和完整metadata的 [DONE] 事件
-            return toolEventGenerator.doneWithMetadata(ctx.getUserMessageId(), assistantMessageId, totalTokens, metadataStr);
+            return toolEventGenerator.doneWithMetadata(
+                    ctx.getSessionId(), ctx.getUserMessageId(), assistantMessageId, totalTokens, metadataStr);
         } catch (Exception e) {
             log.error("[Chat] 构建[DONE]事件异常: {}", e.getMessage(), e);
             return DONE_PREFIX;
