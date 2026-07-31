@@ -25,6 +25,7 @@ psql -U postgres -h localhost -d lightbot -f sql/2026-07-20-002.sql
 psql -U postgres -h localhost -d lightbot -f sql/2026-07-21-001.sql
 # 企业版会话来源（已有库必跑；init 快照已内含，全新部署无需重复）
 psql -U postgres -h localhost -d lightbot -f sql/2026-07-30-001.sql
+psql -U postgres -h localhost -d lightbot -f sql/2026-07-30-002.sql
 ```
 
 ## 增量迁移内容
@@ -38,6 +39,7 @@ psql -U postgres -h localhost -d lightbot -f sql/2026-07-30-001.sql
 | `2026-07-20-002.sql` | 优化消息查询索引、反馈索引和 SubAgent 软删除后的名称唯一性 |
 | `2026-07-21-001.sql` | 新增工具维度限流配置 |
 | `2026-07-30-001.sql` | `chat_session` 增加 `source` / `api_key_id`（平台调试 / API 集成 / 自动化分离） |
+| `2026-07-30-002.sql` | 智能问数：`ask_dataset` / `ask_relation` 语义层表 |
 
 ## 发布约定
 

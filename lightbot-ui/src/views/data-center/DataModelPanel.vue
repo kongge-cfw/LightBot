@@ -76,6 +76,7 @@
                 配置表单
               </button>
               <button type="button" class="btn-link" @click="openModelEdit(item)">编辑信息</button>
+              <button type="button" class="btn-link" @click="openAskEnhance(item)">问数增强</button>
               <button type="button" class="btn-link btn-link--danger" @click="removeModel(item)">删除</button>
             </div>
           </article>
@@ -160,6 +161,8 @@
       </a-form>
     </a-modal>
 
+    <AskEnhanceDrawer v-model:open="askDrawerOpen" :model="askDrawerModel" />
+
     <!-- 模型信息弹窗 -->
     <a-modal
       v-model:open="modelDialogVisible"
@@ -211,6 +214,7 @@ import { message, Modal } from 'ant-design-vue'
 import DataModelFormDesigner from '../../components/data-center/DataModelFormDesigner.vue'
 import DataModelConstraintConfig from '../../components/data-center/DataModelConstraintConfig.vue'
 import LbEmptyState from '../../components/common/LbEmptyState.vue'
+import AskEnhanceDrawer from './AskEnhanceDrawer.vue'
 import {
   listDataModelCategories,
   createDataModelCategory,
@@ -260,6 +264,13 @@ const modelForm = reactive({
   tableNameSuffix: '',
   description: '',
 })
+const askDrawerOpen = ref(false)
+const askDrawerModel = ref(null)
+
+function openAskEnhance(item) {
+  askDrawerModel.value = item
+  askDrawerOpen.value = true
+}
 
 function setDesignerOpen(open) {
   designerOpen.value = open
@@ -840,7 +851,8 @@ async function suggestEmptyFieldKeys() {
 .model-card__footer {
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding-top: 10px;
   margin-top: auto;
   border-top: 1px solid var(--color-hairline);

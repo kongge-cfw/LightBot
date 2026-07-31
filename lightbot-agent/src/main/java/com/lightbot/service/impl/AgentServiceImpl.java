@@ -18,6 +18,7 @@ import com.lightbot.entity.McpServer;
 import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentSaveDTO;
 import com.lightbot.service.AgentService;
+import com.lightbot.service.AskDatasetService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
 import com.lightbot.util.AgentChatRuntimeConfigUtil;
 import com.lightbot.workflow.WorkflowConfigParser;
@@ -90,6 +91,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     private final KnowledgeService knowledgeService;
     private final SkillService skillService;
     private final SubAgentService subAgentService;
+    private final AskDatasetService askDatasetService;
 
     private static final String GENERATE_PROMPT_SYSTEM = """
             你是一个AI助手提示词生成专家。根据用户提供的Agent名称和描述，生成一段专业的系统提示词。
@@ -278,6 +280,12 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
                 .map(String::valueOf)
                 .toList();
 
+        // 5.1 可问数据模型（主路径）+ 兼容旧 dataset 绑定
+        List<Long> dataModelIds = getDataModelIds(id);
+        List<String> dataModelIdStrs = dataModelIds.stream().map(String::valueOf).toList();
+        List<Long> datasetIds = getDatasetIds(id);
+        List<String> datasetIdStrs = datasetIds.stream().map(String::valueOf).toList();
+
         // 6. 对话能力（多模态/联网等）
         Map<String, Object> configMap = WorkflowConfigParser.parseConfigMap(agent.getConfig(), objectMapper);
         AgentChatCapabilitiesDTO chatCapabilities = AgentChatCapabilitiesUtil.fromConfigMap(configMap);
@@ -289,6 +297,8 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         result.put("mcpServerIds", mcpServerIdStrs);
         result.put("subAgentIds", subAgentIdStrs);
         result.put("skillIds", skillIdStrs);
+        result.put("dataModelIds", dataModelIdStrs);
+        result.put("datasetIds", datasetIdStrs);
         result.put("chatCapabilities", chatCapabilities);
         return result;
     }
@@ -459,6 +469,44 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         } catch (Exception e) {
             log.error("[Agent] 更新知识库绑定失败: agentId={}, error={}", agentId, e.getMessage(), e);
             throw new BizException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    @Override
+    @Cacheable(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':datasetIds'")
+    public List<Long> getDatasetIds(Long agentId) {
+        return readBindingIdsFromConfig(agentId, "datasets");
+    }
+
+    @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':datasetIds'")
+    public void updateDatasetBindings(Long agentId, List<Long> datasetIds) {
+        writeBindingIdsToConfig(agentId, "datasets", datasetIds, 10, ErrorCode.AGENT_DATASET_LIMIT);
+    }
+
+    @Override
+    @Cacheable(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
+    public List<Long> getDataModelIds(Long agentId) {
+        return readBindingIdsFromConfig(agentId, "dataModels");
+    }
+
+    @Override
+    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
+    public void updateDataModelBindings(Long agentId, List<Long> dataModelIds) {
+        // 1. 写入绑定
+        writeBindingIdsToConfig(agentId, "dataModels", dataModelIds, 10, ErrorCode.AGENT_DATA_MODEL_LIMIT);
+        // 2. 模型即可问：为每个模型 ensure 语义配置（自动维度/默认指标/画像）
+        if (dataModelIds != null) {
+            for (Long modelId : dataModelIds) {
+                try {
+                    askDatasetService.ensureFromModel(modelId);
+                } catch (Exception e) {
+                    log.warn("[Agent] ensure 问数配置失败: agentId={}, modelId={}, err={}",
+                            agentId, modelId, e.getMessage());
+                    throw e instanceof BizException be ? be
+                            : new BizException(ErrorCode.ASK_DATA_QUERY_INVALID, e.getMessage());
+                }
+            }
         }
     }
 

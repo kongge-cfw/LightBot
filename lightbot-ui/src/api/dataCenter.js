@@ -91,3 +91,11 @@ export function uploadDataPoolAttachment(file) {
     headers: { 'Content-Type': 'multipart/form-data' },
   })
 }
+
+/** 问数语义 / 轻量增强 API 见 ./askData.js */
+
+/** 供 Agent「可问数据」绑定：适配 useBinding 的 records 结构 */
+export async function listDataModelsForBinding() {
+  const res = await listDataModels()
+  return { data: { records: res.data || [] } }
+}

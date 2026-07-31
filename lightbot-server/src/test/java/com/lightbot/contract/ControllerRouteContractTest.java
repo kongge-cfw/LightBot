@@ -22,6 +22,7 @@ class ControllerRouteContractTest {
             Map.entry(AgentController.class, "/api/agents"),
             Map.entry(AgentWorkflowController.class, "/api/agents/{agentId}/workflow"),
             Map.entry(ApiKeyController.class, "/api/api-keys"),
+            Map.entry(AskDatasetController.class, "/api/ask-data"),
             Map.entry(AuthController.class, "/api/auth"),
             Map.entry(ChatController.class, "/api/chat"),
             Map.entry(ChatSessionController.class, "/api/chat/sessions"),

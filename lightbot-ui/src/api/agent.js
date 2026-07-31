@@ -43,6 +43,23 @@ export function getAgentKnowledgeIds(id) {
   return request.get(`/agents/${id}/knowledge`)
 }
 
+export function updateAgentDatasets(id, datasetIds) {
+  return request.put(`/agents/${id}/datasets`, datasetIds)
+}
+
+export function getAgentDatasetIds(id) {
+  return request.get(`/agents/${id}/datasets`)
+}
+
+/** 可问数据模型（模型即可问主路径） */
+export function updateAgentDataModels(id, dataModelIds) {
+  return request.put(`/agents/${id}/data-models`, dataModelIds)
+}
+
+export function getAgentDataModelIds(id) {
+  return request.get(`/agents/${id}/data-models`)
+}
+
 export function generateAgentPrompt(id) {
   return request.post(`/agents/${id}/generate-prompt`)
 }

@@ -19,9 +19,12 @@ export function toBindingIdSet(ids) {
 /** agent.config 中由独立接口维护的绑定字段，不应进入模型配置 JSON */
 export const AGENT_CONFIG_BINDING_KEYS = [
   'knowledges',
+  'datasets',
+  'dataModels',
   'tools',
   'mcpServers',
   'subagents',
+  'skills',
 ]
 
 export function stripBindingKeysFromConfig(config) {

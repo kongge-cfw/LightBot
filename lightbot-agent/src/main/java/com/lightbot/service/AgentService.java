@@ -128,6 +128,38 @@ public interface AgentService extends IService<Agent> {
     void updateKnowledgeBindings(Long agentId, List<Long> knowledgeIds);
 
     /**
+     * 获取 Agent 绑定的问数数据集 ID 列表（兼容旧配置）
+     *
+     * @param agentId Agent ID
+     * @return 数据集 ID 列表
+     */
+    List<Long> getDatasetIds(Long agentId);
+
+    /**
+     * 更新 Agent 的问数数据集绑定（兼容旧配置）
+     *
+     * @param agentId    Agent ID
+     * @param datasetIds 问数数据集 ID 列表
+     */
+    void updateDatasetBindings(Long agentId, List<Long> datasetIds);
+
+    /**
+     * 获取 Agent 可问数据模型 ID 列表（模型即可问主路径）
+     *
+     * @param agentId Agent ID
+     * @return 数据模型 ID 列表
+     */
+    List<Long> getDataModelIds(Long agentId);
+
+    /**
+     * 更新可问数据模型绑定；绑定即开启问数，并自动 ensure 语义配置
+     *
+     * @param agentId      Agent ID
+     * @param dataModelIds 数据模型 ID 列表
+     */
+    void updateDataModelBindings(Long agentId, List<Long> dataModelIds);
+
+    /**
      * 获取 Agent 绑定的工具ID列表
      *
      * @param agentId Agent ID

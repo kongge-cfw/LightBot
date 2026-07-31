@@ -212,6 +212,24 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 }
             }
 
+            // 1.1b 问数工具自动注入：绑定 dataModels（主路径）或旧 datasets 即开启
+            List<Long> askDataModelIds = agentService.getDataModelIds(agent.getId());
+            List<Long> askDatasetIds = agentService.getDatasetIds(agent.getId());
+            boolean askEnabled = (askDataModelIds != null && !askDataModelIds.isEmpty())
+                    || (askDatasetIds != null && !askDatasetIds.isEmpty());
+            if (askEnabled) {
+                List<String> askDataTools = List.of(
+                        "ask_data_search_catalog",
+                        "ask_data_describe_dataset",
+                        "ask_data_execute");
+                allCallbacks.addAll(toolService.resolveToolCallbacks(askDataTools));
+                log.info("[Chat] 自动注入问数工具: agentId={}, dataModels={}, datasets={}, tools={}",
+                        agent.getId(),
+                        askDataModelIds != null ? askDataModelIds.size() : 0,
+                        askDatasetIds != null ? askDatasetIds.size() : 0,
+                        askDataTools);
+            }
+
             // 1.2 用户长期记忆工具自动注入：仅在用户显式开启长期记忆后提供
             boolean memoryToolsInjected = shouldInjectUserMemoryTools(ctx);
             if (memoryToolsInjected) {

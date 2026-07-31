@@ -38,6 +38,8 @@ public enum ErrorCode {
     AGENT_KNOWLEDGE_LIMIT(30003, "每个Agent最多绑定10个知识库", HttpStatus.BAD_REQUEST),
     AGENT_TOOL_LIMIT(30005, "每个Agent最多绑定10个额外工具", HttpStatus.BAD_REQUEST),
     AGENT_MCP_LIMIT(30006, "每个Agent最多绑定5个MCP Server", HttpStatus.BAD_REQUEST),
+    AGENT_DATASET_LIMIT(30014, "每个Agent最多绑定10个问数数据集", HttpStatus.BAD_REQUEST),
+    AGENT_DATA_MODEL_LIMIT(30015, "每个Agent最多绑定10个可问数据模型", HttpStatus.BAD_REQUEST),
     AGENT_SUBAGENT_LIMIT(30007, "每个Agent最多绑定5个SubAgent", HttpStatus.BAD_REQUEST),
     AGENT_SKILL_LIMIT(30008, "每个Agent最多绑定10个Skill", HttpStatus.BAD_REQUEST),
     AVATAR_UNSUPPORTED_TYPE(30004, "头像文件格式不支持: %s", HttpStatus.BAD_REQUEST),
@@ -208,6 +210,12 @@ public enum ErrorCode {
     DATA_POOL_IMPORT_FAILED(110011, "数据导入失败: %s", HttpStatus.BAD_REQUEST),
     DATA_POOL_FIELD_INVALID(110012, "字段值不合法: %s", HttpStatus.BAD_REQUEST),
     DATA_POOL_UNIQUE_CONFLICT(110013, "唯一约束冲突: %s", HttpStatus.BAD_REQUEST),
+    ASK_DATASET_NOT_FOUND(110020, "问数数据集不存在", HttpStatus.BAD_REQUEST),
+    ASK_DATASET_CODE_EXISTS(110021, "问数数据集编码已存在: %s", HttpStatus.BAD_REQUEST),
+    ASK_DATASET_MODEL_BOUND(110022, "该数据模型已配置问数数据集", HttpStatus.BAD_REQUEST),
+    ASK_DATA_QUERY_INVALID(110023, "问数查询不合法: %s", HttpStatus.BAD_REQUEST),
+    ASK_DATA_DATASET_FORBIDDEN(110024, "无权查询该问数数据集", HttpStatus.FORBIDDEN),
+    ASK_RELATION_NOT_FOUND(110025, "问数关联不存在", HttpStatus.BAD_REQUEST),
 
     // ========== 自动化定时任务 ==========
     AUTOMATION_JOB_NOT_FOUND(120001, "定时任务不存在", HttpStatus.BAD_REQUEST),

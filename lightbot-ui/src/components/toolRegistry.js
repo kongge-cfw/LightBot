@@ -30,6 +30,7 @@ const SearchDocumentsResult = defineAsyncComponent(() => import('./tools/SearchD
 const WebSearchResult = defineAsyncComponent(() => import('./tools/WebSearchResult.vue'))
 const CalculatorResult = defineAsyncComponent(() => import('./tools/CalculatorResult.vue'))
 const PgSqlQueryResult = defineAsyncComponent(() => import('./tools/PgSqlQueryResult.vue'))
+const AskDataResult = defineAsyncComponent(() => import('./tools/AskDataResult.vue'))
 const PgSqlListTablesResult = defineAsyncComponent(() => import('./tools/PgSqlListTablesResult.vue'))
 const PgSqlDescribeTableResult = defineAsyncComponent(() => import('./tools/PgSqlDescribeTableResult.vue'))
 const AskUserResult = defineAsyncComponent(() => import('./tools/AskUserResult.vue'))
@@ -65,6 +66,10 @@ export const TOOL_RENDERERS = {
   pg_list_tables: PgSqlListTablesResult,
   pg_describe_table: PgSqlDescribeTableResult,
   pg_query: PgSqlQueryResult,
+  // 智能问数
+  ask_data_search_catalog: AskDataResult,
+  ask_data_describe_dataset: AskDataResult,
+  ask_data_execute: AskDataResult,
   // 交互
   ask_user: AskUserResult,
   // 协作待办：避免在对话中直接回显工具 JSON

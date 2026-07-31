@@ -24,6 +24,7 @@ import LbPageTabsHeader from '../components/common/LbPageTabsHeader.vue'
 import DataPoolPanel from './data-center/DataPoolPanel.vue'
 import DataModelPanel from './data-center/DataModelPanel.vue'
 
+/** 问数增强入口在数据模型卡片上（抽屉），不再单独 Tab */
 const VALID_TABS = ['pool', 'model']
 const tabs = [
   { key: 'pool', label: '数据池' },
@@ -32,7 +33,13 @@ const tabs = [
 
 const route = useRoute()
 const router = useRouter()
-const activeTab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : 'pool')
+
+function resolveTab(tab) {
+  if (tab === 'ask') return 'model'
+  return VALID_TABS.includes(tab) ? tab : 'pool'
+}
+
+const activeTab = ref(resolveTab(route.query.tab))
 const designerOpen = ref(false)
 
 function onTabChange(key) {
@@ -43,8 +50,12 @@ function onTabChange(key) {
 watch(
   () => route.query.tab,
   (tab) => {
-    if (VALID_TABS.includes(tab) && tab !== activeTab.value) {
-      activeTab.value = tab
+    const next = resolveTab(tab)
+    if (tab === 'ask') {
+      router.replace({ query: { ...route.query, tab: 'model' } })
+    }
+    if (next !== activeTab.value) {
+      activeTab.value = next
     }
   },
 )

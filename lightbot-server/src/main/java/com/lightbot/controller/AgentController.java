@@ -121,6 +121,36 @@ public class AgentController {
         return Result.ok(agentService.getKnowledgeIds(id));
     }
 
+    @Operation(summary = "更新Agent绑定的问数数据集（兼容旧配置）")
+    @PutMapping("/{id}/datasets")
+    public Result<Void> updateDatasetBindings(
+            @PathVariable Long id,
+            @RequestBody List<String> datasetIds) {
+        agentService.updateDatasetBindings(id, parseBindingIdStrings(datasetIds));
+        return Result.ok();
+    }
+
+    @Operation(summary = "获取Agent绑定的问数数据集ID列表（兼容旧配置）")
+    @GetMapping("/{id}/datasets")
+    public Result<List<String>> getDatasetIds(@PathVariable Long id) {
+        return Result.ok(agentService.getDatasetIds(id).stream().map(String::valueOf).toList());
+    }
+
+    @Operation(summary = "更新可问数据模型（模型即可问，自动同步语义配置）")
+    @PutMapping("/{id}/data-models")
+    public Result<Void> updateDataModelBindings(
+            @PathVariable Long id,
+            @RequestBody List<String> dataModelIds) {
+        agentService.updateDataModelBindings(id, parseBindingIdStrings(dataModelIds));
+        return Result.ok();
+    }
+
+    @Operation(summary = "获取可问数据模型ID列表")
+    @GetMapping("/{id}/data-models")
+    public Result<List<String>> getDataModelIds(@PathVariable Long id) {
+        return Result.ok(agentService.getDataModelIds(id).stream().map(String::valueOf).toList());
+    }
+
     @Operation(summary = "更新Agent绑定的工具")
     @PutMapping("/{id}/tools")
     public Result<Void> updateToolBindings(
