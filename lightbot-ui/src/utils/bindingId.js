@@ -21,6 +21,7 @@ export const AGENT_CONFIG_BINDING_KEYS = [
   'knowledges',
   'datasets',
   'dataModels',
+  'dataModelCategories',
   'tools',
   'mcpServers',
   'subagents',

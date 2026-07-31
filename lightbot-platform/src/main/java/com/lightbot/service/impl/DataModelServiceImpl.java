@@ -26,7 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * 数据模型服务：元数据 + 物理表 DDL 同步
@@ -56,6 +59,39 @@ public class DataModelServiceImpl extends ServiceImpl<DataModelMapper, DataModel
                     .or().like(DataModel::getTableName, keyword.trim()));
         }
         return list(qw).stream().map(this::toVo).toList();
+    }
+
+    @Override
+    public List<Long> listIdsByCategoryIds(List<Long> categoryIds) {
+        if (categoryIds == null || categoryIds.isEmpty()) {
+            return List.of();
+        }
+        return list(new LambdaQueryWrapper<DataModel>()
+                .in(DataModel::getCategoryId, categoryIds)
+                .select(DataModel::getId)
+                .orderByAsc(DataModel::getId))
+                .stream()
+                .map(DataModel::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+    }
+
+    @Override
+    public List<Long> listCategoryIdsByModelIds(List<Long> modelIds) {
+        if (modelIds == null || modelIds.isEmpty()) {
+            return List.of();
+        }
+        Set<Long> categoryIds = new LinkedHashSet<>();
+        for (DataModel model : list(new LambdaQueryWrapper<DataModel>()
+                .in(DataModel::getId, modelIds)
+                .isNotNull(DataModel::getCategoryId)
+                .select(DataModel::getCategoryId))) {
+            if (model.getCategoryId() != null) {
+                categoryIds.add(model.getCategoryId());
+            }
+        }
+        return new ArrayList<>(categoryIds);
     }
 
     @Override

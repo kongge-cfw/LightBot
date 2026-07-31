@@ -39,7 +39,7 @@ public enum ErrorCode {
     AGENT_TOOL_LIMIT(30005, "每个Agent最多绑定10个额外工具", HttpStatus.BAD_REQUEST),
     AGENT_MCP_LIMIT(30006, "每个Agent最多绑定5个MCP Server", HttpStatus.BAD_REQUEST),
     AGENT_DATASET_LIMIT(30014, "每个Agent最多绑定10个问数数据集", HttpStatus.BAD_REQUEST),
-    AGENT_DATA_MODEL_LIMIT(30015, "每个Agent最多绑定10个可问数据模型", HttpStatus.BAD_REQUEST),
+    AGENT_DATA_MODEL_LIMIT(30015, "每个Agent最多绑定10个可问数据分类", HttpStatus.BAD_REQUEST),
     AGENT_SUBAGENT_LIMIT(30007, "每个Agent最多绑定5个SubAgent", HttpStatus.BAD_REQUEST),
     AGENT_SKILL_LIMIT(30008, "每个Agent最多绑定10个Skill", HttpStatus.BAD_REQUEST),
     AVATAR_UNSUPPORTED_TYPE(30004, "头像文件格式不支持: %s", HttpStatus.BAD_REQUEST),

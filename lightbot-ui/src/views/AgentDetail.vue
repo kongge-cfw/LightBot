@@ -1023,36 +1023,41 @@
         </div>
       </a-tab-pane>
 
-      <!-- 可问数据（模型即可问） -->
+      <!-- 可问数据（按数据模型分类绑定） -->
       <a-tab-pane key="dataModels" tab="可问数据">
         <div class="binding-tab-pane" :class="{ 'preview-lock-zone': isVersionPreview }">
           <div class="knowledge-bind">
             <div class="selected-knowledge">
               <div class="selected-header">
-                <span class="selected-label">已绑定 {{ selectedAskModels.length }}/{{ BIND_LIMITS.dataModel }} 个数据模型</span>
-                <span v-if="selectedAskModels.length > 0" class="kb-tool-hint">
+                <span class="selected-label">已绑定 {{ selectedAskCategories.length }}/{{ BIND_LIMITS.dataModelCategory }} 个数据分类</span>
+                <span v-if="selectedAskCategories.length > 0" class="kb-tool-hint">
                   <InfoCircleOutlined />
-                  <span>勾选即可问数；可选到数据模型卡片「问数增强」补默认过滤与业务指标等</span>
+                  <span>勾选分类后，该类下全部模型均可问；可选到数据模型卡片「问数增强」补默认过滤与业务指标</span>
                 </span>
-                <button v-if="!isVersionPreview && selectedAskModels.length > 0" class="btn-clear" @click="clearSelectedAskModels">
+                <button v-if="!isVersionPreview && selectedAskCategories.length > 0" class="btn-clear" @click="clearSelectedAskCategories">
                   <DeleteOutlined /> 清空
                 </button>
               </div>
               <div class="selected-knowledge-tags">
-                <div v-if="selectedAskModels.length === 0" class="empty-tip">
-                  暂未开启问数：从下方勾选数据模型即可（字段语义以数据模型为准）
+                <div v-if="selectedAskCategories.length === 0" class="empty-tip">
+                  暂未开启问数：从下方勾选数据分类即可（字段语义以各模型为准）
                 </div>
                 <div
-                  v-for="d in selectedAskModels"
-                  :key="d.id"
+                  v-for="c in selectedAskCategories"
+                  :key="c.id"
                   class="knowledge-tag"
-                  :class="{ 'binding-tag--deleted': d._deleted }"
+                  :class="{ 'binding-tag--deleted': c._deleted }"
                 >
-                  <span class="tag-avatar" style="background: linear-gradient(135deg,#1677ff,#69b1ff)">{{ (d.name || 'D')[0].toUpperCase() }}</span>
-                  <span>{{ d.name }}</span>
-                  <span v-if="d.tableName" class="item-desc" style="margin-left:4px">{{ d.tableName }}</span>
-                  <span v-if="d._deleted" class="binding-deleted-tag">已删除</span>
-                  <button v-if="!isVersionPreview" class="tag-remove" @click="removeAskModel(d.id)">
+                  <span class="tag-avatar" style="background: linear-gradient(135deg,#1677ff,#69b1ff)">{{ (c.name || 'C')[0].toUpperCase() }}</span>
+                  <span>{{ c.name }}</span>
+                  <span
+                    v-if="c.modelNamesText"
+                    class="item-desc ask-category-tag-models"
+                    :title="c.modelNamesText"
+                  >{{ c.modelNamesText }}</span>
+                  <span v-else-if="c.modelCount != null" class="item-desc" style="margin-left:4px">{{ c.modelCount }} 个模型</span>
+                  <span v-if="c._deleted" class="binding-deleted-tag">已删除</span>
+                  <button v-if="!isVersionPreview" class="tag-remove" @click="removeAskCategory(c.id)">
                     <CloseOutlined />
                   </button>
                 </div>
@@ -1060,10 +1065,10 @@
             </div>
             <div class="knowledge-list">
               <div class="list-header">
-                <span>可用数据模型（{{ selectedAskModels.length }}/{{ BIND_LIMITS.dataModel }}）</span>
+                <span>可用数据分类（{{ selectedAskCategories.length }}/{{ BIND_LIMITS.dataModelCategory }}）</span>
                 <a-input
-                  v-model:value="askModelSearchText"
-                  placeholder="搜索数据模型..."
+                  v-model:value="askCategorySearchText"
+                  placeholder="搜索分类 / 模型..."
                   size="small"
                   style="width: 200px"
                   :disabled="isVersionPreview"
@@ -1073,23 +1078,29 @@
               </div>
               <div class="list-body">
                 <div
-                  v-for="d in filteredAskModelList"
-                  :key="d.id"
+                  v-for="c in filteredAskCategoryList"
+                  :key="c.id"
                   class="knowledge-item"
-                  :class="{ selected: selectedAskModelIds.has(toBindingId(d.id)), 'is-preview-locked': isVersionPreview }"
-                  @click="!isVersionPreview && toggleAskModel(d)"
+                  :class="{ selected: selectedAskCategoryIds.has(toBindingId(c.id)), 'is-preview-locked': isVersionPreview }"
+                  @click="!isVersionPreview && toggleAskCategory(c)"
                 >
-                  <div class="item-icon knowledge-icon">{{ (d.name || 'D')[0].toUpperCase() }}</div>
+                  <div class="item-icon knowledge-icon">{{ (c.name || 'C')[0].toUpperCase() }}</div>
                   <div class="item-info">
-                    <div class="item-name">{{ d.name }} <span class="item-desc">{{ d.tableName }}</span></div>
-                    <div class="item-desc">{{ d.description || '暂无描述' }}</div>
+                    <div class="item-name">
+                      {{ c.name }}
+                      <span v-if="c.modelCount" class="ask-category-count">{{ c.modelCount }}</span>
+                    </div>
+                    <div
+                      class="item-desc ask-category-models"
+                      :title="c.modelNamesText || ''"
+                    >{{ c.modelNamesText || '暂无数据模型' }}</div>
                   </div>
-                  <div class="item-check" v-if="selectedAskModelIds.has(toBindingId(d.id))">
+                  <div class="item-check" v-if="selectedAskCategoryIds.has(toBindingId(c.id))">
                     <CheckOutlined />
                   </div>
                 </div>
-                <div v-if="filteredAskModelList.length === 0" class="empty-tip">
-                  暂无数据模型，请先到数据中心创建
+                <div v-if="filteredAskCategoryList.length === 0" class="empty-tip">
+                  暂无数据分类，请先到数据中心创建
                 </div>
               </div>
             </div>
@@ -1762,8 +1773,8 @@ import { useRoute, useRouter, onBeforeRouteLeave } from 'vue-router'
 import { SaveOutlined, CloseOutlined, SearchOutlined, CheckOutlined, MessageOutlined, PlusOutlined, ThunderboltOutlined, UploadOutlined, LoadingOutlined, UndoOutlined, ToolOutlined, QuestionCircleOutlined, ApiOutlined, DeleteOutlined, BookOutlined, RobotOutlined, SettingOutlined, CheckCircleOutlined, ExclamationCircleOutlined, HistoryOutlined, InfoCircleOutlined, IdcardOutlined, RightOutlined, DownOutlined, DatabaseOutlined, CloudServerOutlined } from '@ant-design/icons-vue'
 import { message, Modal } from 'ant-design-vue'
 import { copyToClipboard } from '../utils/clipboard'
-import { getAgentDetail, updateAgent, updateAgentKnowledge, updateAgentDataModels, updateAgentTools, getAgentToolIds, getAgentToolDetails, generateAgentPrompt, generateAgentQuestions, uploadAgentAvatar, updateAgentMcpServers, updateAgentSubAgents, updateAgentSkills, publishAgent, listAgentVersions, getAgentVersionDetail, restoreAgentVersion, deleteAgentVersion } from '../api/agent'
-import { listDataModelsForBinding } from '../api/dataCenter'
+import { getAgentDetail, updateAgent, updateAgentKnowledge, updateAgentDataModelCategories, updateAgentTools, getAgentToolIds, getAgentToolDetails, generateAgentPrompt, generateAgentQuestions, uploadAgentAvatar, updateAgentMcpServers, updateAgentSubAgents, updateAgentSkills, publishAgent, listAgentVersions, getAgentVersionDetail, restoreAgentVersion, deleteAgentVersion } from '../api/agent'
+import { listDataModelCategoriesForBinding } from '../api/dataCenter'
 import { getWorkflowConfig } from '../api/workflow'
 import { getTools } from '../api/tool'
 import { getToolTypes } from '../api/enum'
@@ -1798,7 +1809,7 @@ const agentId = route.params.id
 const pageLoading = ref(false)
 const avatarInputRef = ref(null)
 
-const BIND_LIMITS = { knowledge: 10, mcp: 5, tool: 10, subAgent: 5, skill: 10, dataModel: 10 }
+const BIND_LIMITS = { knowledge: 10, mcp: 5, tool: 10, subAgent: 5, skill: 10, dataModelCategory: 10 }
 /** 右侧配置卡片：模型参数 / 对话配置 */
 const configTab = ref('prompt')
 
@@ -2124,10 +2135,10 @@ const knowledge = useBinding({
   verb: '绑定',
   deps: { isVersionPreview, bindingCatalogsLoaded },
 })
-const askModels = useBinding({
-  limit: 10, entityLabel: '可问数据模型', loadApi: listDataModelsForBinding,
+const askCategories = useBinding({
+  limit: 10, entityLabel: '可问数据分类', loadApi: listDataModelCategoriesForBinding,
+  searchFields: ['name', 'description', 'modelNamesText'],
   verb: '绑定',
-  searchFields: ['name', 'tableName', 'description'],
   deps: { isVersionPreview, bindingCatalogsLoaded },
 })
 const tools = useBinding({
@@ -2160,8 +2171,8 @@ const selectedKnowledgeIds = knowledge.selectedIds
 const knowledgeList = knowledge.list
 const knowledgeLoading = knowledge.loading
 const searchText = knowledge.searchText
-const selectedAskModelIds = askModels.selectedIds
-const askModelSearchText = askModels.searchText
+const selectedAskCategoryIds = askCategories.selectedIds
+const askCategorySearchText = askCategories.searchText
 const selectedToolIds = tools.selectedIds
 const toolList = tools.list
 const toolSearchText = tools.searchText
@@ -2501,8 +2512,8 @@ async function onModelSelectChange({ providerId, modelId }) {
 // 绑定 computed（从 composable 获取）
 const selectedKnowledge = knowledge.selected
 const filteredKnowledgeList = knowledge.filteredList
-const selectedAskModels = askModels.selected
-const filteredAskModelList = askModels.filteredList
+const selectedAskCategories = askCategories.selected
+const filteredAskCategoryList = askCategories.filteredList
 const selectedTools = tools.selected
 const selectedMcpServers = mcp.selected
 const filteredMcpServerList = mcp.filteredList
@@ -2526,6 +2537,7 @@ const deletedBindingCount = computed(() => {
   if (!bindingCatalogsLoaded.value) return 0
   return (
     countDeletedBindingItems(selectedKnowledge.value)
+    + countDeletedBindingItems(selectedAskCategories.value)
     + countDeletedBindingItems(selectedTools.value)
     + countDeletedBindingItems(selectedMcpServers.value)
     + countDeletedBindingItems(selectedSubAgents.value)
@@ -2537,6 +2549,7 @@ const disabledBindingCount = computed(() => {
   if (!bindingCatalogsLoaded.value) return 0
   return (
     countDisabledBindingItems(selectedKnowledge.value)
+    + countDisabledBindingItems(selectedAskCategories.value)
     + countDisabledBindingItems(selectedTools.value)
     + countDisabledBindingItems(selectedMcpServers.value)
     + countDisabledBindingItems(selectedSubAgents.value)
@@ -2556,6 +2569,7 @@ const invalidBindingAlertMessage = computed(() => {
 /** 已删除绑定分类型明细（Alert / 保存弹窗） */
 const deletedBindingSections = computed(() => [
   { label: '知识库', items: selectedKnowledge.value },
+  { label: '可问数据', items: selectedAskCategories.value },
   { label: '工具', items: selectedTools.value },
   { label: 'MCP', items: selectedMcpServers.value },
   { label: 'SubAgent', items: selectedSubAgents.value },
@@ -2570,6 +2584,7 @@ function removeAllDeletedBindings() {
   if (isVersionPreview.value) return
   let n = 0
   n += removeDeletedIdsFromSet(selectedKnowledgeIds.value, selectedKnowledge.value)
+  n += removeDeletedIdsFromSet(selectedAskCategoryIds.value, selectedAskCategories.value)
   n += removeDeletedIdsFromSet(selectedToolIds.value, selectedTools.value)
   n += removeDeletedIdsFromSet(selectedMcpServerIds.value, selectedMcpServers.value)
   n += removeDeletedIdsFromSet(selectedSubAgentIds.value, selectedSubAgents.value)
@@ -2682,7 +2697,7 @@ function restoreDefaults() {
 async function loadAgent() {
   try {
     const res = await getAgentDetail(agentId)
-    const { agent: agentData, knowledgeIds, dataModelIds, mcpServerIds, subAgentIds, skillIds } = res.data
+    const { agent: agentData, knowledgeIds, dataModelCategoryIds, mcpServerIds, subAgentIds, skillIds } = res.data
 
     // 分离基本信息和配置
     const { config, agentType, ...basicInfo } = agentData
@@ -2739,7 +2754,7 @@ async function loadAgent() {
     }
 
     selectedKnowledgeIds.value = toBindingIdSet(knowledgeIds)
-    selectedAskModelIds.value = toBindingIdSet(dataModelIds)
+    selectedAskCategoryIds.value = toBindingIdSet(dataModelCategoryIds)
     selectedSubAgentIds.value = toBindingIdSet(subAgentIds)
     selectedSkillIds.value = toBindingIdSet(skillIds)
 
@@ -2862,7 +2877,7 @@ onBeforeRouteLeave((_to, _from, next) => {
 })
 
 const loadKnowledgeList = knowledge.load
-const loadAskModelList = askModels.load
+const loadAskCategoryList = askCategories.load
 
 async function loadToolTypes() {
   try {
@@ -2937,9 +2952,9 @@ const toggleKnowledge = knowledge.toggle
 const removeKnowledge = knowledge.remove
 const clearSelectedKnowledge = knowledge.clear
 
-const toggleAskModel = askModels.toggle
-const removeAskModel = askModels.remove
-const clearSelectedAskModels = askModels.clear
+const toggleAskCategory = askCategories.toggle
+const removeAskCategory = askCategories.remove
+const clearSelectedAskCategories = askCategories.clear
 
 const toggleTool = tools.toggle
 const removeTool = tools.remove
@@ -2967,7 +2982,7 @@ async function loadBindingCatalogs() {
   try {
     await Promise.all([
       loadKnowledgeList(),
-      loadAskModelList(),
+      loadAskCategoryList(),
       loadMcpServerList(),
       loadSubAgentList(),
       loadSkillList(),
@@ -2999,7 +3014,7 @@ async function onBindingTabChange(tab) {
   } else if (tab === 'knowledge') {
     await loadKnowledgeList()
   } else if (tab === 'dataModels') {
-    await loadAskModelList()
+    await loadAskCategoryList()
   } else if (tab === 'subagents') {
     await loadSubAgentList()
   } else if (tab === 'skill') {
@@ -3277,7 +3292,7 @@ async function handleSave(options = {}) {
     await updateAgentKnowledge(agentId, Array.from(selectedKnowledgeIds.value))
 
     // 3.1 更新可问数据模型（模型即可问）
-    await updateAgentDataModels(agentId, Array.from(selectedAskModelIds.value))
+    await updateAgentDataModelCategories(agentId, Array.from(selectedAskCategoryIds.value))
 
     // 4. 更新工具绑定
     await updateAgentTools(agentId, Array.from(selectedToolIds.value))
@@ -3396,7 +3411,7 @@ async function applyVersionPreviewToForm(data) {
   syncSensitiveWordsFromConfig(agentConfig)
 
   selectedKnowledgeIds.value = toBindingIdSet(data.knowledgeIds)
-  selectedAskModelIds.value = toBindingIdSet(data.dataModelIds)
+  selectedAskCategoryIds.value = toBindingIdSet(data.dataModelCategoryIds)
   selectedMcpServerIds.value = toBindingIdSet(data.mcpServerIds)
   selectedSubAgentIds.value = toBindingIdSet(data.subAgentIds)
   selectedToolIds.value = toBindingIdSet(data.toolIds)
@@ -4985,6 +5000,29 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.ask-category-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-mute);
+  background: var(--color-canvas-soft-2, rgba(0, 0, 0, 0.04));
+  padding: 0 6px;
+  border-radius: 999px;
+}
+.ask-category-models {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  word-break: break-all;
+  line-height: 1.4;
+}
+.ask-category-tag-models {
+  margin-left: 4px;
+  max-width: 220px;
+  display: inline-block;
+  vertical-align: bottom;
 }
 .item-check {
   color: var(--color-link);

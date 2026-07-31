@@ -136,7 +136,22 @@ public class AgentController {
         return Result.ok(agentService.getDatasetIds(id).stream().map(String::valueOf).toList());
     }
 
-    @Operation(summary = "更新可问数据模型（模型即可问，自动同步语义配置）")
+    @Operation(summary = "更新可问数据分类（该类下模型均可问，自动同步语义配置）")
+    @PutMapping("/{id}/data-model-categories")
+    public Result<Void> updateDataModelCategoryBindings(
+            @PathVariable Long id,
+            @RequestBody List<String> categoryIds) {
+        agentService.updateDataModelCategoryBindings(id, parseBindingIdStrings(categoryIds));
+        return Result.ok();
+    }
+
+    @Operation(summary = "获取可问数据分类ID列表")
+    @GetMapping("/{id}/data-model-categories")
+    public Result<List<String>> getDataModelCategoryIds(@PathVariable Long id) {
+        return Result.ok(agentService.getDataModelCategoryIds(id).stream().map(String::valueOf).toList());
+    }
+
+    @Operation(summary = "更新可问数据模型（兼容旧接口；主路径请用 data-model-categories）")
     @PutMapping("/{id}/data-models")
     public Result<Void> updateDataModelBindings(
             @PathVariable Long id,
@@ -145,7 +160,7 @@ public class AgentController {
         return Result.ok();
     }
 
-    @Operation(summary = "获取可问数据模型ID列表")
+    @Operation(summary = "获取可问数据模型ID列表（由已绑分类展开）")
     @GetMapping("/{id}/data-models")
     public Result<List<String>> getDataModelIds(@PathVariable Long id) {
         return Result.ok(agentService.getDataModelIds(id).stream().map(String::valueOf).toList());

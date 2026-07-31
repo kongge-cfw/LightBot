@@ -19,6 +19,7 @@ import com.lightbot.dto.AgentChatCapabilitiesDTO;
 import com.lightbot.dto.AgentSaveDTO;
 import com.lightbot.service.AgentService;
 import com.lightbot.service.AskDatasetService;
+import com.lightbot.service.DataModelService;
 import com.lightbot.util.AgentChatCapabilitiesUtil;
 import com.lightbot.util.AgentChatRuntimeConfigUtil;
 import com.lightbot.workflow.WorkflowConfigParser;
@@ -56,6 +57,7 @@ import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -92,6 +94,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     private final SkillService skillService;
     private final SubAgentService subAgentService;
     private final AskDatasetService askDatasetService;
+    private final DataModelService dataModelService;
 
     private static final String GENERATE_PROMPT_SYSTEM = """
             你是一个AI助手提示词生成专家。根据用户提供的Agent名称和描述，生成一段专业的系统提示词。
@@ -280,7 +283,9 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
                 .map(String::valueOf)
                 .toList();
 
-        // 5.1 可问数据模型（主路径）+ 兼容旧 dataset 绑定
+        // 5.1 可问数据：按分类绑定（主路径）+ 展开模型 ID + 兼容旧 dataset 绑定
+        List<Long> dataModelCategoryIds = getDataModelCategoryIds(id);
+        List<String> dataModelCategoryIdStrs = dataModelCategoryIds.stream().map(String::valueOf).toList();
         List<Long> dataModelIds = getDataModelIds(id);
         List<String> dataModelIdStrs = dataModelIds.stream().map(String::valueOf).toList();
         List<Long> datasetIds = getDatasetIds(id);
@@ -297,6 +302,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         result.put("mcpServerIds", mcpServerIdStrs);
         result.put("subAgentIds", subAgentIdStrs);
         result.put("skillIds", skillIdStrs);
+        result.put("dataModelCategoryIds", dataModelCategoryIdStrs);
         result.put("dataModelIds", dataModelIdStrs);
         result.put("datasetIds", datasetIdStrs);
         result.put("chatCapabilities", chatCapabilities);
@@ -485,27 +491,96 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
     }
 
     @Override
-    @Cacheable(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
     public List<Long> getDataModelIds(Long agentId) {
+        // 1. 主路径：按分类展开当前模型（分类下新增模型自动可问，故不缓存展开结果）
+        List<Long> categoryIds = readBindingIdsFromConfig(agentId, "dataModelCategories");
+        if (!categoryIds.isEmpty()) {
+            return dataModelService.listIdsByCategoryIds(categoryIds);
+        }
+        // 2. 兼容旧版直接绑定模型 ID
         return readBindingIdsFromConfig(agentId, "dataModels");
     }
 
     @Override
-    @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
+    @Cacheable(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelCategoryIds'")
+    public List<Long> getDataModelCategoryIds(Long agentId) {
+        List<Long> categoryIds = readBindingIdsFromConfig(agentId, "dataModelCategories");
+        if (!categoryIds.isEmpty()) {
+            return categoryIds;
+        }
+        // 兼容旧版：由已绑模型反查分类，便于前端按分类维度回显
+        List<Long> legacyModelIds = readBindingIdsFromConfig(agentId, "dataModels");
+        if (legacyModelIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+        return dataModelService.listCategoryIdsByModelIds(legacyModelIds);
+    }
+
+    @Override
+    @Caching(evict = {
+            @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelCategoryIds'"),
+            @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
+    })
+    public void updateDataModelCategoryBindings(Long agentId, List<Long> categoryIds) {
+        // 1. 写入分类绑定，并清空旧版模型绑定
+        writeAskDataBindingsToConfig(agentId, categoryIds, List.of());
+        // 2. 展开分类下模型并 ensure 语义配置
+        ensureAskDatasetsForModels(agentId, dataModelService.listIdsByCategoryIds(
+                categoryIds != null ? categoryIds : List.of()));
+    }
+
+    @Override
+    @Caching(evict = {
+            @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelCategoryIds'"),
+            @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, key = "#agentId + ':dataModelIds'")
+    })
     public void updateDataModelBindings(Long agentId, List<Long> dataModelIds) {
-        // 1. 写入绑定
-        writeBindingIdsToConfig(agentId, "dataModels", dataModelIds, 10, ErrorCode.AGENT_DATA_MODEL_LIMIT);
-        // 2. 模型即可问：为每个模型 ensure 语义配置（自动维度/默认指标/画像）
-        if (dataModelIds != null) {
-            for (Long modelId : dataModelIds) {
-                try {
-                    askDatasetService.ensureFromModel(modelId);
-                } catch (Exception e) {
-                    log.warn("[Agent] ensure 问数配置失败: agentId={}, modelId={}, err={}",
-                            agentId, modelId, e.getMessage());
-                    throw e instanceof BizException be ? be
-                            : new BizException(ErrorCode.ASK_DATA_QUERY_INVALID, e.getMessage());
-                }
+        // 兼容旧接口：按模型写入，并清空分类绑定
+        writeAskDataBindingsToConfig(agentId, List.of(), dataModelIds);
+        ensureAskDatasetsForModels(agentId, dataModelIds != null ? dataModelIds : List.of());
+    }
+
+    /**
+     * 写入可问数据绑定：分类为主路径，模型为兼容字段（二者互斥写入）
+     */
+    private void writeAskDataBindingsToConfig(Long agentId, List<Long> categoryIds, List<Long> dataModelIds) {
+        List<Long> cats = categoryIds != null ? categoryIds : List.of();
+        List<Long> models = dataModelIds != null ? dataModelIds : List.of();
+        if (!cats.isEmpty() && cats.size() > 10) {
+            throw new BizException(ErrorCode.AGENT_DATA_MODEL_LIMIT);
+        }
+        if (cats.isEmpty() && models.size() > 10) {
+            throw new BizException(ErrorCode.AGENT_DATA_MODEL_LIMIT);
+        }
+        Agent agent = checkOwnership(agentId);
+        try {
+            var configNode = objectMapper.readTree(
+                    agent.getConfig() != null ? agent.getConfig() : "{}");
+            var configMap = objectMapper.convertValue(configNode, new TypeReference<Map<String, Object>>() {});
+            configMap.put("dataModelCategories", cats.stream().map(String::valueOf).distinct().toList());
+            configMap.put("dataModels", models.stream().map(String::valueOf).distinct().toList());
+            agent.setConfig(objectMapper.writeValueAsString(configMap));
+            updateById(agent);
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[Agent] 更新可问数据绑定失败: agentId={}, error={}", agentId, e.getMessage(), e);
+            throw new BizException(ErrorCode.INTERNAL_ERROR);
+        }
+    }
+
+    private void ensureAskDatasetsForModels(Long agentId, List<Long> modelIds) {
+        if (modelIds == null || modelIds.isEmpty()) {
+            return;
+        }
+        for (Long modelId : modelIds) {
+            try {
+                askDatasetService.ensureFromModel(modelId);
+            } catch (Exception e) {
+                log.warn("[Agent] ensure 问数配置失败: agentId={}, modelId={}, err={}",
+                        agentId, modelId, e.getMessage());
+                throw e instanceof BizException be ? be
+                        : new BizException(ErrorCode.ASK_DATA_QUERY_INVALID, e.getMessage());
             }
         }
     }

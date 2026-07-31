@@ -21,6 +21,22 @@ public interface DataModelService extends IService<DataModel> {
 
     List<DataModelVO> listMine(Long categoryId, String keyword);
 
+    /**
+     * 按分类 ID 列表解析当前全部数据模型 ID（问数按分类绑定时展开）
+     *
+     * @param categoryIds 分类 ID 列表
+     * @return 模型 ID（去重、有序）
+     */
+    List<Long> listIdsByCategoryIds(List<Long> categoryIds);
+
+    /**
+     * 由模型 ID 反查所属分类（兼容旧版按模型绑定迁移）
+     *
+     * @param modelIds 模型 ID 列表
+     * @return 去重后的分类 ID
+     */
+    List<Long> listCategoryIdsByModelIds(List<Long> modelIds);
+
     DataModelVO getMine(Long id);
 
     /**

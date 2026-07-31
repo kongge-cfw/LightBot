@@ -144,7 +144,7 @@ public interface AgentService extends IService<Agent> {
     void updateDatasetBindings(Long agentId, List<Long> datasetIds);
 
     /**
-     * 获取 Agent 可问数据模型 ID 列表（模型即可问主路径）
+     * 获取 Agent 可问数据模型 ID 列表（由已绑分类展开；兼容旧版直接绑模型）
      *
      * @param agentId Agent ID
      * @return 数据模型 ID 列表
@@ -152,7 +152,23 @@ public interface AgentService extends IService<Agent> {
     List<Long> getDataModelIds(Long agentId);
 
     /**
-     * 更新可问数据模型绑定；绑定即开启问数，并自动 ensure 语义配置
+     * 获取 Agent 可问数据分类 ID 列表（主路径绑定维度）
+     *
+     * @param agentId Agent ID
+     * @return 数据模型分类 ID 列表
+     */
+    List<Long> getDataModelCategoryIds(Long agentId);
+
+    /**
+     * 更新可问数据分类绑定；该类下全部模型即可问，并自动 ensure 语义配置
+     *
+     * @param agentId     Agent ID
+     * @param categoryIds 数据模型分类 ID 列表
+     */
+    void updateDataModelCategoryBindings(Long agentId, List<Long> categoryIds);
+
+    /**
+     * 更新可问数据模型绑定（兼容旧接口）；会清空分类绑定
      *
      * @param agentId      Agent ID
      * @param dataModelIds 数据模型 ID 列表
