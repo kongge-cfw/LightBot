@@ -201,6 +201,7 @@ CREATE TABLE chat_session (
     status          VARCHAR(20)     NOT NULL DEFAULT 'active',
     source          VARCHAR(20)     NOT NULL DEFAULT 'platform',
     api_key_id      BIGINT          NULL,
+    external_user_id VARCHAR(128)   NULL,
     context         JSONB           DEFAULT '{}',
     message_count   INT             NOT NULL DEFAULT 0,
     total_tokens    BIGINT          NOT NULL DEFAULT 0,
@@ -219,9 +220,12 @@ CREATE INDEX idx_chat_session_last_message ON chat_session (last_message_at DESC
 CREATE INDEX idx_chat_session_pinned ON chat_session (user_id, pinned DESC, last_message_at DESC);
 CREATE INDEX idx_chat_session_source ON chat_session (source);
 CREATE INDEX idx_chat_session_api_key_id ON chat_session (api_key_id);
+CREATE INDEX idx_chat_session_api_external ON chat_session (api_key_id, external_user_id)
+    WHERE external_user_id IS NOT NULL;
 COMMENT ON TABLE chat_session IS '对话会话表';
 COMMENT ON COLUMN chat_session.source IS '会话来源：platform=平台调试，api=企业API Key集成，automation=自动化';
 COMMENT ON COLUMN chat_session.api_key_id IS '企业 API Key ID（source=api 时有值）';
+COMMENT ON COLUMN chat_session.external_user_id IS '上层业务系统终端用户标识（source=api 时可选）';
 COMMENT ON COLUMN chat_session.attachments IS '会话附件索引 JSON 数组（source: user_upload|ai_image|ai_sandbox|ai_deliver）';
 
 -- ========================================
@@ -1073,6 +1077,8 @@ COMMENT ON TABLE workflow_test_run IS '工作流编排页测试运行记录';
 CREATE TABLE user_memory (
     id                  BIGINT          NOT NULL,
     user_id             BIGINT          NOT NULL,
+    api_key_id          BIGINT,
+    external_user_id    VARCHAR(128),
     agent_id            BIGINT,
     session_id          BIGINT,
     memory_type         VARCHAR(32)     NOT NULL,
@@ -1089,6 +1095,8 @@ CREATE TABLE user_memory (
     PRIMARY KEY (id)
 );
 CREATE INDEX idx_user_memory_user_status ON user_memory (user_id, status);
+CREATE INDEX idx_user_memory_api_external ON user_memory (api_key_id, external_user_id, status)
+    WHERE api_key_id IS NOT NULL AND external_user_id IS NOT NULL;
 CREATE INDEX idx_user_memory_agent ON user_memory (agent_id);
 CREATE INDEX idx_user_memory_type ON user_memory (memory_type);
 CREATE INDEX idx_user_memory_vector_hnsw ON user_memory
@@ -1098,6 +1106,8 @@ COMMENT ON TABLE user_memory IS '用户长期记忆表';
 COMMENT ON COLUMN user_memory.memory_type IS '记忆类型：preference/profile/project_fact/instruction';
 COMMENT ON COLUMN user_memory.status IS '状态：active/disabled/archived';
 COMMENT ON COLUMN user_memory.embedding_vector IS '记忆语义向量，用于长期记忆语义检索';
+COMMENT ON COLUMN user_memory.api_key_id IS '企业 API Key ID（开放 API 外部用户记忆）';
+COMMENT ON COLUMN user_memory.external_user_id IS '上层业务终端用户标识';
 
 -- ========================================
 -- SubAgent 委派批次表
@@ -1164,7 +1174,8 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 ('default_chat_model', '{"providerId": null, "modelId": null}', '默认对话模型配置'),
 ('default_embedding_model', '{"providerId": null, "modelId": null}', '默认向量模型配置（知识库文档嵌入等场景使用）'),
 ('default_tts_model', '{"providerId": null, "modelId": null}', '默认TTS模型配置（语音合成等场景使用）'),
-('default_rerank_model', '{"providerId": null, "modelId": null}', '默认重排模型配置（知识库检索精排等场景使用）')
+('default_rerank_model', '{"providerId": null, "modelId": null}', '默认重排模型配置（知识库检索精排等场景使用）'),
+('long_memory_config', '{"enabled":true,"autoExtract":true,"injectLimit":6,"scope":"user"}', '企业长期记忆默认策略')
 ON CONFLICT (config_key) DO NOTHING;
 
 -- Landing 页面配置
@@ -1628,6 +1639,8 @@ ALTER TABLE api_key ADD COLUMN rate_limit INT NOT NULL DEFAULT 60;
 ALTER TABLE api_key ADD COLUMN daily_quota INT NOT NULL DEFAULT 100000;
 ALTER TABLE api_key ADD COLUMN used_tokens BIGINT NOT NULL DEFAULT 0;
 ALTER TABLE api_key ADD COLUMN quota_reset_at DATE DEFAULT NULL;
+ALTER TABLE api_key ADD COLUMN IF NOT EXISTS memory_config JSONB;
+COMMENT ON COLUMN api_key.memory_config IS '长期记忆策略覆盖；null 或 inherit=true 跟随企业默认';
 
 COMMENT ON COLUMN api_key.agent_ids IS '绑定的Agent ID列表，null表示全部';
 COMMENT ON COLUMN api_key.rate_limit IS '每分钟调用上限，默认60';

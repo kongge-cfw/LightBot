@@ -108,6 +108,7 @@ public class ChatServiceImpl implements ChatService {
     private final SessionAttachmentRegistrar sessionAttachmentRegistrar;
     private final SubAgentService subAgentService;
     private final UserMemoryService userMemoryService;
+    private final com.lightbot.service.LongMemoryPolicyService longMemoryPolicyService;
     private final ChatAbortRegistry chatAbortRegistry;
     private final com.lightbot.subagent.service.SubAgentTaskService subAgentTaskService;
 
@@ -185,6 +186,15 @@ public class ChatServiceImpl implements ChatService {
 
         // 4. 异步生成标题
         taskExecutor.execute(() -> traceMiddleware.generateTitle(ctx.getSessionId(), ctx.getAgent(), ctx.getConfigMap()));
+
+        // 5. 长期记忆抽取（平台调试 / 带 externalUserId 的开放 API）
+        if (shouldExtractUserMemory(ctx)) {
+            try {
+                userMemoryService.extractAsync(buildMemoryExtractRequest(ctx));
+            } catch (Exception e) {
+                log.warn("[Chat] 调度长期记忆抽取失败: {}", e.getMessage());
+            }
+        }
 
         return reply;
     }
@@ -486,9 +496,9 @@ public class ChatServiceImpl implements ChatService {
             // 1.2 助手消息已落库，异步生成会话标题（须晚于 TraceMiddleware.doOnComplete）
             scheduleTitleGeneration(ctx);
 
-            // 1.3 助手消息已落库后再异步抽取长期记忆（API / 自动化不写入个人记忆）
-            Long actorUserId = ctx.getRequest() != null ? ctx.getRequest().getActorUserId() : null;
-            if (apiKeyId == null && actorUserId == null) {
+            // 1.3 助手消息已落库后再异步抽取长期记忆
+            // 平台调试：按用户偏好；开放 API：仅当有 externalUserId；自动化：不抽取
+            if (shouldExtractUserMemory(ctx)) {
                 try {
                     userMemoryService.extractAsync(buildMemoryExtractRequest(ctx));
                 } catch (Exception e) {
@@ -514,6 +524,10 @@ public class ChatServiceImpl implements ChatService {
     private MemoryExtractDTO buildMemoryExtractRequest(ChatContext ctx) {
         MemoryExtractDTO request = new MemoryExtractDTO();
         request.setUserId(ctx.getUserId());
+        if (ctx.getRequest() != null) {
+            request.setApiKeyId(ctx.getRequest().getApiKeyId());
+            request.setExternalUserId(ctx.getRequest().getExternalUserId());
+        }
         request.setSessionId(ctx.getSessionId());
         request.setAgentId(ctx.getAgent() != null ? ctx.getAgent().getId() : null);
         request.setSourceMessageId(ctx.getUserMessageId());
@@ -521,6 +535,32 @@ public class ChatServiceImpl implements ChatService {
         request.setAssistantReply(ctx.getFullReply() != null ? ctx.getFullReply().toString() : "");
         request.setMemorySaved(hasMemorySaveToolCall(ctx));
         return request;
+    }
+
+    /**
+     * 是否调度长期记忆抽取：平台调试按登录用户；开放 API 需 externalUserId；自动化不抽取
+     */
+    private boolean shouldExtractUserMemory(ChatContext ctx) {
+        if (ctx == null || ctx.getRequest() == null) {
+            return false;
+        }
+        if (ctx.getRequest().getActorUserId() != null && ctx.getRequest().getApiKeyId() == null) {
+            return false;
+        }
+        Long apiKeyId = ctx.getRequest().getApiKeyId();
+        try {
+            if (!Boolean.TRUE.equals(longMemoryPolicyService.resolveEffective(apiKeyId).getEnabled())) {
+                return false;
+            }
+        } catch (Exception e) {
+            return false;
+        }
+        // 开放 API：需 externalUserId；控制台：登录用户启用 debug_user_{userId} 调试记忆
+        if (apiKeyId != null) {
+            String externalUserId = ctx.getRequest().getExternalUserId();
+            return externalUserId != null && !externalUserId.isBlank();
+        }
+        return ctx.getUserId() != null;
     }
 
     /**

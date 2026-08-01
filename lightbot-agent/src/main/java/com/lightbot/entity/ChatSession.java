@@ -54,6 +54,10 @@ public class ChatSession {
     @JsonSerialize(using = ToStringSerializer.class)
     private Long apiKeyId;
 
+    @TableField("external_user_id")
+    @Schema(description = "上层业务终端用户标识（source=api 时可选）")
+    private String externalUserId;
+
     @TableField("title")
     @Schema(description = "会话标题")
     private String title;

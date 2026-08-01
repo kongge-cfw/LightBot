@@ -38,6 +38,35 @@
       <LbStatCard :icon="FileTextOutlined" accent="orange" :value="basic.messageCount ?? '-'" label="消息总数" />
     </div>
 
+    <!-- 企业 Token 概览 -->
+    <div class="token-overview-row">
+      <div class="panel panel-token">
+        <div class="panel-header panel-header--token">
+          <h3>
+            企业 Token
+            <span class="trend-metric-hint">今日消耗</span>
+          </h3>
+          <router-link v-if="isAdmin" class="token-manage-link" to="/app/settings?tab=token">限额与排行</router-link>
+        </div>
+        <div class="token-overview-body">
+          <div class="token-overview-stat">
+            <div class="token-overview-label">全局已用</div>
+            <div class="token-overview-value">{{ formatToken(tokenStats.globalUsed) }}</div>
+            <div class="token-overview-sub">/ {{ formatToken(tokenStats.globalLimit) }}</div>
+          </div>
+          <a-progress
+            :percent="tokenUsagePercent"
+            :stroke-color="tokenUsagePercent > 80 ? '#ef4444' : '#10b981'"
+            :show-info="false"
+            size="small"
+          />
+          <div class="token-overview-hint">
+            企业维度统计；开放 API 另受各企业 API Key 日配额约束。管理员可在系统管理中配置限额。
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 对话趋势（整行） -->
     <div class="trend-row">
       <div class="panel panel-trend">
@@ -188,13 +217,35 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { message } from 'ant-design-vue'
 import { RobotOutlined, DatabaseOutlined, MessageOutlined, FileTextOutlined } from '@ant-design/icons-vue'
 import { getDashboardBasic, getDashboardAgents, getDashboardKnowledge, getDashboardChat } from '../api/dashboard'
+import { getTokenBudgetStats } from '../api/tokenBudget'
+import { useUserStore } from '../stores/user'
 import LbStatCard from '../components/common/LbStatCard.vue'
 
+const userStore = useUserStore()
 const basic = ref({})
 const agentStats = ref({})
 const knowledgeStats = ref({})
 const chatStats = ref({})
+const tokenStats = ref({ globalUsed: 0, globalLimit: 0, date: '' })
 const loading = ref(false)
+
+const isAdmin = computed(() => {
+  const role = userStore.user?.role
+  return role === 'admin' || role === 'ADMIN'
+})
+
+const tokenUsagePercent = computed(() => {
+  const limit = tokenStats.value.globalLimit
+  if (!limit) return 0
+  return Math.min(100, Math.round((tokenStats.value.globalUsed / limit) * 100))
+})
+
+function formatToken(val) {
+  if (val == null) return '0'
+  if (val >= 1_000_000) return (val / 1_000_000).toFixed(1) + 'M'
+  if (val >= 1_000) return (val / 1_000).toFixed(1) + 'K'
+  return String(val)
+}
 
 const trendQuickDays = [7, 14, 30]
 const trendDays = ref(7)
@@ -368,14 +419,16 @@ function disabledTrendDate(current) {
 async function loadAll() {
   loading.value = true
   try {
-    const [b, a, k] = await Promise.all([
+    const [b, a, k, t] = await Promise.all([
       getDashboardBasic().catch(() => ({ data: {} })),
       getDashboardAgents().catch(() => ({ data: {} })),
       getDashboardKnowledge().catch(() => ({ data: {} })),
+      getTokenBudgetStats().catch(() => ({ data: {} })),
     ])
     basic.value = b.data || {}
     agentStats.value = a.data || {}
     knowledgeStats.value = k.data || {}
+    tokenStats.value = t.data || { globalUsed: 0, globalLimit: 0, date: '' }
     await loadChatStats()
     await nextTick()
     updateTrendContainerWidth()
@@ -470,6 +523,66 @@ onUnmounted(() => {
   width: 100%;
   height: 18px;
   margin-bottom: 12px;
+}
+
+.token-overview-row {
+  margin-bottom: 16px;
+}
+.panel-token {
+  padding: 16px 20px;
+}
+.panel-header--token {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.panel-header--token h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.token-manage-link {
+  font-size: 13px;
+  color: var(--color-link);
+  text-decoration: none;
+}
+.token-manage-link:hover {
+  text-decoration: underline;
+}
+.token-overview-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.token-overview-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.token-overview-label {
+  font-size: 13px;
+  color: var(--color-mute);
+}
+.token-overview-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+}
+.token-overview-sub {
+  font-size: 13px;
+  color: var(--color-mute);
+}
+.token-overview-hint {
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.5;
 }
 
 /* ===== 顶部统计概览 ===== */

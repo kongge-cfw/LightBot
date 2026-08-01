@@ -26,11 +26,12 @@ public interface ChatSessionService extends IService<ChatSession> {
     /**
      * 创建企业 API Key 集成会话
      *
-     * @param apiKeyId API Key ID
-     * @param agentId  AgentID
+     * @param apiKeyId         API Key ID
+     * @param agentId          AgentID
+     * @param externalUserId   上层业务终端用户标识（可选）
      * @return 会话
      */
-    ChatSession createApiSession(Long apiKeyId, Long agentId);
+    ChatSession createApiSession(Long apiKeyId, Long agentId, String externalUserId);
 
     /**
      * 创建自动化任务会话

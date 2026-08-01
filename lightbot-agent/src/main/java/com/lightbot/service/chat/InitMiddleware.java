@@ -17,6 +17,7 @@ import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
 import com.lightbot.service.ApiKeyService;
 import com.lightbot.service.ChatSessionService;
+import com.lightbot.util.ExternalUserIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,7 @@ import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 初始化中间件：会话解析、Agent加载、Config解析、Provider确定
@@ -53,13 +55,23 @@ public class InitMiddleware implements ChatMiddleware {
 
         // 1. 解析会话ID，并在对话中切换智能体时更新会话绑定
         Long apiKeyId = ctx.getRequest().getApiKeyId();
+        normalizeRequestExternalUserId(ctx, apiKeyId);
         Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
-                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId());
+                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId(),
+                ctx.getRequest().getExternalUserId());
         ctx.setSessionId(sessionId);
+        // 续聊未传 externalUserId 时，从会话回填，保证本轮记忆命名空间一致
+        syncExternalUserIdFromSession(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
         long t1 = System.currentTimeMillis();
-        log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}", t1 - t0, sessionId);
-        ctx.getSpans().add(LlmTraceSpanDTO.of("s1", null, "session_resolve", t0, t1 - t0, "OK", Map.of("sessionId", sessionId)));
+        String externalUserId = ctx.getRequest().getExternalUserId();
+        log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}, externalUserId={}", t1 - t0, sessionId, externalUserId);
+        Map<String, Object> sessionSpanMeta = new java.util.HashMap<>();
+        sessionSpanMeta.put("sessionId", sessionId);
+        if (externalUserId != null) {
+            sessionSpanMeta.put("externalUserId", externalUserId);
+        }
+        ctx.getSpans().add(LlmTraceSpanDTO.of("s1", null, "session_resolve", t0, t1 - t0, "OK", sessionSpanMeta));
 
         // 2. 加载Agent配置，并校验企业 API Key 作用域
         Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
@@ -88,9 +100,12 @@ public class InitMiddleware implements ChatMiddleware {
         resolveUserId(ctx);
 
         Long apiKeyId = ctx.getRequest().getApiKeyId();
+        normalizeRequestExternalUserId(ctx, apiKeyId);
         Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
-                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId());
+                ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId(),
+                ctx.getRequest().getExternalUserId());
         ctx.setSessionId(sessionId);
+        syncExternalUserIdFromSession(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
 
         Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
@@ -361,14 +376,56 @@ public class InitMiddleware implements ChatMiddleware {
     }
 
     /**
+     * 规范化 externalUserId：
+     * <ul>
+     *   <li>开放 API：校验业务传入值</li>
+     *   <li>控制台调试：强制 debug_user_{登录用户ID}，忽略客户端传入</li>
+     *   <li>自动化调度：清空，不启用记忆命名空间</li>
+     * </ul>
+     */
+    private void normalizeRequestExternalUserId(ChatContext ctx, Long apiKeyId) {
+        if (ctx.getRequest() == null) {
+            return;
+        }
+        if (apiKeyId != null) {
+            ctx.getRequest().setExternalUserId(ExternalUserIdUtil.normalize(ctx.getRequest().getExternalUserId()));
+            return;
+        }
+        // 自动化调度不启用长期记忆
+        if (ctx.getRequest().getActorUserId() != null) {
+            ctx.getRequest().setExternalUserId(null);
+            return;
+        }
+        // 控制台调试：用当前登录用户生成调试命名空间
+        ctx.getRequest().setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+    }
+
+    /** 会话已绑定外部用户时回填到请求，便于记忆注入/工具使用同一命名空间 */
+    private void syncExternalUserIdFromSession(ChatContext ctx, Long apiKeyId, Long sessionId) {
+        if (apiKeyId == null || ctx.getRequest() == null || sessionId == null) {
+            return;
+        }
+        if (ctx.getRequest().getExternalUserId() != null) {
+            return;
+        }
+        ChatSession session = chatSessionService.getById(sessionId);
+        if (session != null && session.getExternalUserId() != null && !session.getExternalUserId().isBlank()) {
+            ctx.getRequest().setExternalUserId(session.getExternalUserId());
+        }
+    }
+
+    /**
      * 解析会话ID：有则复用并校验归属，无则按来源新建
      *
-     * @param actorUserId 自动化调度身份（非空表示内部任务，非控制台续聊）
+     * @param actorUserId    自动化调度身份（非空表示内部任务，非控制台续聊）
+     * @param externalUserId 上层业务终端用户（仅 API Key）
      */
-    private Long resolveSessionId(Long sessionId, Long agentId, Long userId, Long apiKeyId, Long actorUserId) {
+    private Long resolveSessionId(Long sessionId, Long agentId, Long userId, Long apiKeyId,
+                                  Long actorUserId, String externalUserId) {
         if (sessionId != null) {
             if (apiKeyId != null) {
                 chatSessionService.ensureOwnedByApiKey(sessionId, apiKeyId);
+                bindApiSessionExternalUser(sessionId, externalUserId);
                 return sessionId;
             }
             ChatSession existing = chatSessionService.getById(sessionId);
@@ -391,9 +448,31 @@ public class InitMiddleware implements ChatMiddleware {
             return sessionId;
         }
         if (apiKeyId != null) {
-            return chatSessionService.createApiSession(apiKeyId, agentId).getId();
+            return chatSessionService.createApiSession(apiKeyId, agentId, externalUserId).getId();
         }
         return chatSessionService.createSession(userId, agentId).getId();
+    }
+
+    /**
+     * 续聊时绑定/校验会话上的 externalUserId：
+     * 会话已有且请求不同 → 拒绝；会话为空且请求有值 → 回写绑定
+     */
+    private void bindApiSessionExternalUser(Long sessionId, String externalUserId) {
+        ChatSession session = chatSessionService.getById(sessionId);
+        if (session == null) {
+            throw new BizException(ErrorCode.SESSION_NOT_FOUND);
+        }
+        String bound = session.getExternalUserId();
+        if (bound != null && !bound.isBlank()) {
+            if (externalUserId != null && !Objects.equals(bound, externalUserId)) {
+                throw new BizException(ErrorCode.API_EXTERNAL_USER_MISMATCH);
+            }
+            return;
+        }
+        if (externalUserId != null) {
+            session.setExternalUserId(externalUserId);
+            chatSessionService.updateById(session);
+        }
     }
 
     /**

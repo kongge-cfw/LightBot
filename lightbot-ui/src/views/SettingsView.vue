@@ -7,7 +7,8 @@
     <a-tabs v-model:activeKey="activeTab" class="settings-tabs">
       <a-tab-pane key="landing" tab="Landing配置" />
       <a-tab-pane key="users" tab="用户管理" />
-      <a-tab-pane key="token" tab="Token限额" />
+      <a-tab-pane key="memory" tab="长期记忆" />
+      <a-tab-pane key="token" tab="企业 Token" />
       <a-tab-pane key="apiKey" tab="企业 API Key" />
     </a-tabs>
 
@@ -116,6 +117,58 @@
       <UserManage />
     </div>
 
+    <!-- Tab: 企业长期记忆默认策略 -->
+    <div v-show="activeTab === 'memory'">
+      <a-spin :spinning="memoryPolicyLoading">
+        <div class="panel" style="grid-column: 1 / -1;">
+          <div class="panel-header split-header">
+            <div class="panel-title-wrap">
+              <h3>企业长期记忆默认策略</h3>
+              <span class="panel-desc">控制台调试与开放 API（未单独覆盖的 Key）均跟随此默认；各 Key 可在「企业 API Key」中分策略覆盖</span>
+            </div>
+            <button class="btn-primary" :disabled="memoryPolicySaving" @click="saveMemoryPolicy">
+              <SaveOutlined /> {{ memoryPolicySaving ? '保存中...' : '保存配置' }}
+            </button>
+          </div>
+          <div class="panel-body">
+            <div class="memory-settings">
+              <label class="setting-row">
+                <span class="setting-text">
+                  <strong>启用长期记忆</strong>
+                  <small>关闭后控制台调试与开放 API 均不注入记忆（除非 Key 单独覆盖开启）</small>
+                </span>
+                <a-switch v-model:checked="memoryPolicyForm.enabled" />
+              </label>
+              <label class="setting-row">
+                <span class="setting-text">
+                  <strong>自动抽取记忆</strong>
+                  <small>回复结束后尝试保存明确偏好 / 「请记住」类内容</small>
+                </span>
+                <a-switch v-model:checked="memoryPolicyForm.autoExtract" :disabled="!memoryPolicyForm.enabled" />
+              </label>
+              <label class="setting-row">
+                <span class="setting-text">
+                  <strong>每轮注入数量</strong>
+                  <small>控制进入 Prompt 的记忆条数</small>
+                </span>
+                <a-input-number v-model:value="memoryPolicyForm.injectLimit" :min="1" :max="15" :disabled="!memoryPolicyForm.enabled" />
+              </label>
+              <label class="setting-row">
+                <span class="setting-text">
+                  <strong>记忆作用域</strong>
+                  <small>跨 Agent 共享，或按 Agent 隔离</small>
+                </span>
+                <a-select v-model:value="memoryPolicyForm.scope" :disabled="!memoryPolicyForm.enabled" class="setting-select">
+                  <a-select-option value="user">跨 Agent 生效</a-select-option>
+                  <a-select-option value="agent">按 Agent 隔离</a-select-option>
+                </a-select>
+              </label>
+            </div>
+          </div>
+        </div>
+      </a-spin>
+    </div>
+
     <!-- Tab 4: Token 管理 -->
     <div v-show="activeTab === 'token'">
     <a-spin :spinning="tokenLoading">
@@ -123,7 +176,7 @@
       <!-- 全局统计大屏 -->
       <div class="panel token-stats-panel">
         <div class="panel-header">
-          <h3>今日 Token 消耗</h3>
+          <h3>企业今日 Token 消耗</h3>
           <span class="panel-desc panel-desc-right">{{ tokenStats.date }}</span>
           <button class="btn-icon-refresh" @click="loadTokenStats" :disabled="tokenStatsLoading">
             <SyncOutlined :spin="tokenStatsLoading" />
@@ -150,8 +203,8 @@
       <div class="panel token-config-panel">
         <div class="panel-header">
           <div class="panel-title-wrap">
-            <h3>限额配置</h3>
-            <span class="panel-desc">调整 Token 使用限制</span>
+            <h3>企业限额配置</h3>
+            <span class="panel-desc">全局与建设者调试日限额；开放 API 另受各 Key 日配额约束</span>
           </div>
         </div>
         <div class="panel-body">
@@ -178,7 +231,7 @@
     <!-- 用户消耗排行 -->
     <div class="panel token-ranking-panel">
       <div class="panel-header">
-        <h3>用户 Token 消耗排行</h3>
+        <h3>建设者调试 Token 排行</h3>
         <a-radio-group
           v-model:value="rankingRange"
           button-style="solid"
@@ -267,6 +320,10 @@
                 <span class="apikey-card-label">Token配额</span>
                 <span>{{ formatToken(key.dailyQuota) }} / 日{{ key.usedTokens > 0 ? '（已用 ' + formatToken(key.usedTokens) + '）' : '' }}</span>
               </div>
+              <div class="apikey-card-row">
+                <span class="apikey-card-label">长期记忆</span>
+                <span>{{ memoryConfigSummary(key) }}</span>
+              </div>
               <div class="apikey-card-row" v-if="key.agentIds && key.agentIds.length > 0">
                 <span class="apikey-card-label">绑定Agent</span>
                 <span>{{ key.agentIds.length }} 个</span>
@@ -286,6 +343,12 @@
                 <a-switch :checked="key.isEnabled === 1" size="small" @change="handleToggleApiKey(key)" />
               </div>
               <div class="apikey-card-actions">
+                <a-button type="text" size="small" @click="openKeyMemoryPolicy(key)">
+                  <SettingOutlined /> 记忆策略
+                </a-button>
+                <a-button type="text" size="small" @click="openMemoryDrawer(key)">
+                  <DatabaseOutlined /> 记忆治理
+                </a-button>
                 <a-popconfirm title="确定要删除此企业 API Key 吗？" @confirm="handleDeleteApiKey(key)" ok-text="确定" cancel-text="取消">
                   <a-button type="text" size="small" danger>
                     <DeleteOutlined /> 删除
@@ -299,6 +362,109 @@
     </div>
     </a-spin>
     </div>
+
+    <a-modal
+      v-model:open="keyPolicyVisible"
+      :title="keyPolicyTitle"
+      :confirmLoading="keyPolicySaving"
+      ok-text="保存"
+      cancel-text="取消"
+      @ok="saveKeyMemoryPolicy"
+    >
+      <div class="dialog-scroll-body">
+        <a-spin :spinning="keyPolicyLoading">
+          <a-form :label-col="{ flex: '0 0 120px' }">
+            <a-form-item label="跟随企业默认">
+              <a-switch v-model:checked="keyPolicyForm.inherit" />
+              <div class="form-hint">开启后忽略下方覆盖项，完全使用「长期记忆」Tab 中的企业默认</div>
+            </a-form-item>
+            <template v-if="!keyPolicyForm.inherit">
+              <a-form-item label="启用长期记忆">
+                <a-switch v-model:checked="keyPolicyForm.enabled" />
+              </a-form-item>
+              <a-form-item label="自动抽取记忆">
+                <a-switch v-model:checked="keyPolicyForm.autoExtract" :disabled="!keyPolicyForm.enabled" />
+              </a-form-item>
+              <a-form-item label="每轮注入数量">
+                <a-input-number v-model:value="keyPolicyForm.injectLimit" :min="1" :max="15" :disabled="!keyPolicyForm.enabled" style="width: 100%" />
+              </a-form-item>
+              <a-form-item label="记忆作用域">
+                <a-select v-model:value="keyPolicyForm.scope" :disabled="!keyPolicyForm.enabled" style="width: 100%">
+                  <a-select-option value="user">跨 Agent 生效</a-select-option>
+                  <a-select-option value="agent">按 Agent 隔离</a-select-option>
+                </a-select>
+              </a-form-item>
+            </template>
+            <a-form-item v-if="keyPolicyEffective" label="当前生效">
+              <div class="effective-policy">
+                {{ keyPolicyEffective.enabled ? '已启用' : '已关闭' }}
+                · 抽取 {{ keyPolicyEffective.autoExtract ? '开' : '关' }}
+                · 注入 {{ keyPolicyEffective.injectLimit }}
+                · {{ keyPolicyEffective.scope === 'agent' ? '按 Agent' : '跨 Agent' }}
+              </div>
+            </a-form-item>
+          </a-form>
+        </a-spin>
+      </div>
+    </a-modal>
+
+    <a-drawer
+      v-model:open="memoryDrawerVisible"
+      :title="memoryDrawerTitle"
+      :width="720"
+      :bodyStyle="{ padding: '16px' }"
+      destroy-on-close
+    >
+      <p class="memory-drawer-desc">
+        正式长期记忆按「企业 API Key + externalUserId」隔离。清空会影响该外部用户的跨会话偏好，请谨慎操作。
+      </p>
+      <a-spin :spinning="memoryUsersLoading">
+        <a-empty v-if="!memoryUsers.length && !memoryUsersLoading" description="暂无外部用户记忆" />
+        <div v-else class="memory-user-list">
+          <div v-for="item in memoryUsers" :key="item.externalUserId" class="memory-user-card">
+            <div class="memory-user-head">
+              <div>
+                <code class="memory-user-id">{{ item.externalUserId }}</code>
+                <div class="memory-user-meta">
+                  启用 {{ item.activeCount ?? 0 }} / 共 {{ item.totalCount ?? 0 }}
+                  <span v-if="item.lastUpdateTime"> · 更新于 {{ formatTime(item.lastUpdateTime) }}</span>
+                </div>
+              </div>
+              <div class="memory-user-actions">
+                <a-button size="small" @click="loadMemoryDetails(item.externalUserId)">查看明细</a-button>
+                <a-popconfirm
+                  title="确定清空该外部用户在本 Key 下的全部记忆？"
+                  ok-text="清空"
+                  cancel-text="取消"
+                  @confirm="handleClearUserMemories(item.externalUserId)"
+                >
+                  <a-button size="small" danger>清空</a-button>
+                </a-popconfirm>
+              </div>
+            </div>
+            <div v-if="selectedMemoryUserId === item.externalUserId" class="memory-detail-panel">
+              <a-spin :spinning="memoryDetailsLoading">
+                <a-empty v-if="!memoryDetails.length && !memoryDetailsLoading" description="暂无明细" />
+                <div v-else class="memory-detail-list">
+                  <div v-for="mem in memoryDetails" :key="mem.id" class="memory-detail-item">
+                    <div class="memory-detail-main">
+                      <a-tag>{{ mem.memoryType || 'memory' }}</a-tag>
+                      <a-tag :color="mem.status === 'active' ? 'green' : 'default'">{{ mem.status || '-' }}</a-tag>
+                      <span class="memory-detail-content">{{ mem.content }}</span>
+                    </div>
+                    <a-popconfirm title="确定删除这条记忆？" @confirm="handleDeleteMemory(mem.id)">
+                      <a-button type="text" size="small" danger>
+                        <DeleteOutlined />
+                      </a-button>
+                    </a-popconfirm>
+                  </div>
+                </div>
+              </a-spin>
+            </div>
+          </div>
+        </div>
+      </a-spin>
+    </a-drawer>
 
     <!-- 创建 API Key 弹窗 -->
     <a-modal
@@ -358,7 +524,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, watch, markRaw } from 'vue'
+import { ref, reactive, computed, onMounted, watch, markRaw } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   SaveOutlined, PlusOutlined, DeleteOutlined,
@@ -374,7 +540,19 @@ import {
 import { message } from 'ant-design-vue'
 import { getLandingConfig, updateLandingConfig } from '../api/landing'
 import { getTokenBudgetConfig, updateTokenBudgetConfig, getTokenBudgetStats, getTokenBudgetRanking } from '../api/tokenBudget'
-import { listApiKeys, createApiKey, toggleApiKey, deleteApiKey } from '../api/apiKey'
+import { getEnterpriseLongMemoryPolicy, updateEnterpriseLongMemoryPolicy } from '../api/longMemory'
+import {
+  listApiKeys,
+  createApiKey,
+  toggleApiKey,
+  deleteApiKey,
+  getApiKeyMemoryConfig,
+  updateApiKeyMemoryConfig,
+  listApiKeyMemoryUsers,
+  listApiKeyMemories,
+  clearApiKeyUserMemories,
+  deleteApiKeyMemory,
+} from '../api/apiKey'
 import AgentSelect from '../components/AgentSelect.vue'
 import UserManage from './UserManage.vue'
 import { copyToClipboard } from '../utils/clipboard'
@@ -382,7 +560,7 @@ import { formatTime } from '../utils/format'
 
 const route = useRoute()
 const router = useRouter()
-const VALID_TABS = ['landing', 'users', 'token', 'apiKey']
+const VALID_TABS = ['landing', 'users', 'memory', 'token', 'apiKey']
 // 旧链接 ?tab=model 跳转到模型管理
 if (route.query.tab === 'model') {
   router.replace({ path: '/app/model-providers', query: { tab: 'defaults' } })
@@ -410,6 +588,13 @@ async function loadTabData(tab) {
       await loadLandingConfig()
     } finally {
       landingLoading.value = false
+    }
+  } else if (tab === 'memory') {
+    memoryPolicyLoading.value = true
+    try {
+      await loadMemoryPolicy()
+    } finally {
+      memoryPolicyLoading.value = false
     }
   } else if (tab === 'token') {
     tokenLoading.value = true
@@ -586,6 +771,41 @@ function formatToken(val) {
   return String(val)
 }
 
+// 企业长期记忆默认策略
+const memoryPolicyLoading = ref(false)
+const memoryPolicySaving = ref(false)
+const memoryPolicyForm = reactive({
+  enabled: true,
+  autoExtract: true,
+  injectLimit: 6,
+  scope: 'user',
+})
+
+async function loadMemoryPolicy() {
+  const res = await getEnterpriseLongMemoryPolicy()
+  Object.assign(memoryPolicyForm, {
+    enabled: res.data?.enabled !== false,
+    autoExtract: res.data?.autoExtract !== false,
+    injectLimit: res.data?.injectLimit ?? 6,
+    scope: res.data?.scope === 'agent' ? 'agent' : 'user',
+  })
+}
+
+async function saveMemoryPolicy() {
+  memoryPolicySaving.value = true
+  try {
+    const res = await updateEnterpriseLongMemoryPolicy({ ...memoryPolicyForm })
+    Object.assign(memoryPolicyForm, res.data || memoryPolicyForm)
+    message.success('企业长期记忆策略已保存')
+    // 允许 API Key 页重新拉取卡片摘要
+    loadedTabs.delete('apiKey')
+  } catch {
+    // interceptor handled
+  } finally {
+    memoryPolicySaving.value = false
+  }
+}
+
 // API Key 管理
 const apiKeyLoading = ref(false)
 const apiKeyList = ref([])
@@ -594,6 +814,86 @@ const apiKeyCreateLoading = ref(false)
 const apiKeySecretVisible = ref(false)
 const apiKeyCreatedSecret = ref('')
 const apiKeyForm = reactive({ name: '', permissions: 'chat', rateLimit: 60, dailyQuota: 100000, agentIds: [] })
+
+// API Key 记忆策略覆盖
+const keyPolicyVisible = ref(false)
+const keyPolicyLoading = ref(false)
+const keyPolicySaving = ref(false)
+const keyPolicyKey = ref(null)
+const keyPolicyEffective = ref(null)
+const keyPolicyForm = reactive({
+  inherit: true,
+  enabled: true,
+  autoExtract: true,
+  injectLimit: 6,
+  scope: 'user',
+})
+
+const keyPolicyTitle = computed(() => {
+  const name = keyPolicyKey.value?.name || '企业 API Key'
+  return `记忆策略 · ${name}`
+})
+
+function memoryConfigSummary(key) {
+  if (!key?.memoryConfig) return '跟随企业默认'
+  try {
+    const cfg = typeof key.memoryConfig === 'string' ? JSON.parse(key.memoryConfig) : key.memoryConfig
+    if (!cfg || cfg.inherit !== false) return '跟随企业默认'
+    const on = cfg.enabled !== false
+    const scopeText = cfg.scope === 'agent' ? '按 Agent' : '跨 Agent'
+    return `${on ? '自定义·启用' : '自定义·关闭'} · ${scopeText}`
+  } catch {
+    return '跟随企业默认'
+  }
+}
+
+async function openKeyMemoryPolicy(key) {
+  keyPolicyKey.value = key
+  keyPolicyVisible.value = true
+  keyPolicyLoading.value = true
+  keyPolicyEffective.value = null
+  try {
+    const res = await getApiKeyMemoryConfig(key.id)
+    const data = res.data || {}
+    Object.assign(keyPolicyForm, {
+      inherit: data.inherit !== false,
+      enabled: data.enabled !== false,
+      autoExtract: data.autoExtract !== false,
+      injectLimit: data.injectLimit ?? 6,
+      scope: data.scope === 'agent' ? 'agent' : 'user',
+    })
+    keyPolicyEffective.value = data.effective || null
+  } catch {
+    Object.assign(keyPolicyForm, { inherit: true, enabled: true, autoExtract: true, injectLimit: 6, scope: 'user' })
+  } finally {
+    keyPolicyLoading.value = false
+  }
+}
+
+async function saveKeyMemoryPolicy() {
+  if (!keyPolicyKey.value?.id) return
+  keyPolicySaving.value = true
+  try {
+    const payload = keyPolicyForm.inherit
+      ? { inherit: true }
+      : {
+          inherit: false,
+          enabled: keyPolicyForm.enabled,
+          autoExtract: keyPolicyForm.autoExtract,
+          injectLimit: keyPolicyForm.injectLimit,
+          scope: keyPolicyForm.scope,
+        }
+    const res = await updateApiKeyMemoryConfig(keyPolicyKey.value.id, payload)
+    keyPolicyEffective.value = res.data?.effective || null
+    message.success('记忆策略已保存')
+    keyPolicyVisible.value = false
+    await loadApiKeys()
+  } catch {
+    // interceptor handled
+  } finally {
+    keyPolicySaving.value = false
+  }
+}
 
 function isFullApiKeyPermission(permissions) {
   return permissions === 'full' || permissions === 'FULL' || permissions === '完全访问'
@@ -660,6 +960,82 @@ async function handleDeleteApiKey(key) {
     await deleteApiKey(key.id)
     message.success('已删除')
     await loadApiKeys()
+  } catch {
+    // interceptor handled
+  }
+}
+
+// 企业 API Key 外部用户记忆治理
+const memoryDrawerVisible = ref(false)
+const memoryDrawerKey = ref(null)
+const memoryUsersLoading = ref(false)
+const memoryUsers = ref([])
+const selectedMemoryUserId = ref('')
+const memoryDetailsLoading = ref(false)
+const memoryDetails = ref([])
+
+const memoryDrawerTitle = computed(() => {
+  const name = memoryDrawerKey.value?.name || '企业 API Key'
+  return `长期记忆治理 · ${name}`
+})
+
+async function openMemoryDrawer(key) {
+  memoryDrawerKey.value = key
+  memoryDrawerVisible.value = true
+  selectedMemoryUserId.value = ''
+  memoryDetails.value = []
+  await loadMemoryUsers()
+}
+
+async function loadMemoryUsers() {
+  if (!memoryDrawerKey.value?.id) return
+  memoryUsersLoading.value = true
+  try {
+    const res = await listApiKeyMemoryUsers(memoryDrawerKey.value.id)
+    memoryUsers.value = res.data || []
+  } catch {
+    memoryUsers.value = []
+  } finally {
+    memoryUsersLoading.value = false
+  }
+}
+
+async function loadMemoryDetails(externalUserId) {
+  if (!memoryDrawerKey.value?.id || !externalUserId) return
+  selectedMemoryUserId.value = externalUserId
+  memoryDetailsLoading.value = true
+  try {
+    const res = await listApiKeyMemories(memoryDrawerKey.value.id, { externalUserId })
+    memoryDetails.value = res.data || []
+  } catch {
+    memoryDetails.value = []
+  } finally {
+    memoryDetailsLoading.value = false
+  }
+}
+
+async function handleClearUserMemories(externalUserId) {
+  if (!memoryDrawerKey.value?.id) return
+  try {
+    const res = await clearApiKeyUserMemories(memoryDrawerKey.value.id, externalUserId)
+    message.success(`已清空 ${res.data?.deleted ?? 0} 条记忆`)
+    if (selectedMemoryUserId.value === externalUserId) {
+      selectedMemoryUserId.value = ''
+      memoryDetails.value = []
+    }
+    await loadMemoryUsers()
+  } catch {
+    // interceptor handled
+  }
+}
+
+async function handleDeleteMemory(memoryId) {
+  if (!memoryDrawerKey.value?.id) return
+  try {
+    await deleteApiKeyMemory(memoryDrawerKey.value.id, memoryId)
+    message.success('记忆已删除')
+    await loadMemoryDetails(selectedMemoryUserId.value)
+    await loadMemoryUsers()
   } catch {
     // interceptor handled
   }
@@ -1089,5 +1465,132 @@ async function handleDeleteApiKey(key) {
   white-space: nowrap;
   overflow-x: auto;
   color: var(--color-ink);
+}
+.split-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.memory-settings {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(240px, 1fr));
+  gap: 12px;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 76px;
+  padding: 14px 16px;
+  border: 1px solid var(--color-hairline);
+  border-radius: 8px;
+  color: var(--color-body);
+  background: var(--color-canvas-soft);
+}
+.setting-text {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.setting-text strong {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-ink);
+}
+.setting-text small {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-mute);
+}
+.setting-select {
+  width: 160px;
+}
+.form-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--color-mute);
+  line-height: 1.4;
+}
+.effective-policy {
+  font-size: 13px;
+  color: var(--color-body);
+}
+.memory-drawer-desc {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--color-mute);
+  line-height: 1.5;
+}
+@media (max-width: 960px) {
+  .memory-settings {
+    grid-template-columns: 1fr;
+  }
+}
+.memory-user-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.memory-user-card {
+  border: 1px solid var(--color-hairline);
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--color-canvas-soft);
+}
+.memory-user-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.memory-user-id {
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.memory-user-meta {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--color-mute);
+}
+.memory-user-actions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.memory-detail-panel {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-hairline);
+}
+.memory-detail-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.memory-detail-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--color-canvas);
+  border: 1px solid var(--color-hairline);
+}
+.memory-detail-main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.memory-detail-content {
+  flex: 1 1 100%;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-body);
+  word-break: break-word;
 }
 </style>

@@ -114,5 +114,7 @@ public final class ConfigKeys {
         public static final String DEFAULT_RERANK_MODEL = "default_rerank_model";
         /** Landing 页面配置 */
         public static final String LANDING_CONFIG = "landing_config";
+        /** 企业长期记忆默认策略 */
+        public static final String LONG_MEMORY_CONFIG = "long_memory_config";
     }
 }

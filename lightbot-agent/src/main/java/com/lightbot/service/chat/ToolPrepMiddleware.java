@@ -18,8 +18,8 @@ import com.lightbot.service.McpClientService;
 import com.lightbot.service.McpServerService;
 import com.lightbot.service.SessionTodoService;
 import com.lightbot.service.SkillService;
+import com.lightbot.service.LongMemoryPolicyService;
 import com.lightbot.service.ToolService;
-import com.lightbot.service.UserPreferenceService;
 import com.lightbot.subagent.DelegateSubAgentTool;
 import com.lightbot.agent.tool.memory.UserMemoryToolCallbackFactory;
 import com.lightbot.util.JsonIdParser;
@@ -67,8 +67,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     private final SkillService skillService;
     /** 用于把当前会话 todos 快照塞入 ToolContext，供 WriteTodosTool 按 id 合并 */
     private final SessionTodoService sessionTodoService;
-    private final UserPreferenceService userPreferenceService;
     private final UserMemoryToolCallbackFactory userMemoryToolCallbackFactory;
+    private final LongMemoryPolicyService longMemoryPolicyService;
 
     @Autowired
     @Qualifier("lightBotExecutor")
@@ -327,8 +327,13 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     toolCtxMap.put("requestId", requestId);
                 }
                 if (ctx != null) toolCtxMap.put("userId", ctx.getUserId());
-                if (ctx != null && ctx.getRequest() != null && ctx.getRequest().getApiKeyId() != null) {
-                    toolCtxMap.put("apiKeyId", ctx.getRequest().getApiKeyId());
+                if (ctx != null && ctx.getRequest() != null) {
+                    if (ctx.getRequest().getApiKeyId() != null) {
+                        toolCtxMap.put("apiKeyId", ctx.getRequest().getApiKeyId());
+                    }
+                    if (ctx.getRequest().getExternalUserId() != null) {
+                        toolCtxMap.put("externalUserId", ctx.getRequest().getExternalUserId());
+                    }
                 }
                 // 当前会话 todos 快照：供 WriteTodosTool 按 id 合并，避免 AI 漏传导致丢项
                 toolCtxMap.put("currentTodos", loadCurrentTodos(sessionId, requestId));
@@ -356,20 +361,29 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     }
 
     private boolean shouldInjectUserMemoryTools(ChatContext ctx) {
-        if (ctx == null || ctx.getUserId() == null) {
+        if (ctx == null || ctx.getRequest() == null) {
             return false;
         }
-        // 企业 API / 自动化：不注入个人记忆工具，避免挂到虚拟身份或触发人账号
-        if (ctx.getRequest() != null
-                && (ctx.getRequest().getApiKeyId() != null || ctx.getRequest().getActorUserId() != null)) {
+        // 自动化调度：不注入
+        if (ctx.getRequest().getActorUserId() != null && ctx.getRequest().getApiKeyId() == null) {
             return false;
         }
+        // 策略未启用则不注入
+        Long apiKeyId = ctx.getRequest().getApiKeyId();
         try {
-            return userPreferenceService.isLongMemoryEnabled(ctx.getUserId());
+            if (!Boolean.TRUE.equals(longMemoryPolicyService.resolveEffective(apiKeyId).getEnabled())) {
+                return false;
+            }
         } catch (Exception e) {
-            log.warn("[Chat] 读取用户长期记忆配置失败: userId={}, error={}", ctx.getUserId(), e.getMessage());
+            log.warn("[Chat] 读取长期记忆策略失败: apiKeyId={}, error={}", apiKeyId, e.getMessage());
             return false;
         }
+        // 开放 API：有 externalUserId 才注入；控制台：登录用户使用 debug_user_{userId}
+        if (apiKeyId != null) {
+            String externalUserId = ctx.getRequest().getExternalUserId();
+            return externalUserId != null && !externalUserId.isBlank();
+        }
+        return ctx.getUserId() != null;
     }
 
     /**

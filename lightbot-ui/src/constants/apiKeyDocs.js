@@ -67,6 +67,13 @@ export const API_DOC_GROUPS = [
         <li><code>full</code> 完全访问：在对话能力之外，还可调用 <code>/api/open/v1/**</code> 开放数据接口（如数据池）；不可访问控制台管理接口</li>
       </ul>
       <p><strong>注意：</strong>「完全访问」不等于可调用草稿 Agent。开放 API（含 API Key）仅可调用<strong>已发布</strong>的 Agent（状态为已发布 / 编辑中）；草稿请先在控制台发布。</p>
+      <h3>终端用户与长期记忆</h3>
+      <ul>
+        <li><code>sessionId</code>：隔离单次对话线程（短期上下文）</li>
+        <li><code>externalUserId</code>（可选）：上层业务系统的终端用户标识。传入后启用该用户在本 Key 下的<strong>跨会话长期记忆</strong>；不传则无个人记忆</li>
+        <li>LightBot 不为终端用户建账号；<code>externalUserId</code> 仅为不透明字符串标签</li>
+        <li>控制台调试会自动使用 <code>debug_user_&#123;建设者用户ID&#125;</code>，与开放 API 的 Key 命名空间<strong>互不共享</strong></li>
+      </ul>
       <h3>通用返回</h3>
       <pre>{
   "code": 200,
@@ -95,13 +102,15 @@ export const API_DOC_GROUPS = [
           { name: 'agentId', type: 'string', required: true, in: 'body', desc: 'Agent ID（雪花 ID，按字符串传递）', example: '2056961707612393473' },
           { name: 'message', type: 'string', required: false, in: 'body', desc: '用户消息；仅附件时可为空', example: '你好，请介绍一下自己' },
           { name: 'sessionId', type: 'string', required: false, in: 'body', desc: '会话 ID；空则新建会话', example: 'null' },
+          { name: 'externalUserId', type: 'string', required: false, in: 'body', desc: '上层业务终端用户 ID（可选）。传入后启用该用户在本 Key 下的跨会话长期记忆', example: 'biz_user_10086' },
           { name: 'bizParams', type: 'object', required: false, in: 'body', desc: '入参变量，替换系统提示词 {{变量}}', example: '{ "city": "杭州" }' },
           { name: 'attachments', type: 'array', required: false, in: 'body', desc: '附件列表（先调用上传接口）', example: '[{ "id": "...", "url": "https://..." }]' },
         ],
         bodyExample: `{
   "agentId": "2056961707612393473",
   "message": "你好，请介绍一下自己",
-  "sessionId": null
+  "sessionId": null,
+  "externalUserId": "biz_user_10086"
 }`,
         responseFields: [
           ...RESULT_FIELDS,
@@ -118,18 +127,20 @@ export const API_DOC_GROUPS = [
         method: 'POST',
         path: '/api/chat/stream',
         summary: '流式对话（SSE）',
-        description: '以 Server-Sent Events 流式返回模型输出与工具/思考事件。响应 Content-Type 为 text/event-stream（非 Result 包装）。不传 sessionId 时服务端会自动建会话；请从首包 [SESSION_ID] 或 [DONE].sessionId 取出并在后续请求中回传。注意：requestId ≠ sessionId。',
+        description: '以 Server-Sent Events 流式返回模型输出与工具/思考事件。响应 Content-Type 为 text/event-stream（非 Result 包装）。不传 sessionId 时服务端会自动建会话；请从首包 [SESSION_ID] 或 [DONE].sessionId 取出并在后续请求中回传。注意：requestId ≠ sessionId。可选 externalUserId 启用跨会话长期记忆。',
         contentType: 'sse',
         testable: true,
         params: [
           { name: 'agentId', type: 'string', required: true, in: 'body', desc: 'Agent ID', example: '2056961707612393473' },
           { name: 'message', type: 'string', required: false, in: 'body', desc: '用户消息', example: '用三句话介绍智元' },
           { name: 'sessionId', type: 'string', required: false, in: 'body', desc: '会话 ID；空则新建。多轮续聊必须回传上一轮返回的 sessionId', example: '2056961707612393500' },
+          { name: 'externalUserId', type: 'string', required: false, in: 'body', desc: '上层业务终端用户 ID（可选）。传入后启用跨会话长期记忆；续聊时须与会话已绑定值一致', example: 'biz_user_10086' },
           { name: 'bizParams', type: 'object', required: false, in: 'body', desc: '入参变量', example: '{ "role": "助手" }' },
         ],
         bodyExample: `{
   "agentId": "2056961707612393473",
-  "message": "用三句话介绍智元"
+  "message": "用三句话介绍智元",
+  "externalUserId": "biz_user_10086"
 }`,
         responseFields: [
           { name: 'id', type: 'string', desc: 'SSE 事件序号，可用于断线重连', example: '1' },

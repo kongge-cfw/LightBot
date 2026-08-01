@@ -136,10 +136,11 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
             }
         }
 
-        // 2. 创建平台调试会话
+        // 2. 创建平台调试会话（绑定 debug_user_{userId}，与开放 API 记忆命名空间隔离）
         ChatSession session = new ChatSession();
         session.setUserId(userId);
         session.setAgentId(finalAgentId);
+        session.setExternalUserId(com.lightbot.util.ExternalUserIdUtil.consoleDebugId(userId));
         session.setSource(com.lightbot.constant.EnterpriseActors.SESSION_SOURCE_PLATFORM);
         session.setTitle(ChatSession.DEFAULT_TITLE);
         session.setStatus(SessionStatus.ACTIVE);
@@ -153,7 +154,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
     }
 
     @Override
-    public ChatSession createApiSession(Long apiKeyId, Long agentId) {
+    public ChatSession createApiSession(Long apiKeyId, Long agentId, String externalUserId) {
         if (apiKeyId == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "缺少 API Key");
         }
@@ -167,6 +168,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         ChatSession session = new ChatSession();
         session.setUserId(com.lightbot.constant.EnterpriseActors.API_KEY);
         session.setApiKeyId(apiKeyId);
+        session.setExternalUserId(normalizeExternalUserId(externalUserId));
         session.setSource(com.lightbot.constant.EnterpriseActors.SESSION_SOURCE_API);
         session.setAgentId(finalAgentId);
         session.setTitle(ChatSession.DEFAULT_TITLE);
@@ -177,6 +179,13 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         save(session);
         ensureSessionDirs(session.getId());
         return session;
+    }
+
+    private static String normalizeExternalUserId(String externalUserId) {
+        if (externalUserId == null || externalUserId.isBlank()) {
+            return null;
+        }
+        return externalUserId.trim();
     }
 
     @Override

@@ -169,6 +169,8 @@ public enum ErrorCode {
     API_KEY_AGENT_FORBIDDEN(94006, "该 API Key 无权访问此 Agent", HttpStatus.FORBIDDEN),
     API_KEY_AGENT_REQUIRED(94007, "企业 API Key 调用对话时必须指定 agentId", HttpStatus.BAD_REQUEST),
     API_KEY_AGENT_NOT_PUBLISHED(94008, "企业 API Key 仅可调用已发布的 Agent（当前状态：%s），请先在控制台发布", HttpStatus.FORBIDDEN),
+    API_EXTERNAL_USER_INVALID(94009, "externalUserId 无效：最长128字符，仅允许字母、数字与 . _ - : @ /", HttpStatus.BAD_REQUEST),
+    API_EXTERNAL_USER_MISMATCH(94010, "会话已绑定其他外部用户，与请求中的 externalUserId 不一致", HttpStatus.FORBIDDEN),
     API_KEY_PERMISSION_INSUFFICIENT(94009, "该 API Key 权限不足（仅对话不可访问开放数据接口，请使用「完全访问」）", HttpStatus.FORBIDDEN),
 
     // ========== Prompt模块 ==========
