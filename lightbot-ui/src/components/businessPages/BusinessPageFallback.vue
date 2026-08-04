@@ -6,7 +6,7 @@
     </div>
     <p class="bpf-desc">
       <code>{{ pageType || 'unknown' }}</code> 缺少可渲染内容：请在能力中心配置
-      <code>pageHtml</code>（H5 HTML），或提供 <code>formSchema</code> 兜底，
+      <code>pageHtml</code>（H5 HTML）或外链 <code>pageUrl</code>，
       或由上层 <code>registerBusinessPageComponent</code> 注入组件。
     </p>
     <pre class="bpf-json">{{ prettyPayload }}</pre>

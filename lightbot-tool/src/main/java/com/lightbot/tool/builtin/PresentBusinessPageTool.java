@@ -35,10 +35,10 @@ import java.util.Set;
 @SystemTool(
         displayName = "业务办理页",
         icon = "AppstoreOutlined",
-        description = "在对话中呈现已在能力中心注册的业务办理页（元数据 + formSchema）",
+        description = "在对话中呈现已在能力中心注册的业务办理页（H5 HTML / 外链）",
         tags = {"交互", "业务页"},
-        outputExample = "{\"success\":true,\"pageType\":\"leave_request\",\"title\":\"请假申请\",\"mode\":\"inline\",\"wait_for_user\":true,\"props\":{\"days\":1},\"formSchema\":{\"fields\":[{\"key\":\"days\",\"label\":\"天数\",\"type\":\"number\"}]},\"actions\":[\"submit\",\"cancel\"]}",
-        outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"pageType\":{\"type\":\"string\"},\"wait_for_user\":{\"type\":\"boolean\"},\"props\":{\"type\":\"object\"},\"formSchema\":{\"type\":\"object\"}}}"
+        outputExample = "{\"success\":true,\"pageType\":\"leave_request\",\"title\":\"请假申请\",\"mode\":\"inline\",\"wait_for_user\":true,\"props\":{\"days\":1},\"pageHtml\":\"<!DOCTYPE html>...\",\"actions\":[\"submit\",\"cancel\"]}",
+        outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"pageType\":{\"type\":\"string\"},\"wait_for_user\":{\"type\":\"boolean\"},\"props\":{\"type\":\"object\"},\"pageHtml\":{\"type\":\"string\"},\"pageUrl\":{\"type\":\"string\"}}}"
 )
 public class PresentBusinessPageTool {
 
@@ -60,7 +60,7 @@ public class PresentBusinessPageTool {
             @ToolParamMeta(example = "utility_bill_pay") String pageType,
             @ToolParam(description = "页面标题，可选", required = false)
             @ToolParamMeta(example = "请假申请", required = false) String title,
-            @ToolParam(description = "业务数据 JSON 对象字符串（键需在注册的 allowedPropKeys / formSchema 字段内）", required = false)
+            @ToolParam(description = "业务数据 JSON 对象字符串（预填到 H5 页的 props）", required = false)
             @ToolParamMeta(example = "{\"days\":1,\"reason\":\"事假\"}", required = false) String props,
             @ToolParam(description = "展示模式：默认 inline（对话内嵌）。仅当用户明确要求侧栏时用 drawer", required = false)
             @ToolParamMeta(example = "inline", required = false) String mode,
@@ -90,8 +90,7 @@ public class PresentBusinessPageTool {
                             + "。允许：" + (allowed.isEmpty() ? "（无）" : String.join(",", allowed)));
         }
 
-        Set<String> propKeys = resolvePropKeys(definition);
-        Map<String, Object> mergedProps = mergeAllowedMap(definition.defaultProps(), parseObject(props), propKeys);
+        Map<String, Object> mergedProps = mergeAllowedMap(definition.defaultProps(), parseObject(props), definition.allowedPropKeys());
         Map<String, Object> mergedOptions = mergeAllowedMap(Map.of(), parseObject(options), definition.allowedOptionKeys());
         String resolvedMode = resolveMode(mode, definition);
         List<String> resolvedActions = resolveActions(actions, definition);
@@ -114,9 +113,6 @@ public class PresentBusinessPageTool {
         } else if (definition.pageUrl() != null && !definition.pageUrl().isBlank()) {
             result.put("pageUrl", definition.pageUrl());
             result.put("renderHint", "h5");
-        } else if (definition.formSchema() != null) {
-            result.put("formSchema", definition.formSchema());
-            result.put("renderHint", "form");
         } else {
             result.put("renderHint", "fallback");
         }
@@ -155,29 +151,6 @@ public class PresentBusinessPageTool {
         return businessPageService.catalogForToolDescription();
     }
 
-    /**
-     * props 白名单：注册表 allowedPropKeys ∪ formSchema.fields.key
-     */
-    @SuppressWarnings("unchecked")
-    private Set<String> resolvePropKeys(BusinessPageDefinition definition) {
-        Set<String> keys = new LinkedHashSet<>(definition.allowedPropKeys());
-        Map<String, Object> schema = definition.formSchema();
-        if (schema != null) {
-            Object fields = schema.get("fields");
-            if (fields instanceof List<?> list) {
-                for (Object item : list) {
-                    if (item instanceof Map<?, ?> field) {
-                        Object key = field.get("key");
-                        if (key != null && !String.valueOf(key).isBlank()) {
-                            keys.add(String.valueOf(key).trim());
-                        }
-                    }
-                }
-            }
-        }
-        return keys;
-    }
-
     private Map<String, Object> parseObject(String json) {
         if (json == null || json.isBlank()) {
             return Map.of();
@@ -204,7 +177,16 @@ public class PresentBusinessPageTool {
             Map<String, Object> incoming,
             Set<String> allowedKeys) {
         Map<String, Object> merged = new LinkedHashMap<>(defaults != null ? defaults : Map.of());
-        if (incoming == null || incoming.isEmpty() || allowedKeys == null || allowedKeys.isEmpty()) {
+        if (incoming == null || incoming.isEmpty()) {
+            return merged;
+        }
+        // 未配置白名单时放行全部（H5 页常见）
+        if (allowedKeys == null || allowedKeys.isEmpty()) {
+            for (Map.Entry<String, Object> e : incoming.entrySet()) {
+                if (e.getValue() != null) {
+                    merged.put(e.getKey(), e.getValue());
+                }
+            }
             return merged;
         }
         for (Map.Entry<String, Object> e : incoming.entrySet()) {

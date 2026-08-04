@@ -1,9 +1,9 @@
 <template>
   <div class="page">
     <div class="page-intro">
-      <strong>主路径：直接编写 H5 HTML。</strong>
-      对话内用 iframe <code>srcdoc</code> 嵌套渲染；接口与样式写在 HTML 内，通过
-      <code>postMessage</code> 回传提交/取消。
+      业务页二选一：<strong>内嵌 HTML</strong> 或 <strong>外链网页</strong>。
+      内嵌模式下宿主会静默拦截成功的业务请求，页面无需编写对话框协议；
+      外链跨域仍需页面或业务后端主动回传结果。
     </div>
     <a-spin :spinning="loading" style="min-height: 300px; display: block;">
       <div class="provider-grid">
@@ -43,14 +43,14 @@
               <span class="tag tag-pagetype">{{ p.pageType }}</span>
               <span class="tag" :class="rendererTagClass(p)">{{ rendererLabel(p) }}</span>
             </div>
-            <span class="card-desc">{{ truncateText(p.description || (p.pageHtml ? '已配置 H5 HTML' : '暂无描述'), 50) }}</span>
+            <span class="card-desc">{{ truncateText(p.description || (p.pageHtml ? '已配置内嵌 HTML' : (p.pageUrl ? '已配置外链网页' : '暂无描述')), 50) }}</span>
           </div>
         </EntityCard>
 
         <LbEmptyState
           v-if="filteredList.length === 0 && !loading"
           :icon="AppstoreOutlined"
-          :title="searchText ? '没有匹配的业务页' : '还没有业务页，点击右上角编写 H5'"
+          :title="searchText ? '没有匹配的业务页' : '还没有业务页，点击右上角注册'"
         />
       </div>
     </a-spin>
@@ -63,12 +63,6 @@
       destroy-on-close
       @ok="handleSave"
     >
-      <a-alert
-        type="info"
-        show-icon
-        class="modal-alert"
-        message="在下方直接编写完整 H5（含 HTML/CSS/JS）。对话中以 iframe 嵌套展示，无需填写外链。"
-      />
       <a-form :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="pageType" required>
           <a-input v-model:value="form.pageType" :disabled="!!form.id" placeholder="如 utility_bill_pay" />
@@ -79,36 +73,159 @@
         <a-form-item label="默认标题">
           <a-input v-model:value="form.defaultTitle" />
         </a-form-item>
-        <a-form-item label="描述">
+        <a-form-item>
+          <template #label>
+            <span class="field-label">
+              描述
+              <a-tooltip
+                :trigger="['hover', 'click']"
+                placement="topLeft"
+                :overlay-style="{ maxWidth: '320px' }"
+                title="给建设者与 LLM 看的用途说明，会出现在工具可用列表的辅助信息中。"
+              >
+                <QuestionCircleOutlined class="field-help-icon" />
+              </a-tooltip>
+            </span>
+          </template>
           <a-input v-model:value="form.description" placeholder="给建设者 / LLM 的用途说明" />
         </a-form-item>
-        <a-form-item label="H5 页面" required>
-          <a-textarea
-            v-model:value="form.pageHtml"
-            :rows="16"
-            class="html-editor"
-            placeholder="完整 HTML 文档…"
-          />
-          <div class="form-hint">
-            提交：<code>parent.postMessage({source:'lightbot-business-page', type:'submit', values:{...}}, '*')</code>
-            ；取消：<code>type:'cancel'</code>。收到父页 <code>type=init</code> 可填充 props。
-            <a-button type="link" size="small" @click="resetHtmlTemplate">恢复示例模板</a-button>
-          </div>
+        <a-form-item required>
+          <template #label>
+            <span class="field-label">
+              呈现方式
+              <a-tooltip
+                :trigger="['hover', 'click']"
+                placement="topLeft"
+                :overlay-style="{ maxWidth: '360px' }"
+              >
+                <template #title>
+                  <div class="help-tip-body">
+                    <p><b>内嵌 HTML</b>：编写完整页面与业务 fetch，宿主自动感知成功提交并回传对话。</p>
+                    <p><b>外链网页</b>：填写已部署地址；跨域无法静默拦截，需页面 postMessage 或业务后端回调。</p>
+                  </div>
+                </template>
+                <QuestionCircleOutlined class="field-help-icon" />
+              </a-tooltip>
+            </span>
+          </template>
+          <a-radio-group v-model:value="form.renderMode" option-type="button" button-style="solid">
+            <a-radio-button value="embedded">内嵌 HTML</a-radio-button>
+            <a-radio-button value="external">外链网页</a-radio-button>
+          </a-radio-group>
         </a-form-item>
-        <a-collapse ghost>
-          <a-collapse-panel key="adv" header="高级（可选兜底）">
-            <a-form-item label="外链 URL">
-              <a-input v-model:value="form.pageUrl" placeholder="无 HTML 时可用 https://..." />
-            </a-form-item>
-            <a-form-item label="formSchema">
-              <a-textarea v-model:value="form.formSchemaText" :rows="4" placeholder="无 H5 时的通用表单兜底 JSON" />
-            </a-form-item>
-          </a-collapse-panel>
-        </a-collapse>
+        <template v-if="form.renderMode === 'embedded'">
+          <a-form-item required>
+            <template #label>
+              <span class="field-label">
+                页面内容
+                <a-tooltip
+                  :trigger="['hover', 'click']"
+                  placement="topLeft"
+                  :overlay-style="{ maxWidth: '380px' }"
+                >
+                  <template #title>
+                    <div class="help-tip-body">
+                      <p>页面只需 <code>fetch</code> 业务接口；成功的 POST/PUT/PATCH 由宿主自动回传。</p>
+                      <p>取消按钮文案用「取消」，或 id/class 含 cancel。</p>
+                      <p>办结摘要的字段名来自页面 <code>&lt;label&gt;</code>（或 <code>data-label</code>），请与输入框关联（包裹 / <code>for</code> / 相邻），勿依赖平台翻译 field key。</p>
+                      <p>演示接口：<code>/__lightbot_bp_demo__</code></p>
+                      <p>可选 options：<code>captureUrlIncludes</code> / <code>captureUrlExcludes</code> 收窄匹配。</p>
+                    </div>
+                  </template>
+                  <QuestionCircleOutlined class="field-help-icon" />
+                </a-tooltip>
+              </span>
+            </template>
+            <div class="html-editor-toolbar">
+              <a-button type="link" size="small" class="template-reset-btn" @click="resetHtmlTemplate">
+                恢复示例模板
+              </a-button>
+              <a-button type="default" size="small" @click="openHtmlFullscreen">
+                <FullscreenOutlined /> 最大化
+              </a-button>
+            </div>
+            <a-textarea
+              v-model:value="form.pageHtml"
+              :rows="16"
+              class="html-editor"
+              placeholder="完整 HTML 文档（含 CSS/JS 与业务接口调用）…"
+            />
+          </a-form-item>
+        </template>
+        <template v-else>
+          <a-form-item required>
+            <template #label>
+              <span class="field-label">
+                页面地址
+                <a-tooltip
+                  :trigger="['hover', 'click']"
+                  placement="topLeft"
+                  :overlay-style="{ maxWidth: '380px' }"
+                >
+                  <template #title>
+                    <div class="help-tip-body">
+                      <p>外链跨域无法注入桥接。</p>
+                      <p>可在外链页调用 <code>parent.postMessage({source:'lightbot-business-page', type:'submit', values:{...}}, '*')</code>，或由业务后端回调平台。</p>
+                    </div>
+                  </template>
+                  <QuestionCircleOutlined class="field-help-icon" />
+                </a-tooltip>
+              </span>
+            </template>
+            <a-input v-model:value="form.pageUrl" placeholder="https://example.com/business-page" />
+          </a-form-item>
+        </template>
         <a-form-item label="启用">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <!-- 页面内容最大化 + AI 辅助 -->
+    <a-modal
+      v-model:open="htmlFullscreen"
+      title="编辑页面内容"
+      width="96vw"
+      :footer="null"
+      destroy-on-close
+      wrap-class-name="bp-html-fullscreen-modal"
+      @cancel="htmlFullscreen = false"
+    >
+      <div class="bp-html-max">
+        <aside class="bp-ai-panel">
+          <div class="bp-ai-title">
+            <ThunderboltOutlined />
+            AI 辅助生成
+          </div>
+          <p class="bp-ai-desc">用自然语言描述业务页字段与流程，生成完整 HTML。</p>
+          <a-textarea
+            v-model:value="aiRequirement"
+            :rows="8"
+            class="bp-ai-input"
+            placeholder="例如：请假申请页，字段含开始日期、结束日期、事由；提交调用业务接口，失败时在页内提示。"
+          />
+          <a-checkbox v-model:checked="aiBasedOnCurrent">基于当前代码修改</a-checkbox>
+          <a-button
+            type="primary"
+            block
+            class="bp-ai-submit"
+            :loading="aiGenerating"
+            :disabled="!aiRequirement.trim()"
+            @click="handleGenerateHtml"
+          >
+            <ThunderboltOutlined />
+            {{ aiGenerating ? '生成中…' : '生成 HTML' }}
+          </a-button>
+          <a-button block @click="resetHtmlTemplate">恢复示例模板</a-button>
+        </aside>
+        <div class="bp-html-max-main">
+          <a-textarea
+            v-model:value="form.pageHtml"
+            class="html-editor html-editor--max"
+            placeholder="完整 HTML 文档…"
+          />
+        </div>
+      </div>
     </a-modal>
   </div>
 </template>
@@ -121,13 +238,17 @@ import {
   CloseCircleOutlined,
   DeleteOutlined,
   EditOutlined,
+  FullscreenOutlined,
   MoreOutlined,
+  QuestionCircleOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 import { Modal, message } from 'ant-design-vue'
 import EntityCard from '../components/EntityCard.vue'
 import LbEmptyState from '../components/common/LbEmptyState.vue'
 import {
   deleteBusinessPage,
+  generateBusinessPageHtml,
   listBusinessPages,
   setBusinessPageEnabled,
   upsertBusinessPage,
@@ -145,6 +266,10 @@ const saving = ref(false)
 const dialogVisible = ref(false)
 const searchText = ref('')
 const list = ref([])
+const htmlFullscreen = ref(false)
+const aiRequirement = ref('')
+const aiBasedOnCurrent = ref(true)
+const aiGenerating = ref(false)
 
 const form = reactive({
   id: null,
@@ -152,9 +277,9 @@ const form = reactive({
   displayName: '',
   defaultTitle: '',
   description: '',
+  renderMode: 'embedded',
   pageHtml: DEFAULT_BUSINESS_PAGE_HTML,
   pageUrl: '',
-  formSchemaText: '',
   enabled: true,
 })
 
@@ -168,33 +293,70 @@ const filteredList = computed(() => {
   )
 })
 
-function hasFormSchema(record) {
-  if (!record?.formSchema) return false
-  try {
-    const schema = typeof record.formSchema === 'string' ? JSON.parse(record.formSchema) : record.formSchema
-    return Array.isArray(schema?.fields) && schema.fields.length > 0
-  } catch {
-    return false
-  }
+function resolveRenderMode(record) {
+  const hasHtml = !!String(record?.pageHtml || '').trim()
+  const hasUrl = !!String(record?.pageUrl || '').trim()
+  if (hasUrl && !hasHtml) return 'external'
+  return 'embedded'
 }
 
 function rendererLabel(record) {
   if (isRegisteredBusinessPage(record.pageType)) return '宿主已注入组件'
-  if (record.pageHtml) return 'H5 HTML'
-  if (record.pageUrl) return 'H5 外链'
-  if (hasFormSchema(record)) return '通用表单兜底'
-  return '仅元数据'
+  if (resolveRenderMode(record) === 'external') return '外链网页'
+  if (record.pageHtml) return '内嵌 HTML'
+  return '未配置页面'
 }
 
 function rendererTagClass(record) {
   if (isRegisteredBusinessPage(record.pageType)) return 'tag-host'
   if (record.pageHtml || record.pageUrl) return 'tag-h5'
-  if (hasFormSchema(record)) return 'tag-generic'
   return 'tag-meta'
 }
 
 function resetHtmlTemplate() {
   form.pageHtml = DEFAULT_BUSINESS_PAGE_HTML
+}
+
+function openHtmlFullscreen() {
+  if (!aiRequirement.value.trim()) {
+    const parts = [
+      form.displayName && `页面「${form.displayName}」`,
+      form.description,
+      '请生成可用的业务办理表单页。',
+    ].filter(Boolean)
+    aiRequirement.value = parts.join('\n')
+  }
+  htmlFullscreen.value = true
+}
+
+async function handleGenerateHtml() {
+  const requirement = aiRequirement.value.trim()
+  if (!requirement) {
+    message.warning('请填写生成需求')
+    return
+  }
+  aiGenerating.value = true
+  try {
+    const res = await generateBusinessPageHtml({
+      requirement,
+      pageType: form.pageType || undefined,
+      displayName: form.displayName || undefined,
+      description: form.description || undefined,
+      basedOnCurrent: aiBasedOnCurrent.value,
+      currentHtml: aiBasedOnCurrent.value ? (form.pageHtml || '') : undefined,
+    })
+    const html = res.data?.html
+    if (!html) {
+      message.error('未返回 HTML 内容')
+      return
+    }
+    form.pageHtml = html
+    message.success('已生成并填入编辑器')
+  } catch (e) {
+    message.error(e?.message || 'AI 生成失败')
+  } finally {
+    aiGenerating.value = false
+  }
 }
 
 async function loadList() {
@@ -209,15 +371,16 @@ async function loadList() {
 
 function openDialog(record) {
   if (record) {
+    const mode = resolveRenderMode(record)
     Object.assign(form, {
       id: record.id,
       pageType: record.pageType,
       displayName: record.displayName,
       defaultTitle: record.defaultTitle,
       description: record.description || '',
+      renderMode: mode,
       pageHtml: record.pageHtml || DEFAULT_BUSINESS_PAGE_HTML,
       pageUrl: record.pageUrl || '',
-      formSchemaText: normalizeFormSchemaText(record.formSchema),
       enabled: record.enabled === 1,
     })
   } else {
@@ -227,29 +390,13 @@ function openDialog(record) {
       displayName: '',
       defaultTitle: '',
       description: '',
+      renderMode: 'embedded',
       pageHtml: DEFAULT_BUSINESS_PAGE_HTML,
       pageUrl: '',
-      formSchemaText: '',
       enabled: true,
     })
   }
   dialogVisible.value = true
-}
-
-function normalizeFormSchemaText(raw) {
-  if (!raw) return ''
-  if (typeof raw === 'string') {
-    try {
-      return JSON.stringify(JSON.parse(raw), null, 2)
-    } catch {
-      return raw
-    }
-  }
-  try {
-    return JSON.stringify(raw, null, 2)
-  } catch {
-    return ''
-  }
 }
 
 async function handleSave() {
@@ -257,19 +404,15 @@ async function handleSave() {
     message.warning('pageType 与展示名称不能为空')
     return
   }
-  const pageHtml = form.pageHtml?.trim() || ''
-  const pageUrl = form.pageUrl?.trim() || ''
-  let formSchema = null
-  if (form.formSchemaText?.trim()) {
-    try {
-      formSchema = JSON.parse(form.formSchemaText)
-    } catch {
-      message.error('formSchema 不是合法 JSON')
-      return
-    }
+  const embedded = form.renderMode === 'embedded'
+  const pageHtml = embedded ? (form.pageHtml?.trim() || '') : ''
+  const pageUrl = embedded ? '' : (form.pageUrl?.trim() || '')
+  if (embedded && !pageHtml) {
+    message.warning('请编写内嵌 HTML 页面内容')
+    return
   }
-  if (!pageHtml && !pageUrl && !formSchema?.fields?.length) {
-    message.warning('请编写 H5 HTML（推荐）')
+  if (!embedded && !pageUrl) {
+    message.warning('请填写外链网页地址')
     return
   }
   if (pageUrl && !/^https?:\/\//i.test(pageUrl)) {
@@ -278,21 +421,18 @@ async function handleSave() {
   }
   saving.value = true
   try {
-    const propKeys = Array.isArray(formSchema?.fields)
-      ? formSchema.fields.map((f) => f.key).filter(Boolean)
-      : []
     await upsertBusinessPage({
       pageType: form.pageType.trim(),
       displayName: form.displayName.trim(),
       defaultTitle: form.defaultTitle || form.displayName,
       description: form.description,
+      // 二选一：仅保存当前模式对应字段
       pageHtml: pageHtml || null,
       pageUrl: pageUrl || null,
-      formSchema,
       enabled: form.enabled,
       allowedModes: ['inline'],
       allowedActions: ['submit', 'cancel'],
-      allowedPropKeys: propKeys,
+      allowedPropKeys: [],
       allowedOptionKeys: ['primaryButtonText', 'cancelButtonText', 'hint'],
       defaultProps: {},
     })
@@ -392,7 +532,6 @@ defineExpose({ openDialog, search, refresh, loading })
 }
 .tag-host { background: #ecfdf5; color: #047857; }
 .tag-h5 { background: #fdf4ff; color: #a21caf; }
-.tag-generic { background: #eff6ff; color: #1d4ed8; }
 .tag-meta { background: #fff7ed; color: #c2410c; }
 .card-desc {
   font-size: 13px;
@@ -426,22 +565,110 @@ defineExpose({ openDialog, search, refresh, loading })
 }
 .btn-icon:hover { background: #f4f4f5; color: #171717; }
 .btn-icon.danger:hover { background: #fef2f2; color: #dc2626; }
-.modal-alert { margin-bottom: 16px; }
+.field-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.field-help-icon {
+  font-size: 13px;
+  color: var(--color-mute, #a3a3a3);
+  cursor: help;
+}
+.field-help-icon:hover {
+  color: var(--color-body, #52525b);
+}
+.html-editor-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
 .html-editor {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
   line-height: 1.45;
 }
-.form-hint {
-  margin-top: 6px;
+.html-editor--max {
+  height: calc(100vh - 180px);
+  min-height: 480px;
+  resize: none;
+}
+.template-reset-btn {
+  padding-left: 0;
+}
+.bp-html-max {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 16px;
+  min-height: 60vh;
+}
+.bp-ai-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fafafa;
+}
+.bp-ai-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  color: #171717;
+}
+.bp-ai-desc {
+  margin: 0;
   font-size: 12px;
   color: #737373;
   line-height: 1.5;
 }
-.form-hint code {
+.bp-ai-input {
+  font-size: 13px;
+}
+.bp-ai-submit {
+  margin-top: 4px;
+}
+.bp-html-max-main {
+  min-width: 0;
+}
+.help-tip-body {
+  font-size: 12px;
+  line-height: 1.55;
+}
+.help-tip-body p {
+  margin: 0 0 6px;
+}
+.help-tip-body p:last-child {
+  margin-bottom: 0;
+}
+.help-tip-body code {
   font-size: 11px;
-  padding: 0 4px;
-  border-radius: 4px;
-  background: #f4f4f5;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+}
+</style>
+
+<style>
+.bp-html-fullscreen-modal .ant-modal {
+  top: 12px;
+  padding-bottom: 0;
+  max-width: 96vw;
+}
+.bp-html-fullscreen-modal .ant-modal-body {
+  padding-top: 12px;
+}
+@media (max-width: 960px) {
+  .bp-html-max {
+    grid-template-columns: 1fr !important;
+  }
+  .html-editor--max {
+    height: 50vh !important;
+    min-height: 280px !important;
+  }
 }
 </style>

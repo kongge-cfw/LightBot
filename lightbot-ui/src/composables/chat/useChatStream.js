@@ -99,32 +99,45 @@ export function useChatStream(deps) {
     })
   }
 
-  /** 业务页回灌字段格式化：嵌套对象展开，避免 [object Object] */
+  /** 业务页回灌字段格式化：嵌套对象展开；展示名优先用页面采集的 fieldLabels */
   function formatBusinessPageResultLines(result) {
     const lines = []
+    const fieldLabels = (result?.fieldLabels && typeof result.fieldLabels === 'object')
+      ? result.fieldLabels
+      : {}
+    const displayKey = (key) => {
+      const label = fieldLabels[key]
+      return (typeof label === 'string' && label.trim()) ? label.trim() : key
+    }
     const walk = (key, value, indent = '') => {
+      const name = displayKey(key)
       if (value == null || value === '') {
-        lines.push(`${indent}- ${key}：`)
+        lines.push(`${indent}- ${name}：`)
         return
       }
       if (Array.isArray(value)) {
         if (value.every((x) => x == null || typeof x !== 'object')) {
-          lines.push(`${indent}- ${key}：${value.join('、')}`)
+          lines.push(`${indent}- ${name}：${value.join('、')}`)
           return
         }
-        lines.push(`${indent}- ${key}：`)
+        lines.push(`${indent}- ${name}：`)
         value.forEach((item, i) => walk(`[${i}]`, item, `${indent}  `))
         return
       }
       if (typeof value === 'object') {
-        lines.push(`${indent}- ${key}：`)
+        // values 容器本身不输出空父级行，直接展开字段
+        if (key === 'values') {
+          Object.entries(value).forEach(([k, v]) => walk(k, v, indent))
+          return
+        }
+        lines.push(`${indent}- ${name}：`)
         Object.entries(value).forEach(([k, v]) => walk(k, v, `${indent}  `))
         return
       }
-      lines.push(`${indent}- ${key}：${String(value)}`)
+      lines.push(`${indent}- ${name}：${String(value)}`)
     }
     Object.entries(result || {})
-      .filter(([k]) => k !== 'pageType' && k !== 'action')
+      .filter(([k]) => k !== 'pageType' && k !== 'action' && k !== 'fieldLabels' && k !== 'extra')
       .forEach(([k, v]) => walk(k, v))
     return lines.length ? lines : ['- （无字段）']
   }
@@ -141,11 +154,26 @@ export function useChatStream(deps) {
     const status = payload.status === 'cancelled' ? 'cancelled' : 'submitted'
     const result = payload.result
     const pageType = result.pageType || 'unknown'
-    const lines = formatBusinessPageResultLines(result)
+    const values = (result.values && typeof result.values === 'object' && !Array.isArray(result.values))
+      ? result.values
+      : {}
+    const fieldLabels = (result.fieldLabels && typeof result.fieldLabels === 'object')
+      ? result.fieldLabels
+      : {}
+    const lines = formatBusinessPageResultLines(
+      Object.keys(values).length ? { values, fieldLabels } : result,
+    )
+    // 机器可读标记：刷新历史时可还原办理字段与页面标签（禁止平台硬编码字段词典）
+    let dataMarker = ''
+    try {
+      dataMarker = `\n<!--lightbot-bp-data:${JSON.stringify({ values, fieldLabels })}-->`
+    } catch {
+      dataMarker = ''
+    }
     // 发给模型的上下文：要求自动简短确认，无需用户再问
     const text = status === 'cancelled'
-      ? `系统通知：用户取消了业务办理页（${pageType}）。请用一两句话确认已取消，不要追问、不要要求用户再次输入。`
-      : `系统通知：用户已在业务办理页完成提交（${pageType}）。办理数据如下：\n${lines.join('\n')}\n请直接根据上述结果给用户一句简短确认提示（到账/受理情况即可），不要追问、不要要求用户再次输入。`
+      ? `系统通知：用户取消了业务办理页（${pageType}）。请用一两句话确认已取消，不要追问、不要要求用户再次输入。${dataMarker}`
+      : `系统通知：用户已在业务办理页完成提交（${pageType}）。办理数据如下：\n${lines.join('\n')}\n请直接根据上述结果给用户一句简短确认提示（到账/受理情况即可），不要追问、不要要求用户再次输入。${dataMarker}`
     // 本地标记已处理，避免重复提交
     const msg = messages.value[payload.messageIndex]
     if (msg?._toolEvents?.length) {
@@ -165,6 +193,8 @@ export function useChatStream(deps) {
       _businessPageCallback: true,
       _businessPageCallbackStatus: status,
       _businessPageCallbackPageType: pageType,
+      _businessPageCallbackValues: values,
+      _businessPageCallbackFieldLabels: fieldLabels,
     })
     isNearBottom.value = true
     userScrolledUp.value = false

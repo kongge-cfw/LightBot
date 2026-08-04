@@ -300,20 +300,15 @@ export const TOOL_DEBUG_SAMPLES = {
       days: 1,
       reason: '事假',
     },
-    formSchema: {
-      fields: [
-        { key: 'days', label: '请假天数', type: 'number', required: true },
-        { key: 'reason', label: '事由', type: 'textarea', required: true },
-      ],
-    },
+    pageHtml: '<!DOCTYPE html><html><body><p>请假申请 Demo</p></body></html>',
     actions: ['submit', 'cancel'],
     options: {
       primaryButtonText: '提交申请',
-      hint: '开发者注册 formSchema · Debug Lab 预览',
+      hint: 'H5 业务页 · Debug Lab 预览',
     },
     wait_for_user: true,
     break_loop: true,
-    renderHint: 'template',
+    renderHint: 'h5',
     schemaVersion: 1,
   }),
 

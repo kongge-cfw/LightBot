@@ -47,12 +47,12 @@ public class BusinessPage {
     @Schema(description = "默认标题")
     private String defaultTitle;
 
-    @TableField("page_html")
-    @Schema(description = "开发者直接登记的 H5 HTML（iframe srcdoc）")
+    @TableField(value = "page_html", updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
+    @Schema(description = "内嵌 HTML（与 pageUrl 二选一）")
     private String pageHtml;
 
-    @TableField("page_url")
-    @Schema(description = "可选外链 H5（无 pageHtml 时使用）")
+    @TableField(value = "page_url", updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
+    @Schema(description = "外链网页地址（与 pageHtml 二选一）")
     private String pageUrl;
 
     @TableField(value = "allowed_modes", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
@@ -75,8 +75,9 @@ public class BusinessPage {
     @Schema(description = "默认 props JSON 对象")
     private String defaultProps;
 
-    @TableField(value = "form_schema", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
-    @Schema(description = "可选兜底通用表单 schema（无 pageUrl 时使用）")
+    @TableField(value = "form_schema", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER,
+            updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
+    @Schema(description = "已废弃，保存时清空")
     private String formSchema;
 
     @TableField("builtin")

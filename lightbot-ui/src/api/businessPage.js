@@ -10,8 +10,18 @@ export function listEnabledBusinessPages() {
   return request.get('/business-pages/enabled')
 }
 
+/** 对话渲染：按 pageType 取启用中的 pageHtml / pageUrl */
+export function getBusinessPageRuntime(pageType) {
+  return request.get(`/business-pages/runtime/${encodeURIComponent(pageType)}`)
+}
+
 export function upsertBusinessPage(data) {
   return request.post('/business-pages', data)
+}
+
+/** AI 辅助生成内嵌业务页 HTML */
+export function generateBusinessPageHtml(data) {
+  return request.post('/business-pages/generate-html', data, { timeout: 120000 })
 }
 
 export function setBusinessPageEnabled(id, enabled) {

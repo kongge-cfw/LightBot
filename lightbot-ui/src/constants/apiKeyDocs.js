@@ -75,14 +75,14 @@ export const API_DOC_GROUPS = [
         <li>控制台调试会自动使用 <code>debug_user_&#123;建设者用户ID&#125;</code>，与开放 API 的 Key 命名空间<strong>互不共享</strong></li>
       </ul>
       <h3>业务办理页（present_business_page）</h3>
-      <p>开发者在能力中心「业务页组件」注册 <code>pageType</code> + <strong>H5 HTML</strong>（直接编写完整页面）。Agent 返回契约后，控制台用 iframe <code>srcdoc</code> 嵌套渲染。样式与接口在 HTML 内实现，经 <code>postMessage</code> 回传提交/取消。</p>
+      <p>开发者在能力中心「业务页组件」注册 <code>pageType</code> + <strong>内嵌 HTML / 外链</strong>。内嵌模式下宿主静默拦截成功业务请求并回传对话；外链跨域需页面或业务后端主动回传。</p>
       <pre>{
   "type": "tool_result",
   "toolName": "present_business_page",
   "result": "{ \"success\": true, \"pageType\": \"utility_bill_pay\", \"title\": \"水电燃气缴费\", \"mode\": \"inline\", \"pageHtml\": \"<!DOCTYPE html>...\", \"props\": {...}, \"actions\": [\"submit\",\"cancel\"], \"wait_for_user\": true }"
 }</pre>
       <ul>
-        <li>主路径：<code>pageHtml</code> → iframe srcdoc；可选外链 <code>pageUrl</code> / <code>formSchema</code> 兜底</li>
+        <li>主路径：<code>pageHtml</code> → iframe srcdoc；可选外链 <code>pageUrl</code></li>
         <li>上层也可 <code>registerBusinessPageComponent</code> 注入 Vue 组件（优先级最高）</li>
         <li>白名单：企业 API Key 业务页配置 ∩ Agent.config.allowedBusinessPages</li>
         <li>用户提交后回灌对话；Workflow HITL 类型为 <code>business_page</code></li>

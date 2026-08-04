@@ -6,7 +6,15 @@
       :key="'presentation-' + item.index"
       class="presentation-page-block"
     >
+      <div v-if="!item.event.result && loadingFullResult.has(item.index)" class="presentation-loading">
+        <LoadingOutlined class="icon-spinning" />
+        <span>正在加载业务办理页…</span>
+      </div>
+      <div v-else-if="!item.event.result" class="presentation-loading">
+        <span>业务办理页结果暂不可用</span>
+      </div>
       <ToolCallRenderer
+        v-else
         :event="item.event"
         :args="getPairedCallArgs(item.index)"
         :message-index="messageIndex"
@@ -153,20 +161,34 @@ watch(
   () => props.toolEvents,
   () => {
     syncExpandedResults()
+    // 历史列表会剥离长 result（含 pageHtml），呈现类工具需自动回填才能显示表单
+    hydratePresentationResults()
   },
   { immediate: true, deep: true }
 )
 
-/** 业务办理页结果：从工具折叠组中抽出，始终可见 */
+/** 业务办理页结果：从工具折叠组中抽出，始终可见（含待回填的历史瘦身结果） */
 const presentationResults = computed(() => {
   const list = []
   ;(props.toolEvents || []).forEach((event, index) => {
-    if (event?.type === 'tool_result' && isPresentationTool(event.toolName) && event.result) {
+    if (event?.type !== 'tool_result' || !isPresentationTool(event.toolName)) return
+    // 有完整 result，或具备按需拉取条件（toolCallId / resultTotalLength）
+    if (event.result || event.toolCallId || event.resultTotalLength) {
       list.push({ event, index })
     }
   })
   return list
 })
+
+/** 自动拉取被历史接口剥离的呈现类工具完整结果 */
+function hydratePresentationResults() {
+  ;(props.toolEvents || []).forEach((event, index) => {
+    if (event?.type !== 'tool_result' || !isPresentationTool(event.toolName)) return
+    if (event.result || !event.toolCallId) return
+    if (loadingFullResult.value.has(index)) return
+    fetchFullResult(index)
+  })
+}
 
 const hasRegularToolEvents = computed(() =>
   (props.toolEvents || []).some((e) => e?.toolName && !isPresentationTool(e.toolName))
@@ -305,11 +327,59 @@ function needFetchFullResult(index) {
   return !evt?.result
 }
 
+/** 归一化工具结果详情：兼容字符串 / 已解析对象（Jackson NON_NULL 下 data 可能缺失） */
+function normalizeToolResultPayload(data) {
+  if (typeof data === 'string' && data) return data
+  if (data && typeof data === 'object') {
+    try {
+      return JSON.stringify(data)
+    } catch {
+      return null
+    }
+  }
+  return null
+}
+
+/** 呈现类工具：用配对 tool_call.args 拼可回填的瘦身 stub，避免误报「执行失败」 */
+function buildPresentationStubFromArgs(args) {
+  try {
+    const parsed = typeof args === 'string' ? JSON.parse(args || '{}') : (args || {})
+    const pageType = String(parsed?.pageType || '').trim()
+    if (!pageType) return null
+    let props = parsed.props
+    let options = parsed.options
+    if (typeof props === 'string') {
+      try { props = JSON.parse(props || '{}') } catch { props = {} }
+    }
+    if (typeof options === 'string') {
+      try { options = JSON.parse(options || '{}') } catch { options = {} }
+    }
+    return JSON.stringify({
+      success: true,
+      pageType,
+      title: parsed.title || pageType,
+      mode: parsed.mode || 'inline',
+      props: props && typeof props === 'object' ? props : {},
+      options: options && typeof options === 'object' ? options : {},
+      needsPageContent: true,
+    })
+  } catch {
+    return null
+  }
+}
+
 async function fetchFullResult(index) {
   const evt = props.toolEvents[index]
   const toolCallId = evt?.toolCallId
   if (!toolCallId) {
-    // 历史数据未带 toolCallId（旧消息），无法按 id 拉取
+    // 历史数据未带 toolCallId：呈现类工具仍可按 args 回填
+    if (isPresentationTool(evt?.toolName) && !evt.result) {
+      const stub = buildPresentationStubFromArgs(getPairedCallArgs(index))
+      if (stub) {
+        evt.result = stub
+        emit('heightChange', { target: null, preserveViewport: true })
+      }
+    }
     return
   }
   const loadingSet = new Set(loadingFullResult.value)
@@ -317,16 +387,32 @@ async function fetchFullResult(index) {
   loadingFullResult.value = loadingSet
   try {
     const res = await getToolResultDetail(toolCallId)
-    if (typeof res?.data === 'string' && res.data) {
-      // 拉到完整 result 后赋值，触发 ToolCallRenderer 渲染
-      evt.result = res.data
+    const payload = normalizeToolResultPayload(res?.data)
+    if (payload) {
+      evt.result = payload
       emit('heightChange', { target: null, preserveViewport: true })
-    } else {
-      // 后端 toolOutput 为 null/空（旧记录或异常）：占位为错误 JSON，避免渲染空白
-      evt.result = JSON.stringify({ _error: true, message: '工具执行结果不可用' })
-      emit('heightChange', { target: null, preserveViewport: true })
+      return
     }
+    // 呈现类工具：勿伪造 _error（会显示「业务办理页 执行失败」）
+    if (isPresentationTool(evt.toolName)) {
+      const stub = buildPresentationStubFromArgs(getPairedCallArgs(index))
+      if (stub) {
+        evt.result = stub
+        emit('heightChange', { target: null, preserveViewport: true })
+      }
+      return
+    }
+    evt.result = JSON.stringify({ _error: true, message: '工具执行结果不可用' })
+    emit('heightChange', { target: null, preserveViewport: true })
   } catch (e) {
+    if (isPresentationTool(evt?.toolName)) {
+      const stub = buildPresentationStubFromArgs(getPairedCallArgs(index))
+      if (stub) {
+        evt.result = stub
+        emit('heightChange', { target: null, preserveViewport: true })
+        return
+      }
+    }
     message.error('加载结果失败')
   } finally {
     const finalSet = new Set(loadingFullResult.value)
@@ -352,6 +438,18 @@ function formatLength(n) {
 
 .presentation-page-block {
   margin-top: 10px;
+}
+
+.presentation-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-hairline, #e5e7eb);
+  border-radius: 12px;
+  background: var(--color-canvas-soft, #fafafa);
+  color: var(--color-mute, #737373);
+  font-size: 13px;
 }
 
 .presentation-page-block + .tool-calls-group,

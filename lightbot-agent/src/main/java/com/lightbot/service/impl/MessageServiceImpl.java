@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.lightbot.common.BizException;
 import com.lightbot.entity.Message;
 import com.lightbot.entity.ToolCall;
@@ -95,7 +96,9 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
      * 历史列表 toolEvents 瘦身：剥离过长的 result 正文，仅保留长度提示。
      * <p>短结果（≤ {@link #TOOL_RESULT_INLINE_LIMIT}）原样保留，前端直接渲染无需二次拉取，
      * 规避按需拉取接口在 toolOutput 缺失时静默失败（data 字段被 NON_NULL 过滤）的问题；
-     * 长结果仍走 getToolResultDetail 按需拉取</p>
+     * 长结果仍走 getToolResultDetail 按需拉取。
+     * <p>{@code present_business_page} 特殊处理：去掉巨大的 pageHtml，保留 pageType 等元数据内联，
+     * 前端按 pageType 从业务页注册表回填 HTML，避免刷新后误显示「执行失败」。</p>
      */
     private String compactToolEventsForList(String toolEventsJson) {
         if (toolEventsJson == null || toolEventsJson.isBlank()) {
@@ -115,13 +118,26 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
                 }
                 JsonNode resultNode = evt.get("result");
                 String result = resultNode != null ? resultNode.asText("") : "";
+                String toolName = evt.path("toolName").asText("");
+                // 业务办理页：剥离 pageHtml，元数据内联保留，前端再按 pageType 取内容
+                if ("present_business_page".equals(toolName) && result.length() > TOOL_RESULT_INLINE_LIMIT) {
+                    String slim = slimPresentBusinessPageResult(result);
+                    if (slim != null) {
+                        ObjectNode mutable = evt.deepCopy();
+                        mutable.put("result", slim);
+                        mutable.remove("resultTotalLength");
+                        output.add(mutable);
+                        changed = true;
+                        continue;
+                    }
+                }
                 // 1. 短结果原样保留（含空结果 JSON 如 {"total":0,"results":[]}），前端直接渲染
                 if (result.length() <= TOOL_RESULT_INLINE_LIMIT) {
                     output.add(evt);
                     continue;
                 }
                 // 2. 长结果：删除 result 正文，仅保留长度提示，前端按需拉取完整 JSON
-                com.fasterxml.jackson.databind.node.ObjectNode mutable = evt.deepCopy();
+                ObjectNode mutable = evt.deepCopy();
                 mutable.remove("result");
                 mutable.put("resultTotalLength", result.length());
                 output.add(mutable);
@@ -137,6 +153,30 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         }
     }
 
+    /**
+     * 业务办理页历史结果瘦身：去掉 pageHtml，标记 needsPageContent 供前端回填。
+     *
+     * @param result 完整工具结果 JSON
+     * @return 瘦身后的 JSON；无法解析时返回 null
+     */
+    private String slimPresentBusinessPageResult(String result) {
+        try {
+            JsonNode node = objectMapper.readTree(result);
+            if (!node.isObject()) {
+                return null;
+            }
+            ObjectNode obj = (ObjectNode) node.deepCopy();
+            if (obj.hasNonNull("pageHtml")) {
+                obj.remove("pageHtml");
+                obj.put("needsPageContent", true);
+            }
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("[Message] 业务办理页结果瘦身失败：{}", e.getMessage());
+            return null;
+        }
+    }
+
     @Override
     public String getToolResultDetail(Long toolCallId) {
         // 直接按主键查 tool_calls 表：toolCallId 在工具调用时预生成，同时写入 tool_events 事件和 tool_calls 主键
@@ -149,7 +189,56 @@ public class MessageServiceImpl extends ServiceImpl<MessageMapper, Message>
         }
         // 越权校验：toolCallId → messageId → session 可读（含 API/自动化排障）
         requireMessageReadableByCurrentUser(call.getMessageId());
-        return call.getToolOutput();
+        String output = call.getToolOutput();
+        if (output != null && !output.isBlank()) {
+            return output;
+        }
+        // tool_calls.tool_output 缺失时，从 message.tool_events 按 toolCallId 回捞完整结果
+        return recoverToolResultFromMessage(call.getMessageId(), toolCallId);
+    }
+
+    /**
+     * 从消息 tool_events 中按 toolCallId 找回完整 tool_result.result。
+     *
+     * @param messageId  消息 ID
+     * @param toolCallId 工具调用 ID
+     * @return 完整结果；找不到时返回 null
+     */
+    private String recoverToolResultFromMessage(Long messageId, Long toolCallId) {
+        if (messageId == null || toolCallId == null) {
+            return null;
+        }
+        Message message = getById(messageId);
+        if (message == null || message.getToolEvents() == null || message.getToolEvents().isBlank()) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(message.getToolEvents());
+            if (!root.isArray()) {
+                return null;
+            }
+            String idStr = String.valueOf(toolCallId);
+            for (JsonNode evt : root) {
+                if (!"tool_result".equals(evt.path("type").asText())) {
+                    continue;
+                }
+                String evtId = evt.path("toolCallId").asText("");
+                if (evtId.isEmpty() && evt.path("toolCallId").canConvertToLong()) {
+                    evtId = String.valueOf(evt.path("toolCallId").asLong());
+                }
+                if (!idStr.equals(evtId)) {
+                    continue;
+                }
+                JsonNode resultNode = evt.get("result");
+                if (resultNode == null || resultNode.isNull()) {
+                    return null;
+                }
+                return resultNode.isTextual() ? resultNode.asText() : resultNode.toString();
+            }
+        } catch (Exception e) {
+            log.warn("[Message] 从 tool_events 回捞工具结果失败: toolCallId={}, {}", toolCallId, e.getMessage());
+        }
+        return null;
     }
 
     @Override

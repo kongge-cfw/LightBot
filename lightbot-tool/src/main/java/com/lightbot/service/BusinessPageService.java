@@ -2,6 +2,7 @@ package com.lightbot.service;
 
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.businesspage.BusinessPageDefinition;
+import com.lightbot.dto.BusinessPageHtmlGenerateDTO;
 import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
 import com.lightbot.dto.BusinessPageUpsertDTO;
 import com.lightbot.entity.BusinessPage;
@@ -57,4 +58,12 @@ public interface BusinessPageService extends IService<BusinessPage> {
     BusinessPageKeyConfigVO getKeyConfig(Long apiKeyId);
 
     BusinessPageKeyConfigVO updateKeyConfig(Long apiKeyId, BusinessPageKeyConfigUpdateDTO dto);
+
+    /**
+     * AI 辅助生成内嵌业务页 HTML（完整文档）。
+     *
+     * @param dto 生成需求
+     * @return 完整 HTML 字符串
+     */
+    String generateHtml(BusinessPageHtmlGenerateDTO dto);
 }

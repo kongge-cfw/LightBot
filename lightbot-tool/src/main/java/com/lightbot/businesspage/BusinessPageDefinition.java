@@ -8,8 +8,7 @@ import java.util.Set;
 
 /**
  * 业务办理页模板定义（开发者注册）。
- * <p>主路径为 {@code pageHtml}（直接登记 H5，iframe srcdoc）；其次 {@code pageUrl} 外链；
- * 再其次 {@code formSchema} 通用表单兜底。</p>
+ * <p>主路径为 {@code pageHtml}（直接登记 H5，iframe srcdoc）；其次 {@code pageUrl} 外链。</p>
  *
  * @param pageType           稳定页面类型码
  * @param displayName        展示名称
@@ -19,10 +18,10 @@ import java.util.Set;
  * @param pageUrl            可选外链 H5
  * @param allowedModes       允许的展示模式
  * @param allowedActions     允许的操作
- * @param allowedPropKeys    props 白名单
+ * @param allowedPropKeys    props 白名单（空则放行全部）
  * @param allowedOptionKeys  options 白名单
  * @param defaultProps       默认 props
- * @param formSchema         可选通用表单 schema
+ * @param formSchema         已废弃，恒为 null
  * @param builtin            兼容字段
  * @author finch
  * @since 2026-08-04

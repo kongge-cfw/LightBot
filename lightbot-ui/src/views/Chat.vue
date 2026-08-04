@@ -582,6 +582,7 @@ const {
 
 streamHolder.runChatStream = runChatStream
 provide('submitBusinessPageResult', submitBusinessPageResult)
+provide('chatMessages', messages)
 
 const {
   hasMoreMessages, loadingOlder, switchingSession,

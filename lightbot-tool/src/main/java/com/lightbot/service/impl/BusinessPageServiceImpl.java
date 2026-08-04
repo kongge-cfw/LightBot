@@ -6,17 +6,26 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.businesspage.BusinessPageDefinition;
 import com.lightbot.common.BizException;
+import com.lightbot.dto.BusinessPageHtmlGenerateDTO;
 import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
 import com.lightbot.dto.BusinessPageUpsertDTO;
 import com.lightbot.entity.ApiKey;
 import com.lightbot.entity.BusinessPage;
 import com.lightbot.enums.ErrorCode;
 import com.lightbot.mapper.BusinessPageMapper;
+import com.lightbot.model.ModelFactory;
+import com.lightbot.model.ProviderResolver;
 import com.lightbot.service.ApiKeyService;
 import com.lightbot.service.BusinessPageService;
+import com.lightbot.util.LlmTraceContext;
 import com.lightbot.vo.BusinessPageKeyConfigVO;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.model.ChatResponse;
+import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,8 +51,28 @@ import java.util.stream.Collectors;
 public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, BusinessPage>
         implements BusinessPageService {
 
+    /**
+     * 业务页 HTML 生成系统约束（与宿主静默桥接约定保持一致）。
+     */
+    private static final String GENERATE_HTML_SYSTEM = """
+            你是前端工程师，专门为 LightBot 业务办理页生成「完整 HTML 文档」（含 <!DOCTYPE html>、CSS、JS）。
+            硬性要求：
+            1. 只输出 HTML 源码本身，不要 markdown 代码围栏，不要解释文字。
+            2. 表单校验与业务请求写在页面内；使用 fetch 调用接口（method 用 POST）。
+            3. 未提供真实接口时，fetch 地址使用 /__lightbot_bp_demo__（宿主会模拟成功响应）。
+            4. 成功后不要写 parent.postMessage / LightBot.submit；宿主会静默拦截成功请求。
+            5. 必须有「取消」按钮，文案为「取消」或 id/class 含 cancel。
+            6. 可监听 message：source=lightbot-business-page 且 type=init，用 payload.props 预填。
+            7. 样式简洁现代，适配对话内窄宽度（约 420px），移动端友好。
+            8. 不要引入外部 CDN（除非需求明确要求）。
+            9. 每个输入必须有可见中文 <label>，并与控件关联（包裹控件，或 label[for]=input.id，或紧邻在输入上方）；
+               input 同时设置 id 与 name（同字段码）。宿主办结摘要会采集 label 文案，不会翻译 name。
+            """;
+
     private final ApiKeyService apiKeyService;
     private final ObjectMapper objectMapper;
+    private final ModelFactory modelFactory;
+    private final ProviderResolver providerResolver;
 
     @Override
     public Optional<BusinessPageDefinition> resolveEnabled(String pageType) {
@@ -74,22 +103,28 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
     @Override
     @Transactional(rollbackFor = Exception.class)
     public BusinessPage upsert(BusinessPageUpsertDTO dto) {
-        // 1. 校验：pageHtml（推荐）/ pageUrl / formSchema 至少一种
+        // 1. 校验：内嵌 HTML / 外链网页二选一
         String pageType = dto.getPageType().trim();
         String pageHtml = dto.getPageHtml() == null ? null : dto.getPageHtml().trim();
+        if (pageHtml != null && pageHtml.isBlank()) {
+            pageHtml = null;
+        }
         String pageUrl = dto.getPageUrl() == null ? null : dto.getPageUrl().trim();
-        boolean hasForm = dto.getFormSchema() != null && !dto.getFormSchema().isEmpty();
-        if ((pageHtml == null || pageHtml.isBlank())
-                && (pageUrl == null || pageUrl.isBlank())
-                && !hasForm) {
-            throw new BizException("请填写 H5 页面 HTML（推荐），或外链 pageUrl，或 formSchema 兜底");
+        if (pageUrl != null && pageUrl.isBlank()) {
+            pageUrl = null;
+        }
+        if (pageHtml != null && pageUrl != null) {
+            // 同时传入时以 HTML 为准（前端按模式只会传一种）
+            pageUrl = null;
+        }
+        if (pageHtml == null && pageUrl == null) {
+            throw new BizException("请选择内嵌 HTML 或外链网页，并填写对应内容");
         }
         if (pageHtml != null && pageHtml.length() > 512 * 1024) {
-            throw new BizException("H5 HTML 过大，请控制在 512KB 以内");
+            throw new BizException("内嵌 HTML 过大，请控制在 512KB 以内");
         }
-        if (pageUrl != null && !pageUrl.isBlank()
-                && !pageUrl.startsWith("http://") && !pageUrl.startsWith("https://")) {
-            throw new BizException("pageUrl 须为 http(s) 地址");
+        if (pageUrl != null && !pageUrl.startsWith("http://") && !pageUrl.startsWith("https://")) {
+            throw new BizException("外链须为 http(s) 地址");
         }
         BusinessPage existing = getOne(new LambdaQueryWrapper<BusinessPage>().eq(BusinessPage::getPageType, pageType), false);
         // 2. 写入（开发者注册，一律非平台内置）
@@ -99,15 +134,16 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
         entity.setDescription(dto.getDescription());
         entity.setDefaultTitle(dto.getDefaultTitle() != null && !dto.getDefaultTitle().isBlank()
                 ? dto.getDefaultTitle().trim() : dto.getDisplayName().trim());
-        entity.setPageHtml(pageHtml == null || pageHtml.isBlank() ? null : pageHtml);
-        entity.setPageUrl(pageUrl == null || pageUrl.isBlank() ? null : pageUrl);
+        entity.setPageHtml(pageHtml);
+        entity.setPageUrl(pageUrl);
         // 默认仅允许对话内嵌；开发者可显式传入 drawer
         entity.setAllowedModes(writeJson(dto.getAllowedModes() != null ? dto.getAllowedModes() : List.of("inline")));
         entity.setAllowedActions(writeJson(dto.getAllowedActions() != null ? dto.getAllowedActions() : List.of("submit", "cancel")));
         entity.setAllowedPropKeys(writeJson(dto.getAllowedPropKeys() != null ? dto.getAllowedPropKeys() : List.of()));
         entity.setAllowedOptionKeys(writeJson(dto.getAllowedOptionKeys() != null ? dto.getAllowedOptionKeys() : List.of()));
         entity.setDefaultProps(writeJson(dto.getDefaultProps() != null ? dto.getDefaultProps() : Map.of()));
-        entity.setFormSchema(dto.getFormSchema() == null ? null : writeJson(dto.getFormSchema()));
+        // formSchema 已废弃，保存时清空
+        entity.setFormSchema(null);
         entity.setEnabled(dto.getEnabled() == null || Boolean.TRUE.equals(dto.getEnabled()) ? 1 : 0);
         entity.setBuiltin(0);
         if (existing == null) {
@@ -216,6 +252,60 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
         return getKeyConfig(apiKeyId);
     }
 
+    @Override
+    public String generateHtml(BusinessPageHtmlGenerateDTO dto) {
+        // 1. 组装用户提示
+        StringBuilder user = new StringBuilder();
+        user.append("请生成业务办理页 HTML。\n");
+        if (dto.getPageType() != null && !dto.getPageType().isBlank()) {
+            user.append("pageType：").append(dto.getPageType().trim()).append('\n');
+        }
+        if (dto.getDisplayName() != null && !dto.getDisplayName().isBlank()) {
+            user.append("展示名称：").append(dto.getDisplayName().trim()).append('\n');
+        }
+        if (dto.getDescription() != null && !dto.getDescription().isBlank()) {
+            user.append("描述：").append(dto.getDescription().trim()).append('\n');
+        }
+        user.append("需求：").append(dto.getRequirement().trim()).append('\n');
+        boolean basedOnCurrent = Boolean.TRUE.equals(dto.getBasedOnCurrent())
+                && dto.getCurrentHtml() != null && !dto.getCurrentHtml().isBlank();
+        if (basedOnCurrent) {
+            user.append("\n请在以下现有 HTML 基础上修改（保留可用结构，按需求调整字段与逻辑）：\n");
+            user.append(dto.getCurrentHtml().trim());
+        }
+
+        // 2. 调用默认模型生成
+        Long providerId = providerResolver.resolve();
+        ChatModel chatModel = modelFactory.getChatModel(providerId);
+        String result;
+        try {
+            List<org.springframework.ai.chat.messages.Message> messages = List.of(
+                    new SystemMessage(GENERATE_HTML_SYSTEM),
+                    new UserMessage(user.toString())
+            );
+            ChatResponse response = LlmTraceContext.callWithoutTrace(() -> chatModel.call(new Prompt(messages)));
+            result = response.getResult().getOutput().getText();
+        } catch (BizException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("[BusinessPage] AI 生成 HTML 失败: {}", e.getMessage());
+            throw new BizException(ErrorCode.AI_GENERATE_FAILED);
+        }
+        if (result == null || result.isBlank()) {
+            throw new BizException(ErrorCode.AI_GENERATE_FAILED);
+        }
+
+        // 3. 去掉可能的 markdown 围栏
+        String html = result.trim()
+                .replaceAll("(?s)^```(?:html)?\\s*", "")
+                .replaceAll("(?s)\\s*```$", "")
+                .trim();
+        if (!html.toLowerCase().contains("<html")) {
+            log.warn("[BusinessPage] AI 返回内容不像完整 HTML");
+        }
+        return html;
+    }
+
     private Set<String> resolveKeyAllowed(Long apiKeyId, Set<String> enabled) {
         if (apiKeyId == null) {
             return enabled;
@@ -262,7 +352,7 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
                 asStringList(readJson(row.getAllowedPropKeys())),
                 asStringList(readJson(row.getAllowedOptionKeys())),
                 asObjectMap(readJson(row.getDefaultProps())),
-                asObjectMap(readJson(row.getFormSchema())),
+                null,
                 false
         );
     }

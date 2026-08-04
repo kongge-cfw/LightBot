@@ -41,7 +41,8 @@ public class BusinessPageUpsertDTO {
 
     private Map<String, Object> defaultProps;
 
-    /** 可选兜底：无 pageUrl 时用通用表单 */
+    /** @deprecated 已废弃，服务端忽略并清空 */
+    @Deprecated
     private Map<String, Object> formSchema;
 
     private Boolean enabled;

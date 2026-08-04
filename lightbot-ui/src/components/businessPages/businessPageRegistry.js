@@ -4,13 +4,11 @@
  * 顺序：
  * 1. registerBusinessPageComponent 宿主注入组件
  * 2. payload.pageHtml / pageUrl → H5BusinessPageFrame（srcdoc 或外链 iframe）
- * 3. payload.formSchema.fields → GenericFormBusinessCard（兜底）
- * 4. BusinessPageFallback
+ * 3. BusinessPageFallback
  */
 import { defineAsyncComponent, markRaw, shallowRef } from 'vue'
 
 const H5BusinessPageFrame = defineAsyncComponent(() => import('./H5BusinessPageFrame.vue'))
-const GenericFormBusinessCard = defineAsyncComponent(() => import('./GenericFormBusinessCard.vue'))
 const BusinessPageFallback = defineAsyncComponent(() => import('./BusinessPageFallback.vue'))
 
 /** @type {import('vue').ShallowRef<Map<string, any>>} */
@@ -45,8 +43,8 @@ export function resolveBusinessPageComponent(pageType, payload) {
   if (key && runtimeComponents.value.has(key)) {
     return runtimeComponents.value.get(key)
   }
-  if (payload?.pageHtml || payload?.pageUrl) return H5BusinessPageFrame
-  if (payload?.formSchema?.fields?.length) return GenericFormBusinessCard
+  // needsPageContent：历史消息已瘦身掉 pageHtml，组件内会按 pageType 回填
+  if (payload?.pageHtml || payload?.pageUrl || payload?.needsPageContent) return H5BusinessPageFrame
   return BusinessPageFallback
 }
 

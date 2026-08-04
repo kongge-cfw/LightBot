@@ -1,4 +1,5 @@
 import { refreshChatAttachmentPreviews } from '../../api/chat'
+import { parseBusinessPageSubmitDataFromContent } from '../../components/businessPages/businessPageResultUtils'
 import { resolveWorkflowConfirmPending, resolveWorkflowFailureFromEvents, stripWorkflowErrorContent } from '../../components/workflow/workflowStepUtils.js'
 import { safeJsonParse } from '../../utils/request'
 import { contentHasMentionTokens, parseMentionsFromMetadata, resolveMentionsForDisplay } from '../../utils/mention_utils'
@@ -205,6 +206,10 @@ export function parseMessage(m) {
     if (typeMatch?.[1]) {
       msg._businessPageCallbackPageType = typeMatch[1]
     }
+    // 从回灌正文恢复办理字段与页面标签（标签来自提交时 DOM 采集，非平台硬编码）
+    const parsed = parseBusinessPageSubmitDataFromContent(content)
+    msg._businessPageCallbackValues = parsed.values
+    msg._businessPageCallbackFieldLabels = parsed.fieldLabels
   }
 
   normalizeAssistantMessageErrors(msg)

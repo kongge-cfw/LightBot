@@ -173,17 +173,8 @@ public class ChatServiceImpl implements ChatService {
             tokenBudgetService.recordUsage(ctx.getUserId(), ctx.getInputTokenHolder()[0], ctx.getOutputTokenHolder()[0]);
         }
 
-        // 3.1 批量写入工具调用记录
-        if (!ctx.getPendingToolCalls().isEmpty()) {
-            java.time.LocalDateTime now = java.time.LocalDateTime.now();
-            for (ToolCall tc : ctx.getPendingToolCalls()) {
-                tc.setMessageId(messageId);
-                if (tc.getCreatedAt() == null) {
-                    tc.setCreatedAt(now);
-                }
-            }
-            toolCallService.saveBatch(ctx.getPendingToolCalls());
-        }
+        // 3.1 写入工具调用记录（逐条 insert，避免 Reactor 线程 saveBatch SPI 失败）
+        persistPendingToolCalls(ctx, messageId);
 
         // 4. 异步生成标题
         taskExecutor.execute(() -> traceMiddleware.generateTitle(ctx.getSessionId(), ctx.getAgent(), ctx.getConfigMap()));
@@ -478,17 +469,8 @@ public class ChatServiceImpl implements ChatService {
                     (int) totalTokens, MessageType.TEXT, null, null);
             ctx.setAssistantMessageId(assistantMessageId);
 
-            // 1.1 批量写入工具调用记录
-            if (!ctx.getPendingToolCalls().isEmpty()) {
-                java.time.LocalDateTime now = java.time.LocalDateTime.now();
-                for (ToolCall tc : ctx.getPendingToolCalls()) {
-                    tc.setMessageId(assistantMessageId);
-                    if (tc.getCreatedAt() == null) {
-                        tc.setCreatedAt(now);
-                    }
-                }
-                toolCallService.saveBatch(ctx.getPendingToolCalls());
-            }
+            // 1.1 写入工具调用记录（与消息落库解耦：失败只打日志，不破坏 DONE）
+            persistPendingToolCalls(ctx, assistantMessageId);
             ctx.getFullReply().setLength(0);
             ctx.getFullReply().append(replyToSave);
 
@@ -511,6 +493,29 @@ public class ChatServiceImpl implements ChatService {
         } catch (Exception e) {
             log.error("[Chat] 构建[DONE]事件异常: {}", e.getMessage(), e);
             return DONE_PREFIX;
+        }
+    }
+
+    /**
+     * 落库本轮暂存的 tool_calls。失败不影响助手消息与 DONE（历史曾因 saveBatch SPI 整段失败）。
+     *
+     * @param ctx       对话上下文
+     * @param messageId 助手消息 ID
+     */
+    private void persistPendingToolCalls(ChatContext ctx, Long messageId) {
+        if (ctx == null || messageId == null || ctx.getPendingToolCalls() == null
+                || ctx.getPendingToolCalls().isEmpty()) {
+            return;
+        }
+        try {
+            for (ToolCall tc : ctx.getPendingToolCalls()) {
+                tc.setMessageId(messageId);
+            }
+            toolCallService.persistPendingCalls(ctx.getPendingToolCalls());
+            ctx.getPendingToolCalls().clear();
+        } catch (Exception e) {
+            log.error("[Chat] 写入 tool_calls 失败: messageId={}, count={}, err={}",
+                    messageId, ctx.getPendingToolCalls().size(), e.getMessage(), e);
         }
     }
 

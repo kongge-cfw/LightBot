@@ -1,6 +1,7 @@
 package com.lightbot.controller;
 
 import com.lightbot.common.Result;
+import com.lightbot.dto.BusinessPageHtmlGenerateDTO;
 import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
 import com.lightbot.dto.BusinessPageUpsertDTO;
 import com.lightbot.entity.BusinessPage;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -59,11 +61,38 @@ public class BusinessPageController {
                 .toList());
     }
 
+    @GetMapping("/runtime/{pageType}")
+    @Operation(summary = "对话渲染用：按 pageType 取启用中的页面内容（含 pageHtml/pageUrl）")
+    public Result<Map<String, Object>> runtime(@PathVariable String pageType) {
+        return businessPageService.resolveEnabled(pageType)
+                .map(d -> {
+                    Map<String, Object> body = new LinkedHashMap<>();
+                    body.put("pageType", d.pageType());
+                    body.put("displayName", d.displayName());
+                    body.put("defaultTitle", d.defaultTitle() != null ? d.defaultTitle() : "");
+                    if (d.pageHtml() != null && !d.pageHtml().isBlank()) {
+                        body.put("pageHtml", d.pageHtml());
+                    }
+                    if (d.pageUrl() != null && !d.pageUrl().isBlank()) {
+                        body.put("pageUrl", d.pageUrl());
+                    }
+                    return Result.ok(body);
+                })
+                .orElseGet(() -> Result.fail(404, "业务页不存在或已禁用"));
+    }
+
     @PostMapping
     @Operation(summary = "创建/更新业务办理页")
     public Result<BusinessPage> upsert(@Valid @RequestBody BusinessPageUpsertDTO dto) {
         userService.checkAdmin();
         return Result.ok(businessPageService.upsert(dto));
+    }
+
+    @PostMapping("/generate-html")
+    @Operation(summary = "AI 辅助生成业务页 HTML")
+    public Result<Map<String, String>> generateHtml(@Valid @RequestBody BusinessPageHtmlGenerateDTO dto) {
+        userService.checkAdmin();
+        return Result.ok(Map.of("html", businessPageService.generateHtml(dto)));
     }
 
     @PutMapping("/{id}/enabled")
