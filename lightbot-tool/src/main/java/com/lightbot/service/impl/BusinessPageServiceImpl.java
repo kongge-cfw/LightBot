@@ -267,6 +267,7 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
                 .map(BusinessPageDefinition::pageType)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
         Set<String> fromKey = resolveKeyAllowed(apiKeyId, enabled);
+        // null：仅 API Key 管理端预览，不做 Agent 侧过滤
         if (agentAllowed == null) {
             return fromKey;
         }
@@ -274,7 +275,7 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
                 .filter(s -> s != null && !s.isBlank())
                 .map(String::trim)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        // 空数组：Agent 禁止全部
+        // 空列表：Agent 未绑定业务页组件
         if (agentSet.isEmpty()) {
             return Set.of();
         }

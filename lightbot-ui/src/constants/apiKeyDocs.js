@@ -84,7 +84,7 @@ export const API_DOC_GROUPS = [
       <ul>
         <li>主路径：<code>pageHtml</code> → iframe srcdoc；可选外链 <code>pageUrl</code></li>
         <li>上层也可 <code>registerBusinessPageComponent</code> 注入 Vue 组件（优先级最高）</li>
-        <li>白名单：企业 API Key 业务页配置 ∩ Agent.config.allowedBusinessPages</li>
+        <li>白名单：对话型 Agent「业务页组件」绑定 ∩ 企业 API Key 业务页配置；未绑定则不注入该工具</li>
         <li>用户提交后回灌对话；Workflow HITL 类型为 <code>business_page</code></li>
       </ul>
       <h3>通用返回</h3>

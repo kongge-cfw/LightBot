@@ -17,9 +17,6 @@
             <span class="status-dot" :class="p.enabled === 1 ? 'status-active' : 'status-disabled'" />
           </template>
           <template #actions>
-            <a-tooltip title="删除">
-              <button class="btn-icon danger" @click="handleDelete(p)"><DeleteOutlined /></button>
-            </a-tooltip>
             <a-dropdown :trigger="['click']">
               <button class="btn-icon" @click.prevent><MoreOutlined /></button>
               <template #overlay>
@@ -31,6 +28,11 @@
                   </a-menu-item>
                   <a-menu-item @click="openDialog(p)">
                     <EditOutlined style="margin-right: 6px" /> 编辑
+                  </a-menu-item>
+                  <a-menu-item @click="handleDelete(p)">
+                    <span style="color: #dc2626">
+                      <DeleteOutlined style="margin-right: 6px" /> 删除
+                    </span>
                   </a-menu-item>
                 </a-menu>
               </template>

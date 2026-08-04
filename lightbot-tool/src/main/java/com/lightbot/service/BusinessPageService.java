@@ -47,10 +47,11 @@ public interface BusinessPageService extends IService<BusinessPage> {
     String catalogForToolDescription();
 
     /**
-     * 解析最终允许的 pageType（API Key ∩ Agent 配置）。
+     * 解析最终允许的 pageType（API Key ∩ Agent 绑定）。
      *
-     * @param apiKeyId API Key，可空（控制台）
-     * @param agentAllowed Agent.config.allowedBusinessPages，null=不限制
+     * @param apiKeyId     API Key，可空（控制台）
+     * @param agentAllowed Agent 绑定的 pageType；null=不做 Agent 过滤（仅 API Key 管理预览）；
+     *                     空列表=未绑定、无可用页；非空=与 Key 白名单取交集
      */
     Set<String> resolveAllowedPageTypes(Long apiKeyId, List<String> agentAllowed);
 

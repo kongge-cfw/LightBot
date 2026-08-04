@@ -20,6 +20,7 @@ import com.lightbot.service.SessionTodoService;
 import com.lightbot.service.SkillService;
 import com.lightbot.businesspage.PresentBusinessPageToolEnricher;
 import com.lightbot.service.BusinessPageService;
+import com.lightbot.tool.builtin.PresentBusinessPageTool;
 import com.lightbot.service.LongMemoryPolicyService;
 import com.lightbot.service.ToolService;
 import com.lightbot.subagent.DelegateSubAgentTool;
@@ -163,9 +164,9 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             // 0. 会话协作工具由父 Agent 自动获得：维护待办并显式交付 outputs/ 文件。
             // SubAgent 运行时不经过该中间件，不能获得这些父会话能力。
-            // present_business_page：对话内呈现固化业务办理页（与文件交付同属父会话能力）
+            // present_business_page 仅在 Agent 显式绑定业务页后注入（见下方白名单解析）。
             allCallbacks.addAll(toolService.resolveToolCallbacks(
-                    List.of("write_todos", "present_artifacts", "present_business_page")));
+                    List.of("write_todos", "present_artifacts")));
 
             // 1. 加载内置/自定义工具（合并：Agent 自身绑定 + Skill 引入的额外工具）
             // 优先使用版本快照中的绑定 ID，避免暂存/发布混淆
@@ -307,13 +308,18 @@ public class ToolPrepMiddleware implements ChatMiddleware {
             // 若绑定只含 write 而缺 append/read，模型调用 append 会撞「工具不存在」。此处强制补齐。
             ensureSandboxWriteCompanions(allCallbacks);
 
-            // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）
-            List<ToolCallback> dedupedCallbacks = dedupCallbacks(allCallbacks);
-            // 业务办理页白名单：API Key ∩ Agent.config.allowedBusinessPages
+            // 业务页组件：须在 Agent 侧显式绑定；未绑定则不注入工具。最终可用 = Agent 绑定 ∩ API Key 白名单
             Long apiKeyId = ctx != null && ctx.getRequest() != null ? ctx.getRequest().getApiKeyId() : null;
             List<String> agentAllowedPages = parseAllowedBusinessPages(configMap);
             Set<String> allowedBusinessPages =
                     businessPageService.resolveAllowedPageTypes(apiKeyId, agentAllowedPages);
+            if (!allowedBusinessPages.isEmpty()) {
+                allCallbacks.addAll(toolService.resolveToolCallbacks(
+                        List.of(PresentBusinessPageTool.TOOL_NAME)));
+            }
+
+            // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）
+            List<ToolCallback> dedupedCallbacks = dedupCallbacks(allCallbacks);
             // 将可用 pageType 写入工具描述 + schema enum，避免模型自造别名
             dedupedCallbacks = presentBusinessPageToolEnricher.enrich(dedupedCallbacks, allowedBusinessPages);
             if (ctx != null) {
@@ -614,16 +620,16 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     }
 
     /**
-     * 解析 Agent.config.allowedBusinessPages；null 表示不限制，空列表表示禁止全部。
+     * 解析 Agent.config.allowedBusinessPages。
+     * 缺省/null → 空列表（未绑定，不允许任何业务页）；非空列表为显式绑定。
      */
-    @SuppressWarnings("unchecked")
     private List<String> parseAllowedBusinessPages(Map<String, Object> configMap) {
         if (configMap == null || !configMap.containsKey(ConfigKeys.Agent.ALLOWED_BUSINESS_PAGES)) {
-            return null;
+            return List.of();
         }
         Object raw = configMap.get(ConfigKeys.Agent.ALLOWED_BUSINESS_PAGES);
         if (raw == null) {
-            return null;
+            return List.of();
         }
         if (raw instanceof List<?> list) {
             List<String> out = new ArrayList<>();

@@ -38,8 +38,8 @@ public final class ConfigKeys {
         /** 最大执行步数（工具调用递归深度上限） */
         public static final String MAX_EXECUTION_STEPS = "maxExecutionSteps";
         /**
-         * 允许呈现的业务办理页 pageType 列表（字符串数组）。
-         * null/缺省=不限制（仍受 API Key 白名单约束）；空数组=禁止全部。
+         * 对话型 Agent 绑定的业务页组件 pageType 列表（字符串数组）。
+         * 缺省/null/空数组=未绑定，不允许呈现任何业务页；非空时与 API Key 白名单取交集。
          */
         public static final String ALLOWED_BUSINESS_PAGES = "allowedBusinessPages";
         /** 模型调用失败重试次数 */
