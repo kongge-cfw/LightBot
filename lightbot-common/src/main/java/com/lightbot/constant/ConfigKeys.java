@@ -37,6 +37,11 @@ public final class ConfigKeys {
         public static final String SUMMARY_TOOL_RESULT_TOKEN_LIMIT = "summaryToolResultTokenLimit";
         /** 最大执行步数（工具调用递归深度上限） */
         public static final String MAX_EXECUTION_STEPS = "maxExecutionSteps";
+        /**
+         * 允许呈现的业务办理页 pageType 列表（字符串数组）。
+         * null/缺省=不限制（仍受 API Key 白名单约束）；空数组=禁止全部。
+         */
+        public static final String ALLOWED_BUSINESS_PAGES = "allowedBusinessPages";
         /** 模型调用失败重试次数 */
         public static final String MODEL_RETRY_TIMES = "modelRetryTimes";
         /** 提示词自定义变量列表 [{key,label,defaultValue,description}] */

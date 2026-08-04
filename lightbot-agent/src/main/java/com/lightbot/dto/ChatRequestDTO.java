@@ -71,6 +71,11 @@ public class ChatRequestDTO {
     private List<ChatMentionDTO> mentions;
 
     /**
+     * 本轮是否启用深度思考。null=沿用 Agent 配置；false=强制关闭（如业务办理页提交回灌）。
+     */
+    private Boolean enableReasoning;
+
+    /**
      * API Key ID（由拦截器注入，不从前端传入）
      */
     private transient Long apiKeyId;

@@ -99,6 +99,85 @@ export function useChatStream(deps) {
     })
   }
 
+  /** 业务页回灌字段格式化：嵌套对象展开，避免 [object Object] */
+  function formatBusinessPageResultLines(result) {
+    const lines = []
+    const walk = (key, value, indent = '') => {
+      if (value == null || value === '') {
+        lines.push(`${indent}- ${key}：`)
+        return
+      }
+      if (Array.isArray(value)) {
+        if (value.every((x) => x == null || typeof x !== 'object')) {
+          lines.push(`${indent}- ${key}：${value.join('、')}`)
+          return
+        }
+        lines.push(`${indent}- ${key}：`)
+        value.forEach((item, i) => walk(`[${i}]`, item, `${indent}  `))
+        return
+      }
+      if (typeof value === 'object') {
+        lines.push(`${indent}- ${key}：`)
+        Object.entries(value).forEach(([k, v]) => walk(k, v, `${indent}  `))
+        return
+      }
+      lines.push(`${indent}- ${key}：${String(value)}`)
+    }
+    Object.entries(result || {})
+      .filter(([k]) => k !== 'pageType' && k !== 'action')
+      .forEach(([k, v]) => walk(k, v))
+    return lines.length ? lines : ['- （无字段）']
+  }
+
+  /**
+   * 业务办理页提交/取消回灌对话（结构化文本，供 Agent 继续）
+   * @param {{ messageIndex: number, result: object, status: 'submitted'|'cancelled' }} payload
+   */
+  async function submitBusinessPageResult(payload) {
+    if (payload?.messageIndex == null || payload.messageIndex < 0 || !payload?.result) {
+      message.warning('业务页状态已失效')
+      return
+    }
+    const status = payload.status === 'cancelled' ? 'cancelled' : 'submitted'
+    const result = payload.result
+    const pageType = result.pageType || 'unknown'
+    const lines = formatBusinessPageResultLines(result)
+    // 发给模型的上下文：要求自动简短确认，无需用户再问
+    const text = status === 'cancelled'
+      ? `系统通知：用户取消了业务办理页（${pageType}）。请用一两句话确认已取消，不要追问、不要要求用户再次输入。`
+      : `系统通知：用户已在业务办理页完成提交（${pageType}）。办理数据如下：\n${lines.join('\n')}\n请直接根据上述结果给用户一句简短确认提示（到账/受理情况即可），不要追问、不要要求用户再次输入。`
+    // 本地标记已处理，避免重复提交
+    const msg = messages.value[payload.messageIndex]
+    if (msg?._toolEvents?.length) {
+      for (let i = msg._toolEvents.length - 1; i >= 0; i--) {
+        const evt = msg._toolEvents[i]
+        if (evt.type === 'tool_result' && evt.toolName === 'present_business_page') {
+          evt.businessPageResult = { status, ...result }
+          break
+        }
+      }
+    }
+    // 回灌消息对用户隐藏为「系统通知」条，不表现为用户再次提问
+    messages.value.push({
+      role: 'user',
+      content: text,
+      _attachments: [],
+      _businessPageCallback: true,
+      _businessPageCallbackStatus: status,
+      _businessPageCallbackPageType: pageType,
+    })
+    isNearBottom.value = true
+    userScrolledUp.value = false
+    scrollToBottom()
+    await runChatStream({
+      message: text,
+      attachments: [],
+      regenerate: false,
+      // 业务办理提交回灌：即使 Agent 开启深度思考，本轮也不走思维链
+      enableReasoning: false,
+    })
+  }
+
   /** 流被用户终止后，仅在本次请求确实落库时同步消息 ID（禁止借用历史助手消息 ID） */
   async function syncAbortedAssistantMessageId(sid, assistantMsg, sendStartMs) {
     if (!sid || !assistantMsg || assistantMsg._persisted) return
@@ -212,7 +291,7 @@ export function useChatStream(deps) {
 
   const router = useRouter()
 
-  async function runChatStream({ message: msgText, attachments, mentions, regenerate, editMessageId: editMsgId, replyToMessageId: replyMsgId, deleteAssistantMessageId }) {
+  async function runChatStream({ message: msgText, attachments, mentions, regenerate, editMessageId: editMsgId, replyToMessageId: replyMsgId, deleteAssistantMessageId, enableReasoning }) {
     loading.value = true
     streaming.value = true
     hasStreamContent.value = false
@@ -302,6 +381,8 @@ export function useChatStream(deps) {
         deleteAssistantMessageId: deleteAssistantMessageId || undefined,
         editMessageId: editMsgId || undefined,
         replyToMessageId: replyMsgId || undefined,
+        // 仅业务页回灌等场景显式传 false；undefined 表示沿用 Agent 深度思考配置
+        enableReasoning: enableReasoning === false ? false : undefined,
         mentions: mentions?.length ? mentions.map(m => ({
           type: m.type,
           resourceId: String(m.resourceId),
@@ -727,6 +808,7 @@ export function useChatStream(deps) {
   return {
     clearErrorRetry,
     submitAskUserResponse,
+    submitBusinessPageResult,
     syncAbortedAssistantMessageId,
     finalizeAbortedStream,
     runChatStream,

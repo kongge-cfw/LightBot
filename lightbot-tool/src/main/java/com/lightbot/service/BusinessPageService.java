@@ -1,0 +1,60 @@
+package com.lightbot.service;
+
+import com.baomidou.mybatisplus.extension.service.IService;
+import com.lightbot.businesspage.BusinessPageDefinition;
+import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
+import com.lightbot.dto.BusinessPageUpsertDTO;
+import com.lightbot.entity.BusinessPage;
+import com.lightbot.vo.BusinessPageKeyConfigVO;
+
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+/**
+ * 业务办理页注册与白名单（开发者元数据，以 DB 为准）。
+ *
+ * @author finch
+ * @since 2026-08-04
+ */
+public interface BusinessPageService extends IService<BusinessPage> {
+
+    /**
+     * 解析启用中的页面定义（仅 DB）。
+     */
+    Optional<BusinessPageDefinition> resolveEnabled(String pageType);
+
+    /**
+     * 全部启用中的页面（仅 DB）。
+     */
+    Collection<BusinessPageDefinition> listEnabledDefinitions();
+
+    /**
+     * 管理端列表（含禁用）。
+     */
+    List<BusinessPage> listAllForAdmin();
+
+    BusinessPage upsert(BusinessPageUpsertDTO dto);
+
+    void setEnabled(Long id, boolean enabled);
+
+    /** 删除业务页（开发者注册，均可删） */
+    void deleteCustom(Long id);
+
+    String catalogForToolDescription();
+
+    /**
+     * 解析最终允许的 pageType（API Key ∩ Agent 配置）。
+     *
+     * @param apiKeyId API Key，可空（控制台）
+     * @param agentAllowed Agent.config.allowedBusinessPages，null=不限制
+     */
+    Set<String> resolveAllowedPageTypes(Long apiKeyId, List<String> agentAllowed);
+
+    boolean isPageTypeAllowed(String pageType, Long apiKeyId, List<String> agentAllowed);
+
+    BusinessPageKeyConfigVO getKeyConfig(Long apiKeyId);
+
+    BusinessPageKeyConfigVO updateKeyConfig(Long apiKeyId, BusinessPageKeyConfigUpdateDTO dto);
+}

@@ -232,7 +232,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick, provide } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LoadingOutlined } from '@ant-design/icons-vue'
 import ChatAttachmentPreview from '../components/ChatAttachmentPreview.vue'
@@ -563,7 +563,7 @@ const {
 })
 
 const {
-  submitAskUserResponse, runChatStream,
+  submitAskUserResponse, submitBusinessPageResult, runChatStream,
   sendMessage, regenerateReply, stopGenerating,
 } = useChatStream({
   sessionId, messages, messagesRef, loading, streaming, hasStreamContent,
@@ -581,6 +581,7 @@ const {
 })
 
 streamHolder.runChatStream = runChatStream
+provide('submitBusinessPageResult', submitBusinessPageResult)
 
 const {
   hasMoreMessages, loadingOlder, switchingSession,

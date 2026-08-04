@@ -927,6 +927,28 @@
               <QuestionCircleOutlined class="tool-option-help" />
             </a-tooltip>
           </div>
+          <div class="tool-option-item" style="align-items: flex-start;">
+            <span class="tool-option-label">业务办理页</span>
+            <div style="flex: 1; min-width: 220px;">
+              <a-select
+                v-model:value="agentConfig.allowedBusinessPages"
+                mode="multiple"
+                allow-clear
+                placeholder="不选=不限制（仍受 API Key 白名单约束）"
+                style="width: 100%"
+                :options="businessPageOptions"
+                :disabled="isVersionPreview"
+              />
+            </div>
+            <a-tooltip
+              title="限制本 Agent 可呈现的业务办理页 pageType。不选表示不额外限制；与企业 API Key 白名单取交集"
+              overlay-class-name="no-flip-tooltip"
+              :overlay-style="{ maxWidth: '320px' }"
+              placement="topLeft"
+            >
+              <QuestionCircleOutlined class="tool-option-help" />
+            </a-tooltip>
+          </div>
         </div>
         <div class="knowledge-bind">
           <div class="selected-knowledge">
@@ -1784,6 +1806,7 @@ import { getKnowledgeList } from '../api/knowledge'
 import { getMcpServers } from '../api/mcp'
 import { getSubAgents } from '../api/subagent'
 import { getSkills } from '../api/skill'
+import { listEnabledBusinessPages } from '../api/businessPage'
 import { safeJsonParse } from '../utils/request'
 import { truncateText } from '../utils/format'
 import { agentAvatarGradient } from '../utils/bindingTheme'
@@ -2001,6 +2024,7 @@ const agentConfig = reactive({
   summaryKeepMessages: 6,
   summaryToolResultTokenLimit: 500,
   maxExecutionSteps: 20,
+  allowedBusinessPages: undefined,
   modelRetryTimes: 2,
 })
 
@@ -2214,6 +2238,7 @@ const CHAT_CONFIG_PREVIEW_DEFAULTS = {
   summaryKeepMessages: 6,
   summaryToolResultTokenLimit: 500,
   maxExecutionSteps: 20,
+  allowedBusinessPages: undefined,
   modelRetryTimes: 2,
   userSensitiveFilterEnabled: false,
   sensitiveFilterEnabled: false,
@@ -2728,6 +2753,9 @@ async function loadAgent() {
         syncSensitiveWordsFromConfig(parsed || {})
         if (agentConfig.streamOutput === undefined) {
           agentConfig.streamOutput = true
+        }
+        if (!Array.isArray(agentConfig.allowedBusinessPages)) {
+          agentConfig.allowedBusinessPages = undefined
         }
       } catch (e) {
         // ignore
@@ -3497,6 +3525,7 @@ function normalizeVersionDetailData(data) {
       summaryKeepMessages: cfg.summaryKeepMessages,
       summaryToolResultTokenLimit: cfg.summaryToolResultTokenLimit,
       maxExecutionSteps: cfg.maxExecutionSteps,
+      allowedBusinessPages: Array.isArray(cfg.allowedBusinessPages) ? cfg.allowedBusinessPages : undefined,
       modelRetryTimes: cfg.modelRetryTimes,
       userSensitiveFilterEnabled: cfg.userSensitiveFilterEnabled,
       userSensitiveWords: cfg.userSensitiveWords,
@@ -3656,9 +3685,24 @@ function startChat() {
   router.push({ path: '/app/chat', query: { agentId: agentId } })
 }
 
+const businessPageOptions = ref([])
+
+async function loadBusinessPageOptions() {
+  try {
+    const res = await listEnabledBusinessPages()
+    businessPageOptions.value = (res.data || []).map((p) => ({
+      label: `${p.displayName} (${p.pageType})`,
+      value: p.pageType,
+    }))
+  } catch {
+    businessPageOptions.value = []
+  }
+}
+
 onMounted(async () => {
   pageLoading.value = true
   try {
+    await loadBusinessPageOptions()
     if (agentId) {
       await loadAgent()
     } else {

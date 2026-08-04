@@ -23,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,6 +85,7 @@ public class InitMiddleware implements ChatMiddleware {
 
         // 3. 解析 config（支持指定版本 / 草稿 / 默认线上），同时提取版本绑定 ID
         Map<String, Object> configMap = resolveRuntimeConfigMap(agent, ctx.getRequest(), ctx);
+        configMap = applyRequestConfigOverrides(configMap, ctx.getRequest());
         ctx.setConfigMap(configMap);
         ctx.setProviderId(providerResolver.resolveFromConfig(configMap));
 
@@ -113,8 +115,24 @@ public class InitMiddleware implements ChatMiddleware {
         ctx.setAgent(agent);
 
         Map<String, Object> configMap = resolveRuntimeConfigMap(agent, ctx.getRequest(), ctx);
+        configMap = applyRequestConfigOverrides(configMap, ctx.getRequest());
         ctx.setConfigMap(configMap);
         ctx.setProviderId(providerResolver.resolveFromConfig(configMap));
+    }
+
+    /**
+     * 应用请求级配置覆盖（如本轮强制关闭深度思考）
+     */
+    private Map<String, Object> applyRequestConfigOverrides(Map<String, Object> configMap,
+                                                            com.lightbot.dto.ChatRequestDTO request) {
+        if (request == null || request.getEnableReasoning() == null) {
+            return configMap != null ? configMap : Map.of();
+        }
+        Map<String, Object> mutable = configMap == null || configMap.isEmpty()
+                ? new HashMap<>()
+                : new HashMap<>(configMap);
+        mutable.put(ConfigKeys.Agent.ENABLE_REASONING, request.getEnableReasoning());
+        return mutable;
     }
 
     /** 优先企业 API Key 虚拟身份，其次登录态，再次 actorUserId（自动化调度） */

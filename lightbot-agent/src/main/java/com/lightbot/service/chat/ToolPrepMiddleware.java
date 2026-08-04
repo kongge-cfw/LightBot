@@ -18,6 +18,8 @@ import com.lightbot.service.McpClientService;
 import com.lightbot.service.McpServerService;
 import com.lightbot.service.SessionTodoService;
 import com.lightbot.service.SkillService;
+import com.lightbot.businesspage.PresentBusinessPageToolEnricher;
+import com.lightbot.service.BusinessPageService;
 import com.lightbot.service.LongMemoryPolicyService;
 import com.lightbot.service.ToolService;
 import com.lightbot.subagent.DelegateSubAgentTool;
@@ -69,6 +71,8 @@ public class ToolPrepMiddleware implements ChatMiddleware {
     private final SessionTodoService sessionTodoService;
     private final UserMemoryToolCallbackFactory userMemoryToolCallbackFactory;
     private final LongMemoryPolicyService longMemoryPolicyService;
+    private final BusinessPageService businessPageService;
+    private final PresentBusinessPageToolEnricher presentBusinessPageToolEnricher;
 
     @Autowired
     @Qualifier("lightBotExecutor")
@@ -159,7 +163,9 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             // 0. 会话协作工具由父 Agent 自动获得：维护待办并显式交付 outputs/ 文件。
             // SubAgent 运行时不经过该中间件，不能获得这些父会话能力。
-            allCallbacks.addAll(toolService.resolveToolCallbacks(List.of("write_todos", "present_artifacts")));
+            // present_business_page：对话内呈现固化业务办理页（与文件交付同属父会话能力）
+            allCallbacks.addAll(toolService.resolveToolCallbacks(
+                    List.of("write_todos", "present_artifacts", "present_business_page")));
 
             // 1. 加载内置/自定义工具（合并：Agent 自身绑定 + Skill 引入的额外工具）
             // 优先使用版本快照中的绑定 ID，避免暂存/发布混淆
@@ -303,6 +309,13 @@ public class ToolPrepMiddleware implements ChatMiddleware {
 
             // 去重：同名工具只保留第一个（如 Agent 手动绑定了 query_knowledge，自动注入不再重复）
             List<ToolCallback> dedupedCallbacks = dedupCallbacks(allCallbacks);
+            // 业务办理页白名单：API Key ∩ Agent.config.allowedBusinessPages
+            Long apiKeyId = ctx != null && ctx.getRequest() != null ? ctx.getRequest().getApiKeyId() : null;
+            List<String> agentAllowedPages = parseAllowedBusinessPages(configMap);
+            Set<String> allowedBusinessPages =
+                    businessPageService.resolveAllowedPageTypes(apiKeyId, agentAllowedPages);
+            // 将可用 pageType 写入工具描述 + schema enum，避免模型自造别名
+            dedupedCallbacks = presentBusinessPageToolEnricher.enrich(dedupedCallbacks, allowedBusinessPages);
             if (ctx != null) {
                 Set<String> activeMcpToolNames = dedupedCallbacks.stream()
                         .filter(mcpCallbacks::contains)
@@ -337,6 +350,7 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                 }
                 // 当前会话 todos 快照：供 WriteTodosTool 按 id 合并，避免 AI 漏传导致丢项
                 toolCtxMap.put("currentTodos", loadCurrentTodos(sessionId, requestId));
+                toolCtxMap.put("allowedBusinessPages", allowedBusinessPages);
                 // MCP serializes ToolContext as JSON-RPC _meta; ChatContext is injected only for non-MCP execution.
                 toolBuilder.toolContext(toolCtxMap);
                 log.info("[Chat] 加载Agent工具: agentId={}, 内置/技能工具={}, MCP Servers={}, SubAgents={}, MemoryTools={}",
@@ -597,6 +611,33 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     sessionId, requestId, e.getMessage());
             return List.of();
         }
+    }
+
+    /**
+     * 解析 Agent.config.allowedBusinessPages；null 表示不限制，空列表表示禁止全部。
+     */
+    @SuppressWarnings("unchecked")
+    private List<String> parseAllowedBusinessPages(Map<String, Object> configMap) {
+        if (configMap == null || !configMap.containsKey(ConfigKeys.Agent.ALLOWED_BUSINESS_PAGES)) {
+            return null;
+        }
+        Object raw = configMap.get(ConfigKeys.Agent.ALLOWED_BUSINESS_PAGES);
+        if (raw == null) {
+            return null;
+        }
+        if (raw instanceof List<?> list) {
+            List<String> out = new ArrayList<>();
+            for (Object item : list) {
+                if (item != null && !String.valueOf(item).isBlank()) {
+                    out.add(String.valueOf(item).trim());
+                }
+            }
+            return out;
+        }
+        if (raw instanceof String s && !s.isBlank()) {
+            return List.of(s.trim());
+        }
+        return List.of();
     }
 
 }

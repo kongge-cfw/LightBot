@@ -23,6 +23,7 @@ import com.lightbot.model.MimoChatClient;
 import com.lightbot.subagent.DelegateSubAgentTool;
 import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.builtin.AskUserTool;
+import com.lightbot.tool.builtin.PresentBusinessPageTool;
 import com.lightbot.agent.tool.knowledge.QueryKnowledgeTool;
 import com.lightbot.agent.tool.memory.UserMemoryToolCallbackFactory;
 import com.lightbot.entity.Knowledge;
@@ -300,11 +301,9 @@ public class ChatServiceImpl implements ChatService {
                     .responses(toolResponses)
                     .build());
 
-            // ask_user 工具执行后中断循环，等待用户回复
-            boolean hasAskUser = toolResponses.stream()
-                    .anyMatch(r -> AskUserTool.TOOL_NAME.equals(r.name()));
-            if (hasAskUser) {
-                log.info("[Chat][Trace] ask_user 工具调用，中断工具循环，等待用户回复");
+            // ask_user / present_business_page 等 wait_for_user 工具：中断循环，避免模型再灌一大段说明
+            if (shouldBreakToolLoop(toolResponses)) {
+                log.info("[Chat][Trace] wait_for_user 工具调用，中断工具循环，等待用户操作");
                 break;
             }
         }
@@ -1072,17 +1071,53 @@ public class ChatServiceImpl implements ChatService {
                     // 正文先于组件事件下发，确保组件插在完整正文之后，不腰斩已产出内容
                     toolEventFlux = leadingContentFlux.concatWith(toolEventFlux);
 
-                    // ask_user 工具执行后中断循环，等待用户回复
-                    boolean hasAskUser = toolResponses.stream()
-                            .anyMatch(r -> AskUserTool.TOOL_NAME.equals(r.name()));
-                    if (hasAskUser) {
-                        log.info("[Chat][Trace] ask_user 工具调用，中断工具循环，等待用户回复");
+                    // ask_user / present_business_page 等 wait_for_user 工具：中断循环，避免再流式输出操作指南
+                    if (shouldBreakToolLoop(toolResponses)) {
+                        log.info("[Chat][Trace] wait_for_user 工具调用，中断工具循环，等待用户操作");
                         return toolEventFlux;
                     }
 
                     trimToolCallContext(messages);
                     return toolEventFlux.concatWith(processToolCallsRecursively(ctx, depth + 1, nextLlmStart, eventSink));
                 });
+    }
+
+    /**
+     * 工具结果要求等待用户时，停止后续 LLM 轮次（页面/表单已自解释，无需再生成长文）。
+     */
+    private boolean shouldBreakToolLoop(
+            List<org.springframework.ai.chat.messages.ToolResponseMessage.ToolResponse> toolResponses) {
+        if (toolResponses == null || toolResponses.isEmpty()) {
+            return false;
+        }
+        for (var r : toolResponses) {
+            if (r == null || r.name() == null) {
+                continue;
+            }
+            if (AskUserTool.TOOL_NAME.equals(r.name())
+                    || PresentBusinessPageTool.TOOL_NAME.equals(r.name())) {
+                return true;
+            }
+            // 通用：结果 JSON 含 break_loop / wait_for_user
+            String data = r.responseData();
+            if (data != null && looksLikeWaitForUserResult(data)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean looksLikeWaitForUserResult(String data) {
+        String trimmed = data.trim();
+        if (!trimmed.startsWith("{")) {
+            return false;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(trimmed);
+            return node.path("break_loop").asBoolean(false) || node.path("wait_for_user").asBoolean(false);
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     /**

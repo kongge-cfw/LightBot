@@ -290,6 +290,33 @@ export const TOOL_DEBUG_SAMPLES = {
     errors: [],
   }),
 
+  present_business_page: sample('present_business_page', {
+    success: true,
+    pageType: 'leave_request',
+    displayName: '请假申请',
+    title: '请假申请',
+    mode: 'inline',
+    props: {
+      days: 1,
+      reason: '事假',
+    },
+    formSchema: {
+      fields: [
+        { key: 'days', label: '请假天数', type: 'number', required: true },
+        { key: 'reason', label: '事由', type: 'textarea', required: true },
+      ],
+    },
+    actions: ['submit', 'cancel'],
+    options: {
+      primaryButtonText: '提交申请',
+      hint: '开发者注册 formSchema · Debug Lab 预览',
+    },
+    wait_for_user: true,
+    break_loop: true,
+    renderHint: 'template',
+    schemaVersion: 1,
+  }),
+
   install_skill: sample('install_skill', {
     success: true,
     message: '成功安装 1 个技能，下一轮对话即可使用',
@@ -401,6 +428,7 @@ export const TOOL_DEBUG_ERROR_SAMPLES = {
     artifacts: [],
     errors: ['outputs/missing.pdf（文件不存在）', 'outputs/bad.txt（路径不在 outputs/ 下）'],
   },
+  present_business_page: { _error: true, message: '未知或已禁用 pageType: not_exists。可用：（尚未在能力中心注册任何业务页）' },
   install_skill: { _error: true, message: '未找到可安装的技能' },
   memory_save: { success: false, error: '缺少 content 参数' },
   memory_search: { success: false, error: '缺少用户上下文，无法查询长期记忆' },

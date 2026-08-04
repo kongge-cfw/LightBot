@@ -235,16 +235,6 @@ lightbot:
     retention-days: 30
 
 # ========================================
-# CORS 允许的前端源（生产环境必须收紧白名单）
-# 多个用逗号分隔，如：https://a.com,https://b.com
-# ========================================
-  cors:
-    allowed-origins: 'http://localhost:5173,http://localhost:3000'
-    allowed-methods: GET,POST,PUT,DELETE,OPTIONS
-    allow-credentials: true
-    max-age: 3600
-
-# ========================================
 # 内置工具 API Key 配置
 # ========================================
   # GitHub API Token（可选，提升 API 速率限制，Code Search API 必需）

@@ -324,6 +324,10 @@
                 <span class="apikey-card-label">长期记忆</span>
                 <span>{{ memoryConfigSummary(key) }}</span>
               </div>
+              <div class="apikey-card-row">
+                <span class="apikey-card-label">业务办理页</span>
+                <span>{{ bizPageConfigSummary(key) }}</span>
+              </div>
               <div class="apikey-card-row" v-if="key.agentIds && key.agentIds.length > 0">
                 <span class="apikey-card-label">绑定Agent</span>
                 <span>{{ key.agentIds.length }} 个</span>
@@ -345,6 +349,9 @@
               <div class="apikey-card-actions">
                 <a-button type="text" size="small" @click="openKeyMemoryPolicy(key)">
                   <SettingOutlined /> 记忆策略
+                </a-button>
+                <a-button type="text" size="small" @click="openKeyBizPagePolicy(key)">
+                  <AppstoreOutlined /> 业务页
                 </a-button>
                 <a-button type="text" size="small" @click="openMemoryDrawer(key)">
                   <DatabaseOutlined /> 记忆治理
@@ -406,6 +413,34 @@
           </a-form>
         </a-spin>
       </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="keyBizPageVisible"
+      :title="`业务办理页白名单 · ${keyBizPageKey?.name || ''}`"
+      :confirmLoading="keyBizPageSaving"
+      ok-text="保存"
+      cancel-text="取消"
+      @ok="saveKeyBizPagePolicy"
+      destroy-on-close
+    >
+      <a-spin :spinning="keyBizPageLoading">
+        <a-form :label-col="{ flex: '0 0 120px' }">
+          <a-form-item label="全部已启用页">
+            <a-switch v-model:checked="keyBizPageForm.inherit" />
+            <div class="form-hint">关闭后仅允许下方勾选的 pageType</div>
+          </a-form-item>
+          <a-form-item v-if="!keyBizPageForm.inherit" label="允许的页面">
+            <a-select
+              v-model:value="keyBizPageForm.allowedPageTypes"
+              mode="multiple"
+              style="width: 100%"
+              :options="keyBizPageOptions"
+              placeholder="选择 pageType"
+            />
+          </a-form-item>
+        </a-form>
+      </a-spin>
     </a-modal>
 
     <a-drawer
@@ -520,7 +555,9 @@
         </a-button>
       </div>
     </a-modal>
+
   </div>
+
 </template>
 
 <script setup>
@@ -553,6 +590,11 @@ import {
   clearApiKeyUserMemories,
   deleteApiKeyMemory,
 } from '../api/apiKey'
+import {
+  listBusinessPages,
+  getApiKeyBusinessPageConfig,
+  updateApiKeyBusinessPageConfig,
+} from '../api/businessPage'
 import AgentSelect from '../components/AgentSelect.vue'
 import UserManage from './UserManage.vue'
 import { copyToClipboard } from '../utils/clipboard'
@@ -564,6 +606,10 @@ const VALID_TABS = ['landing', 'users', 'memory', 'token', 'apiKey']
 // 旧链接 ?tab=model 跳转到模型管理
 if (route.query.tab === 'model') {
   router.replace({ path: '/app/model-providers', query: { tab: 'defaults' } })
+}
+// 业务办理页已迁到能力中心
+if (route.query.tab === 'bizPage') {
+  router.replace({ path: '/app/extensions', query: { tab: 'businessPages' } })
 }
 const activeTab = ref(VALID_TABS.includes(route.query.tab) ? route.query.tab : 'landing')
 const landingLoading = ref(false)
@@ -892,6 +938,69 @@ async function saveKeyMemoryPolicy() {
     // interceptor handled
   } finally {
     keyPolicySaving.value = false
+  }
+}
+
+// —— 企业 API Key · 业务办理页白名单（模板管理已迁到能力中心） ——
+const bizPages = ref([])
+const keyBizPageVisible = ref(false)
+const keyBizPageLoading = ref(false)
+const keyBizPageSaving = ref(false)
+const keyBizPageKey = ref(null)
+const keyBizPageForm = reactive({ inherit: true, allowedPageTypes: [] })
+const keyBizPageOptions = ref([])
+
+function bizPageConfigSummary(key) {
+  if (!key?.businessPageConfig) return '全部已启用页'
+  try {
+    const cfg = typeof key.businessPageConfig === 'string' ? JSON.parse(key.businessPageConfig) : key.businessPageConfig
+    if (!cfg || cfg.inherit !== false) return '全部已启用页'
+    const n = Array.isArray(cfg.allowedPageTypes) ? cfg.allowedPageTypes.length : 0
+    return n === 0 ? '已禁止全部' : `白名单 ${n} 个`
+  } catch {
+    return '全部已启用页'
+  }
+}
+
+async function loadBizPages() {
+  try {
+    const res = await listBusinessPages()
+    bizPages.value = res.data || []
+  } catch {
+    bizPages.value = []
+  }
+}
+
+async function openKeyBizPagePolicy(key) {
+  keyBizPageKey.value = key
+  keyBizPageVisible.value = true
+  keyBizPageLoading.value = true
+  try {
+    if (!bizPages.value.length) await loadBizPages()
+    keyBizPageOptions.value = (bizPages.value || [])
+      .filter((p) => p.enabled === 1)
+      .map((p) => ({ label: `${p.displayName} (${p.pageType})`, value: p.pageType }))
+    const res = await getApiKeyBusinessPageConfig(key.id)
+    const data = res.data || {}
+    keyBizPageForm.inherit = data.inherit !== false
+    keyBizPageForm.allowedPageTypes = Array.isArray(data.allowedPageTypes) ? [...data.allowedPageTypes] : []
+  } finally {
+    keyBizPageLoading.value = false
+  }
+}
+
+async function saveKeyBizPagePolicy() {
+  if (!keyBizPageKey.value?.id) return
+  keyBizPageSaving.value = true
+  try {
+    await updateApiKeyBusinessPageConfig(keyBizPageKey.value.id, keyBizPageForm.inherit
+      ? { inherit: true }
+      : { inherit: false, allowedPageTypes: keyBizPageForm.allowedPageTypes })
+    message.success('业务页白名单已保存')
+    keyBizPageVisible.value = false
+    await loadApiKeys()
+  } finally {
+    keyBizPageSaving.value = false
   }
 }
 

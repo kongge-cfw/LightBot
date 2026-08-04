@@ -188,6 +188,25 @@ export function parseMessage(m) {
     }
   }
 
+  // 业务页回灌：历史消息按系统通知展示，不表现为用户再次提问
+  if (
+    role === 'user'
+    && typeof content === 'string'
+    && (
+      content.startsWith('系统通知：用户')
+      || content.startsWith('用户已完成业务办理页')
+      || content.startsWith('用户取消了业务办理页')
+    )
+  ) {
+    msg._businessPageCallback = true
+    msg._businessPageCallbackStatus = content.includes('取消') ? 'cancelled' : 'submitted'
+    const typeMatch = content.match(/业务办理页(?:完成提交)?（([^）]+)）/)
+      || content.match(/业务办理页提交（([^）]+)）/)
+    if (typeMatch?.[1]) {
+      msg._businessPageCallbackPageType = typeMatch[1]
+    }
+  }
+
   normalizeAssistantMessageErrors(msg)
   msg._toolBlockOffsets = getToolBlockOffsets(msg)
   return msg

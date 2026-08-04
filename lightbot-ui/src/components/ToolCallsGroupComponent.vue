@@ -1,5 +1,19 @@
 <template>
-  <div v-if="toolEvents && toolEvents.length > 0" class="tool-calls-group">
+  <div v-if="toolEvents && toolEvents.length > 0" class="tool-calls-wrap">
+    <!-- 业务办理页：固化模板卡片，默认直接展示在对话中 -->
+    <div
+      v-for="item in presentationResults"
+      :key="'presentation-' + item.index"
+      class="presentation-page-block"
+    >
+      <ToolCallRenderer
+        :event="item.event"
+        :args="getPairedCallArgs(item.index)"
+        :message-index="messageIndex"
+      />
+    </div>
+
+    <div v-if="hasRegularToolEvents" class="tool-calls-group">
     <button type="button" class="tool-calls-summary" :class="{ 'is-expanded': isExpanded }" @click="toggleExpand($event)">
       <span class="summary-icon">
         <CheckCircleOutlined v-if="isDone" class="icon-success" />
@@ -19,6 +33,8 @@
     <CollapseTransition :open="isExpanded">
       <div class="tool-calls-panel">
         <div v-for="(evt, ti) in toolEvents" :key="ti" class="tool-event-item">
+        <!-- 业务办理页已在上方直接展示，折叠组内跳过避免重复 -->
+        <template v-if="!isPresentationTool(evt.toolName)">
         <!-- tool_call: 工具调用发起 -->
         <div v-if="evt.type === 'tool_call'" class="event-call-wrap">
           <div class="event-row event-call">
@@ -71,9 +87,11 @@
             <ToolCallRenderer :event="evt" :args="getPairedCallArgs(ti)" :messageIndex="messageIndex" />
           </div>
         </CollapseTransition>
+        </template>
       </div>
       </div>
     </CollapseTransition>
+    </div>
     <a-modal v-model:open="argsModalOpen" title="参数详情" :footer="null" :width="520" destroyOnClose>
       <div class="dialog-scroll-body">
       <pre class="args-modal-raw">{{ argsModalContent }}</pre>
@@ -88,7 +106,7 @@ import { CheckCircleOutlined, LoadingOutlined, RightOutlined, FileSearchOutlined
 import { message } from 'ant-design-vue'
 import ToolCallRenderer from './ToolCallRenderer.vue'
 import CollapseTransition from './common/CollapseTransition.vue'
-import { getToolDisplayName, getToolIcon } from './toolRegistry'
+import { getToolDisplayName, getToolIcon, isPresentationTool } from './toolRegistry'
 import { getToolResultDetail } from '@/api/chatSession'
 import { resolveIcon } from '@/utils/iconRegistry'
 
@@ -139,9 +157,26 @@ watch(
   { immediate: true, deep: true }
 )
 
+/** 业务办理页结果：从工具折叠组中抽出，始终可见 */
+const presentationResults = computed(() => {
+  const list = []
+  ;(props.toolEvents || []).forEach((event, index) => {
+    if (event?.type === 'tool_result' && isPresentationTool(event.toolName) && event.result) {
+      list.push({ event, index })
+    }
+  })
+  return list
+})
+
+const hasRegularToolEvents = computed(() =>
+  (props.toolEvents || []).some((e) => e?.toolName && !isPresentationTool(e.toolName))
+)
+
 const uniqueToolNames = computed(() => {
   const names = new Set()
-  props.toolEvents.forEach(e => { if (e.toolName) names.add(resolveDisplayName(e)) })
+  props.toolEvents.forEach((e) => {
+    if (e.toolName && !isPresentationTool(e.toolName)) names.add(resolveDisplayName(e))
+  })
   return [...names]
 })
 
@@ -309,6 +344,21 @@ function formatLength(n) {
 </script>
 
 <style lang="less" scoped>
+.tool-calls-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.presentation-page-block {
+  margin-top: 10px;
+}
+
+.presentation-page-block + .tool-calls-group,
+.presentation-page-block + .presentation-page-block {
+  margin-top: 10px;
+}
+
 .tool-calls-group {
   width: 100%;
   min-width: 0;

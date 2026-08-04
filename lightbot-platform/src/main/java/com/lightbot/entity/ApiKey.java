@@ -67,6 +67,10 @@ public class ApiKey {
     @Schema(description = "长期记忆策略覆盖，null 表示跟随企业默认")
     private String memoryConfig;
 
+    @TableField(value = "business_page_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "业务办理页白名单，null/inherit 表示全部已启用页")
+    private String businessPageConfig;
+
     @TableField("used_tokens")
     @Schema(description = "当日已用Token数")
     private Long usedTokens;

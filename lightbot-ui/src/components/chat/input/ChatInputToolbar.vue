@@ -55,34 +55,36 @@
         </a-menu>
       </template>
     </a-dropdown>
-    <a-select
-      v-if="selectedAgentId && configVersionOptions.length > 0"
-      :value="selectedConfigVersion"
-      class="config-version-select"
-      :disabled="loading"
-      popup-class-name="config-version-select-dropdown"
-      @change="onConfigVersionChange"
-    >
-      <a-select-option
-        v-for="opt in configVersionOptions"
-        :key="String(opt.value)"
-        :value="opt.value"
-        :label="opt.selectLabel"
+    <div class="toolbar-right">
+      <a-tooltip v-if="sessionTokenCount > 0" :title="`本次会话累计消耗 ${sessionTokenCount.toLocaleString()} tokens`">
+        <div class="token-pill">
+          <ThunderboltOutlined class="token-pill-icon" />
+          <span class="token-pill-value">{{ formatTokenCount(sessionTokenCount) }}</span>
+          <span class="token-pill-label">tokens</span>
+        </div>
+      </a-tooltip>
+      <a-select
+        v-if="selectedAgentId && configVersionOptions.length > 0"
+        :value="selectedConfigVersion"
+        class="config-version-select"
+        :disabled="loading"
+        popup-class-name="config-version-select-dropdown"
+        @change="onConfigVersionChange"
       >
-        <span class="version-option-row">
-          <span class="version-option-num">{{ opt.versionLabel }}</span>
-          <a-tag v-if="opt.badge === 'draft'" class="version-status-tag draft" :bordered="false">草稿</a-tag>
-          <a-tag v-else-if="opt.badge === 'online'" class="version-status-tag online" color="success" :bordered="false">线上</a-tag>
-        </span>
-      </a-select-option>
-    </a-select>
-    <a-tooltip v-if="sessionTokenCount > 0" :title="`本次会话累计消耗 ${sessionTokenCount.toLocaleString()} tokens`">
-      <div class="token-pill">
-        <ThunderboltOutlined class="token-pill-icon" />
-        <span class="token-pill-value">{{ formatTokenCount(sessionTokenCount) }}</span>
-        <span class="token-pill-label">tokens</span>
-      </div>
-    </a-tooltip>
+        <a-select-option
+          v-for="opt in configVersionOptions"
+          :key="String(opt.value)"
+          :value="opt.value"
+          :label="opt.selectLabel"
+        >
+          <span class="version-option-row">
+            <span class="version-option-num">{{ opt.versionLabel }}</span>
+            <a-tag v-if="opt.badge === 'draft'" class="version-status-tag draft" :bordered="false">草稿</a-tag>
+            <a-tag v-else-if="opt.badge === 'online'" class="version-status-tag online" color="success" :bordered="false">线上</a-tag>
+          </span>
+        </a-select-option>
+      </a-select>
+    </div>
   </div>
 </template>
 
@@ -270,8 +272,14 @@ span.agent-menu-icon {
   font-weight: 500;
 }
 
-.config-version-select {
+.toolbar-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+.config-version-select {
   flex-shrink: 0;
   min-width: 128px;
   max-width: 200px;
@@ -299,7 +307,6 @@ span.agent-menu-icon {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-left: auto;
   padding: 2px 10px;
   background: var(--color-canvas-soft-2);
   border: 1px solid var(--color-hairline);
