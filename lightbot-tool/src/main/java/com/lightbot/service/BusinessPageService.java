@@ -3,6 +3,7 @@ package com.lightbot.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.lightbot.businesspage.BusinessPageDefinition;
 import com.lightbot.dto.BusinessPageHtmlGenerateDTO;
+import com.lightbot.dto.BusinessPageHtmlNormalizeDTO;
 import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
 import com.lightbot.dto.BusinessPageUpsertDTO;
 import com.lightbot.entity.BusinessPage;
@@ -66,4 +67,12 @@ public interface BusinessPageService extends IService<BusinessPage> {
      * @return 完整 HTML 字符串
      */
     String generateHtml(BusinessPageHtmlGenerateDTO dto);
+
+    /**
+     * AI 规范化内嵌业务页 HTML：保留业务字段与逻辑，对齐平台样式/结构规范。
+     *
+     * @param dto 当前 HTML
+     * @return 规范化后的完整 HTML
+     */
+    String normalizeHtml(BusinessPageHtmlNormalizeDTO dto);
 }

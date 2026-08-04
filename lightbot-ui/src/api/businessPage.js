@@ -24,6 +24,11 @@ export function generateBusinessPageHtml(data) {
   return request.post('/business-pages/generate-html', data, { timeout: 120000 })
 }
 
+/** AI 对齐平台样式（规范化当前 HTML） */
+export function normalizeBusinessPageHtml(data) {
+  return request.post('/business-pages/normalize-html', data, { timeout: 120000 })
+}
+
 export function setBusinessPageEnabled(id, enabled) {
   return request.put(`/business-pages/${id}/enabled`, null, { params: { enabled } })
 }

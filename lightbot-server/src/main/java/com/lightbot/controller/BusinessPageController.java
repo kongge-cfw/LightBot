@@ -2,6 +2,7 @@ package com.lightbot.controller;
 
 import com.lightbot.common.Result;
 import com.lightbot.dto.BusinessPageHtmlGenerateDTO;
+import com.lightbot.dto.BusinessPageHtmlNormalizeDTO;
 import com.lightbot.dto.BusinessPageKeyConfigUpdateDTO;
 import com.lightbot.dto.BusinessPageUpsertDTO;
 import com.lightbot.entity.BusinessPage;
@@ -93,6 +94,13 @@ public class BusinessPageController {
     public Result<Map<String, String>> generateHtml(@Valid @RequestBody BusinessPageHtmlGenerateDTO dto) {
         userService.checkAdmin();
         return Result.ok(Map.of("html", businessPageService.generateHtml(dto)));
+    }
+
+    @PostMapping("/normalize-html")
+    @Operation(summary = "AI 对齐平台样式（规范化业务页 HTML）")
+    public Result<Map<String, String>> normalizeHtml(@Valid @RequestBody BusinessPageHtmlNormalizeDTO dto) {
+        userService.checkAdmin();
+        return Result.ok(Map.of("html", businessPageService.normalizeHtml(dto)));
     }
 
     @PutMapping("/{id}/enabled")

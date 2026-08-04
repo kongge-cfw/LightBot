@@ -26,9 +26,10 @@ public class BusinessPageUpsertDTO {
     private String defaultTitle;
 
     /** 开发者直接登记的 H5 HTML（主路径，iframe srcdoc） */
+    /** 内嵌 HTML（必填） */
     private String pageHtml;
 
-    /** 可选外链 H5（无 pageHtml 时使用） */
+    /** 已废弃：仅保留字段兼容，保存时忽略并清空 */
     private String pageUrl;
 
     private List<String> allowedModes;
