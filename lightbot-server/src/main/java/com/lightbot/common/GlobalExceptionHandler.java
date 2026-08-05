@@ -193,9 +193,37 @@ public class GlobalExceptionHandler {
         }
     }
 
+    /**
+     * 客户端主动断开（关页/刷新/切路由）导致写 SSE 失败，属预期，勿记为系统故障。
+     * <p>常见于任务计数心跳：浏览器已断连，服务端仍 send → Broken pipe，
+     * Spring 异步错误派发进全局异常处理。</p>
+     */
+    @ExceptionHandler(IOException.class)
+    public void handleIOException(IOException e, HttpServletRequest request, HttpServletResponse response) {
+        String path = request != null ? request.getRequestURI() : "-";
+        if (isClientAbort(e)) {
+            log.debug("客户端已断开: path={}, err={}", path, e.getMessage());
+            return;
+        }
+        // 非断连类 IO：仍按系统异常处理
+        log.error("系统异常", e);
+        try {
+            writeError(request, response, HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                    Result.fail(500, "系统内部错误"));
+        } catch (IOException ignored) {
+            // ignore
+        }
+    }
+
     @ExceptionHandler(Exception.class)
     public void handleException(Exception e, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
+        // 部分容器把断连包成非 IOException 的运行时异常
+        if (isClientAbort(e)) {
+            String path = request != null ? request.getRequestURI() : "-";
+            log.debug("客户端已断开: path={}, err={}", path, e.getMessage());
+            return;
+        }
         log.error("系统异常", e);
         writeError(request, response, HttpStatus.INTERNAL_SERVER_ERROR.value(), Result.fail(500, "系统内部错误"));
     }
@@ -230,6 +258,30 @@ public class GlobalExceptionHandler {
         }
         String accept = request.getHeader(HttpHeaders.ACCEPT);
         return accept != null && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE);
+    }
+
+    /** Broken pipe / Connection reset / Tomcat ClientAbort 等客户端断连 */
+    private boolean isClientAbort(Throwable e) {
+        Throwable cur = e;
+        while (cur != null) {
+            String name = cur.getClass().getName();
+            if (name.contains("ClientAbortException")) {
+                return true;
+            }
+            String msg = cur.getMessage();
+            if (msg != null) {
+                String m = msg.toLowerCase();
+                if (m.contains("broken pipe")
+                        || m.contains("connection reset")
+                        || m.contains("connection reset by peer")
+                        || m.contains("aborted")
+                        || m.contains("你的主机中的软件中止了一个已建立的连接")) {
+                    return true;
+                }
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 
     /** 客户端只接受 SSE、不接受 JSON 时走 event-stream 错误通道 */

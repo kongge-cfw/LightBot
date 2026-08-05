@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
@@ -77,11 +76,15 @@ public class TaskEventController implements TaskCountNotifier {
             SseEmitter emitter = entry.getValue();
             try {
                 emitter.send(SseEmitter.event().comment("heartbeat"));
-            } catch (IOException | IllegalStateException e) {
-                EMITTERS.remove(id, emitter);
             } catch (Exception e) {
+                // 客户端已断开（Broken pipe 等）：静默摘除；complete() 避免再走 completeWithError 刷 ERROR
                 log.debug("[TaskEvent] 心跳失败，移除连接: id={}, err={}", id, e.getMessage());
                 EMITTERS.remove(id, emitter);
+                try {
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    // ignore
+                }
             }
         }
     }
@@ -101,14 +104,18 @@ public class TaskEventController implements TaskCountNotifier {
     private void sendCount(Long emitterId, SseEmitter emitter) {
         try {
             emitter.send(SseEmitter.event().name("count").data(buildCounts()));
-        } catch (IOException | IllegalStateException e) {
+        } catch (Exception e) {
+            log.debug("[TaskEvent] 推送失败，移除连接: id={}, err={}", emitterId, e.getMessage());
             if (emitterId != null) {
                 EMITTERS.remove(emitterId, emitter);
             } else {
                 EMITTERS.values().removeIf(e2 -> e2 == emitter);
             }
-        } catch (Exception e) {
-            log.warn("[TaskEvent] 推送失败", e);
+            try {
+                emitter.complete();
+            } catch (Exception ignored) {
+                // ignore
+            }
         }
     }
 
