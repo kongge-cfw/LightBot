@@ -8,6 +8,7 @@ import com.lightbot.dto.askdata.AskDatasetPreviewDTO;
 import com.lightbot.dto.askdata.AskDimensionDef;
 import com.lightbot.dto.askdata.AskFilterDef;
 import com.lightbot.dto.askdata.AskMetricDef;
+import com.lightbot.dto.askdata.AskTenantDimensionDef;
 import com.lightbot.dto.datacenter.DataModelSchema;
 import com.lightbot.entity.AskDataset;
 import com.lightbot.entity.DataModel;
@@ -15,6 +16,7 @@ import com.lightbot.enums.ErrorCode;
 import com.lightbot.service.AskDataQueryService;
 import com.lightbot.service.AskDatasetService;
 import com.lightbot.service.DataModelService;
+import com.lightbot.service.RegionService;
 import com.lightbot.util.AskDataJdbcUtil;
 import com.lightbot.util.DataModelSchemaSupport;
 import com.lightbot.vo.AskDataResultVO;
@@ -40,12 +42,18 @@ public class AskDataQueryServiceImpl implements AskDataQueryService {
 
     private final AskDatasetService askDatasetService;
     private final DataModelService dataModelService;
+    private final RegionService regionService;
     private final DataModelSchemaSupport schemaSupport;
     private final AskDataJdbcUtil askDataJdbcUtil;
     private final ObjectMapper objectMapper;
 
     @Override
     public AskDataResultVO execute(AskDataIntentIR ir, Set<Long> allowedDatasetIds) {
+        return execute(ir, allowedDatasetIds, null);
+    }
+
+    @Override
+    public AskDataResultVO execute(AskDataIntentIR ir, Set<Long> allowedDatasetIds, Map<String, String> tenantValues) {
         if (ir == null || !StringUtils.hasText(ir.getDataset())) {
             throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID, "dataset 不能为空");
         }
@@ -53,9 +61,183 @@ public class AskDataQueryServiceImpl implements AskDataQueryService {
         if (allowedDatasetIds != null && !allowedDatasetIds.contains(dataset.getId())) {
             throw new BizException(ErrorCode.ASK_DATA_DATASET_FORBIDDEN);
         }
-        return executeInternal(dataset, ir,
-                readFilterList(dataset.getDefaultFilters()),
+        Map<String, AskTenantDimensionDef> mapping = readTenantDimensions(dataset.getTenantDimensions());
+        applyForcedTenantFilters(mapping, ir, tenantValues);
+        List<AskFilterDef> defaultFilters = readFilterList(dataset.getDefaultFilters());
+        if (!mapping.isEmpty()) {
+            Set<String> tenantFields = mapping.values().stream()
+                    .map(AskTenantDimensionDef::getField)
+                    .filter(StringUtils::hasText)
+                    .collect(Collectors.toSet());
+            defaultFilters = defaultFilters.stream()
+                    .filter(f -> f.getField() == null || !tenantFields.contains(f.getField()))
+                    .collect(Collectors.toList());
+        }
+        return executeInternal(dataset, ir, defaultFilters,
                 readList(dataset.getMetrics(), AskMetricDef.class));
+    }
+
+    /**
+     * 按数据集 tenantDimensions 强制注入隔离过滤：覆盖 IR 同字段条件。
+     *
+     * <p>角色互斥（由是否传入 enterpriseId 判定）：
+     * <ul>
+     *   <li>企业用户（有 enterpriseId）：仅应用企业维度，忽略地区</li>
+     *   <li>行业用户（无 enterpriseId）：仅应用地区维度，忽略企业；配了地区则 regionId 必填</li>
+     * </ul>
+     * 不再支持 externalUserId 作为问数租户维度。
+     */
+    private void applyForcedTenantFilters(Map<String, AskTenantDimensionDef> mapping, AskDataIntentIR ir,
+                                          Map<String, String> tenantValues) {
+        if (mapping == null || mapping.isEmpty()) {
+            return;
+        }
+        Map<String, String> values = tenantValues != null ? tenantValues : Map.of();
+        List<AskDataIntentIR.AskDataFilter> filters = ir.getFilters() != null
+                ? new ArrayList<>(ir.getFilters()) : new ArrayList<>();
+        boolean enterpriseUser = StringUtils.hasText(values.get("enterpriseId"));
+        if (enterpriseUser) {
+            // 企业视角：只按企业过滤，即使同时传了 regionId 也不叠加地区条件
+            injectTenantFilter(filters, mapping.get("enterpriseId"), "enterpriseId", values, true);
+        } else {
+            // 行业视角：只按地区过滤；配置了地区映射则必须带 regionId
+            injectTenantFilter(filters, mapping.get("regionId"), "regionId", values, true);
+        }
+        ir.setFilters(filters);
+    }
+
+    /**
+     * 将单个租户维度注入 filters；required=true 且已配置映射时缺值 fail-closed
+     */
+    private void injectTenantFilter(List<AskDataIntentIR.AskDataFilter> filters, AskTenantDimensionDef def,
+                                    String callerKey, Map<String, String> values, boolean required) {
+        if (def == null || !StringUtils.hasText(def.getField())) {
+            return;
+        }
+        String fieldKey = def.getField().trim();
+        String value = values.get(callerKey);
+        if (!StringUtils.hasText(value)) {
+            if (required) {
+                throw new BizException(ErrorCode.ASK_DATA_TENANT_REQUIRED, callerKey);
+            }
+            return;
+        }
+        String match = StringUtils.hasText(def.getMatch())
+                ? def.getMatch().trim().toLowerCase(Locale.ROOT) : "eq";
+        filters.removeIf(f -> fieldKey.equals(resolveFilterField(f)));
+        AskDataIntentIR.AskDataFilter forced = new AskDataIntentIR.AskDataFilter();
+        forced.setField(fieldKey);
+        forced.setDim(fieldKey);
+        switch (match) {
+            case "subtree" -> {
+                List<String> codes = regionService.listSelfAndDescendantCodes(value.trim());
+                if (codes.isEmpty()) {
+                    throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID,
+                            "地区库中不存在区划: " + value.trim());
+                }
+                forced.setOp("in");
+                forced.setValue(codes);
+            }
+            case "prefix" -> {
+                forced.setOp("starts_with");
+                forced.setValue(value.trim());
+            }
+            case "in" -> {
+                forced.setOp("in");
+                forced.setValue(parseMultiValue(value));
+            }
+            default -> {
+                forced.setOp("eq");
+                forced.setValue(value.trim());
+            }
+        }
+        filters.add(forced);
+    }
+
+    /** 逗号分隔或 JSON 数组 → List，供 in 过滤 */
+    private Object parseMultiValue(String raw) {
+        String text = raw.trim();
+        if (text.startsWith("[")) {
+            try {
+                return objectMapper.readValue(text, new TypeReference<List<String>>() {});
+            } catch (Exception ignored) {
+                // fall through
+            }
+        }
+        if (text.contains(",")) {
+            List<String> list = new ArrayList<>();
+            for (String part : text.split(",")) {
+                if (StringUtils.hasText(part)) {
+                    list.add(part.trim());
+                }
+            }
+            return list;
+        }
+        return List.of(text);
+    }
+
+    private Map<String, AskTenantDimensionDef> readTenantDimensions(String json) {
+        if (!StringUtils.hasText(json)) {
+            return Map.of();
+        }
+        try {
+            Map<String, Object> raw = objectMapper.readValue(json, new TypeReference<>() {});
+            if (raw == null || raw.isEmpty()) {
+                return Map.of();
+            }
+            Map<String, AskTenantDimensionDef> out = new LinkedHashMap<>();
+            for (Map.Entry<String, Object> e : raw.entrySet()) {
+                if (e.getKey() == null || e.getValue() == null) {
+                    continue;
+                }
+                // 问数隔离仅保留地区 / 企业；历史 externalUserId 配置忽略
+                String callerKey = e.getKey().trim();
+                if (!"regionId".equals(callerKey) && !"enterpriseId".equals(callerKey)) {
+                    continue;
+                }
+                AskTenantDimensionDef def = parseTenantDef(e.getValue());
+                if (def != null && StringUtils.hasText(def.getField())) {
+                    out.put(callerKey, def);
+                }
+            }
+            return out;
+        } catch (Exception e) {
+            log.warn("[AskData] 解析 tenant_dimensions 失败: {}", e.getMessage());
+            return Map.of();
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private AskTenantDimensionDef parseTenantDef(Object raw) {
+        if (raw instanceof String s && StringUtils.hasText(s)) {
+            return new AskTenantDimensionDef(s.trim(), "eq");
+        }
+        if (raw instanceof Map<?, ?> obj) {
+            Object f = obj.get("field");
+            if (f == null || !StringUtils.hasText(String.valueOf(f))) {
+                return null;
+            }
+            String match = "eq";
+            Object m = obj.get("match");
+            if (m != null && StringUtils.hasText(String.valueOf(m))) {
+                match = String.valueOf(m).trim().toLowerCase(Locale.ROOT);
+            }
+            return new AskTenantDimensionDef(String.valueOf(f).trim(), match);
+        }
+        if (raw instanceof AskTenantDimensionDef def) {
+            return def;
+        }
+        return null;
+    }
+
+    private static String resolveFilterField(AskDataIntentIR.AskDataFilter f) {
+        if (f == null) {
+            return null;
+        }
+        if (StringUtils.hasText(f.getField())) {
+            return f.getField();
+        }
+        return f.getDim();
     }
 
     @Override

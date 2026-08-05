@@ -353,6 +353,16 @@ public class ToolPrepMiddleware implements ChatMiddleware {
                     if (ctx.getRequest().getExternalUserId() != null) {
                         toolCtxMap.put("externalUserId", ctx.getRequest().getExternalUserId());
                     }
+                    if (ctx.getRequest().getCallerContext() != null
+                            && !ctx.getRequest().getCallerContext().isEmpty()) {
+                        toolCtxMap.put("callerContext", ctx.getRequest().getCallerContext().toMap());
+                        if (ctx.getRequest().getCallerContext().getRegionId() != null) {
+                            toolCtxMap.put("regionId", ctx.getRequest().getCallerContext().getRegionId());
+                        }
+                        if (ctx.getRequest().getCallerContext().getEnterpriseId() != null) {
+                            toolCtxMap.put("enterpriseId", ctx.getRequest().getCallerContext().getEnterpriseId());
+                        }
+                    }
                 }
                 // 当前会话 todos 快照：供 WriteTodosTool 按 id 合并，避免 AI 漏传导致丢项
                 toolCtxMap.put("currentTodos", loadCurrentTodos(sessionId, requestId));

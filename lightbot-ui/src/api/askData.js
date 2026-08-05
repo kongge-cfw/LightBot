@@ -23,7 +23,7 @@ export function updateAskDataset(id, data) {
   return request.put(`/ask-data/datasets/${id}`, data)
 }
 
-/** 轻量问数增强：业务说明 / 默认时间 / 敏感字段 */
+/** 轻量问数增强：业务说明 / 默认时间 / 敏感字段 / 租户维度等 */
 export function updateAskDatasetEnhancement(id, data) {
   return request.put(`/ask-data/datasets/${id}/enhancement`, data)
 }

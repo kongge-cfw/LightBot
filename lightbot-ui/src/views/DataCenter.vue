@@ -13,6 +13,7 @@
         v-if="activeTab === 'model' || designerOpen"
         @update:designer-open="designerOpen = $event"
       />
+      <RegionPanel v-if="activeTab === 'region' && !designerOpen" />
     </div>
   </div>
 </template>
@@ -23,12 +24,14 @@ import { useRoute, useRouter } from 'vue-router'
 import LbPageTabsHeader from '../components/common/LbPageTabsHeader.vue'
 import DataPoolPanel from './data-center/DataPoolPanel.vue'
 import DataModelPanel from './data-center/DataModelPanel.vue'
+import RegionPanel from './data-center/RegionPanel.vue'
 
 /** 问数增强入口在数据模型卡片上（抽屉），不再单独 Tab */
-const VALID_TABS = ['pool', 'model']
+const VALID_TABS = ['pool', 'model', 'region']
 const tabs = [
   { key: 'pool', label: '数据池' },
   { key: 'model', label: '数据模型' },
+  { key: 'region', label: '地区库' },
 ]
 
 const route = useRoute()

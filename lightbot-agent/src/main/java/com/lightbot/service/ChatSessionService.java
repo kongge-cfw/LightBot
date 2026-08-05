@@ -34,6 +34,24 @@ public interface ChatSessionService extends IService<ChatSession> {
     ChatSession createApiSession(Long apiKeyId, Long agentId, String externalUserId);
 
     /**
+     * 创建 API 会话并绑定调用方身份上下文
+     *
+     * @param apiKeyId      API Key ID
+     * @param agentId       Agent ID
+     * @param callerContext 调用方身份（可为 null）
+     * @return 新建会话
+     */
+    ChatSession createApiSession(Long apiKeyId, Long agentId, com.lightbot.dto.CallerContext callerContext);
+
+    /**
+     * 将会话上的调用方身份写回（同步 external_user_id 与 caller_context）
+     *
+     * @param session       会话实体
+     * @param callerContext 身份上下文（null 表示清空）
+     */
+    void applyCallerContext(ChatSession session, com.lightbot.dto.CallerContext callerContext);
+
+    /**
      * 创建自动化任务会话
      *
      * @param triggerUserId 触发人（审计）

@@ -6,6 +6,7 @@ import com.lightbot.vo.AskDataResultVO;
 import com.lightbot.vo.AskDatasetVO;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -23,6 +24,15 @@ public interface AskDataQueryService {
      * @param allowedDatasetIds null 表示不限制（控制台调试）；非 null 则必须命中白名单
      */
     AskDataResultVO execute(AskDataIntentIR ir, Set<Long> allowedDatasetIds);
+
+    /**
+     * 在允许的数据集范围内执行 IR，并按数据集 tenantDimensions 强制注入租户过滤
+     *
+     * @param ir                意图
+     * @param allowedDatasetIds 白名单
+     * @param tenantValues      callerContext 隔离主键（regionId/enterpriseId → 值；有企业 ID 则企业视角）
+     */
+    AskDataResultVO execute(AskDataIntentIR ir, Set<Long> allowedDatasetIds, Map<String, String> tenantValues);
 
     /**
      * 问数增强预览：用未落库的默认过滤 / 业务指标试跑

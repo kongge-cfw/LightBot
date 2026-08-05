@@ -11,6 +11,7 @@ import com.lightbot.dto.askdata.AskDimensionDef;
 import com.lightbot.dto.askdata.AskFilterDef;
 import com.lightbot.dto.askdata.AskMetricDef;
 import com.lightbot.dto.askdata.AskRelationSaveDTO;
+import com.lightbot.dto.askdata.AskTenantDimensionDef;
 import com.lightbot.dto.datacenter.DataModelSchema;
 import com.lightbot.entity.AskDataset;
 import com.lightbot.entity.AskRelation;
@@ -295,6 +296,8 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
             }
         }
         List<AskFilterDef> defaultFilters = normalizeFilters(dto.getDefaultFilters(), fieldKeys);
+        Map<String, AskTenantDimensionDef> tenantDimensions =
+                normalizeTenantDimensions(dto.getTenantDimensions(), fieldKeys);
 
         // 3. 自定义业务指标与自动指标合并（保留 cnt / sum_* / avg_*）
         List<AskMetricDef> custom = normalizeCustomMetrics(dto.getCustomMetrics(), fieldKeys);
@@ -321,6 +324,7 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
             entity.setSensitiveFields(objectMapper.writeValueAsString(sensitive));
             entity.setDefaultFilters(objectMapper.writeValueAsString(defaultFilters));
             entity.setMetrics(objectMapper.writeValueAsString(merged));
+            entity.setTenantDimensions(objectMapper.writeValueAsString(tenantDimensions));
         } catch (Exception e) {
             throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID, "增强配置序列化失败");
         }
@@ -690,6 +694,79 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
                 }
             }
         }
+        normalizeTenantDimensions(dto.getTenantDimensions(), fieldKeys);
+    }
+
+    /**
+     * 规范化租户维度映射；兼容值为字段名字符串或 {field,match} 对象
+     *
+     * @param input     原始映射
+     * @param fieldKeys 数据模型可用字段
+     * @return 规范化后的映射
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, AskTenantDimensionDef> normalizeTenantDimensions(Map<String, ?> input,
+                                                                         Set<String> fieldKeys) {
+        if (input == null || input.isEmpty()) {
+            return new LinkedHashMap<>();
+        }
+        Set<String> allowedCallerKeys = Set.of("regionId", "enterpriseId");
+        Set<String> allowedMatch = Set.of("eq", "prefix", "in", "subtree");
+        Map<String, AskTenantDimensionDef> out = new LinkedHashMap<>();
+        for (Map.Entry<String, ?> e : input.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) {
+                continue;
+            }
+            String callerKey = e.getKey().trim();
+            // 废弃 externalUserId 问数维度：读旧配置时跳过，写新配置时拒绝其它未知键
+            if ("externalUserId".equals(callerKey)) {
+                continue;
+            }
+            if (!allowedCallerKeys.contains(callerKey)) {
+                throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID,
+                        "tenantDimensions 键仅支持 regionId/enterpriseId: " + callerKey);
+            }
+            String fieldKey;
+            String match = "eq";
+            Object raw = e.getValue();
+            if (raw instanceof String s) {
+                if (!StringUtils.hasText(s)) {
+                    continue;
+                }
+                fieldKey = s.trim();
+            } else if (raw instanceof Map<?, ?> obj) {
+                Object f = obj.get("field");
+                if (f == null || !StringUtils.hasText(String.valueOf(f))) {
+                    continue;
+                }
+                fieldKey = String.valueOf(f).trim();
+                Object m = obj.get("match");
+                if (m != null && StringUtils.hasText(String.valueOf(m))) {
+                    match = String.valueOf(m).trim().toLowerCase(Locale.ROOT);
+                }
+            } else if (raw instanceof AskTenantDimensionDef def) {
+                if (!StringUtils.hasText(def.getField())) {
+                    continue;
+                }
+                fieldKey = def.getField().trim();
+                if (StringUtils.hasText(def.getMatch())) {
+                    match = def.getMatch().trim().toLowerCase(Locale.ROOT);
+                }
+            } else {
+                throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID,
+                        "tenantDimensions." + callerKey + " 格式无效");
+            }
+            if (!fieldKeys.contains(fieldKey)) {
+                throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID,
+                        "tenantDimensions 字段不存在: " + fieldKey);
+            }
+            if (!allowedMatch.contains(match)) {
+                throw new BizException(ErrorCode.ASK_DATA_QUERY_INVALID,
+                        "tenantDimensions.match 仅支持 eq/subtree/prefix/in: " + match);
+            }
+            out.put(callerKey, new AskTenantDimensionDef(fieldKey, match));
+        }
+        return out;
     }
 
     private void applyDto(AskDataset entity, AskDatasetSaveDTO dto) {
@@ -707,6 +784,10 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
                     dto.getDimensions() != null ? dto.getDimensions() : List.of()));
             entity.setMetrics(objectMapper.writeValueAsString(
                     dto.getMetrics() != null ? dto.getMetrics() : List.of()));
+            // validateSemantic 已校验；此处用映射内字段作合法集，写成统一 {field,match} 结构
+            Map<String, AskTenantDimensionDef> tenant = normalizeTenantDimensions(
+                    dto.getTenantDimensions(), permissiveFieldKeysFromTenantInput(dto.getTenantDimensions()));
+            entity.setTenantDimensions(objectMapper.writeValueAsString(tenant));
             if (entity.getProfileJson() == null) {
                 entity.setProfileJson("{}");
             }
@@ -728,6 +809,7 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
         vo.setDimensions(readList(entity.getDimensions(), AskDimensionDef.class));
         vo.setMetrics(readList(entity.getMetrics(), AskMetricDef.class));
         vo.setProfile(readMap(entity.getProfileJson()));
+        vo.setTenantDimensions(readTenantDimensions(entity.getTenantDimensions()));
         vo.setCreateTime(entity.getCreateTime());
         vo.setUpdateTime(entity.getUpdateTime());
         try {
@@ -762,6 +844,41 @@ public class AskDatasetServiceImpl extends ServiceImpl<AskDatasetMapper, AskData
         } catch (Exception e) {
             return new LinkedHashMap<>();
         }
+    }
+
+    private Map<String, AskTenantDimensionDef> readTenantDimensions(String json) {
+        if (!StringUtils.hasText(json)) {
+            return new LinkedHashMap<>();
+        }
+        try {
+            Map<String, Object> raw = objectMapper.readValue(json, new TypeReference<>() {});
+            return normalizeTenantDimensions(raw, permissiveFieldKeysFromTenantInput(raw));
+        } catch (Exception e) {
+            return new LinkedHashMap<>();
+        }
+    }
+
+    /** 用映射自身声明的字段作为合法集合（展示/落库归一化），严格校验在 validateSemantic / updateEnhancement */
+    private Set<String> permissiveFieldKeysFromTenantInput(Map<String, ?> raw) {
+        Set<String> keys = new HashSet<>();
+        if (raw == null) {
+            return keys;
+        }
+        for (Object v : raw.values()) {
+            if (v instanceof String s && StringUtils.hasText(s)) {
+                keys.add(s.trim());
+            } else if (v instanceof Map<?, ?> m && m.get("field") != null
+                    && StringUtils.hasText(String.valueOf(m.get("field")))) {
+                keys.add(String.valueOf(m.get("field")).trim());
+            } else if (v instanceof AskTenantDimensionDef def && StringUtils.hasText(def.getField())) {
+                keys.add(def.getField().trim());
+            }
+        }
+        // 空映射时给占位，避免 normalize 因 fieldKeys 为空误伤（实际无条目可写）
+        if (keys.isEmpty()) {
+            keys.add("__none__");
+        }
+        return keys;
     }
 
     /** 兼容旧版 defaultFilters 对象 Map（字段→等值） */

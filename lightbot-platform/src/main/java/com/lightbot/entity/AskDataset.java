@@ -67,6 +67,10 @@ public class AskDataset {
     @Schema(description = "字段画像 JSON")
     private String profileJson;
 
+    @TableField(value = "tenant_dimensions", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "租户维度映射 JSON：callerContext 键 → 表字段（如 regionId→region_id）")
+    private String tenantDimensions;
+
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     @Schema(description = "创建时间")
     private LocalDateTime createTime;

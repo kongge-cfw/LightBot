@@ -1478,21 +1478,7 @@ public class ChatServiceImpl implements ChatService {
                 }
                 // 2.1 工具执行超时保护：CompletableFuture 包装 + get(timeout)，防止 MCP 工具卡死
                 long timeoutSeconds = resolveToolExecutionTimeoutSeconds(toolName, effectiveArgs);
-                Map<String, Object> ctxMap = new java.util.HashMap<>();
-                ctxMap.put("agentId", agentId);
-                ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
-                ctxMap.put("requestId", requestId);
-                ctxMap.put("parentThreadId", sessionId != null ? sessionId.toString() : "default");
-                boolean mcpTool = chatContext != null && chatContext.getMcpToolNames() != null
-                        && chatContext.getMcpToolNames().contains(toolName);
-                if (chatContext != null && !mcpTool) {
-                    ctxMap.put("chatContext", chatContext);
-                }
-                // 注入本轮 todos 快照作为 WriteTodosTool 按 id 合并的基准：
-                // 每次 write_todos 成功后会回写到 chatContext.currentTodosSnapshot，下次调用拿到的是最新合并结果
-                if (chatContext != null && chatContext.getCurrentTodosSnapshot() != null) {
-                    ctxMap.put("currentTodos", chatContext.getCurrentTodosSnapshot());
-                }
+                Map<String, Object> ctxMap = buildExecutableToolContext(chatContext, agentId, sessionId, requestId, toolName);
                 final String argsForCall = effectiveArgs != null ? effectiveArgs : "{}";
                 String result = CompletableFuture.supplyAsync(() -> {
                     try {
@@ -1534,10 +1520,8 @@ public class ChatServiceImpl implements ChatService {
                             String retryArgs = stripInternalRepairFlags(repaired);
                             log.warn("[Chat] 工具参数解析失败后二次修复重试: name={}", toolName);
                             // 避免递归死循环：直接再调一次 callback（同步）
-                            Map<String, Object> ctxMap = new java.util.HashMap<>();
-                            ctxMap.put("agentId", agentId);
-                            ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
-                            ctxMap.put("requestId", requestId);
+                            Map<String, Object> ctxMap = buildExecutableToolContext(
+                                    chatContext, agentId, sessionId, requestId, toolName);
                             String retryResult = callback.call(retryArgs, new ToolContext(ctxMap));
                             if (!ToolResultPrefixes.isError(retryResult)) {
                                 sessionAttachmentRegistrar.registerFromToolResult(sessionId, toolName, retryResult);
@@ -1557,6 +1541,75 @@ public class ChatServiceImpl implements ChatService {
         }
         log.warn("[Chat][Trace] 工具不存在: name={}, 可用工具={}", toolName, toolCallbackMap.keySet());
         return ToolResultPrefixes.failureJson(ToolResultPrefixes.NOT_FOUND + ": " + toolName);
+    }
+
+    /**
+     * 构建工具执行时的 ToolContext：合并 ToolPrep 预置可序列化键 + 本轮核心键。
+     * <p>MCP 与内置工具同源（MCP 经 _meta 透传）；MCP 不注入不可序列化的 chatContext。</p>
+     *
+     * @param chatContext 对话上下文
+     * @param agentId     Agent ID
+     * @param sessionId   会话 ID
+     * @param requestId   请求 ID
+     * @param toolName    工具名（用于判断是否 MCP）
+     * @return ToolContext Map
+     */
+    private Map<String, Object> buildExecutableToolContext(ChatContext chatContext, Long agentId,
+                                                          Long sessionId, String requestId, String toolName) {
+        Map<String, Object> ctxMap = new java.util.HashMap<>();
+        // 1. 合并 ToolPrep 预置（callerContext / apiKeyId / allowedBusinessPages 等）
+        if (chatContext != null && chatContext.getToolOptions() != null
+                && chatContext.getToolOptions().getToolContext() != null) {
+            for (Map.Entry<String, Object> e : chatContext.getToolOptions().getToolContext().entrySet()) {
+                if (e.getKey() == null || "chatContext".equals(e.getKey()) || "exchange".equals(e.getKey())) {
+                    continue;
+                }
+                if (e.getValue() != null) {
+                    ctxMap.put(e.getKey(), e.getValue());
+                }
+            }
+        }
+        // 2. 覆盖核心运行时键
+        ctxMap.put("agentId", agentId);
+        ctxMap.put("sessionId", sessionId != null ? sessionId.toString() : "default");
+        ctxMap.put("requestId", requestId);
+        ctxMap.put("parentThreadId", sessionId != null ? sessionId.toString() : "default");
+        if (chatContext != null) {
+            if (chatContext.getUserId() != null) {
+                ctxMap.put("userId", chatContext.getUserId());
+            }
+            if (chatContext.getRequest() != null) {
+                if (chatContext.getRequest().getApiKeyId() != null) {
+                    ctxMap.put("apiKeyId", chatContext.getRequest().getApiKeyId());
+                }
+                if (chatContext.getRequest().getExternalUserId() != null) {
+                    ctxMap.put("externalUserId", chatContext.getRequest().getExternalUserId());
+                }
+                if (chatContext.getRequest().getCallerContext() != null
+                        && !chatContext.getRequest().getCallerContext().isEmpty()) {
+                    Map<String, Object> callerMap = chatContext.getRequest().getCallerContext().toMap();
+                    ctxMap.put("callerContext", callerMap);
+                    Object regionId = callerMap.get("regionId");
+                    if (regionId != null) {
+                        ctxMap.put("regionId", regionId);
+                    }
+                    Object enterpriseId = callerMap.get("enterpriseId");
+                    if (enterpriseId != null) {
+                        ctxMap.put("enterpriseId", enterpriseId);
+                    }
+                }
+            }
+            if (chatContext.getCurrentTodosSnapshot() != null) {
+                ctxMap.put("currentTodos", chatContext.getCurrentTodosSnapshot());
+            }
+        }
+        boolean mcpTool = chatContext != null && chatContext.getMcpToolNames() != null
+                && chatContext.getMcpToolNames().contains(toolName);
+        // 3. 非 MCP 保留 chatContext 回退（记忆工具等）；MCP 仅可序列化 map → _meta
+        if (chatContext != null && !mcpTool) {
+            ctxMap.put("chatContext", chatContext);
+        }
+        return ctxMap;
     }
 
     /**
@@ -1996,9 +2049,9 @@ public class ChatServiceImpl implements ChatService {
     private long appendToolCallStart(ChatContext ctx, List<Map<String, Object>> toolEventsList,
                                      List<Flux<String>> statusFluxes,
                                      String toolName, String args, int contentOffset) {
-        // 按需推送 skill_active（工具属于某个 Skill 时）
+        // 按需推送 skill_active（工具属于某个 Skill 时）；同步对话 statusFluxes 为 null，仅写入 toolEventsList
         Flux<String> skillFlux = emitSkillActiveIfNeeded(ctx, toolName, toolEventsList, contentOffset);
-        if (skillFlux != null) {
+        if (skillFlux != null && statusFluxes != null) {
             statusFluxes.add(skillFlux);
         }
 

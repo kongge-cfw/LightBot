@@ -50,6 +50,7 @@ class ControllerRouteContractTest {
             Map.entry(OcrController.class, "/api/ocr"),
             Map.entry(OpenDataPoolController.class, "/api/open/v1/data-pools/records"),
             Map.entry(PromptController.class, "/api/prompts"),
+            Map.entry(RegionController.class, "/api/regions"),
             Map.entry(SkillController.class, "/api/skills"),
             Map.entry(StandaloneGraphController.class, "/api/graph"),
             Map.entry(SubAgentController.class, "/api/subagents"),
@@ -64,7 +65,7 @@ class ControllerRouteContractTest {
 
     @Test
     void test_controllerBasePaths_shouldRemainCompatible() {
-        assertEquals(41, EXPECTED_BASE_PATHS.size());
+        assertEquals(42, EXPECTED_BASE_PATHS.size());
 
         EXPECTED_BASE_PATHS.forEach((controllerClass, expectedPath) -> {
             RequestMapping requestMapping = controllerClass.getAnnotation(RequestMapping.class);

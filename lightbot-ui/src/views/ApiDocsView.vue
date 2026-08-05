@@ -293,8 +293,9 @@ const fileParams = computed(() =>
 const needsBody = computed(() => {
   const api = activeApi.value
   if (!api) return false
-  if (api.contentType === 'multipart' || api.contentType === 'sse') return false
-  if (api.contentType === 'json') return true
+  // multipart 用文件字段；sse 仍走 JSON 请求体，仅响应按事件流解析
+  if (api.contentType === 'multipart') return false
+  if (api.contentType === 'json' || api.contentType === 'sse') return true
   return (api.params || []).some((p) => p.in === 'body' && p.type !== 'file')
 })
 

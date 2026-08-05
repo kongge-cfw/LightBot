@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.constant.ConfigKeys;
 import com.lightbot.constant.EnterpriseActors;
+import com.lightbot.dto.CallerContext;
 import com.lightbot.dto.LlmTraceSpanDTO;
 import com.lightbot.entity.Agent;
 import com.lightbot.entity.ApiKey;
@@ -17,6 +18,7 @@ import com.lightbot.service.AgentService;
 import com.lightbot.service.AgentVersionService;
 import com.lightbot.service.ApiKeyService;
 import com.lightbot.service.ChatSessionService;
+import com.lightbot.util.CallerContextUtil;
 import com.lightbot.util.ExternalUserIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,21 +58,28 @@ public class InitMiddleware implements ChatMiddleware {
 
         // 1. 解析会话ID，并在对话中切换智能体时更新会话绑定
         Long apiKeyId = ctx.getRequest().getApiKeyId();
-        normalizeRequestExternalUserId(ctx, apiKeyId);
+        normalizeRequestCallerContext(ctx, apiKeyId);
         Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
                 ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId(),
-                ctx.getRequest().getExternalUserId());
+                ctx.getRequest().getCallerContext());
         ctx.setSessionId(sessionId);
-        // 续聊未传 externalUserId 时，从会话回填，保证本轮记忆命名空间一致
-        syncExternalUserIdFromSession(ctx, apiKeyId, sessionId);
+        // 续聊未传身份时从会话回填，保证本轮记忆/工具隔离命名空间一致
+        syncCallerContextFromSession(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
         long t1 = System.currentTimeMillis();
+        CallerContext callerContext = ctx.getRequest().getCallerContext();
         String externalUserId = ctx.getRequest().getExternalUserId();
-        log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}, externalUserId={}", t1 - t0, sessionId, externalUserId);
+        log.info("[Chat][Trace] 会话解析: {}ms, sessionId={}, externalUserId={}, regionId={}, enterpriseId={}",
+                t1 - t0, sessionId, externalUserId,
+                callerContext != null ? callerContext.getRegionId() : null,
+                callerContext != null ? callerContext.getEnterpriseId() : null);
         Map<String, Object> sessionSpanMeta = new java.util.HashMap<>();
         sessionSpanMeta.put("sessionId", sessionId);
         if (externalUserId != null) {
             sessionSpanMeta.put("externalUserId", externalUserId);
+        }
+        if (callerContext != null && !callerContext.isEmpty()) {
+            sessionSpanMeta.put("callerContext", callerContext.isolationKeys());
         }
         ctx.getSpans().add(LlmTraceSpanDTO.of("s1", null, "session_resolve", t0, t1 - t0, "OK", sessionSpanMeta));
 
@@ -102,12 +111,12 @@ public class InitMiddleware implements ChatMiddleware {
         resolveUserId(ctx);
 
         Long apiKeyId = ctx.getRequest().getApiKeyId();
-        normalizeRequestExternalUserId(ctx, apiKeyId);
+        normalizeRequestCallerContext(ctx, apiKeyId);
         Long sessionId = resolveSessionId(ctx.getRequest().getSessionId(), ctx.getRequest().getAgentId(),
                 ctx.getUserId(), apiKeyId, ctx.getRequest().getActorUserId(),
-                ctx.getRequest().getExternalUserId());
+                ctx.getRequest().getCallerContext());
         ctx.setSessionId(sessionId);
-        syncExternalUserIdFromSession(ctx, apiKeyId, sessionId);
+        syncCallerContextFromSession(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
 
         Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
@@ -394,56 +403,63 @@ public class InitMiddleware implements ChatMiddleware {
     }
 
     /**
-     * 规范化 externalUserId：
+     * 规范化 callerContext（兼容顶层 externalUserId）：
      * <ul>
-     *   <li>开放 API：校验业务传入值</li>
+     *   <li>开放 API：合并并校验业务传入值</li>
      *   <li>控制台调试：强制 debug_user_{登录用户ID}，忽略客户端传入</li>
      *   <li>自动化调度：清空，不启用记忆命名空间</li>
      * </ul>
      */
-    private void normalizeRequestExternalUserId(ChatContext ctx, Long apiKeyId) {
+    private void normalizeRequestCallerContext(ChatContext ctx, Long apiKeyId) {
         if (ctx.getRequest() == null) {
             return;
         }
         if (apiKeyId != null) {
-            ctx.getRequest().setExternalUserId(ExternalUserIdUtil.normalize(ctx.getRequest().getExternalUserId()));
+            CallerContext normalized = CallerContextUtil.mergeAndNormalize(
+                    ctx.getRequest().getCallerContext(), ctx.getRequest().getExternalUserId());
+            applyCallerContextToRequest(ctx, normalized);
             return;
         }
-        // 自动化调度不启用长期记忆
+        // 自动化调度不启用长期记忆 / 业务身份
         if (ctx.getRequest().getActorUserId() != null) {
-            ctx.getRequest().setExternalUserId(null);
+            applyCallerContextToRequest(ctx, null);
             return;
         }
         // 控制台调试：用当前登录用户生成调试命名空间
-        ctx.getRequest().setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+        CallerContext debug = new CallerContext();
+        debug.setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+        applyCallerContextToRequest(ctx, debug.isEmpty() ? null : debug);
     }
 
-    /** 会话已绑定外部用户时回填到请求，便于记忆注入/工具使用同一命名空间 */
-    private void syncExternalUserIdFromSession(ChatContext ctx, Long apiKeyId, Long sessionId) {
+    /**
+     * 以会话绑定结果为准回填请求（续聊省略或首轮绑定合并后，Tool/记忆均读请求上的完整身份）
+     */
+    private void syncCallerContextFromSession(ChatContext ctx, Long apiKeyId, Long sessionId) {
         if (apiKeyId == null || ctx.getRequest() == null || sessionId == null) {
             return;
         }
-        if (ctx.getRequest().getExternalUserId() != null) {
+        ChatSession session = chatSessionService.getById(sessionId);
+        if (session == null) {
             return;
         }
-        ChatSession session = chatSessionService.getById(sessionId);
-        if (session != null && session.getExternalUserId() != null && !session.getExternalUserId().isBlank()) {
-            ctx.getRequest().setExternalUserId(session.getExternalUserId());
+        CallerContext bound = parseSessionCallerContext(session);
+        if (bound != null) {
+            applyCallerContextToRequest(ctx, bound);
         }
     }
 
     /**
      * 解析会话ID：有则复用并校验归属，无则按来源新建
      *
-     * @param actorUserId    自动化调度身份（非空表示内部任务，非控制台续聊）
-     * @param externalUserId 上层业务终端用户（仅 API Key）
+     * @param actorUserId   自动化调度身份（非空表示内部任务，非控制台续聊）
+     * @param callerContext 调用方身份（仅 API Key）
      */
     private Long resolveSessionId(Long sessionId, Long agentId, Long userId, Long apiKeyId,
-                                  Long actorUserId, String externalUserId) {
+                                  Long actorUserId, CallerContext callerContext) {
         if (sessionId != null) {
             if (apiKeyId != null) {
                 chatSessionService.ensureOwnedByApiKey(sessionId, apiKeyId);
-                bindApiSessionExternalUser(sessionId, externalUserId);
+                bindApiSessionCallerContext(sessionId, callerContext);
                 return sessionId;
             }
             ChatSession existing = chatSessionService.getById(sessionId);
@@ -466,31 +482,79 @@ public class InitMiddleware implements ChatMiddleware {
             return sessionId;
         }
         if (apiKeyId != null) {
-            return chatSessionService.createApiSession(apiKeyId, agentId, externalUserId).getId();
+            return chatSessionService.createApiSession(apiKeyId, agentId, callerContext).getId();
         }
         return chatSessionService.createSession(userId, agentId).getId();
     }
 
     /**
-     * 续聊时绑定/校验会话上的 externalUserId：
-     * 会话已有且请求不同 → 拒绝；会话为空且请求有值 → 回写绑定
+     * 续聊时绑定/校验会话上的 callerContext：
+     * 已绑定隔离主键与请求冲突 → 拒绝；新键或首次绑定 → 回写
      */
-    private void bindApiSessionExternalUser(Long sessionId, String externalUserId) {
+    private void bindApiSessionCallerContext(Long sessionId, CallerContext requestContext) {
         ChatSession session = chatSessionService.getById(sessionId);
         if (session == null) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND);
         }
-        String bound = session.getExternalUserId();
-        if (bound != null && !bound.isBlank()) {
-            if (externalUserId != null && !Objects.equals(bound, externalUserId)) {
+        CallerContext bound = parseSessionCallerContext(session);
+        CallerContextUtil.assertIsolationCompatible(bound, requestContext);
+        CallerContext effective = CallerContextUtil.resolveEffective(bound, requestContext);
+        // 兼容：仅有旧列 external_user_id、无 JSONB 时，仍按原规则校验 externalUserId
+        if (bound == null && session.getExternalUserId() != null && !session.getExternalUserId().isBlank()) {
+            String reqEu = requestContext != null ? requestContext.getExternalUserId() : null;
+            if (reqEu != null && !Objects.equals(session.getExternalUserId(), reqEu)) {
                 throw new BizException(ErrorCode.API_EXTERNAL_USER_MISMATCH);
             }
+            if (effective == null && reqEu == null) {
+                CallerContext legacy = new CallerContext();
+                legacy.setExternalUserId(session.getExternalUserId());
+                effective = legacy;
+            } else if (effective != null && effective.getExternalUserId() == null) {
+                effective.setExternalUserId(session.getExternalUserId());
+            }
+        }
+        if (effective == null || effective.isEmpty()) {
             return;
         }
-        if (externalUserId != null) {
-            session.setExternalUserId(externalUserId);
+        boolean needPersist = bound == null
+                || !Objects.equals(bound.getExternalUserId(), effective.getExternalUserId())
+                || !Objects.equals(bound.getRegionId(), effective.getRegionId())
+                || !Objects.equals(bound.getEnterpriseId(), effective.getEnterpriseId())
+                || (requestContext != null && requestContext.getProfile() != null
+                && !requestContext.getProfile().isEmpty());
+        if (needPersist) {
+            chatSessionService.applyCallerContext(session, effective);
             chatSessionService.updateById(session);
         }
+    }
+
+    private void applyCallerContextToRequest(ChatContext ctx, CallerContext callerContext) {
+        ctx.getRequest().setCallerContext(callerContext);
+        ctx.getRequest().setExternalUserId(callerContext != null ? callerContext.getExternalUserId() : null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private CallerContext parseSessionCallerContext(ChatSession session) {
+        if (session == null) {
+            return null;
+        }
+        if (session.getCallerContext() != null && !session.getCallerContext().isBlank()) {
+            try {
+                Map<String, Object> map = objectMapper.readValue(session.getCallerContext(), new TypeReference<>() {});
+                CallerContext parsed = CallerContext.fromMap(map);
+                if (parsed != null) {
+                    return parsed;
+                }
+            } catch (Exception e) {
+                log.warn("[Chat] 解析会话 caller_context 失败: sessionId={}, error={}", session.getId(), e.getMessage());
+            }
+        }
+        if (session.getExternalUserId() != null && !session.getExternalUserId().isBlank()) {
+            CallerContext legacy = new CallerContext();
+            legacy.setExternalUserId(session.getExternalUserId());
+            return legacy;
+        }
+        return null;
     }
 
     /**

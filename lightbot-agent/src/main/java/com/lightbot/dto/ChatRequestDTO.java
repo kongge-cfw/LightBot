@@ -19,11 +19,19 @@ public class ChatRequestDTO {
      * 上层业务系统的终端用户标识（可选）。
      * <p>仅企业 API Key 调用时生效；传入后启用该用户在本 Key 下的跨会话长期记忆。
      * 不传则保持无个人记忆（仅 sessionId 隔离短期上下文）。</p>
+     * <p>兼容字段：等价于 {@code callerContext.externalUserId}；优先使用 {@link #callerContext}。</p>
      */
     private String externalUserId;
 
     /**
-     * 入参变量，用于替换系统提示词中的 {{变量名}} 占位符
+     * 调用方身份上下文（可选，仅 API Key）。
+     * <p>含 externalUserId / regionId / enterpriseId / profile，供 Tool、MCP、问数做数据与权限隔离。
+     * 首轮写入会话后续聊可省略；隔离主键不可中途更换。</p>
+     */
+    private CallerContext callerContext;
+
+    /**
+     * 入参变量，用于替换系统提示词中的 {{变量名}} 占位符（不承载身份）
      */
     private Map<String, Object> bizParams;
 

@@ -155,6 +155,16 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
 
     @Override
     public ChatSession createApiSession(Long apiKeyId, Long agentId, String externalUserId) {
+        com.lightbot.dto.CallerContext ctx = null;
+        if (externalUserId != null && !externalUserId.isBlank()) {
+            ctx = new com.lightbot.dto.CallerContext();
+            ctx.setExternalUserId(externalUserId.trim());
+        }
+        return createApiSession(apiKeyId, agentId, ctx);
+    }
+
+    @Override
+    public ChatSession createApiSession(Long apiKeyId, Long agentId, com.lightbot.dto.CallerContext callerContext) {
         if (apiKeyId == null) {
             throw new BizException(ErrorCode.PARAM_INVALID, "缺少 API Key");
         }
@@ -168,7 +178,7 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         ChatSession session = new ChatSession();
         session.setUserId(com.lightbot.constant.EnterpriseActors.API_KEY);
         session.setApiKeyId(apiKeyId);
-        session.setExternalUserId(normalizeExternalUserId(externalUserId));
+        applyCallerContext(session, callerContext);
         session.setSource(com.lightbot.constant.EnterpriseActors.SESSION_SOURCE_API);
         session.setAgentId(finalAgentId);
         session.setTitle(ChatSession.DEFAULT_TITLE);
@@ -181,11 +191,22 @@ public class ChatSessionServiceImpl extends ServiceImpl<ChatSessionMapper, ChatS
         return session;
     }
 
-    private static String normalizeExternalUserId(String externalUserId) {
-        if (externalUserId == null || externalUserId.isBlank()) {
-            return null;
+    @Override
+    public void applyCallerContext(ChatSession session, com.lightbot.dto.CallerContext callerContext) {
+        if (session == null) {
+            return;
         }
-        return externalUserId.trim();
+        if (callerContext == null || callerContext.isEmpty()) {
+            session.setExternalUserId(null);
+            session.setCallerContext(null);
+            return;
+        }
+        session.setExternalUserId(callerContext.getExternalUserId());
+        try {
+            session.setCallerContext(objectMapper.writeValueAsString(callerContext.toMap()));
+        } catch (Exception e) {
+            throw new BizException(ErrorCode.PARAM_INVALID, "callerContext 序列化失败");
+        }
     }
 
     @Override

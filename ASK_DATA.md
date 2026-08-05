@@ -23,6 +23,7 @@
 | 文档 | 职责 |
 | --- | --- |
 | [PRODUCT.md](PRODUCT.md) | 企业定位、角色、API Key、资产归属（本文服从其边界） |
+| [权限配置.md](权限配置.md) | API Key 能力边界、`callerContext`、问数 `tenantDimensions` 行级隔离配置 |
 | **本文 ASK_DATA.md** | 智能问数的**产品方案** + **技术方案** + 验收清单 |
 | [ROADMAP.md](ROADMAP.md) | 版本节奏（问数落地后可在此挂版本条目） |
 | [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | 工程规范（实现时必须遵守） |

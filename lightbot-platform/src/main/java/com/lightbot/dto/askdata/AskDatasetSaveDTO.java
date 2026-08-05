@@ -7,7 +7,9 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 创建/更新问数数据集
@@ -42,4 +44,10 @@ public class AskDatasetSaveDTO {
     private List<AskDimensionDef> dimensions = new ArrayList<>();
 
     private List<AskMetricDef> metrics = new ArrayList<>();
+
+    /**
+     * 租户维度映射：callerContext 键 → {@link AskTenantDimensionDef}
+     * <p>兼容旧格式：值为字段名字符串，等价于 {@code {"field":"...","match":"eq"}}</p>
+     */
+    private Map<String, Object> tenantDimensions = new LinkedHashMap<>();
 }

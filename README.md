@@ -14,6 +14,7 @@
 
 <p align="center">
   <a href="QUICKSTART.md">快速启动</a> ·
+  <a href="权限配置.md">权限与数据隔离</a> ·
   <a href="ROADMAP.md">Roadmap</a> ·
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="sql/README.md">数据库迁移</a> ·

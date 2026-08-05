@@ -124,11 +124,40 @@ public class AskDataTool {
             if (allowed.isEmpty()) {
                 return "{\"error\":\"当前智能体未绑定可问数据模型\"}";
             }
-            AskDataResultVO result = askDataQueryService.execute(ir, allowed);
+            AskDataResultVO result = askDataQueryService.execute(ir, allowed, resolveTenantValues(toolContext));
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             log.warn("[Tool:ask_data_execute] {}", e.getMessage());
             return errorJson(e.getMessage());
+        }
+    }
+
+    /**
+     * 从 ToolContext 提取租户隔离主键（扁平键或 callerContext 对象）
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> resolveTenantValues(ToolContext toolContext) {
+        Map<String, String> values = new LinkedHashMap<>();
+        if (toolContext == null || toolContext.getContext() == null) {
+            return values;
+        }
+        Map<String, Object> ctx = toolContext.getContext();
+        putTenantValue(values, "regionId", ctx.get("regionId"));
+        putTenantValue(values, "enterpriseId", ctx.get("enterpriseId"));
+        Object caller = ctx.get("callerContext");
+        if (caller instanceof Map<?, ?> callerMap) {
+            putTenantValue(values, "regionId", callerMap.get("regionId"));
+            putTenantValue(values, "enterpriseId", callerMap.get("enterpriseId"));
+        }
+        return values;
+    }
+
+    private static void putTenantValue(Map<String, String> values, String key, Object raw) {
+        if (values.containsKey(key) && StringUtils.hasText(values.get(key))) {
+            return;
+        }
+        if (raw != null && StringUtils.hasText(String.valueOf(raw))) {
+            values.put(key, String.valueOf(raw).trim());
         }
     }
 

@@ -171,6 +171,8 @@ public enum ErrorCode {
     API_KEY_AGENT_NOT_PUBLISHED(94008, "企业 API Key 仅可调用已发布的 Agent（当前状态：%s），请先在控制台发布", HttpStatus.FORBIDDEN),
     API_EXTERNAL_USER_INVALID(94009, "externalUserId 无效：最长128字符，仅允许字母、数字与 . _ - : @ /", HttpStatus.BAD_REQUEST),
     API_EXTERNAL_USER_MISMATCH(94010, "会话已绑定其他外部用户，与请求中的 externalUserId 不一致", HttpStatus.FORBIDDEN),
+    API_CALLER_CONTEXT_INVALID(94011, "callerContext 无效：%s", HttpStatus.BAD_REQUEST),
+    API_CALLER_CONTEXT_MISMATCH(94012, "会话已绑定其他调用方身份，与请求中的 callerContext 不一致", HttpStatus.FORBIDDEN),
     API_KEY_PERMISSION_INSUFFICIENT(94009, "该 API Key 权限不足（仅对话不可访问开放数据接口，请使用「完全访问」）", HttpStatus.FORBIDDEN),
 
     // ========== Prompt模块 ==========
@@ -218,6 +220,7 @@ public enum ErrorCode {
     ASK_DATA_QUERY_INVALID(110023, "问数查询不合法: %s", HttpStatus.BAD_REQUEST),
     ASK_DATA_DATASET_FORBIDDEN(110024, "无权查询该问数数据集", HttpStatus.FORBIDDEN),
     ASK_RELATION_NOT_FOUND(110025, "问数关联不存在", HttpStatus.BAD_REQUEST),
+    ASK_DATA_TENANT_REQUIRED(110026, "问数租户隔离要求调用方提供 %s", HttpStatus.FORBIDDEN),
 
     // ========== 自动化定时任务 ==========
     AUTOMATION_JOB_NOT_FOUND(120001, "定时任务不存在", HttpStatus.BAD_REQUEST),

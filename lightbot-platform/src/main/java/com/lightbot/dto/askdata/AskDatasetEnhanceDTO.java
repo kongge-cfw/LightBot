@@ -5,10 +5,12 @@ import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 轻量问数增强：业务说明 / 默认时间 / 敏感字段 / 默认过滤 / 自定义业务指标
+ * 轻量问数增强：业务说明 / 默认时间 / 敏感字段 / 默认过滤 / 自定义业务指标 / 租户维度
  *
  * @author finch
  * @since 2026-07-31
@@ -33,4 +35,10 @@ public class AskDatasetEnhanceDTO {
      */
     @Valid
     private List<AskMetricDef> customMetrics = new ArrayList<>();
+
+    /**
+     * 租户维度映射：callerContext 键 → {@link AskTenantDimensionDef}
+     * <p>兼容旧格式：值为字段名字符串，等价于 {@code {"field":"...","match":"eq"}}</p>
+     */
+    private Map<String, Object> tenantDimensions = new LinkedHashMap<>();
 }

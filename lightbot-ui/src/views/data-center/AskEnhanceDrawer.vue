@@ -32,7 +32,7 @@
 
     <div v-else class="ask-body">
       <p class="ask-drawer__hint">
-        字段中文名与说明以数据模型为准；打开时自动同步维度与自动指标。此处只配业务说明、默认时间、敏感字段、默认过滤与业务指标。
+        字段中文名与说明以数据模型为准；打开时自动同步维度与自动指标。此处配置业务说明、默认时间、敏感字段、数据隔离、默认过滤与业务指标。
       </p>
 
       <a-form
@@ -83,6 +83,50 @@
           />
         </a-form-item>
       </a-form>
+
+      <section class="ask-section">
+        <div class="ask-section__head">
+          <div>
+            <h4>数据隔离</h4>
+            <p>
+              将对话 <code>callerContext</code> 映射到本表字段并强制过滤。
+              <strong>有 enterpriseId</strong> 为企业用户（只按企业精确过滤，忽略地区）；
+              <strong>无 enterpriseId</strong> 为行业用户（只按地区过滤，忽略企业；地区默认包含下级）。
+              两边都可配置，运行时按角色互斥生效。未映射则该角色不限制。
+            </p>
+          </div>
+        </div>
+        <div class="ask-tenant-rows">
+          <div
+            v-for="row in tenantDimensionRows"
+            :key="row.callerKey"
+            class="ask-row ask-row--tenant"
+          >
+            <span class="ask-tenant-label">
+              <span class="ask-tenant-name">{{ row.label }}</span>
+              <code class="ask-tenant-key">{{ row.callerKey }}</code>
+            </span>
+            <a-select
+              v-model:value="form.tenantDimensions[row.callerKey].field"
+              class="ask-tenant-field"
+              allow-clear
+              show-search
+              option-filter-prop="label"
+              placeholder="映射到表字段（可选）"
+              :options="fieldOptions"
+              @change="markDirty"
+            />
+            <a-checkbox
+              v-if="row.callerKey === 'regionId'"
+              v-model:checked="form.tenantDimensions.regionId.includeSubtree"
+              class="ask-tenant-subtree"
+              @change="markDirty"
+            >
+              包含下级
+            </a-checkbox>
+          </div>
+        </div>
+      </section>
 
       <section class="ask-section">
         <div class="ask-section__head">
@@ -388,12 +432,27 @@ const testShowAllColumns = ref(false)
 const PREVIEW_COL_LIMIT = 6
 const SYSTEM_COL_ORDER = ['id', 'createTime', 'updateTime', 'create_time', 'update_time']
 
+const TENANT_DIMENSION_DEFS = [
+  { callerKey: 'regionId', label: '地区 ID' },
+  { callerKey: 'enterpriseId', label: '企业 ID' },
+]
+
+const tenantDimensionRows = TENANT_DIMENSION_DEFS
+
+function emptyTenantDimensions() {
+  return {
+    regionId: { field: undefined, includeSubtree: true },
+    enterpriseId: { field: undefined },
+  }
+}
+
 const form = reactive({
   description: '',
   defaultTimeField: 'createTime',
   sensitiveFields: [],
   defaultFilters: [],
   customMetrics: [],
+  tenantDimensions: emptyTenantDimensions(),
 })
 
 const modelId = computed(() => (props.model?.id != null ? String(props.model.id) : null))
@@ -539,11 +598,49 @@ function applyDataset(ds) {
   form.sensitiveFields = [...(ds?.sensitiveFields || [])]
   form.defaultFilters = mapFiltersToRows(ds?.defaultFilters)
   form.customMetrics = mapCustomMetrics(ds?.metrics)
+  const td = ds?.tenantDimensions || {}
+  const regionRaw = td.regionId
+  if (typeof regionRaw === 'string' && regionRaw) {
+    // 旧格式纯字符串等价 match=eq
+    form.tenantDimensions.regionId = { field: regionRaw, includeSubtree: false }
+  } else if (regionRaw && typeof regionRaw === 'object' && regionRaw.field) {
+    form.tenantDimensions.regionId = {
+      field: regionRaw.field,
+      includeSubtree: regionRaw.match === 'subtree',
+    }
+  } else {
+    form.tenantDimensions.regionId = { field: undefined, includeSubtree: true }
+  }
+  const entRaw = td.enterpriseId
+  if (typeof entRaw === 'string' && entRaw) {
+    form.tenantDimensions.enterpriseId = { field: entRaw }
+  } else if (entRaw && typeof entRaw === 'object' && entRaw.field) {
+    form.tenantDimensions.enterpriseId = { field: entRaw.field }
+  } else {
+    form.tenantDimensions.enterpriseId = { field: undefined }
+  }
   autoMetrics.value = (ds?.metrics || []).filter((m) => isAutoMetricCode(m.code))
   dirty.value = false
   testModalOpen.value = false
   testResult.value = null
   testShowAllColumns.value = false
+}
+
+/** 组装 tenantDimensions：仅提交已选择映射的键 */
+function buildTenantDimensionsPayload() {
+  const out = {}
+  const region = form.tenantDimensions.regionId
+  if (region?.field) {
+    out.regionId = {
+      field: region.field,
+      match: region.includeSubtree !== false ? 'subtree' : 'eq',
+    }
+  }
+  const enterprise = form.tenantDimensions.enterpriseId
+  if (enterprise?.field) {
+    out.enterpriseId = { field: enterprise.field, match: 'eq' }
+  }
+  return out
 }
 
 const fieldLabelMap = computed(() => {
@@ -824,6 +921,7 @@ async function onSave() {
       sensitiveFields: form.sensitiveFields || [],
       defaultFilters: rowsToFilterList(form.defaultFilters),
       customMetrics: buildCustomMetricsPayload(),
+      tenantDimensions: buildTenantDimensionsPayload(),
     })
     applyDataset(res.data)
     message.success('已保存')
@@ -887,6 +985,55 @@ async function onSave() {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+.ask-tenant-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ask-row--tenant {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;
+}
+.ask-tenant-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  width: 168px;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.ask-tenant-name {
+  flex-shrink: 0;
+}
+.ask-tenant-field {
+  width: 220px;
+  flex: 0 0 220px;
+}
+.ask-tenant-subtree {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-ink);
+}
+.ask-tenant-key {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--color-mute);
+  background: var(--color-canvas-soft-2);
+  padding: 0 5px;
+  border-radius: 4px;
+}
+.ask-drawer__hint code,
+.ask-section__head p code {
+  font-size: 11px;
+  background: var(--color-canvas-soft-2);
+  padding: 0 4px;
+  border-radius: 3px;
 }
 .ask-form__row {
   display: grid;

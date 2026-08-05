@@ -58,6 +58,10 @@ public class ChatSession {
     @Schema(description = "上层业务终端用户标识（source=api 时可选）")
     private String externalUserId;
 
+    @TableField(value = "caller_context", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "调用方身份上下文 JSON（source=api 时可选绑定）")
+    private String callerContext;
+
     @TableField("title")
     @Schema(description = "会话标题")
     private String title;

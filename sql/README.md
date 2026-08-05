@@ -40,6 +40,10 @@ psql -U postgres -h localhost -d lightbot -f sql/2026-07-30-002.sql
 | `2026-07-21-001.sql` | 新增工具维度限流配置 |
 | `2026-07-30-001.sql` | `chat_session` 增加 `source` / `api_key_id`（平台调试 / API 集成 / 自动化分离） |
 | `2026-07-30-002.sql` | 智能问数：`ask_dataset` / `ask_relation` 语义层表 |
+| `2026-08-05-001.sql` | 会话 `caller_context`；问数 `tenant_dimensions` |
+| `2026-08-05-002.sql` | 行政区划地区库表 `region`（code/parent_code 递归子树） |
+| `2026-08-05-003.sql` | 若旧版 region 含 path 列则删除 |
+| `2026-08-05-004-region-seed.sql` | 国标省市区种子（6 位 code；也可由应用启动 / 数据中心导入） |
 
 ## 发布约定
 
