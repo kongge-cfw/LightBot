@@ -58,43 +58,48 @@
     <!-- 注册/编辑：直接进入全屏编辑（基本信息 + AI + HTML） -->
     <a-modal
       v-model:open="editorVisible"
-      :title="form.id ? '编辑业务页' : '注册业务页'"
       width="100vw"
       :centered="false"
       :mask-closable="false"
       destroy-on-close
       wrap-class-name="bp-html-fullscreen-modal"
       :confirm-loading="saving"
-      ok-text="确定"
-      cancel-text="取消"
       :ok-button-props="{ disabled: aiBusy }"
       :cancel-button-props="{ disabled: aiBusy || saving }"
-      @ok="handleSave"
       @cancel="closeEditor"
     >
+      <template #footer>
+        <a-button :disabled="aiBusy || saving" @click="closeEditor">取消</a-button>
+        <a-button
+          :disabled="aiBusy || saving || !form.pageHtml?.trim()"
+          @click="openTestPreview"
+        >
+          测试
+        </a-button>
+        <a-button
+          type="primary"
+          :loading="saving"
+          :disabled="aiBusy"
+          @click="handleSave"
+        >
+          确定
+        </a-button>
+      </template>
+      <template #title>
+        <span class="bp-editor-modal-title">
+          {{ form.id ? '编辑业务页' : '注册业务页' }}
+          <button
+            type="button"
+            class="bp-dev-help-btn"
+            title="H5 编写技术要求"
+            @click.stop="devGuideVisible = true"
+          >
+            <QuestionCircleOutlined />
+          </button>
+        </span>
+      </template>
       <div class="bp-html-max">
         <div class="bp-html-max-main">
-          <div class="bp-html-main-head">
-            <span class="field-label">
-              页面内容
-              <a-tooltip
-                :trigger="['hover', 'click']"
-                placement="topLeft"
-                :overlay-style="{ maxWidth: '380px' }"
-              >
-                <template #title>
-                  <div class="help-tip-body">
-                    <p>内嵌完整 HTML：页面只需 <code>fetch</code> 业务接口；成功的 POST/PUT/PATCH 由宿主自动回传。</p>
-                    <p>取消按钮文案用「取消」，或 id/class 含 cancel。</p>
-                    <p>办结摘要的字段名来自页面 <code>&lt;label&gt;</code>（或 <code>data-label</code>），请与输入框关联（包裹 / <code>for</code> / 相邻），勿依赖平台翻译 field key。</p>
-                    <p>演示接口：<code>/__lightbot_bp_demo__</code></p>
-                    <p>可选 options：<code>captureUrlIncludes</code> / <code>captureUrlExcludes</code> 收窄匹配。</p>
-                  </div>
-                </template>
-                <QuestionCircleOutlined class="field-help-icon" />
-              </a-tooltip>
-            </span>
-          </div>
           <div class="bp-html-editor-wrap">
             <a-textarea
               v-model:value="form.pageHtml"
@@ -117,9 +122,9 @@
             <a-form layout="vertical" class="bp-meta-form" :label-col="{ flex: '0 0 auto' }">
               <a-form-item label="展示名称" required>
                 <a-input
-                  v-model:value="form.displayName"
+                  :value="form.displayName"
                   placeholder="如 水电燃气缴费"
-                  @update:value="onDisplayNameInput"
+                  @update:value="onDisplayNameChange"
                 />
               </a-form-item>
               <a-form-item label="默认标题">
@@ -191,6 +196,155 @@
         </aside>
       </div>
     </a-modal>
+
+    <a-modal
+      v-model:open="testPreviewVisible"
+      title="H5 测试预览"
+      width="520px"
+      :footer="null"
+      destroy-on-close
+      wrap-class-name="bp-test-preview-modal"
+      centered
+    >
+      <p class="bp-test-hint">
+        本地预览当前编辑器中的 HTML。可用演示接口 <code>/__lightbot_bp_demo__</code> 验证提交；
+        此处提交/取消<strong>不会</strong>写入真实对话。
+      </p>
+      <div class="bp-test-frame-wrap">
+        <H5BusinessPageFrame :key="testPreviewKey" :payload="testPayload" />
+      </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="devGuideVisible"
+      title="业务页 H5 编写指南"
+      width="720px"
+      :footer="null"
+      destroy-on-close
+      wrap-class-name="bp-dev-guide-modal"
+    >
+      <div class="bp-dev-guide">
+        <section>
+          <h4>一句话理解</h4>
+          <p>
+            你交付的是<strong>完整 HTML 页面</strong>（iframe 内嵌）。页面只负责表单与调用业务接口；
+            <strong>成功请求会被宿主静默拦截并回传对话</strong>，无需自己对接对话框协议。
+          </p>
+        </section>
+
+        <section>
+          <h4>1. 页面结构（必须）</h4>
+          <ul>
+            <li>必须是完整文档：含 <code>&lt;!DOCTYPE html&gt;</code>、<code>&lt;html&gt;</code>、<code>&lt;head&gt;</code>、<code>&lt;body&gt;</code></li>
+            <li>样式与脚本写在页面内即可；可自包含 CSS/JS，勿依赖外站未授权资源</li>
+            <li>建议适配窄宽度（对话气泡内展示，约 320–480px）</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>2. 提交办理（主路径，推荐）</h4>
+          <ol>
+            <li>校验表单 → 失败时<strong>在页面内</strong>提示错误（不要依赖宿主）</li>
+            <li>使用 <code>fetch</code> / <code>XMLHttpRequest</code> 调用你们的业务接口</li>
+            <li>默认拦截方法：<code>POST</code> / <code>PUT</code> / <code>PATCH</code>，且 HTTP 成功时回传对话</li>
+            <li>接口失败（4xx/5xx）：页面自行展示错误，宿主不会当作办结</li>
+          </ol>
+          <pre class="bp-dev-code">const res = await fetch('/your/api', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(formValues)
+});
+if (!res.ok) throw new Error(/* 页内提示 */);
+// 成功即可：无需再调宿主 API</pre>
+        </section>
+
+        <section>
+          <h4>3. 本地联调（无后端时）</h4>
+          <p>
+            将请求地址设为 <code>/__lightbot_bp_demo__</code>，宿主会返回模拟成功响应并完成回传，便于先跑通页面流程。
+          </p>
+        </section>
+
+        <section>
+          <h4>4. 取消办理</h4>
+          <p>满足任一条件即可被识别为取消（点击后结束办理、回传取消）：</p>
+          <ul>
+            <li>按钮可见文案为「取消」或 <code>Cancel</code></li>
+            <li><code>id</code> / <code>class</code> 含 <code>cancel</code>（不区分大小写）</li>
+            <li>元素带属性 <code>data-lightbot-cancel</code></li>
+            <li>或显式调用 <code>window.LightBot.cancel()</code></li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>5. 办结摘要的字段名（重要）</h4>
+          <p>
+            回传对话时的中文标签来自页面 <strong>label 原文</strong>，平台<strong>不会</strong>根据 <code>name</code>/<code>id</code> 做词典翻译。
+          </p>
+          <ul>
+            <li>请用 <code>&lt;label for="xxx"&gt;</code> 关联控件，或把控件包在 <code>&lt;label&gt;</code> 内</li>
+            <li>也可用 <code>data-label</code> / <code>aria-label</code> 补充</li>
+            <li>分栏布局时，保证 label 与控件在同一表单项容器内</li>
+          </ul>
+          <pre class="bp-dev-code">&lt;label for="phone"&gt;手机号
+  &lt;input id="phone" name="phone" /&gt;
+&lt;/label&gt;</pre>
+        </section>
+
+        <section>
+          <h4>6. 预填数据（Agent 传入 props）</h4>
+          <p>页面加载时可读取宿主注入的初始数据，两种方式等价，建议都兼容：</p>
+          <ul>
+            <li>同步：<code>window.__LIGHTBOT_BP_INIT__</code>（形如 <code>{ props, options, pageType }</code>）</li>
+            <li>异步：监听 <code>message</code>，<code>source === 'lightbot-business-page'</code> 且 <code>type === 'init'</code>，数据在 <code>payload</code></li>
+          </ul>
+          <pre class="bp-dev-code">function applyInit(payload) {
+  const p = (payload && payload.props) || {};
+  if (p.phone != null) phoneInput.value = p.phone;
+  if (payload?.options?.hint) hintEl.textContent = payload.options.hint;
+}
+if (window.__LIGHTBOT_BP_INIT__) applyInit(window.__LIGHTBOT_BP_INIT__);
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if (d?.source === 'lightbot-business-page' && d.type === 'init') {
+    applyInit(d.payload);
+  }
+});</pre>
+        </section>
+
+        <section>
+          <h4>7. 可选：显式 API 与捕获范围</h4>
+          <ul>
+            <li><code>window.LightBot.submit(values, extra?)</code>：主动办结（一般不必，成功 fetch 已足够）</li>
+            <li><code>window.LightBot.cancel()</code>：主动取消</li>
+            <li><code>window.LightBot.resize()</code>：通知宿主按内容高度调整（少用）</li>
+            <li>若同页有多个接口，可在登记配置的 options 中用 <code>captureUrlIncludes</code> / <code>captureUrlExcludes</code> 收窄自动捕获范围</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>8. 请勿这样做</h4>
+          <ul>
+            <li>不要只写 HTML 片段（缺 doctype/html），可能导致样式与桥接注入异常</li>
+            <li>不要自己发明一套 postMessage 协议；需要时用上方官方 <code>LightBot.*</code></li>
+            <li>不要假设平台会把 <code>name</code>/<code>phone</code> 自动翻译成中文摘要</li>
+            <li>不要在成功后还弹「请回到对话框继续」之类引导——页面展示后由用户在页内操作即可</li>
+          </ul>
+        </section>
+
+        <section>
+          <h4>最小检查清单</h4>
+          <ul class="bp-dev-checklist">
+            <li>□ 完整 HTML 文档，窄屏可操作</li>
+            <li>□ 提交走业务 API（或演示路径），失败页内提示</li>
+            <li>□ 成功 POST/PUT/PATCH 后对话能自动收到办结</li>
+            <li>□ 有可识别的「取消」</li>
+            <li>□ 每个字段有可读 label，摘要不是裸英文 key</li>
+            <li>□ 兼容 <code>__LIGHTBOT_BP_INIT__</code> / init message 预填</li>
+          </ul>
+        </section>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -219,6 +373,7 @@ import {
   upsertBusinessPage,
 } from '../api/businessPage'
 import { isRegisteredBusinessPage } from '../components/businessPages/businessPageRegistry'
+import H5BusinessPageFrame from '../components/businessPages/H5BusinessPageFrame.vue'
 import { DEFAULT_BUSINESS_PAGE_HTML } from '../utils/businessPageHtmlTemplate'
 import { truncateText } from '../utils/format'
 import { displayNameToPageType, isValidPageType } from '../utils/pageTypeSlug'
@@ -230,6 +385,9 @@ defineProps({
 const loading = ref(false)
 const saving = ref(false)
 const editorVisible = ref(false)
+const devGuideVisible = ref(false)
+const testPreviewVisible = ref(false)
+const testPreviewKey = ref(0)
 const searchText = ref('')
 const list = ref([])
 const aiRequirement = ref('')
@@ -248,15 +406,39 @@ const form = reactive({
   enabled: true,
 })
 
+const testPayload = computed(() => ({
+  pageType: form.pageType || 'preview',
+  displayName: form.displayName || '业务页预览',
+  title: form.defaultTitle || form.displayName || '业务办理',
+  pageHtml: form.pageHtml || '',
+  props: {},
+  options: {
+    hint: '测试预览：提交或取消仅验证页面，不会写入对话',
+  },
+  actions: ['submit', 'cancel'],
+  mode: 'inline',
+}))
+
+function openTestPreview() {
+  if (!form.pageHtml?.trim()) {
+    message.warning('请先填写页面 HTML')
+    return
+  }
+  testPreviewKey.value += 1
+  testPreviewVisible.value = true
+}
+
 /** 新建随展示名称生成；编辑沿用已有 pageType（表单不展示该字段） */
 function resolvePageType() {
   if (form.id) return String(form.pageType || '').trim()
   return displayNameToPageType(form.displayName)
 }
 
-function onDisplayNameInput() {
+function onDisplayNameChange(val) {
+  form.displayName = val
+  // 新建时同步生成 pageType；编辑沿用已有值
   if (form.id) return
-  form.pageType = displayNameToPageType(form.displayName)
+  form.pageType = displayNameToPageType(val)
 }
 
 const filteredList = computed(() => {
@@ -573,6 +755,105 @@ defineExpose({ openDialog, search, refresh, loading })
 .field-help-icon:hover {
   color: var(--color-body, #52525b);
 }
+.bp-editor-modal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.bp-dev-help-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-mute, #a3a3a3);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.bp-dev-help-btn:hover {
+  color: var(--color-link, #2563eb);
+  background: #f4f4f5;
+}
+.bp-dev-guide {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+  padding-right: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #3f3f46;
+}
+.bp-dev-guide section + section {
+  margin-top: 18px;
+}
+.bp-dev-guide h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #171717;
+}
+.bp-dev-guide p,
+.bp-dev-guide ul,
+.bp-dev-guide ol {
+  margin: 0 0 8px;
+}
+.bp-dev-guide ul,
+.bp-dev-guide ol {
+  padding-left: 1.25em;
+}
+.bp-dev-guide li + li {
+  margin-top: 4px;
+}
+.bp-dev-guide code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f4f4f5;
+  color: #18181b;
+}
+.bp-dev-code {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #18181b;
+  color: #e4e4e7;
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+.bp-dev-checklist {
+  list-style: none;
+  padding-left: 0 !important;
+}
+.bp-dev-checklist li {
+  padding: 4px 0;
+}
+.bp-test-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: #737373;
+}
+.bp-test-hint code {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f4f4f5;
+  color: #18181b;
+}
+.bp-test-frame-wrap {
+  display: flex;
+  justify-content: center;
+}
+.bp-test-frame-wrap :deep(.h5-frame) {
+  max-width: 100%;
+}
 .html-editor {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 12px;
@@ -706,31 +987,6 @@ defineExpose({ openDialog, search, refresh, loading })
   min-height: 0 !important;
   max-height: none !important;
   resize: none;
-}
-.bp-html-main-head {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  min-height: 24px;
-  font-size: 14px;
-  font-weight: 500;
-  color: #171717;
-}
-.help-tip-body {
-  font-size: 12px;
-  line-height: 1.55;
-}
-.help-tip-body p {
-  margin: 0 0 6px;
-}
-.help-tip-body p:last-child {
-  margin-bottom: 0;
-}
-.help-tip-body code {
-  font-size: 11px;
-  padding: 0 3px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.16);
 }
 </style>
 

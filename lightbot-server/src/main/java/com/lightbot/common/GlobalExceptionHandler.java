@@ -19,6 +19,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.async.AsyncRequestTimeoutException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.NoHandlerFoundException;
@@ -159,6 +160,39 @@ public class GlobalExceptionHandler {
         writeError(request, response, HttpStatus.BAD_REQUEST.value(), Result.fail(400, "请求参数格式错误"));
     }
 
+    /**
+     * SSE / DeferredResult 异步超时：连接到期或客户端已断开，属预期收尾，勿记为系统故障。
+     */
+    @ExceptionHandler(AsyncRequestTimeoutException.class)
+    public void handleAsyncTimeout(AsyncRequestTimeoutException e, HttpServletRequest request,
+                                   HttpServletResponse response) {
+        String path = request != null ? request.getRequestURI() : "-";
+        if (response != null && response.isCommitted()) {
+            log.debug("异步请求超时（响应已提交）: path={}", path);
+            return;
+        }
+        if (response == null) {
+            log.warn("异步请求超时: path={}", path);
+            return;
+        }
+        log.warn("异步请求超时: path={}", path);
+        try {
+            // SSE 超时后客户端会自行重连；若仍可写则给一个轻量结束，避免刷「系统内部错误」
+            if (isSseRequest(request)) {
+                response.setStatus(HttpStatus.OK.value());
+                response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
+                response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                response.getWriter().write(": timeout\n\n");
+                response.getWriter().flush();
+                return;
+            }
+            writeError(request, response, HttpStatus.SERVICE_UNAVAILABLE.value(),
+                    Result.fail(503, "请求超时，请重试"));
+        } catch (IOException io) {
+            log.debug("异步超时写响应失败: path={}, err={}", path, io.getMessage());
+        }
+    }
+
     @ExceptionHandler(Exception.class)
     public void handleException(Exception e, HttpServletRequest request, HttpServletResponse response)
             throws IOException {
@@ -172,7 +206,7 @@ public class GlobalExceptionHandler {
     private void writeError(HttpServletRequest request, HttpServletResponse response, int httpStatus, Result<?> body)
             throws IOException {
         if (response.isCommitted()) {
-            log.warn("响应已提交，无法写入错误: status={}, body={}", httpStatus, body);
+            log.debug("响应已提交，跳过错误写入: status={}, body={}", httpStatus, body);
             return;
         }
         response.resetBuffer();
@@ -180,15 +214,7 @@ public class GlobalExceptionHandler {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 
         String json = objectMapper.writeValueAsString(body);
-        String accept = request.getHeader(HttpHeaders.ACCEPT);
-        // 仅当客户端只接受 SSE、不接受 JSON 时，用 error 事件回传；否则统一 JSON（含在线文档 Accept 兼容）
-        boolean acceptJson = accept == null
-                || accept.contains(MediaType.APPLICATION_JSON_VALUE)
-                || accept.contains("*/*");
-        boolean sseOnly = accept != null
-                && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE)
-                && !acceptJson;
-        if (sseOnly) {
+        if (isSseOnlyAccept(request)) {
             response.setContentType(MediaType.TEXT_EVENT_STREAM_VALUE);
             response.getWriter().write("event: error\ndata: " + json + "\n\n");
         } else {
@@ -196,5 +222,27 @@ public class GlobalExceptionHandler {
             response.getWriter().write(json);
         }
         response.getWriter().flush();
+    }
+
+    private boolean isSseRequest(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String accept = request.getHeader(HttpHeaders.ACCEPT);
+        return accept != null && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE);
+    }
+
+    /** 客户端只接受 SSE、不接受 JSON 时走 event-stream 错误通道 */
+    private boolean isSseOnlyAccept(HttpServletRequest request) {
+        if (request == null) {
+            return false;
+        }
+        String accept = request.getHeader(HttpHeaders.ACCEPT);
+        boolean acceptJson = accept == null
+                || accept.contains(MediaType.APPLICATION_JSON_VALUE)
+                || accept.contains("*/*");
+        return accept != null
+                && accept.contains(MediaType.TEXT_EVENT_STREAM_VALUE)
+                && !acceptJson;
     }
 }

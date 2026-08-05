@@ -492,6 +492,18 @@
 .lb-detail-header__tags--inline {
   flex-wrap: nowrap;
 }
+.lb-detail-header__title--inline {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--color-ink, #171717);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: min(360px, 40vw);
+}
 .lb-detail-header--slim .lb-detail-header__top-bar {
   padding: 12px 32px;
 }

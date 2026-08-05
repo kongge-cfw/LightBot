@@ -10,8 +10,8 @@
 
     <LbDetailHeader
       :title="headerName || ''"
-      :desc="agent.description"
-      :breadcrumb="[{ label: 'Agents', onClick: handleGoBack }]"
+      :breadcrumb="[{ onClick: handleGoBack }]"
+      slim
       @back="handleGoBack"
     >
       <template #tags>
