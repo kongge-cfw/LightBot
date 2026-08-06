@@ -61,7 +61,7 @@
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ flex: '0 0 120px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" placeholder="如：通义千问" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="请输入提供商名称（例如：通义千问，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="类型" required>
         <a-select v-model:value="form.type" style="width: 100%" placeholder="选择提供商类型">
@@ -71,17 +71,17 @@
         </a-select>
       </a-form-item>
       <a-form-item label="API Key">
-        <a-input-password v-model:value="form.apiKey" placeholder="sk-..." />
+        <a-input-password v-model:value="form.apiKey" placeholder="请输入 API Key（不超过 2048 字）" :maxlength="2048" />
       </a-form-item>
       <a-form-item label="Base URL">
-        <a-input v-model:value="form.baseUrl" placeholder="可选" />
+        <a-input v-model:value="form.baseUrl" placeholder="请输入 Base URL（可选，不超过 512 字）" :maxlength="512" />
       </a-form-item>
       <a-form-item label="提供商预设">
         <button type="button" class="btn-preset-entry" @click="openPresetModal">选择预设</button>
         <div class="form-hint">从后端维护的预设中选择，一键覆盖基础配置</div>
       </a-form-item>
       <a-form-item label="默认模型">
-        <a-input v-model:value="form.defaultModelId" :placeholder="defaultModelPlaceholder" />
+        <a-input v-model:value="form.defaultModelId" :placeholder="`${defaultModelPlaceholder}（不超过 100 字）`" :maxlength="100" />
         <div class="form-hint">用于连通性检查和未指定模型时的兜底模型</div>
       </a-form-item>
 
@@ -92,19 +92,19 @@
       </div>
       <template v-if="showAdvanced">
         <a-form-item label="请求路径">
-          <a-input v-model:value="form.completionsPath" placeholder="默认 /v1/chat/completions" />
+          <a-input v-model:value="form.completionsPath" placeholder="默认 /v1/chat/completions（不超过 256 字）" :maxlength="256" />
           <div class="form-hint">OpenAI Chat Completions 路径</div>
         </a-form-item>
         <a-form-item label="模型列表URL">
-          <a-input v-model:value="form.modelsEndpoint" placeholder="为空时使用默认地址" />
+          <a-input v-model:value="form.modelsEndpoint" placeholder="请输入模型列表 URL（可选，不超过 512 字）" :maxlength="512" />
           <div class="form-hint">自定义获取模型列表的接口地址</div>
         </a-form-item>
         <a-form-item label="额外请求头">
-          <JsonInput v-model="form.headersJson" placeholder='{"Authorization": "Bearer xxx"}' :rows="3" />
+          <JsonInput v-model="form.headersJson" placeholder='{"Authorization": "Bearer xxx"}' :rows="3" :max-length="8000" />
           <div class="form-hint">JSON 格式，为空时不添加额外请求头</div>
         </a-form-item>
         <a-form-item label="扩展配置">
-          <JsonInput v-model="form.extraJson" placeholder='{"timeout": 30000}' :rows="3" />
+          <JsonInput v-model="form.extraJson" placeholder='{"timeout": 30000}' :rows="3" :max-length="8000" />
           <div class="form-hint">JSON 格式的扩展配置</div>
         </a-form-item>
       </template>
@@ -186,10 +186,10 @@
       <div v-if="showAddModel" class="add-model-form">
         <a-form :model="modelForm" :label-col="{ flex: '0 0 100px' }" size="small">
           <a-form-item label="模型标识" required>
-            <a-input v-model:value="modelForm.modelId" placeholder="如：qwen-max" />
+            <a-input v-model:value="modelForm.modelId" placeholder="请输入模型标识（例如：qwen-max，不超过 100 字）" :maxlength="100" />
           </a-form-item>
           <a-form-item label="显示名称" required>
-            <a-input v-model:value="modelForm.name" placeholder="如：通义千问 Max" />
+            <a-input v-model:value="modelForm.name" placeholder="请输入显示名称（例如：通义千问 Max，不超过 100 字）" :maxlength="100" />
           </a-form-item>
           <a-form-item label="模型类型" required>
             <a-select v-model:value="modelForm.type" style="width: 100%">

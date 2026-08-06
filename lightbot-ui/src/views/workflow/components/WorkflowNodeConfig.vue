@@ -18,7 +18,7 @@
       <template #label>
         <ConfigFieldLabel label="节点名称" :tip="hint('common', 'label')" />
       </template>
-      <a-input v-model:value="node.data.label" placeholder="输入节点名称" @change="emitSync" />
+      <a-input v-model:value="node.data.label" placeholder="请输入节点名称（不超过 50 字）" :maxlength="50" show-count @change="emitSync" />
     </a-form-item>
 
     <a-form-item v-if="showBuiltinVars" class="builtin-vars-form-item">
@@ -58,7 +58,7 @@
         <template #label>
           <ConfigFieldLabel label="系统提示词" :tip="hint('llm', 'sysPrompt')" />
         </template>
-        <a-textarea v-model:value="node.data.sysPrompt" :rows="2" placeholder="定义 AI 角色、行为约束（对应 SystemMessage）" @change="emitSync" />
+        <a-textarea v-model:value="node.data.sysPrompt" :rows="2" placeholder="定义 AI 角色、行为约束（不超过 5000 字）" :maxlength="5000" show-count @change="emitSync" />
       </a-form-item>
       <a-form-item required>
         <template #label>
@@ -68,6 +68,8 @@
           v-model:value="node.data.promptTemplate"
           placeholder="{{query}} 或 {{history_list}}"
           :rows="4"
+          :maxlength="5000"
+          show-count
           @change="emitSync"
         />
       </a-form-item>
@@ -112,6 +114,8 @@
             v-model:value="cond.subject"
             placeholder="描述该意图，如：用户咨询产品价格"
             :rows="2"
+            :maxlength="100"
+            show-count
             @change="emitSync"
           />
           <a-button type="text" danger size="small" @click="removeIntent(idx)"><DeleteOutlined /></a-button>
@@ -134,7 +138,7 @@
         <template #label>
           <ConfigFieldLabel label="提示词（额外约束）" />
         </template>
-        <a-textarea v-model:value="node.data.instruction" :rows="3" placeholder="为意图识别提供额外要求" @change="emitSync" />
+        <a-textarea v-model:value="node.data.instruction" :rows="3" placeholder="为意图识别提供额外要求（不超过 2000 字）" :maxlength="2000" show-count @change="emitSync" />
       </a-form-item>
       <a-form-item label="输出">
         <div class="output-desc">subject（命中主题）、thought（思考过程，效果模式下输出）</div>
@@ -265,8 +269,8 @@
           <ConfigFieldLabel label="输入参数映射" :tip="hint('tool', 'inputMappings')" />
         </template>
         <div v-for="(row, idx) in toolInputMappings" :key="'tool-in-' + idx" class="param-row">
-          <a-input v-model:value="row.key" placeholder="工具参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-input v-model:value="row.key" placeholder="工具参数名（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :max-length="500" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeToolInputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolInputMapping">
@@ -278,8 +282,8 @@
           <ConfigFieldLabel label="输出参数映射" :tip="hint('tool', 'outputMappings')" />
         </template>
         <div v-for="(row, idx) in toolOutputMappings" :key="'tool-out-' + idx" class="param-row">
-          <a-input v-model:value="row.key" placeholder="写入流程变量名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{answer}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-input v-model:value="row.key" placeholder="写入流程变量名（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{answer}}" :max-length="500" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeToolOutputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addToolOutputMapping">
@@ -293,13 +297,13 @@
       <div class="config-section">
         <div class="config-section-title">输出参数</div>
         <div v-for="(param, idx) in node.data.outputParams" :key="(param.key || 'param') + '-' + idx" class="param-row">
-          <a-input v-model:value="param.key" placeholder="参数名" @change="emitSync" />
+          <a-input v-model:value="param.key" placeholder="参数名（不超过 64 字）" :maxlength="64" @change="emitSync" />
           <a-select v-model:value="param.type" style="width: 100px" @change="emitSync">
             <a-select-option value="String">String</a-select-option>
             <a-select-option value="Number">Number</a-select-option>
             <a-select-option value="Boolean">Boolean</a-select-option>
           </a-select>
-          <a-input v-model:value="param.defaultValue" placeholder="默认值" @change="emitSync" />
+          <a-input v-model:value="param.defaultValue" placeholder="默认值（不超过 500 字）" :maxlength="500" @change="emitSync" />
           <a-button type="text" danger @click="removeOutputParam(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button type="dashed" block size="small" class="param-add-btn" @click="addOutputParam">
@@ -314,7 +318,7 @@
         <template #label>
           <ConfigFieldLabel label="确认提示语" :tip="hint('confirm', 'message')" />
         </template>
-        <a-textarea v-model:value="node.data.message" :rows="2" placeholder="展示给操作者的说明文字" @change="emitSync" />
+        <a-textarea v-model:value="node.data.message" :rows="2" placeholder="展示给操作者的说明文字（不超过 5000 字）" :maxlength="5000" show-count @change="emitSync" />
       </a-form-item>
       <div class="config-section">
         <div class="config-section-title">
@@ -330,7 +334,7 @@
     <!-- 流程输出 -->
     <template v-if="node.type === 'output'">
       <a-form-item label="输出内容" required>
-        <a-textarea v-model:value="node.data.output" :rows="4" placeholder="{{input}} 或 {{llmOutput}}" @change="emitSync" />
+        <a-textarea v-model:value="node.data.output" :rows="4" placeholder="{{input}} 或 {{llmOutput}}（不超过 5000 字）" :maxlength="5000" show-count @change="emitSync" />
       </a-form-item>
       <a-form-item label="流式输出">
         <a-switch v-model:checked="node.data.streamSwitch" @change="emitSync" />
@@ -346,7 +350,7 @@
         </a-select>
       </a-form-item>
       <a-form-item v-if="node.data.handleType === 'template'" label="模板内容" required>
-        <a-textarea v-model:value="node.data.templateContent" :rows="4" placeholder="支持 {{变量名}}" @change="emitSync" />
+        <a-textarea v-model:value="node.data.templateContent" :rows="4" placeholder="支持 {{变量名}}（不超过 5000 字）" :maxlength="5000" show-count @change="emitSync" />
       </a-form-item>
       <template v-if="node.data.handleType === 'group'">
         <a-form-item label="分组策略">
@@ -357,7 +361,7 @@
         </a-form-item>
         <a-form-item label="变量列表">
           <div v-for="(v, idx) in groupVariables" :key="(v.value || 'var') + '-' + idx" class="param-row">
-            <a-input v-model:value="v.value" placeholder="{{变量引用}}" @change="emitSync" />
+            <a-input v-model:value="v.value" placeholder="{{变量引用}}（不超过 500 字）" :maxlength="500" @change="emitSync" />
             <a-button type="text" danger @click="removeGroupVar(idx)"><DeleteOutlined /></a-button>
           </div>
           <a-button type="dashed" block size="small" class="param-add-btn" @click="addGroupVar"><PlusOutlined /> 添加变量</a-button>
@@ -368,7 +372,7 @@
     <!-- 参数提取 -->
     <template v-if="node.type === 'parameter_extractor'">
       <a-form-item label="输入变量" required>
-        <a-input v-model:value="node.data.inputVariable" placeholder="{{input}}" @change="emitSync" />
+        <a-input v-model:value="node.data.inputVariable" placeholder="{{input}}（不超过 500 字）" :maxlength="500" @change="emitSync" />
       </a-form-item>
       <a-form-item label="模型" required>
         <ConfigReadonlyValue v-if="readonly" :text="modelDisplayText" />
@@ -380,15 +384,15 @@
         />
       </a-form-item>
       <a-form-item label="提取指令">
-        <a-textarea v-model:value="node.data.instruction" :rows="3" placeholder="补充提取规则说明" @change="emitSync" />
+        <a-textarea v-model:value="node.data.instruction" :rows="3" placeholder="补充提取规则说明（不超过 2000 字）" :maxlength="2000" show-count @change="emitSync" />
       </a-form-item>
       <a-form-item required>
         <template #label>
           <ConfigFieldLabel label="提取参数定义" />
         </template>
         <div v-for="(p, idx) in node.data.extractParams" :key="(p.key || 'extract') + '-' + idx" class="extract-param-row">
-          <a-input v-model:value="p.key" placeholder="参数 key" @change="emitSync" />
-          <a-input v-model:value="p.desc" placeholder="描述" @change="emitSync" />
+          <a-input v-model:value="p.key" placeholder="参数 key（不超过 64 字）" :maxlength="64" @change="emitSync" />
+          <a-input v-model:value="p.desc" placeholder="描述（不超过 200 字）" :maxlength="200" @change="emitSync" />
           <a-switch v-model:checked="p.required" checked-children="必填" un-checked-children="可选" @change="emitSync" />
           <a-button type="text" danger @click="removeExtractParam(idx)"><DeleteOutlined /></a-button>
         </div>
@@ -448,8 +452,8 @@
           <ConfigFieldLabel label="输入参数映射" :tip="hint('app_component', 'inputMappings')" />
         </template>
         <div v-for="(row, idx) in appComponentInputMappings" :key="'sub-in-' + idx" class="param-row">
-          <a-input v-model:value="row.key" placeholder="参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-input v-model:value="row.key" placeholder="参数名（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{query}}" :max-length="500" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeAppInputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppInputMapping">
@@ -461,8 +465,8 @@
           <ConfigFieldLabel label="输出参数映射" :tip="hint('app_component', 'outputMappings')" />
         </template>
         <div v-for="(row, idx) in appComponentOutputMappings" :key="'sub-out-' + idx" class="param-row">
-          <a-input v-model:value="row.key" placeholder="写入父流程变量名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{result}}" :disabled="readonly" @update:model-value="emitSync" />
+          <a-input v-model:value="row.key" placeholder="写入父流程变量名（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="row.value" :node-id="node.id" :nodes="nodes" :edges="edges" placeholder="{{result}}" :max-length="500" :disabled="readonly" @update:model-value="emitSync" />
           <a-button v-if="!readonly" type="text" danger @click="removeAppOutputMapping(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button v-if="!readonly" type="dashed" block size="small" class="param-add-btn" @click="addAppOutputMapping">
@@ -550,13 +554,13 @@
         </a-select>
       </a-form-item>
       <a-form-item label="Headers (JSON)">
-        <JsonInput v-model="node.data.headers" :rows="3" :readonly="scrollableReadonly" placeholder='{"Content-Type":"application/json"}' @update:model-value="emitSync" />
+        <JsonInput v-model="node.data.headers" :rows="3" :max-length="16000" :readonly="scrollableReadonly" placeholder='{"Content-Type":"application/json"}' @update:model-value="emitSync" />
       </a-form-item>
       <a-form-item>
         <template #label>
           <ConfigFieldLabel label="Body (JSON)" />
         </template>
-        <JsonInput v-model="node.data.body" :rows="4" :readonly="scrollableReadonly" placeholder='{"key":"value"}' @update:model-value="emitSync" />
+        <JsonInput v-model="node.data.body" :rows="4" :max-length="16000" :readonly="scrollableReadonly" placeholder='{"key":"value"}' @update:model-value="emitSync" />
       </a-form-item>
     </template>
 
@@ -597,7 +601,7 @@
           <ConfigFieldLabel label="输出变量" :tip="hint('loop', 'outputParams')" />
         </template>
         <div v-for="(p, idx) in node.data.output_params || node.data.outputParams || []" :key="'loop-out-' + idx" class="param-row">
-          <a-input v-model:value="p.key" placeholder="变量名" @change="syncLoopOutputParams" />
+          <a-input v-model:value="p.key" placeholder="变量名（不超过 64 字）" :maxlength="64" @change="syncLoopOutputParams" />
           <a-select v-model:value="p.type" style="width: 100px" @change="syncLoopOutputParams">
             <a-select-option value="String">String</a-select-option>
             <a-select-option value="Object">Object</a-select-option>
@@ -651,7 +655,7 @@
           <ConfigFieldLabel label="输出变量" :tip="hint('batch', 'outputParams')" />
         </template>
         <div v-for="(p, idx) in node.data.output_params || node.data.outputParams || []" :key="'batch-out-' + idx" class="param-row">
-          <a-input v-model:value="p.key" placeholder="变量名" @change="syncBatchOutputParams" />
+          <a-input v-model:value="p.key" placeholder="变量名（不超过 64 字）" :maxlength="64" @change="syncBatchOutputParams" />
           <a-select v-model:value="p.type" style="width: 100px" @change="syncBatchOutputParams">
             <a-select-option value="Array">Array</a-select-option>
             <a-select-option value="Object">Object</a-select-option>
@@ -691,8 +695,8 @@
           <ConfigFieldLabel label="输入变量" :tip="hint('script', 'inputParams')" />
         </div>
         <div v-for="(p, idx) in node.data.inputParams" :key="'in-' + idx" class="param-row">
-          <a-input v-model:value="p.key" placeholder="参数名" :disabled="readonly" @change="emitSync" />
-          <VariablePickerInput v-model="p.value" :node-id="node.id" :nodes="nodes" :edges="edges" :disabled="readonly" @change="emitSync" />
+          <a-input v-model:value="p.key" placeholder="参数名（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
+          <VariablePickerInput v-model="p.value" :node-id="node.id" :nodes="nodes" :edges="edges" :max-length="500" :disabled="readonly" @change="emitSync" />
           <a-button type="text" danger :disabled="readonly" @click="removeScriptInput(idx)"><DeleteOutlined /></a-button>
         </div>
         <a-button type="dashed" block size="small" class="param-add-btn" :disabled="readonly" @click="addScriptInput">
@@ -704,7 +708,7 @@
           <ConfigFieldLabel label="输出变量" :tip="hint('script', 'outputParams')" />
         </div>
         <div v-for="(p, idx) in node.data.outputParams" :key="'out-' + idx" class="param-row">
-          <a-input v-model:value="p.key" placeholder="输出字段" :disabled="readonly" @change="emitSync" />
+          <a-input v-model:value="p.key" placeholder="输出字段（不超过 64 字）" :maxlength="64" :disabled="readonly" @change="emitSync" />
           <a-select v-model:value="p.type" style="width: 100px" :disabled="readonly" @change="emitSync">
             <a-select-option value="String">String</a-select-option>
             <a-select-option value="Number">Number</a-select-option>
@@ -733,6 +737,7 @@
         <JsonInput
           v-model="node.data.defaultOutput"
           :rows="4"
+          :max-length="16000"
           :readonly="scrollableReadonly"
           placeholder='{"result":""}'
           @update:model-value="emitSync"
@@ -812,7 +817,7 @@
         </div>
       </a-form-item>
       <a-form-item label="输入参数 JSON">
-        <JsonInput v-model="mcpInputParamsJson" :rows="4" :readonly="scrollableReadonly" placeholder='{"chat_id":"oc_xxx","text":"{{query}}"}' />
+        <JsonInput v-model="mcpInputParamsJson" :rows="4" :max-length="16000" :readonly="scrollableReadonly" placeholder='{"chat_id":"oc_xxx","text":"{{query}}"}' />
       </a-form-item>
     </template>
 
@@ -1721,9 +1726,9 @@ function removeGroupVar(idx) {
   border: 1px solid var(--color-border-slate);
   border-radius: 8px;
 }
-.kb-config-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+.kb-config-card-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; min-width: 0; margin-bottom: 12px; }
 .kb-config-title { font-weight: 600; font-size: 13px; color: var(--color-text-dark); }
-.kb-config-source { font-size: 11px; color: var(--color-mute); }
+.kb-config-source { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: 11px; color: var(--color-mute); }
 .kb-config-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .kb-config-field label { display: block; font-size: 12px; color: var(--color-mute); margin-bottom: 4px; }
 .kb-config-field :deep(.ant-input-number) { width: 100%; }

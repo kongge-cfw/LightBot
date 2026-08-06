@@ -4,6 +4,8 @@ import com.lightbot.common.Result;
 import com.lightbot.vo.GraphEdgeVO;
 import com.lightbot.dto.GraphExtractDTO;
 import com.lightbot.dto.GraphImportDTO;
+import com.lightbot.dto.GraphNodeRequestDTO;
+import com.lightbot.dto.GraphEdgeRequestDTO;
 import com.lightbot.vo.GraphNodeVO;
 import com.lightbot.vo.GraphStatsVO;
 import com.lightbot.vo.GraphSubgraphVO;
@@ -97,10 +99,9 @@ public class KnowledgeGraphController {
     @Operation(summary = "手动创建图谱节点（需要DEVELOPER及以上权限）")
     @PostMapping("/{id}/graph/nodes")
     public Result<GraphNodeVO> createGraphNode(@PathVariable Long id,
-                                               @RequestParam String name,
-                                               @RequestParam(defaultValue = "其他") String entityType,
-                                               @RequestParam(required = false) String description) {
-        return Result.ok(graphService.createNode(id, name, entityType, description));
+                                               @Valid @ModelAttribute GraphNodeRequestDTO request) {
+        return Result.ok(graphService.createNode(
+                id, request.getName(), request.getEntityType(), request.getDescription()));
     }
 
     @Operation(summary = "删除图谱节点（需要DEVELOPER及以上权限）")
@@ -113,11 +114,9 @@ public class KnowledgeGraphController {
     @Operation(summary = "手动创建图谱关系（需要DEVELOPER及以上权限）")
     @PostMapping("/{id}/graph/edges")
     public Result<GraphEdgeVO> createGraphEdge(@PathVariable Long id,
-                                               @RequestParam String headName,
-                                               @RequestParam String relationType,
-                                               @RequestParam String tailName,
-                                               @RequestParam(required = false) String description) {
-        return Result.ok(graphService.createEdge(id, headName, relationType, tailName, description));
+                                               @Valid @ModelAttribute GraphEdgeRequestDTO request) {
+        return Result.ok(graphService.createEdge(
+                id, request.getHeadName(), request.getRelationType(), request.getTailName(), request.getDescription()));
     }
 
     @Operation(summary = "删除图谱关系（需要DEVELOPER及以上权限）")

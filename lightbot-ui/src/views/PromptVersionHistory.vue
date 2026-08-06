@@ -359,11 +359,7 @@ onMounted(async () => {
   margin-top: 16px;
 }
 
-/* 版本详情 */
-.version-detail {
-  max-height: 60vh;
-  overflow-y: auto;
-}
+/* 版本详情：滚动交给全局 .ant-modal-body，避免双滚动条 */
 .detail-row {
   display: flex;
   align-items: flex-start;
@@ -417,11 +413,7 @@ onMounted(async () => {
   gap: 8px;
 }
 
-/* 对比弹窗 */
-.compare-content {
-  max-height: 70vh;
-  overflow-y: auto;
-}
+/* 对比弹窗：滚动交给全局 .ant-modal-body，避免双滚动条 */
 .compare-legend {
   display: flex;
   gap: 16px;

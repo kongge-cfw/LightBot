@@ -203,10 +203,10 @@
           <div class="restart-form-scroll">
           <a-form :model="editForm" :label-col="{ flex: '0 0 110px' }" :style="{ opacity: restartFormLoading ? 0.4 : 1, transition: 'opacity 0.2s' }">
             <a-form-item label="实验名称" required>
-              <a-input v-model:value="editForm.name" :maxlength="30" show-count placeholder="实验名称 (不超过30字)" />
+              <a-input v-model:value="editForm.name" :maxlength="50" show-count placeholder="请输入实验名称（不超过 50 字）" />
             </a-form-item>
             <a-form-item label="描述">
-              <a-textarea v-model:value="editForm.description" :rows="2" :maxlength="50" show-count placeholder="实验描述 (不超过50字)" />
+              <a-textarea v-model:value="editForm.description" :rows="2" :maxlength="200" show-count placeholder="请输入实验描述（不超过 200 字）" />
             </a-form-item>
             <a-form-item label="评测集" required>
               <a-select v-model:value="editForm.datasetId" placeholder="选择评测集" @change="onEditDatasetChange">
@@ -969,11 +969,6 @@ function truncate(str, len) {
   font-size: 14px;
   line-height: 1.8;
 }
-.restart-form-scroll {
-  max-height: 55vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
 .evaluator-config-block {
   background: var(--color-canvas-soft);
   border: 1px solid var(--color-hairline);
@@ -993,9 +988,7 @@ function truncate(str, len) {
   color: var(--color-ink);
 }
 .result-detail-scroll {
-  max-height: 65vh;
-  overflow-y: auto;
-  padding-right: 12px;
+  /* 滚动交给全局 .ant-modal-body，避免双滚动条 */
   display: flex;
   flex-direction: column;
   gap: 16px;

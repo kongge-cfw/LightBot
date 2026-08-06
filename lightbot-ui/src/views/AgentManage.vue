@@ -51,7 +51,7 @@
         </template>
         <template #info>
           <a-tooltip :title="a.name">
-            <h3>{{ a.name }} <span v-if="a.isDefault" class="card-default-tag">默认</span></h3>
+            <h3 class="card-name"><span class="card-name-text">{{ a.name }}</span><span v-if="a.isDefault" class="card-default-tag">默认</span></h3>
           </a-tooltip>
           <span class="card-type" :class="'card-type--' + (a.agentType?.code || a.agentType || 'chat')">{{ agentTypeLabel(a.agentType) }}</span>
         </template>
@@ -107,7 +107,7 @@
     >
       <a-form :model="form" :label-col="{ flex: '0 0 80px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" placeholder="如：客服助手（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="请输入 Agent 名称（例如：客服助手，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="描述">
           <a-textarea v-model:value="form.description" :rows="2" placeholder="Agent 描述（不超过500字）" :maxlength="500" show-count />
@@ -409,6 +409,18 @@ onMounted(async () => {
   border-radius: 100px;
   font-weight: 500;
 }
+.card-name {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+.card-name-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .card-desc {
   font-size: 13px;
   color: var(--color-mute);
@@ -416,7 +428,7 @@ onMounted(async () => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: fit-content;
+  width: 100%;
   max-width: 100%;
 }
 .card-status {

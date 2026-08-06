@@ -24,7 +24,8 @@ public class UserMemoryRequestDTO {
 
     private String memoryType;
 
-    private List<String> keywords;
+    @Size(max = 10, message = "关键词最多10个")
+    private List<@Size(max = 50, message = "单个关键词不超过50字") String> keywords;
 
     @DecimalMin(value = "0.0", message = "置信度最小为0")
     @DecimalMax(value = "1.0", message = "置信度最大为1")

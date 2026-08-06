@@ -86,13 +86,13 @@
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" placeholder="如：filesystem-server（不超过30字）" :maxlength="30" show-count />
+          <a-input v-model:value="form.name" placeholder="请输入服务名称（例如：filesystem-server，不超过 50 字）" :maxlength="50" show-count />
         </a-form-item>
         <a-form-item label="图标">
           <IconPicker v-model:value="form.icon" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-input v-model:value="form.description" placeholder="服务用途说明（不超过50字）" :maxlength="50" show-count />
+          <a-input v-model:value="form.description" placeholder="请输入服务用途说明（不超过 200 字）" :maxlength="200" show-count />
         </a-form-item>
         <a-form-item label="安装类型" required>
           <a-select v-model:value="form.installType" style="width: 100%" @change="onInstallTypeChange">
@@ -124,10 +124,10 @@
             </a-select>
           </a-form-item>
           <a-form-item label="服务地址" required>
-            <a-input v-model:value="form.host" placeholder="http://localhost:3001/sse" />
+            <a-input v-model:value="form.host" placeholder="请输入服务地址（不超过 2048 字）" :maxlength="2048" show-count />
           </a-form-item>
           <a-form-item label="请求头">
-            <JsonInput v-model="deployForm.headers" :rows="2" placeholder='{"Authorization": "Bearer xxx"}' />
+            <JsonInput v-model="deployForm.headers" :rows="2" :max-length="8000" placeholder='JSON 请求头（不超过 8000 字）' />
           </a-form-item>
         </template>
       </a-form>
@@ -1205,10 +1205,6 @@ defineExpose({ openDialog, search, refresh, loading })
 }
 .help-icon:hover {
   color: var(--color-link);
-}
-.guide {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 .guide-section {
   margin-bottom: 20px;

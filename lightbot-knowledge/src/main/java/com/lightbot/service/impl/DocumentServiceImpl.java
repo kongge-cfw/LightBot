@@ -109,6 +109,7 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
 
         long userId = StpUtil.getLoginIdAsLong();
         String fileName = file.getOriginalFilename();
+        validateDocumentName(fileName);
 
         // 1. 校验文件类型
         String fileType = extractFileType(fileName);
@@ -780,6 +781,7 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
         documentSecurityScanUtil.scanIfEnabled(knowledge, content);
 
         String fileName = buildUrlFileName(title, url);
+        validateDocumentName(fileName);
         String contentHash = calculateContentHash(content);
 
         Document existing = getOne(new LambdaQueryWrapper<Document>()
@@ -846,6 +848,16 @@ public class DocumentServiceImpl extends ServiceImpl<DocumentMapper, Document>
     private String buildUrlFileName(String title, String url) {
         WebFetchUtil.FetchResult dummy = new WebFetchUtil.FetchResult(url, title, "", "", null);
         return dummy.generateFileName();
+    }
+
+    /** 校验上传文件名或 URL 标题生成的文档名，防止超出数据库与展示边界。 */
+    private void validateDocumentName(String fileName) {
+        if (fileName == null || fileName.isBlank()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "文档名称不能为空");
+        }
+        if (fileName.length() > 255) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "文档名称不超过255字");
+        }
     }
 
     /**

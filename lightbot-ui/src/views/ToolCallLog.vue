@@ -233,12 +233,6 @@ onMounted(() => {
 .detail-section {
   margin-bottom: 16px;
 }
-.modal-scroll-body {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: var(--scroll-content-gap, 12px);
-  scrollbar-gutter: stable;
-}
 .modal-scroll-body .detail-pre {
   max-height: none;
   overflow: visible;

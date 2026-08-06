@@ -31,7 +31,9 @@
     <div class="lb-detail-header__title-section">
       <div class="lb-detail-header__title-text">
         <div class="lb-detail-header__title-row">
-          <h2 class="lb-detail-header__title">{{ title }}</h2>
+          <a-tooltip :title="title">
+            <h2 class="lb-detail-header__title">{{ title }}</h2>
+          </a-tooltip>
           <div v-if="$slots.tags || tagsList.length" class="lb-detail-header__tags">
             <slot name="tags">
               <a-tag v-for="t in tagsList" :key="t" color="blue">{{ t }}</a-tag>
@@ -52,7 +54,9 @@
       <button v-if="showBack" type="button" class="page-back-icon" :title="`${title} 返回`" @click="emit('back')">
         <ArrowLeftOutlined />
       </button>
-      <h2 class="lb-detail-header__title">{{ title }}</h2>
+      <a-tooltip :title="title">
+        <h2 class="lb-detail-header__title">{{ title }}</h2>
+      </a-tooltip>
       <div v-if="$slots.tags || tagsList.length" class="lb-detail-header__tags">
         <slot name="tags">
           <a-tag v-for="t in tagsList" :key="t" color="blue">{{ t }}</a-tag>

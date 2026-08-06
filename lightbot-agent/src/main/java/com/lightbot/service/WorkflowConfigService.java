@@ -1,6 +1,9 @@
 package com.lightbot.service;
 
 import com.lightbot.dto.WorkflowGraphDTO;
+import com.lightbot.dto.DifyWorkflowExportPreviewVO;
+import com.lightbot.dto.DifyWorkflowExportResult;
+import com.lightbot.dto.DifyWorkflowImportPreviewVO;
 import com.lightbot.dto.WorkflowNodeTestDTO;
 import com.lightbot.dto.WorkflowAbandonDTO;
 import com.lightbot.dto.WorkflowResumeDTO;
@@ -31,6 +34,40 @@ public interface WorkflowConfigService {
      * 暂存草稿（跳过校验）
      */
     void saveDraft(Long agentId, WorkflowGraphDTO graph);
+
+    /**
+     * 预检 Dify YAML，返回可导入图和待修复项。
+     *
+     * @param agentId Workflow Agent ID
+     * @param yamlContent Dify YAML 内容
+     * @return 预检结果
+     */
+    DifyWorkflowImportPreviewVO previewDifyImport(Long agentId, String yamlContent);
+
+    /**
+     * 导入 Dify YAML 并覆盖当前草稿。
+     *
+     * @param agentId Workflow Agent ID
+     * @param yamlContent Dify YAML 内容
+     * @return 导入结果
+     */
+    DifyWorkflowImportPreviewVO importDifyWorkflow(Long agentId, String yamlContent);
+
+    /**
+     * 预检当前草稿能否导出为 Dify YAML。
+     *
+     * @param agentId Workflow Agent ID
+     * @return 预检结果
+     */
+    DifyWorkflowExportPreviewVO previewDifyExport(Long agentId);
+
+    /**
+     * 导出当前草稿为 Dify YAML。
+     *
+     * @param agentId Workflow Agent ID
+     * @return 导出结果
+     */
+    DifyWorkflowExportResult exportDifyWorkflow(Long agentId);
 
     /**
      * 发布工作流（必须通过校验）

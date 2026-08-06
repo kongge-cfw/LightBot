@@ -10,6 +10,7 @@ import com.lightbot.service.port.KnowledgeDashboardPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,12 +50,19 @@ public class KnowledgeDashboardPortImpl implements KnowledgeDashboardPort {
         stats.put("totalChunks", countChunks());
 
         Map<String, Long> docStatusCounts = new LinkedHashMap<>();
+        List<Map<String, Object>> docStatusList = new ArrayList<>();
         for (DocumentStatus status : DocumentStatus.values()) {
             Long count = documentMapper.selectCount(
                     new LambdaQueryWrapper<Document>().eq(Document::getStatus, status));
             docStatusCounts.put(status.getCode(), count);
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("code", status.getCode());
+            item.put("label", status.getDesc());
+            item.put("count", count);
+            docStatusList.add(item);
         }
         stats.put("documentStatusCounts", docStatusCounts);
+        stats.put("documentStatusList", docStatusList);
 
         List<Document> recentDocs = documentMapper.selectList(
                 new LambdaQueryWrapper<Document>()

@@ -1,5 +1,5 @@
 <template>
-  <a-modal :open="open" width="760px" :footer="null" :mask-closable="false" :closable="false" destroy-on-close @update:open="$emit('update:open', $event)">
+  <a-modal :open="open" width="760px" wrap-class-name="subagent-task-detail-modal" :footer="null" :mask-closable="false" :closable="false" destroy-on-close @update:open="$emit('update:open', $event)">
     <template #title>
       <div class="detail-modal-header">
         <span class="detail-modal-title">{{ detailTitle }}</span>

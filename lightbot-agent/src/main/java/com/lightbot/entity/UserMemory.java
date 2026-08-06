@@ -7,6 +7,7 @@ import com.lightbot.enums.UserMemoryStatus;
 import com.lightbot.enums.UserMemoryType;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -58,10 +59,12 @@ public class UserMemory {
     private UserMemoryType memoryType;
 
     @TableField("content")
+    @Size(max = 1000, message = "记忆内容不超过1000字")
     @Schema(description = "记忆内容")
     private String content;
 
     @TableField(value = "keywords", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 800, message = "关键词配置不超过800字")
     @Schema(description = "关键词列表")
     private String keywords;
 

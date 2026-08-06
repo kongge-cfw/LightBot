@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.EvalDatasetVersionStatus;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -33,6 +34,7 @@ public class EvalDatasetVersion {
     private Long datasetId;
 
     @TableField("version")
+    @Size(max = 32, message = "版本号不超过32字")
     @Schema(description = "版本号")
     private String version;
 

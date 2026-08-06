@@ -15,6 +15,7 @@
           ref="titleInputRef"
           :value="titleEditValue"
           size="small"
+          placeholder="请输入会话标题（不超过 50 字）"
           :maxlength="50"
           @update:value="$emit('update:title-edit-value', $event)"
           @press-enter="$emit('confirm-title-edit')"

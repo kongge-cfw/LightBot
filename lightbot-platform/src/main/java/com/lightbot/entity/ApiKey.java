@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.ApiKeyPermission;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -36,6 +37,7 @@ public class ApiKey {
     private Long userId;
 
     @TableField("name")
+    @Size(max = 64, message = "Key名称不超过64字")
     @Schema(description = "Key名称")
     private String name;
 

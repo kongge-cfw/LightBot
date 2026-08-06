@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.PromptVersionStatus;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -28,30 +29,37 @@ public class PromptVersion {
     private Long id;
 
     @TableField("prompt_key")
+    @Size(max = 100, message = "提示词标识不超过100字")
     @Schema(description = "提示词唯一标识")
     private String promptKey;
 
     @TableField("version")
+    @Size(max = 32, message = "版本号不超过32字")
     @Schema(description = "版本号")
     private String version;
 
     @TableField("version_desc")
+    @Size(max = 200, message = "版本说明不超过200字")
     @Schema(description = "版本说明")
     private String versionDesc;
 
     @TableField("template")
+    @Size(max = 5000, message = "模板内容不超过5000字")
     @Schema(description = "提示词模板")
     private String template;
 
     @TableField(value = "variables", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "变量定义不超过8000字")
     @Schema(description = "变量定义")
     private String variables;
 
     @TableField(value = "model_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "模型配置不超过8000字")
     @Schema(description = "模型配置")
     private String modelConfig;
 
     @TableField(value = "tool_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "工具配置不超过8000字")
     @Schema(description = "工具配置")
     private String toolConfig;
 

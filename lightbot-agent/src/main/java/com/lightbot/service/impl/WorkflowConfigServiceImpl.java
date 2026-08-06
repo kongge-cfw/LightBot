@@ -3,6 +3,9 @@ package com.lightbot.service.impl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
 import com.lightbot.dto.WorkflowGraphDTO;
+import com.lightbot.dto.DifyWorkflowExportPreviewVO;
+import com.lightbot.dto.DifyWorkflowExportResult;
+import com.lightbot.dto.DifyWorkflowImportPreviewVO;
 import com.lightbot.dto.WorkflowNodeTestDTO;
 import com.lightbot.dto.WorkflowAbandonDTO;
 import com.lightbot.dto.WorkflowResumeDTO;
@@ -30,6 +33,8 @@ import com.lightbot.workflow.WorkflowExecutorService;
 import com.lightbot.workflow.WorkflowGraphValidateUtil;
 import com.lightbot.workflow.WorkflowSuspendedRun;
 import com.lightbot.workflow.WorkflowTraceRecorder;
+import com.lightbot.workflow.dify.DifyWorkflowExporter;
+import com.lightbot.workflow.dify.DifyWorkflowImporter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -66,6 +71,8 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
     private final MessageService messageService;
     private final WorkflowRunStateUtil workflowRunStateUtil;
     private final WorkflowTraceRecorder workflowTraceRecorder;
+    private final DifyWorkflowImporter difyWorkflowImporter;
+    private final DifyWorkflowExporter difyWorkflowExporter;
 
     @Override
     public Map<String, Object> getWorkflowConfig(Long agentId) {
@@ -74,7 +81,43 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
 
     @Override
     public void saveDraft(Long agentId, WorkflowGraphDTO graph) {
+        assertGraphPayload(graph);
         agentVersionService.saveWorkflowDraft(agentId, graph);
+    }
+
+    @Override
+    public DifyWorkflowImportPreviewVO previewDifyImport(Long agentId, String yamlContent) {
+        requireWorkflowAgent(agentId);
+        return difyWorkflowImporter.preview(yamlContent);
+    }
+
+    @Override
+    public DifyWorkflowImportPreviewVO importDifyWorkflow(Long agentId, String yamlContent) {
+        requireWorkflowAgent(agentId);
+        DifyWorkflowImportPreviewVO preview = difyWorkflowImporter.preview(yamlContent);
+        if (hasBlocker(preview.getIssues()) || preview.getGraph() == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "Dify 工作流预检未通过，请先修复阻断问题");
+        }
+        assertGraphPayload(preview.getGraph());
+        // 仅覆盖当前草稿，已发布版本仍由 agent_version 保留。
+        agentVersionService.saveWorkflowDraft(agentId, preview.getGraph());
+        return preview;
+    }
+
+    @Override
+    public DifyWorkflowExportPreviewVO previewDifyExport(Long agentId) {
+        WorkflowGraphDTO draft = getWorkflowDraft(agentId);
+        return difyWorkflowExporter.preview(draft);
+    }
+
+    @Override
+    public DifyWorkflowExportResult exportDifyWorkflow(Long agentId) {
+        Agent agent = requireWorkflowAgent(agentId);
+        DifyWorkflowExportResult result = difyWorkflowExporter.export(getWorkflowDraft(agentId), agent.getName());
+        if (result.getContent() == null) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "当前工作流不能导出为 Dify YAML，请先修复预检问题");
+        }
+        return result;
     }
 
     @Override
@@ -555,6 +598,43 @@ public class WorkflowConfigServiceImpl implements WorkflowConfigService {
             throw new BizException(ErrorCode.AGENT_NOT_FOUND);
         }
         return agent;
+    }
+
+    private Agent requireWorkflowAgent(Long agentId) {
+        Agent agent = requireAgent(agentId);
+        if (agent.getAgentType() != com.lightbot.enums.AgentType.WORKFLOW) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "目标 Agent 不是工作流类型");
+        }
+        return agent;
+    }
+
+    private WorkflowGraphDTO getWorkflowDraft(Long agentId) {
+        requireWorkflowAgent(agentId);
+        Object draft = agentVersionService.getWorkflowEditorState(agentId).get("draft");
+        if (!(draft instanceof Map<?, ?>)) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "工作流草稿为空，请先配置节点");
+        }
+        WorkflowGraphDTO graph = objectMapper.convertValue(draft, WorkflowGraphDTO.class);
+        if (graph.getNodes() == null || graph.getNodes().isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "工作流草稿为空，请先配置节点");
+        }
+        if (graph.getEdges() == null) {
+            graph.setEdges(List.of());
+        }
+        return graph;
+    }
+
+    private boolean hasBlocker(List<com.lightbot.dto.DifyWorkflowIssueVO> issues) {
+        return issues != null && issues.stream().anyMatch(issue -> "BLOCKER".equals(issue.getSeverity()));
+    }
+
+    /** 校验所有可落库图载荷的基础结构与关键文本上限。 */
+    private void assertGraphPayload(WorkflowGraphDTO graph) {
+        List<String> errors = WorkflowGraphValidateUtil.validatePayload(
+                graph == null ? null : graph.getNodes(), graph == null ? null : graph.getEdges());
+        if (!errors.isEmpty()) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), String.join("；", errors));
+        }
     }
 
     private Map<String, Object> toGraphMap(WorkflowGraphDTO graph) {

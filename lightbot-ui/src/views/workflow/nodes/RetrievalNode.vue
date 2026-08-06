@@ -79,6 +79,11 @@ const nodeClass = computed(() => ({
 }
 
 .node-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 14px;
   font-weight: 600;
   color: var(--color-ink);
@@ -100,6 +105,10 @@ const nodeClass = computed(() => ({
 }
 
 .config-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--color-text-dark);
   font-weight: 500;
 }

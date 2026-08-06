@@ -63,3 +63,23 @@ export function clearWorkflowTestRuns(agentId) {
 export function getWorkflowIoSchema(agentId) {
   return request.get(`/agents/${agentId}/workflow/io-schema`)
 }
+
+export function previewDifyWorkflowImport(agentId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post(`/agents/${agentId}/workflow/import/dify/preview`, formData)
+}
+
+export function importDifyWorkflow(agentId, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post(`/agents/${agentId}/workflow/import/dify`, formData)
+}
+
+export function previewDifyWorkflowExport(agentId) {
+  return request.get(`/agents/${agentId}/workflow/export/dify/preview`)
+}
+
+export function downloadDifyWorkflow(agentId) {
+  return request.get(`/agents/${agentId}/workflow/export/dify`, { responseType: 'blob' })
+}

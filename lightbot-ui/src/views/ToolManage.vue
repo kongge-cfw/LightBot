@@ -97,16 +97,16 @@
       <div class="dialog-scroll-body">
       <a-form :model="form" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="工具标识" required>
-          <a-input v-model:value="form.name" placeholder="如：http_request（英文，唯一标识）（不超过30字）" :maxlength="30" show-count :disabled="form.toolType === 'builtin'" />
+          <a-input v-model:value="form.name" placeholder="请输入工具标识（英文，唯一标识，不超过 50 字）" :maxlength="50" show-count :disabled="form.toolType === 'builtin'" />
         </a-form-item>
         <a-form-item label="显示名称">
-          <a-input v-model:value="form.displayName" placeholder="如：HTTP 请求（不超过30字）" :maxlength="30" show-count :disabled="isBuiltin" />
+          <a-input v-model:value="form.displayName" placeholder="请输入显示名称（例如：HTTP 请求，不超过 50 字）" :maxlength="50" show-count :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="图标">
           <IconPicker v-model:value="form.icon" :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="工具用途说明（不超过50字）" :maxlength="50" show-count :disabled="isBuiltin" />
+          <a-textarea v-model:value="form.description" :rows="2" placeholder="请输入工具用途说明（不超过 200 字）" :maxlength="200" show-count :disabled="isBuiltin" />
         </a-form-item>
         <a-form-item label="标签">
           <a-select
@@ -152,7 +152,7 @@
                 <QuestionCircleOutlined class="field-help-icon" />
               </a-tooltip>
             </template>
-            <a-input v-model:value="form.endpointUrl" placeholder="API 端点 URL" />
+            <a-input v-model:value="form.endpointUrl" placeholder="请输入 API 端点 URL（不超过 2048 字）" :maxlength="2048" show-count />
           </a-form-item>
           <a-form-item>
             <template #label>
@@ -183,7 +183,7 @@
                 <QuestionCircleOutlined class="field-help-icon" />
               </a-tooltip>
             </template>
-            <JsonInput v-model="form.authConfig" :rows="2" placeholder='JSON 格式，如：{"apiKey":"xxx"}' />
+            <JsonInput v-model="form.authConfig" :rows="2" :max-length="8000" placeholder='JSON 格式，如：{"apiKey":"xxx"}（不超过 8000 字）' />
           </a-form-item>
         </template>
         <!-- 高级选项折叠区（内置工具无高级配置可编辑） -->
@@ -214,7 +214,7 @@
                 <QuestionCircleOutlined class="field-help-icon" />
               </a-tooltip>
             </template>
-            <JsonInput v-model="form.inputSchema" :rows="4" placeholder='JSON Schema，如：{"type":"object","properties":{...}}' />
+            <JsonInput v-model="form.inputSchema" :rows="4" :max-length="16000" placeholder='JSON Schema（不超过 16000 字）' />
           </a-form-item>
           <a-form-item>
             <template #label>
@@ -238,7 +238,7 @@
                 <QuestionCircleOutlined class="field-help-icon" />
               </a-tooltip>
             </template>
-            <JsonInput v-model="form.outputSchema" :rows="3" placeholder='JSON Schema，如：{"type":"object","properties":{"total":{"type":"integer","description":"结果总数"}}}' />
+            <JsonInput v-model="form.outputSchema" :rows="3" :max-length="16000" placeholder='JSON Schema（不超过 16000 字）' />
           </a-form-item>
           <a-form-item>
             <template #label>
@@ -258,10 +258,10 @@
                 <QuestionCircleOutlined class="field-help-icon" />
               </a-tooltip>
             </template>
-            <JsonInput v-model="form.outputExample" :rows="4" placeholder='示例 JSON，如：{"total":2,"results":[...]}' />
+            <JsonInput v-model="form.outputExample" :rows="4" :max-length="8000" placeholder='示例 JSON（不超过 8000 字）' />
           </a-form-item>
           <a-form-item label="扩展配置">
-            <JsonInput v-model="form.config" :rows="2" placeholder="JSON 格式的扩展配置（可选）" />
+            <JsonInput v-model="form.config" :rows="2" :max-length="8000" placeholder="JSON 格式的扩展配置（可选，不超过 8000 字）" />
           </a-form-item>
         </template>
       </a-form>
@@ -1318,12 +1318,6 @@ defineExpose({ openDialog, search, refresh, loading })
   background: var(--color-purple-bg);
 }
 
-/* 工具详情弹窗样式 */
-.detail-section-container {
-  max-height: 60vh;
-  overflow-y: auto;
-  padding-right: 8px;
-}
 .raw-toggle-bar {
   display: flex;
   justify-content: flex-end;

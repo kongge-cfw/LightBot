@@ -146,16 +146,18 @@
       <div class="dialog-scroll-body">
       <a-form :model="versionForm" :label-col="{ flex: '0 0 100px' }">
         <a-form-item label="版本号" required>
-          <a-input v-model:value="versionForm.version" placeholder="如: v1.0" />
+          <a-input v-model:value="versionForm.version" placeholder="请输入版本号（例如：v1.0，不超过 32 字）" :maxlength="32" show-count />
         </a-form-item>
         <a-form-item label="版本描述">
-          <a-input v-model:value="versionForm.versionDesc" placeholder="版本说明" />
+          <a-input v-model:value="versionForm.versionDesc" placeholder="请输入版本说明（可选，不超过 200 字）" :maxlength="200" show-count />
         </a-form-item>
         <a-form-item label="评估模板" required>
           <a-textarea
             v-model:value="versionForm.prompt"
             :rows="8"
             placeholder="评估器的 Prompt 模板，使用 {{变量名}} 定义变量"
+            :maxlength="5000"
+            show-count
           />
         </a-form-item>
         <a-form-item label="变量定义">
@@ -163,6 +165,8 @@
             v-model:value="versionForm.variables"
             :rows="3"
             placeholder='JSON 格式，如: [{"name":"actual_output","description":"实际输出","required":true}]'
+            :maxlength="8000"
+            show-count
           />
         </a-form-item>
         <a-form-item label="评估模型">
@@ -178,6 +182,8 @@
             v-model:value="versionForm.modelParams"
             :rows="3"
             placeholder='JSON 格式（可选），如: {"temperature":0.3}'
+            :maxlength="8000"
+            show-count
           />
         </a-form-item>
       </a-form>

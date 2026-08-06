@@ -66,9 +66,9 @@ const nodeClass = computed(() => ({
 .generic-node.debug-fail { border-color: #ef4444; box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.2); }
 .node-header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--color-hairline); border-radius: 10px 10px 0 0; }
 .node-icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
-.node-title { font-size: 13px; font-weight: 600; color: var(--color-ink); }
+.node-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 600; color: var(--color-ink); }
 .node-body { padding: 8px 12px 10px; font-size: 12px; }
-.config-value { color: var(--color-text-dark); font-weight: 500; }
+.config-value { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--color-text-dark); font-weight: 500; }
 .node-placeholder { color: var(--color-mute); font-style: italic; }
 @keyframes wf-executing {
   0% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.35); }

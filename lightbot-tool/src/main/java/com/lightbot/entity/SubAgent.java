@@ -36,6 +36,7 @@ public class SubAgent {
     private String displayName;
 
     @TableField("icon")
+    @Size(max = 64, message = "图标标识不超过64字")
     @Schema(description = "图标标识（Ant Design 图标组件名，如 RobotOutlined），为空时前端降级首字母")
     private String icon;
 
@@ -45,6 +46,7 @@ public class SubAgent {
     private String description;
 
     @TableField("system_prompt")
+    @Size(max = 2000, message = "系统提示词不超过2000字")
     @Schema(description = "系统提示词")
     private String systemPrompt;
 

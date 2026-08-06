@@ -128,13 +128,13 @@
           <a-input :value="editForm.username" disabled />
         </a-form-item>
         <a-form-item label="昵称">
-          <a-input v-model:value="editForm.nickname" placeholder="用户昵称" :maxlength="20" show-count />
+          <a-input v-model:value="editForm.nickname" placeholder="请输入昵称（不超过 8 字）" :maxlength="8" show-count />
         </a-form-item>
         <a-form-item label="邮箱">
-          <a-input v-model:value="editForm.email" placeholder="邮箱地址" />
+          <a-input v-model:value="editForm.email" placeholder="请输入邮箱（不超过 254 字）" :maxlength="254" show-count />
         </a-form-item>
         <a-form-item label="手机">
-          <a-input v-model:value="editForm.phone" placeholder="手机号码" />
+          <a-input v-model:value="editForm.phone" placeholder="请输入手机号（不超过 32 字）" :maxlength="32" show-count />
         </a-form-item>
         <a-form-item label="角色">
           <a-select v-model:value="editForm.role">

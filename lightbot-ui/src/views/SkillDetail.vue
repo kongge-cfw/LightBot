@@ -1158,10 +1158,6 @@ onUnmounted(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.dep-detail-body {
-  max-height: 60vh;
-  overflow-y: auto;
-}
 
 /* 按钮 */
 .btn-outline {

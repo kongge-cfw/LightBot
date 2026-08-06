@@ -12,10 +12,10 @@
     <div v-show="currentStep === 0">
       <a-form :model="createForm" :label-col="{ span: labelSpan }">
         <a-form-item label="实验名称" required>
-          <a-input v-model:value="createForm.name" :maxlength="30" show-count placeholder="如：客服 Prompt v1 vs v2 对比" />
+          <a-input v-model:value="createForm.name" :maxlength="50" show-count placeholder="请输入实验名称（例如：客服 Prompt v1 vs v2 对比，不超过 50 字）" />
         </a-form-item>
         <a-form-item label="描述">
-          <a-textarea v-model:value="createForm.description" :rows="3" :maxlength="descMaxlength" show-count placeholder="实验目的说明" />
+          <a-textarea v-model:value="createForm.description" :rows="3" :maxlength="descMaxlength" show-count placeholder="请输入实验目的说明（不超过 200 字）" />
         </a-form-item>
       </a-form>
     </div>
@@ -162,7 +162,7 @@ const props = defineProps({
   /** 表单 label 占据的列数 */
   labelSpan: { type: Number, default: 5 },
   /** 描述字段最大长度 */
-  descMaxlength: { type: Number, default: 50 },
+  descMaxlength: { type: Number, default: 200 },
 })
 
 const emit = defineEmits(['success', 'cancel'])

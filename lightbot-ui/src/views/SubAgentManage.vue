@@ -76,16 +76,16 @@
           内置 SubAgent 仅可调整「模型配置」，其余字段保持系统默认不可修改。
         </div>
         <a-form-item label="标识名称" required>
-          <a-input v-model:value="form.name" placeholder="英文标识，如 research-agent（不超过30字）" :maxlength="30" show-count :disabled="editingBuiltin" />
+          <a-input v-model:value="form.name" placeholder="请输入标识名称（英文，不超过 50 字）" :maxlength="50" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="显示名称" required>
-          <a-input v-model:value="form.displayName" placeholder="中文显示名称（不超过30字）" :maxlength="30" show-count :disabled="editingBuiltin" />
+          <a-input v-model:value="form.displayName" placeholder="请输入显示名称（不超过 50 字）" :maxlength="50" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="图标">
           <IconPicker v-model:value="form.icon" :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="描述" required>
-          <a-textarea v-model:value="form.description" placeholder="SubAgent 描述（不超过50字）" :rows="2" :maxlength="50" show-count :disabled="editingBuiltin" />
+          <a-textarea v-model:value="form.description" placeholder="请输入 SubAgent 描述（不超过 200 字）" :rows="2" :maxlength="200" show-count :disabled="editingBuiltin" />
         </a-form-item>
         <a-form-item label="系统提示词" required>
           <a-textarea v-model:value="form.systemPrompt" placeholder="SubAgent 的系统提示词（不超过2000字）" :rows="6" :maxlength="2000" show-count :disabled="editingBuiltin" />
@@ -750,10 +750,6 @@ defineExpose({ openDialog, search, refresh, loading })
 .btn-cancel:hover {
   border-color: var(--color-ink);
   color: var(--color-ink);
-}
-.guide {
-  max-height: 60vh;
-  overflow-y: auto;
 }
 .guide-section {
   margin-bottom: 20px;

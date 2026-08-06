@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import com.lightbot.enums.DocumentStatus;
 import com.lightbot.handler.JsonbTypeHandler;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 import org.apache.ibatis.type.JdbcType;
 
@@ -38,6 +39,7 @@ public class Document {
     private Long userId;
 
     @TableField("name")
+    @Size(max = 255, message = "文档名称不超过255字")
     @Schema(description = "文档名称")
     private String name;
 

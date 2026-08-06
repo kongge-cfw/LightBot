@@ -36,6 +36,7 @@ public class McpServer {
     private String name;
 
     @TableField("icon")
+    @Size(max = 64, message = "图标标识不超过64字")
     @Schema(description = "图标标识（Ant Design 图标组件名，如 ApiOutlined），为空时前端降级首字母")
     private String icon;
 
@@ -53,14 +54,17 @@ public class McpServer {
     private McpInstallType installType;
 
     @TableField(value = "deploy_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "部署配置不超过8000字")
     @Schema(description = "部署配置(JSONB)")
     private String deployConfig;
 
     @TableField(value = "detail_config", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "详细配置不超过8000字")
     @Schema(description = "详细配置/工具列表(JSONB)")
     private String detailConfig;
 
     @TableField("host")
+    @Size(max = 2048, message = "服务地址不超过2048字")
     @Schema(description = "服务地址")
     private String host;
 
@@ -69,10 +73,12 @@ public class McpServer {
     private McpTransportType transport;
 
     @TableField(value = "headers", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "请求头不超过8000字")
     @Schema(description = "HTTP请求头(JSONB)")
     private String headers;
 
     @TableField(value = "disabled_tools", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Size(max = 8000, message = "禁用工具不超过8000字")
     @Schema(description = "禁用的工具名列表(JSONB数组)")
     private String disabledTools;
 

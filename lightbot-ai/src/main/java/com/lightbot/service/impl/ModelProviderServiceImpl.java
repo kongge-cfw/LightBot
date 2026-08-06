@@ -255,6 +255,10 @@ public class ModelProviderServiceImpl extends ServiceImpl<ModelProviderMapper, M
      */
     private String buildProviderConfig(ModelProviderDTO request) {
         Map<String, Object> config = parseConfig(request.getConfig());
+        Object completionsPath = config.get(ConfigKeys.Agent.COMPLETIONS_PATH);
+        if (completionsPath != null && completionsPath.toString().length() > 256) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "Chat Completions 路径不超过256字");
+        }
         String defaultModelId = request.getDefaultModelId();
         if (defaultModelId != null) {
             if (defaultModelId.isBlank()) {

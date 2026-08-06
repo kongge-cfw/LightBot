@@ -26,6 +26,7 @@
       @exit-test-history="backToLiveTest"
       @save-draft="saveDraft"
       @open-publish="openPublishModal"
+      @open-workflow-exchange="openWorkflowExchange"
     />
 
     <!-- 加载遮罩 -->
@@ -210,6 +211,76 @@
 
     <WorkflowNodeHelpModal v-model:open="nodeHelpVisible" />
 
+    <a-modal v-model:open="workflowExchangeVisible" title="工作流互通" :width="720" :footer="null">
+      <a-tabs v-model:active-key="workflowExchangePlatformTab" class="workflow-exchange-platform-tabs">
+        <a-tab-pane key="dify" tab="Dify">
+          <a-tabs v-model:active-key="difyActiveTab" @change="onDifyTabChange">
+            <a-tab-pane key="import" tab="导入">
+          <a-alert type="info" show-icon class="dify-modal-intro">
+            <template #message>导入逻辑说明</template>
+            <template #description>
+              上传 Dify Workflow YAML 后先预检，再写入当前草稿。常见节点会转换为 LightBot 节点；没有等价运行时的节点将保留已脱敏的 Dify 原始结构，确保可以再次导出。模型、知识库、工具和认证需要重新绑定，导入不会覆盖已发布版本。
+            </template>
+          </a-alert>
+          <a-upload :max-count="1" accept=".yml,.yaml" :before-upload="selectDifyImportFile" :file-list="difyImportFileList" @remove="clearDifyImportFile">
+            <a-button><UploadOutlined /> 选择 Dify YAML</a-button>
+          </a-upload>
+          <a-spin :spinning="difyImportLoading">
+            <div v-if="difyImportPreview" class="dify-preview-summary">
+              <a-descriptions size="small" :column="3" bordered>
+                <a-descriptions-item label="应用">{{ difyImportPreview.appName || '-' }}</a-descriptions-item>
+                <a-descriptions-item label="节点">{{ difyImportPreview.nodeCount }}</a-descriptions-item>
+                <a-descriptions-item label="连线">{{ difyImportPreview.edgeCount }}</a-descriptions-item>
+              </a-descriptions>
+              <div v-if="difyImportPreview.issues?.length" class="dify-issue-list">
+                <div v-for="issue in difyImportPreview.issues" :key="`dialog-import-${issue.code}-${issue.nodeId || 'global'}`" class="dify-issue-item">
+                  <a-tag :color="issue.severity === 'BLOCKER' ? 'red' : issue.severity === 'WARNING' ? 'gold' : 'blue'">{{ issue.severity }}</a-tag>
+                  <span>{{ issue.nodeId ? `[${issue.nodeId}] ` : '' }}{{ issue.message }}</span>
+                </div>
+              </div>
+              <a-alert v-else type="success" show-icon message="预检通过，可导入到当前草稿" />
+            </div>
+          </a-spin>
+          <div class="dify-modal-footer">
+            <a-button @click="workflowExchangeVisible = false">取消</a-button>
+            <a-button :disabled="!difyImportFile" :loading="difyImportLoading" @click="previewDifyImport">预检</a-button>
+            <a-button type="primary" :disabled="!canCommitDifyImport" :loading="difyImportCommitting" @click="commitDifyImport">确认导入</a-button>
+          </div>
+            </a-tab-pane>
+            <a-tab-pane key="export" tab="导出">
+          <a-alert type="info" show-icon class="dify-modal-intro">
+            <template #message>导出逻辑说明</template>
+            <template #description>
+              导出服务器已保存的当前草稿，不调用 Dify API。节点会按 Dify DSL 映射，从 Dify 导入的节点将保留已脱敏的原始结构。API Key、Token、密码、认证等敏感信息不会写入 YAML；知识库、工具、MCP 和模型需在目标 Dify 环境重新绑定。
+            </template>
+          </a-alert>
+          <a-spin :spinning="difyExportLoading">
+            <div v-if="difyExportPreview" class="dify-preview-summary">
+              <a-descriptions size="small" :column="3" bordered>
+                <a-descriptions-item label="节点">{{ difyExportPreview.nodeCount }}</a-descriptions-item>
+                <a-descriptions-item label="连线">{{ difyExportPreview.edgeCount }}</a-descriptions-item>
+                <a-descriptions-item label="可导出">{{ difyExportPreview.exportableCount }}</a-descriptions-item>
+              </a-descriptions>
+              <div v-if="difyExportPreview.issues?.length" class="dify-issue-list">
+                <div v-for="issue in difyExportPreview.issues" :key="`dialog-export-${issue.code}-${issue.nodeId || 'global'}`" class="dify-issue-item">
+                  <a-tag :color="issue.severity === 'BLOCKER' ? 'red' : issue.severity === 'WARNING' ? 'gold' : 'blue'">{{ issue.severity }}</a-tag>
+                  <span>{{ issue.nodeId ? `[${issue.nodeId}] ` : '' }}{{ issue.message }}</span>
+                </div>
+              </div>
+              <a-alert v-else type="success" show-icon message="预检通过，可下载 Dify YAML" />
+            </div>
+          </a-spin>
+          <div class="dify-modal-footer">
+            <a-button @click="workflowExchangeVisible = false">取消</a-button>
+            <a-button :loading="difyExportLoading" @click="previewDifyExport">重新预检</a-button>
+            <a-button type="primary" :disabled="!canDownloadDifyExport" :loading="difyExportDownloading" @click="downloadDifyExport">下载 YAML</a-button>
+          </div>
+            </a-tab-pane>
+          </a-tabs>
+        </a-tab-pane>
+      </a-tabs>
+    </a-modal>
+
     <WorkflowGlobalConfigModal
       v-model:open="globalConfigVisible"
       :config="globalConfig"
@@ -280,6 +351,10 @@ import {
   getWorkflowTestRun,
   deleteWorkflowTestRun,
   clearWorkflowTestRuns,
+  previewDifyWorkflowImport,
+  importDifyWorkflow,
+  previewDifyWorkflowExport,
+  downloadDifyWorkflow,
 } from '../api/workflow'
 import { testWorkflowStream, resumeWorkflowStream } from '../api/workflowTestStream'
 import { abandonWorkflowConfirm } from '../api/workflow'
@@ -350,6 +425,7 @@ import {
   buildEdgeId,
 } from '../views/workflow/workflowConnection'
 import { useTheme } from '../composables/useTheme'
+import { UploadOutlined } from '@ant-design/icons-vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -401,6 +477,21 @@ const saving = ref(false)
 const panelCollapsed = ref(false)
 const nodeSearch = ref('')
 const nodeHelpVisible = ref(false)
+const workflowExchangeVisible = ref(false)
+const workflowExchangePlatformTab = ref('dify')
+const difyActiveTab = ref('import')
+const difyImportFile = ref(null)
+const difyImportFileList = ref([])
+const difyImportPreview = ref(null)
+const difyExportPreview = ref(null)
+const difyImportLoading = ref(false)
+const difyImportCommitting = ref(false)
+const difyExportLoading = ref(false)
+const difyExportDownloading = ref(false)
+const canCommitDifyImport = computed(() => Boolean(difyImportPreview.value)
+  && !(difyImportPreview.value.issues || []).some(issue => issue.severity === 'BLOCKER'))
+const canDownloadDifyExport = computed(() => Boolean(difyExportPreview.value)
+  && !(difyExportPreview.value.issues || []).some(issue => issue.severity === 'BLOCKER'))
 const nodeExampleVisible = ref(false)
 const nodeTestVisible = ref(false)
 const nodeExampleContent = computed(() => {
@@ -2616,6 +2707,110 @@ async function saveDraft() {
   }
 }
 
+function openWorkflowExchange() {
+  if (isVersionPreview.value) {
+    message.warning('历史版本只读，请回到当前草稿后导入')
+    return
+  }
+  workflowExchangePlatformTab.value = 'dify'
+  difyActiveTab.value = 'import'
+  workflowExchangeVisible.value = true
+}
+
+async function onDifyTabChange(tab) {
+  if (tab !== 'export' || isVersionPreview.value) return
+  await previewDifyExport()
+}
+
+function selectDifyImportFile(file) {
+  const fileName = file?.name?.toLowerCase() || ''
+  if (!fileName.endsWith('.yml') && !fileName.endsWith('.yaml')) {
+    message.error('仅支持 .yml 或 .yaml 文件')
+    return false
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    message.error('Dify YAML 不能超过 2 MiB')
+    return false
+  }
+  difyImportFile.value = file
+  difyImportFileList.value = [file]
+  difyImportPreview.value = null
+  return false
+}
+
+function clearDifyImportFile() {
+  difyImportFile.value = null
+  difyImportFileList.value = []
+  difyImportPreview.value = null
+  return true
+}
+
+async function previewDifyImport() {
+  if (!difyImportFile.value) return
+  difyImportLoading.value = true
+  try {
+    const res = await previewDifyWorkflowImport(agentId, difyImportFile.value)
+    difyImportPreview.value = res.data
+  } catch (e) {
+    difyImportPreview.value = null
+  } finally {
+    difyImportLoading.value = false
+  }
+}
+
+async function commitDifyImport() {
+  if (!canCommitDifyImport.value || !difyImportFile.value) return
+  difyImportCommitting.value = true
+  try {
+    const res = await importDifyWorkflow(agentId, difyImportFile.value)
+    const graph = res.data?.graph
+    if (!graph) throw new Error('导入结果缺少工作流图')
+    applyWorkflowGraph(graph)
+    await finalizeWorkflowGraphAfterLoad()
+    workflowStatus.value = workflowStatus.value === 'published' ? 'published_editing' : 'draft'
+    workflowExchangeVisible.value = false
+    clearDifyImportFile()
+    message.success('Dify 工作流已导入到当前草稿，请补齐待修复配置后再发布')
+  } catch (e) {
+    notification.error({ message: '导入失败', description: e.message })
+  } finally {
+    difyImportCommitting.value = false
+  }
+}
+
+async function previewDifyExport() {
+  difyExportLoading.value = true
+  try {
+    const res = await previewDifyWorkflowExport(agentId)
+    difyExportPreview.value = res.data
+  } catch (e) {
+    difyExportPreview.value = null
+  } finally {
+    difyExportLoading.value = false
+  }
+}
+
+async function downloadDifyExport() {
+  if (!canDownloadDifyExport.value) return
+  difyExportDownloading.value = true
+  try {
+    const blob = await downloadDifyWorkflow(agentId)
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([blob], { type: 'application/x-yaml;charset=utf-8' }))
+    const name = (agent.value?.name || 'lightbot-workflow').replace(/[\\/:*?"<>|]/g, '_')
+    link.download = `${name}.yml`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(link.href)
+    message.success('Dify YAML 已下载')
+  } catch (e) {
+    notification.error({ message: '导出失败', description: e.message })
+  } finally {
+    difyExportDownloading.value = false
+  }
+}
+
 function openPublishModal() {
   const errors = validateWorkflow()
   if (errors.length > 0) return
@@ -4352,5 +4547,38 @@ function goBack() {
   border: 1px solid var(--color-hairline);
   border-radius: 6px;
   word-break: break-all;
+}
+
+.dify-modal-intro {
+  margin-bottom: 16px;
+}
+
+.dify-preview-summary {
+  margin-top: 16px;
+}
+
+.dify-issue-list {
+  margin-top: 12px;
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid var(--color-hairline);
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.dify-issue-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 4px;
+  color: var(--color-body);
+  font-size: 13px;
+}
+
+.dify-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
 }
 </style>

@@ -71,6 +71,7 @@ const iconStyle = computed(() => {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
+  min-width: 0;
 }
 
 .card-icon {
@@ -92,6 +93,7 @@ const iconStyle = computed(() => {
   min-width: 0;
 }
 .card-info :deep(h3) {
+  display: block;
   font-size: 16px;
   font-weight: 600;
   color: var(--color-ink);
@@ -99,7 +101,7 @@ const iconStyle = computed(() => {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  width: fit-content;
+  min-width: 0;
   max-width: 100%;
 }
 

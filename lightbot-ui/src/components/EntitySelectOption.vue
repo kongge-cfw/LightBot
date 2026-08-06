@@ -91,6 +91,8 @@ const letter = computed(() => (props.name || '?')[0].toUpperCase())
   font-size: 13px;
 }
 .entity-select-name {
+  flex: 1;
+  min-width: 0;
   font-weight: 500;
   color: var(--color-ink);
   white-space: nowrap;

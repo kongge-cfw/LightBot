@@ -404,6 +404,11 @@
   color: var(--color-link);
 }
 .lb-detail-header__title {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 20px;
   font-weight: 600;
   color: var(--color-ink);
@@ -465,6 +470,16 @@
 .lb-detail-header__title-row .lb-detail-header__tags {
   margin: 0;
 }
+.lb-detail-header__title-row > .ant-tooltip {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow: hidden;
+}
+.lb-detail-header__main > .ant-tooltip {
+  flex: 1 1 240px;
+  min-width: 0;
+  overflow: hidden;
+}
 /* title-row 内的统计/元信息槽：推到最右侧，与标题/标签共享同一行 */
 .lb-detail-header__stats {
   margin-left: auto;
@@ -481,6 +496,10 @@
   border-left: 3px solid var(--color-link);
   margin: 0;
   word-break: break-word;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
 }
 .lb-detail-header__top-left {
   display: inline-flex;

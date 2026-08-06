@@ -14,10 +14,10 @@ public class EvalDatasetCreateDTO {
 
     private Long id;
 
-    @Size(max = 30, message = "数据集名称不超过30字")
+    @Size(max = 50, message = "数据集名称不超过50字")
     private String name;
 
-    @Size(max = 50, message = "数据集描述不超过50字")
+    @Size(max = 200, message = "数据集描述不超过200字")
     private String description;
 
     private String columnsConfig;

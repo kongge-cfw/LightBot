@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.common.BizException;
+import com.lightbot.constant.ConfigKeys;
 import com.lightbot.entity.Agent;
 import com.lightbot.enums.AgentStatus;
 import com.lightbot.enums.ErrorCode;
@@ -133,6 +134,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         if (count > 0) {
             throw new BizException(ErrorCode.AGENT_NAME_EXISTS);
         }
+        validateEditableConfig(request);
 
         // 2. DTO → Entity，仅设置用户可编辑字段
         Agent agent = new Agent();
@@ -175,11 +177,10 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         Agent source = checkOwnership(id);
 
         // 2. 生成唯一名称：原名 + "(副本)"，冲突时追加序号
-        String baseName = source.getName() + "(副本)";
-        String cloneName = baseName;
+        String cloneName = buildCloneName(source.getName(), 1);
         int seq = 2;
         while (count(new LambdaQueryWrapper<Agent>().eq(Agent::getName, cloneName)) > 0) {
-            cloneName = baseName + seq;
+            cloneName = buildCloneName(source.getName(), seq);
             seq++;
         }
 
@@ -210,6 +211,20 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
         return clone;
     }
 
+    /**
+     * 生成不超过名称上限的副本名称，避免复制 50 字名称时写入失败。
+     *
+     * @param sourceName 原名称
+     * @param sequence 副本序号，1 表示无数字后缀
+     * @return 可保存的副本名称
+     */
+    private String buildCloneName(String sourceName, int sequence) {
+        String suffix = sequence == 1 ? "(副本)" : "(副本" + sequence + ")";
+        String name = sourceName == null ? "Agent" : sourceName;
+        int maxSourceLength = Math.max(0, 50 - suffix.length());
+        return (name.length() > maxSourceLength ? name.substring(0, maxSourceLength) : name) + suffix;
+    }
+
     @Override
     @CacheEvict(value = RedisCacheConfig.CACHE_AGENT_BINDING, allEntries = true)
     public Agent update(AgentSaveDTO request) {
@@ -223,6 +238,7 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
                 throw new BizException(ErrorCode.AGENT_NAME_EXISTS);
             }
         }
+        validateEditableConfig(request);
 
         // 3. 更新允许修改的字段
         existing.setName(request.getName());
@@ -239,6 +255,67 @@ public class AgentServiceImpl extends ServiceImpl<AgentMapper, Agent>
             agentVersionService.saveChatDraft(existing.getId());
         }
         return existing;
+    }
+
+    /**
+     * 校验 Agent JSON 配置内的可维护集合，避免仅依赖页面输入限制。
+     *
+     * @param request Agent 保存请求
+     */
+    private void validateEditableConfig(AgentSaveDTO request) {
+        try {
+            if (StringUtils.hasText(request.getRecommendedQuestions())) {
+                var questions = objectMapper.readTree(request.getRecommendedQuestions());
+                if (!questions.isArray() || questions.size() > 3) {
+                    throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "推荐问题最多3条");
+                }
+                for (var question : questions) {
+                    if (!question.isTextual() || question.asText().length() > 30) {
+                        throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "单个推荐问题不超过30字");
+                    }
+                }
+            }
+            if (!StringUtils.hasText(request.getConfig())) {
+                return;
+            }
+            var config = objectMapper.readTree(request.getConfig());
+            if (!config.isObject()) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "扩展配置必须为JSON对象");
+            }
+            validateConfigStringList(config.get(ConfigKeys.Agent.USER_SENSITIVE_WORDS), "用户敏感词");
+            validateConfigStringList(config.get(ConfigKeys.Agent.SENSITIVE_WORDS), "输出敏感词");
+            var variables = config.get(ConfigKeys.Agent.PROMPT_VARIABLES);
+            if (variables != null && !variables.isNull()) {
+                if (!variables.isArray() || variables.size() > 20) {
+                    throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "提示词变量最多20个");
+                }
+                for (var variable : variables) {
+                    if (!variable.isObject()
+                            || variable.path("key").asText().length() > 64
+                            || variable.path("label").asText().length() > 50
+                            || variable.path("defaultValue").asText().length() > 500
+                            || variable.path("description").asText().length() > 200) {
+                        throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "提示词变量字段长度不合法");
+                    }
+                }
+            }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), "Agent配置必须为合法JSON格式");
+        }
+    }
+
+    private void validateConfigStringList(com.fasterxml.jackson.databind.JsonNode values, String fieldName) {
+        if (values == null || values.isNull()) {
+            return;
+        }
+        if (!values.isArray() || values.size() > 100) {
+            throw new BizException(ErrorCode.BAD_REQUEST.getCode(), fieldName + "最多100个");
+        }
+        for (var value : values) {
+            if (!value.isTextual() || value.asText().length() > 50) {
+                throw new BizException(ErrorCode.BAD_REQUEST.getCode(), fieldName + "单项不超过50字");
+            }
+        }
     }
 
     @Override
