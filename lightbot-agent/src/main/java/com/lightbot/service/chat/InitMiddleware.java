@@ -66,6 +66,8 @@ public class InitMiddleware implements ChatMiddleware {
         ctx.setSessionId(sessionId);
         // 续聊未传身份时从会话回填，保证本轮记忆/工具隔离命名空间一致
         syncCallerContextFromSession(ctx, apiKeyId, sessionId);
+        // 控制台：仍无 externalUserId 时再回落 debug_user（须在会话回填之后，避免续聊与已绑定模拟角色冲突）
+        ensureConsoleCallerFallback(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
         long t1 = System.currentTimeMillis();
         CallerContext callerContext = ctx.getRequest().getCallerContext();
@@ -118,6 +120,7 @@ public class InitMiddleware implements ChatMiddleware {
                 ctx.getRequest().getCallerContext());
         ctx.setSessionId(sessionId);
         syncCallerContextFromSession(ctx, apiKeyId, sessionId);
+        ensureConsoleCallerFallback(ctx, apiKeyId, sessionId);
         bindSessionAgentIfNeeded(sessionId, ctx.getRequest().getAgentId(), ctx.getRequest().getAgentVersionId(), ctx.getRequest().getConfigVersion());
 
         Agent agent = loadAgent(ctx.getRequest().getAgentId(), apiKeyId);
@@ -407,8 +410,7 @@ public class InitMiddleware implements ChatMiddleware {
      * 规范化 callerContext（兼容顶层 externalUserId）：
      * <ul>
      *   <li>开放 API：合并并校验业务传入值</li>
-     *   <li>控制台：接受模拟角色（externalUserId/regionId/enterpriseId/profile）；
-     *       未传 externalUserId 时回落 debug_user_{登录用户ID}</li>
+     *   <li>控制台：只规范化请求中显式传入的模拟身份；debug_user 兜底见 {@link #ensureConsoleCallerFallback}</li>
      *   <li>自动化调度：清空，不启用记忆命名空间</li>
      * </ul>
      */
@@ -427,16 +429,34 @@ public class InitMiddleware implements ChatMiddleware {
             applyCallerContextToRequest(ctx, null);
             return;
         }
-        // 控制台：合并模拟身份；缺 externalUserId 时用 debug 命名空间兜底
+        // 控制台：不在此处强制 debug_user——续聊常省略 callerContext，须先与会话已绑定身份对齐
         CallerContext normalized = CallerContextUtil.mergeAndNormalize(
                 ctx.getRequest().getCallerContext(), ctx.getRequest().getExternalUserId());
-        if (normalized == null) {
-            normalized = new CallerContext();
+        applyCallerContextToRequest(ctx, normalized);
+    }
+
+    /**
+     * 控制台在会话回填后仍无 externalUserId 时，回落 debug_user_{登录用户ID} 并写入会话。
+     * <p>必须在 {@link #syncCallerContextFromSession} 之后调用，否则续聊会把 debug_user 与已绑定模拟角色判冲突。</p>
+     */
+    private void ensureConsoleCallerFallback(ChatContext ctx, Long apiKeyId, Long sessionId) {
+        if (apiKeyId != null || ctx.getRequest() == null || sessionId == null) {
+            return;
         }
-        if (!StringUtils.hasText(normalized.getExternalUserId())) {
-            normalized.setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+        if (ctx.getRequest().getActorUserId() != null) {
+            return;
         }
-        applyCallerContextToRequest(ctx, normalized.isEmpty() ? null : normalized);
+        CallerContext current = ctx.getRequest().getCallerContext();
+        if (current != null && StringUtils.hasText(current.getExternalUserId())) {
+            return;
+        }
+        CallerContext fallback = current != null ? CallerContextUtil.resolveEffective(null, current) : new CallerContext();
+        if (fallback == null) {
+            fallback = new CallerContext();
+        }
+        fallback.setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+        applyCallerContextToRequest(ctx, fallback);
+        bindSessionCallerContext(sessionId, fallback);
     }
 
     /**
