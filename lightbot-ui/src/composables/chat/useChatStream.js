@@ -48,6 +48,7 @@ export function useChatStream(deps) {
     selectedAgentId,
     selectedConfigVersion,
     selectedAgentVersionId,
+    simCallerContext,
     sessionTokenCount,
     streamSmoother,
     getCurrentStreamingMsg,
@@ -401,6 +402,12 @@ export function useChatStream(deps) {
         router.replace(`/app/chat/${sid}`)
       }
 
+      // 首轮携带模拟角色；续聊省略，由服务端从会话 caller_context 回填（避免与已绑定身份冲突）
+      const userTurns = messages.value.filter((m) => m?.role === 'user').length
+      const sendCallerContext = !regenerate && !editMsgId && userTurns <= 1
+        ? (simCallerContext?.value || undefined)
+        : undefined
+
       const chatPayload = {
         message: msgText || undefined,
         sessionId: sid,
@@ -413,6 +420,7 @@ export function useChatStream(deps) {
         replyToMessageId: replyMsgId || undefined,
         // 仅业务页回灌等场景显式传 false；undefined 表示沿用 Agent 深度思考配置
         enableReasoning: enableReasoning === false ? false : undefined,
+        callerContext: sendCallerContext,
         mentions: mentions?.length ? mentions.map(m => ({
           type: m.type,
           resourceId: String(m.resourceId),

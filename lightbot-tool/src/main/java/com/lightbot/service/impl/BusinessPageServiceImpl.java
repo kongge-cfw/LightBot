@@ -220,6 +220,7 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
         entity.setAllowedPropKeys(writeJson(dto.getAllowedPropKeys() != null ? dto.getAllowedPropKeys() : List.of()));
         entity.setAllowedOptionKeys(writeJson(dto.getAllowedOptionKeys() != null ? dto.getAllowedOptionKeys() : List.of()));
         entity.setDefaultProps(writeJson(dto.getDefaultProps() != null ? dto.getDefaultProps() : Map.of()));
+        entity.setDefaultOptions(writeJson(dto.getDefaultOptions() != null ? dto.getDefaultOptions() : Map.of()));
         // formSchema 已废弃，保存时清空
         entity.setFormSchema(null);
         entity.setEnabled(dto.getEnabled() == null || Boolean.TRUE.equals(dto.getEnabled()) ? 1 : 0);
@@ -464,6 +465,7 @@ public class BusinessPageServiceImpl extends ServiceImpl<BusinessPageMapper, Bus
                 asStringList(readJson(row.getAllowedPropKeys())),
                 asStringList(readJson(row.getAllowedOptionKeys())),
                 asObjectMap(readJson(row.getDefaultProps())),
+                asObjectMap(readJson(row.getDefaultOptions())),
                 null,
                 false
         );

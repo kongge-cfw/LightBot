@@ -6,8 +6,10 @@
 
 二选一：
 
-- **内嵌 HTML**：编写完整 HTML（含 CSS/JS）
-- **外链网页**：填写已部署地址
+- **内嵌 HTML**：编写完整 HTML（含 CSS/JS）——推荐（可平台注身份 Header）
+- **外链网页**：填写已部署地址（仅能 postMessage 收身份）
+
+身份透传由平台默认开启（出站 `X-Zhiyuan-*` Header + `callerContext`），注册页无需额外配置。
 
 ## 2. 内嵌 HTML：页面可零感知
 
@@ -17,8 +19,9 @@
 2. 把请求体（表单字段）作为结果回传对话；接口响开放 `extra`
 3. 从页面 `<label>`（或 `data-label`）采集字段展示名，**平台不做字段中英词典**
 4. 识别「取消」按钮（文案为取消，或 id/class 含 `cancel`，或 `data-lightbot-cancel`）
+5. **默认证出站身份 Header**（与对话 `callerContext` 同源）
 
-业务页只需写自己的校验与接口，**不必**写 `postMessage`。
+业务页只需写自己的校验与接口，**不必**写 `postMessage`，也**不必**手写拼身份 Header。
 
 ```js
 const res = await fetch(API_URL || '/__lightbot_bp_demo__', {
@@ -27,6 +30,26 @@ const res = await fetch(API_URL || '/__lightbot_bp_demo__', {
   body: JSON.stringify(form),
 })
 // 成功后无需通知父页面；宿主已自动回传
+// 出站请求会自动带（若注册未关闭）：
+//   X-Zhiyuan-External-User-Id / X-Zhiyuan-Region-Id / X-Zhiyuan-Enterprise-Id
+```
+
+### 读取调用方身份（可选）
+
+```js
+const ctx = window.LightBot?.getCallerContext?.()
+// { externalUserId, regionId, enterpriseId, profile? }
+
+const headers = window.LightBot?.getIdentityHeaders?.()
+// { 'X-Zhiyuan-Region-Id': '510100', ... }
+
+// 或监听 init
+window.addEventListener('message', (e) => {
+  const d = e.data
+  if (d?.source === 'lightbot-business-page' && d.type === 'init') {
+    console.log(d.payload.callerContext, d.payload.identityHeaders)
+  }
+})
 ```
 
 ### 字段标签（办结摘要）
@@ -51,15 +74,33 @@ const res = await fetch(API_URL || '/__lightbot_bp_demo__', {
 ```js
 LightBot.submit({ orderId: 'x' })
 LightBot.cancel()
+LightBot.getCallerContext()
+LightBot.getIdentityHeaders()
 ```
 
 ## 3. 外链网页
 
-跨域无法注入桥接。可选：
+跨域无法注入桥接、**无法**强制注 Header。身份仅在 iframe `load` 后经 `postMessage` 下发（**不会**出现在 URL）。
 
-- 页面内 `postMessage` 回传
-- 业务后端回调 LightBot
+可选：
 
-## 4. 优先级
+- 页面内监听 `init`，自行把 `identityHeaders` 挂到业务请求
+- 业务后端走自有登录态 / 网关
+
+需要平台级强制 Header → 改用内嵌 `pageHtml`。
+
+## 4. 业务后端约定
+
+优先认平台标准 Header：
+
+```http
+X-Zhiyuan-External-User-Id: ...
+X-Zhiyuan-Region-Id: ...
+X-Zhiyuan-Enterprise-Id: ...
+```
+
+建议语义与问数一致：有企业 ID → 企业视角；无企业、有地区 → 行业视角。鉴权勿只信页面 Body 或 `profile`。
+
+## 5. 优先级
 
 宿主 `registerBusinessPageComponent` > **pageHtml（srcdoc + 静默桥接）** > pageUrl 外链。

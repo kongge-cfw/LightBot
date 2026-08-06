@@ -92,12 +92,17 @@ const initPayload = computed(() => toCloneableJson({
   props: props.payload?.props || {},
   options: props.payload?.options || {},
   actions: props.payload?.actions || ['submit', 'cancel'],
+  // 平台身份快照（与业务 props 分离；历史消息重放用工具结果固化值）
+  callerContext: props.payload?.callerContext ?? null,
+  identityHeaders: props.payload?.identityHeaders || {},
 }) || {
   pageType: props.payload?.pageType,
   title: title.value,
   props: {},
   options: {},
   actions: ['submit', 'cancel'],
+  callerContext: null,
+  identityHeaders: {},
 })
 
 const iframeSrc = computed(() => {
@@ -106,7 +111,8 @@ const iframeSrc = computed(() => {
     const url = new URL(pageUrl.value)
     url.searchParams.set('pageType', props.payload?.pageType || '')
     url.searchParams.set('mode', props.payload?.mode || 'inline')
-    url.searchParams.set('payload', btoa(unescape(encodeURIComponent(JSON.stringify(initPayload.value)))))
+    // 身份不得进入 URL（防日志/Referer 泄露）；外链仅靠 load 后 postMessage init
+    url.searchParams.delete('payload')
     return url.toString()
   } catch {
     return pageUrl.value

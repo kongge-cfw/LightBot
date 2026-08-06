@@ -84,6 +84,7 @@ export const API_DOC_GROUPS = [
         <li>MCP：身份经工具调用 <code>_meta.callerContext</code> 透传（勿依赖改 MCP 连接 Header）</li>
         <li>问数：数据集配置 <code>tenantDimensions</code>（仅 <code>regionId</code>/<code>enterpriseId</code>）后强制隔离：有 <code>enterpriseId</code> 为企业视角（只滤企业）；否则为行业视角（只滤地区，配了地区则必传 <code>regionId</code>）</li>
         <li>HTTP API 工具：可在工具 <code>config.contextHeaders</code> / <code>contextQuery</code> 中用 <code>{{callerContext.regionId}}</code> 等模板注入</li>
+        <li>业务办理页：工具结果写入 <code>callerContext</code>；内嵌 HTML 默认证 <code>X-Zhiyuan-*</code> Header（身份不进 URL）</li>
         <li>智元不为终端用户建账号；身份由上游业务系统经 API Key 断言</li>
         <li>控制台调试会自动使用 <code>debug_user_&#123;建设者用户ID&#125;</code>，与开放 API 的 Key 命名空间<strong>互不共享</strong></li>
       </ul>
@@ -92,10 +93,11 @@ export const API_DOC_GROUPS = [
       <pre>{
   "type": "tool_result",
   "toolName": "present_business_page",
-  "result": "{ \"success\": true, \"pageType\": \"utility_bill_pay\", \"title\": \"水电燃气缴费\", \"mode\": \"inline\", \"pageHtml\": \"<!DOCTYPE html>...\", \"props\": {...}, \"actions\": [\"submit\",\"cancel\"], \"wait_for_user\": true }"
+  "result": "{ \"success\": true, \"pageType\": \"utility_bill_pay\", \"title\": \"水电燃气缴费\", \"mode\": \"inline\", \"pageHtml\": \"<!DOCTYPE html>...\", \"props\": {...}, \"callerContext\": { \"regionId\": \"510100\" }, \"identityHeaders\": { \"X-Zhiyuan-Region-Id\": \"510100\" }, \"actions\": [\"submit\",\"cancel\"], \"wait_for_user\": true }"
 }</pre>
       <ul>
         <li>主路径：<code>pageHtml</code> → iframe srcdoc；可选外链 <code>pageUrl</code></li>
+        <li>身份：工具结果写入权威 <code>callerContext</code>（与 props 分离）；内嵌页默认证 <code>X-Zhiyuan-*</code> Header；身份不进 URL</li>
         <li>上层也可 <code>registerBusinessPageComponent</code> 注入 Vue 组件（优先级最高）</li>
         <li>白名单：对话型 Agent「业务页组件」绑定 ∩ 企业 API Key 业务页配置；未绑定则不注入该工具</li>
         <li>用户提交后回灌对话；Workflow HITL 类型为 <code>business_page</code></li>

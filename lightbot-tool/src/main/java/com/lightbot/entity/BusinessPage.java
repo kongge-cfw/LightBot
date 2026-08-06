@@ -75,6 +75,10 @@ public class BusinessPage {
     @Schema(description = "默认 props JSON 对象")
     private String defaultProps;
 
+    @TableField(value = "default_options", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER)
+    @Schema(description = "默认 options JSON（身份透传等）")
+    private String defaultOptions;
+
     @TableField(value = "form_schema", typeHandler = JsonbTypeHandler.class, jdbcType = JdbcType.OTHER,
             updateStrategy = com.baomidou.mybatisplus.annotation.FieldStrategy.ALWAYS)
     @Schema(description = "已废弃，保存时清空")

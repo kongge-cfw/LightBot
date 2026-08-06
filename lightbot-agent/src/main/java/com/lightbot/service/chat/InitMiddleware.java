@@ -23,6 +23,7 @@ import com.lightbot.util.ExternalUserIdUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 
 import java.util.HashMap;
@@ -406,7 +407,8 @@ public class InitMiddleware implements ChatMiddleware {
      * 规范化 callerContext（兼容顶层 externalUserId）：
      * <ul>
      *   <li>开放 API：合并并校验业务传入值</li>
-     *   <li>控制台调试：强制 debug_user_{登录用户ID}，忽略客户端传入</li>
+     *   <li>控制台：接受模拟角色（externalUserId/regionId/enterpriseId/profile）；
+     *       未传 externalUserId 时回落 debug_user_{登录用户ID}</li>
      *   <li>自动化调度：清空，不启用记忆命名空间</li>
      * </ul>
      */
@@ -425,17 +427,27 @@ public class InitMiddleware implements ChatMiddleware {
             applyCallerContextToRequest(ctx, null);
             return;
         }
-        // 控制台调试：用当前登录用户生成调试命名空间
-        CallerContext debug = new CallerContext();
-        debug.setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
-        applyCallerContextToRequest(ctx, debug.isEmpty() ? null : debug);
+        // 控制台：合并模拟身份；缺 externalUserId 时用 debug 命名空间兜底
+        CallerContext normalized = CallerContextUtil.mergeAndNormalize(
+                ctx.getRequest().getCallerContext(), ctx.getRequest().getExternalUserId());
+        if (normalized == null) {
+            normalized = new CallerContext();
+        }
+        if (!StringUtils.hasText(normalized.getExternalUserId())) {
+            normalized.setExternalUserId(ExternalUserIdUtil.consoleDebugId(ctx.getUserId()));
+        }
+        applyCallerContextToRequest(ctx, normalized.isEmpty() ? null : normalized);
     }
 
     /**
      * 以会话绑定结果为准回填请求（续聊省略或首轮绑定合并后，Tool/记忆均读请求上的完整身份）
      */
     private void syncCallerContextFromSession(ChatContext ctx, Long apiKeyId, Long sessionId) {
-        if (apiKeyId == null || ctx.getRequest() == null || sessionId == null) {
+        if (ctx.getRequest() == null || sessionId == null) {
+            return;
+        }
+        // 自动化不回填
+        if (apiKeyId == null && ctx.getRequest().getActorUserId() != null) {
             return;
         }
         ChatSession session = chatSessionService.getById(sessionId);
@@ -452,14 +464,14 @@ public class InitMiddleware implements ChatMiddleware {
      * 解析会话ID：有则复用并校验归属，无则按来源新建
      *
      * @param actorUserId   自动化调度身份（非空表示内部任务，非控制台续聊）
-     * @param callerContext 调用方身份（仅 API Key）
+     * @param callerContext 调用方身份（API Key / 控制台模拟角色）
      */
     private Long resolveSessionId(Long sessionId, Long agentId, Long userId, Long apiKeyId,
                                   Long actorUserId, CallerContext callerContext) {
         if (sessionId != null) {
             if (apiKeyId != null) {
                 chatSessionService.ensureOwnedByApiKey(sessionId, apiKeyId);
-                bindApiSessionCallerContext(sessionId, callerContext);
+                bindSessionCallerContext(sessionId, callerContext);
                 return sessionId;
             }
             ChatSession existing = chatSessionService.getById(sessionId);
@@ -477,21 +489,26 @@ public class InitMiddleware implements ChatMiddleware {
             if (EnterpriseActors.SESSION_SOURCE_API.equals(existing.getSource())) {
                 throw new BizException(ErrorCode.SESSION_NOT_FOUND);
             }
-            // 控制台对话：仅本人 platform 调试会话可续聊
+            // 控制台对话：仅本人 platform 调试会话可续聊，并绑定/校验模拟身份
             chatSessionService.ensurePlatformOwnedByUser(sessionId, userId);
+            bindSessionCallerContext(sessionId, callerContext);
             return sessionId;
         }
         if (apiKeyId != null) {
             return chatSessionService.createApiSession(apiKeyId, agentId, callerContext).getId();
         }
-        return chatSessionService.createSession(userId, agentId).getId();
+        ChatSession created = chatSessionService.createSession(userId, agentId);
+        if (callerContext != null && !callerContext.isEmpty()) {
+            bindSessionCallerContext(created.getId(), callerContext);
+        }
+        return created.getId();
     }
 
     /**
      * 续聊时绑定/校验会话上的 callerContext：
      * 已绑定隔离主键与请求冲突 → 拒绝；新键或首次绑定 → 回写
      */
-    private void bindApiSessionCallerContext(Long sessionId, CallerContext requestContext) {
+    private void bindSessionCallerContext(Long sessionId, CallerContext requestContext) {
         ChatSession session = chatSessionService.getById(sessionId);
         if (session == null) {
             throw new BizException(ErrorCode.SESSION_NOT_FOUND);

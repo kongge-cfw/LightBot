@@ -42,6 +42,9 @@ public class BusinessPageUpsertDTO {
 
     private Map<String, Object> defaultProps;
 
+    /** 默认 options（身份透传 injectIdentityHeaders / contextHeaders 等） */
+    private Map<String, Object> defaultOptions;
+
     /** @deprecated 已废弃，服务端忽略并清空 */
     @Deprecated
     private Map<String, Object> formSchema;

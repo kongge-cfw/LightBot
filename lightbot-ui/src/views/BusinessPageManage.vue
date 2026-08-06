@@ -292,16 +292,18 @@ if (!res.ok) throw new Error(/* 页内提示 */);
         </section>
 
         <section>
-          <h4>6. 预填数据（Agent 传入 props）</h4>
+          <h4>6. 预填数据（Agent 传入 props）与调用方身份</h4>
           <p>页面加载时可读取宿主注入的初始数据，两种方式等价，建议都兼容：</p>
           <ul>
-            <li>同步：<code>window.__LIGHTBOT_BP_INIT__</code>（形如 <code>{ props, options, pageType }</code>）</li>
+            <li>同步：<code>window.__LIGHTBOT_BP_INIT__</code>（形如 <code>{ props, options, pageType, callerContext, identityHeaders }</code>）</li>
             <li>异步：监听 <code>message</code>，<code>source === 'lightbot-business-page'</code> 且 <code>type === 'init'</code>，数据在 <code>payload</code></li>
+            <li><code>callerContext</code> 由平台从对话身份写入，与业务 <code>props</code> 分离；内嵌页出站请求默认自动加 <code>X-Zhiyuan-*</code> Header</li>
           </ul>
           <pre class="bp-dev-code">function applyInit(payload) {
   const p = (payload && payload.props) || {};
   if (p.phone != null) phoneInput.value = p.phone;
   if (payload?.options?.hint) hintEl.textContent = payload.options.hint;
+  // 可选：const ctx = payload?.callerContext || LightBot.getCallerContext();
 }
 if (window.__LIGHTBOT_BP_INIT__) applyInit(window.__LIGHTBOT_BP_INIT__);
 window.addEventListener('message', (e) => {
@@ -318,6 +320,7 @@ window.addEventListener('message', (e) => {
             <li><code>window.LightBot.submit(values, extra?)</code>：主动办结（一般不必，成功 fetch 已足够）</li>
             <li><code>window.LightBot.cancel()</code>：主动取消</li>
             <li><code>window.LightBot.resize()</code>：通知宿主按内容高度调整（少用）</li>
+            <li><code>window.LightBot.getCallerContext()</code> / <code>getIdentityHeaders()</code>：读取平台身份</li>
             <li>若同页有多个接口，可在登记配置的 options 中用 <code>captureUrlIncludes</code> / <code>captureUrlExcludes</code> 收窄自动捕获范围</li>
           </ul>
         </section>
@@ -406,18 +409,36 @@ const form = reactive({
   enabled: true,
 })
 
-const testPayload = computed(() => ({
-  pageType: form.pageType || 'preview',
-  displayName: form.displayName || '业务页预览',
-  title: form.defaultTitle || form.displayName || '业务办理',
-  pageHtml: form.pageHtml || '',
-  props: {},
-  options: {
-    hint: '测试预览：提交或取消仅验证页面，不会写入对话',
-  },
-  actions: ['submit', 'cancel'],
-  mode: 'inline',
-}))
+/** 预览用固定身份（平台默认透传，注册页不再暴露配置） */
+const PREVIEW_CALLER_CONTEXT = {
+  externalUserId: 'preview_user',
+  regionId: '510100',
+  profile: { name: '预览用户' },
+}
+
+const testPayload = computed(() => {
+  const callerContext = { ...PREVIEW_CALLER_CONTEXT }
+  const identityHeaders = {
+    'X-Zhiyuan-External-User-Id': callerContext.externalUserId,
+    'X-Zhiyuan-Region-Id': callerContext.regionId,
+  }
+  return {
+    pageType: form.pageType || 'preview',
+    displayName: form.displayName || '业务页预览',
+    title: form.defaultTitle || form.displayName || '业务办理',
+    pageHtml: form.pageHtml || '',
+    props: {},
+    options: {
+      hint: '测试预览：提交或取消仅验证页面，不会写入对话',
+      injectIdentityHeaders: true,
+      exposeProfile: true,
+    },
+    callerContext,
+    identityHeaders,
+    actions: ['submit', 'cancel'],
+    mode: 'inline',
+  }
+})
 
 function openTestPreview() {
   if (!form.pageHtml?.trim()) {
@@ -609,6 +630,8 @@ async function handleSave() {
       allowedPropKeys: [],
       allowedOptionKeys: ['primaryButtonText', 'cancelButtonText', 'hint'],
       defaultProps: {},
+      // 身份透传由平台默认开启，注册页不再配置
+      defaultOptions: {},
     })
     message.success('已保存')
     editorVisible.value = false

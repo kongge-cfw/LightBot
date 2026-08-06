@@ -21,6 +21,7 @@ import java.util.Set;
  * @param allowedPropKeys    props 白名单（空则放行全部）
  * @param allowedOptionKeys  options 白名单
  * @param defaultProps       默认 props
+ * @param defaultOptions     默认 options（身份透传等）
  * @param formSchema         已废弃，恒为 null
  * @param builtin            兼容字段
  * @author finch
@@ -38,6 +39,7 @@ public record BusinessPageDefinition(
         Set<String> allowedPropKeys,
         Set<String> allowedOptionKeys,
         Map<String, Object> defaultProps,
+        Map<String, Object> defaultOptions,
         Map<String, Object> formSchema,
         boolean builtin
 ) {
@@ -49,6 +51,7 @@ public record BusinessPageDefinition(
         allowedPropKeys = allowedPropKeys == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(allowedPropKeys));
         allowedOptionKeys = allowedOptionKeys == null ? Set.of() : Collections.unmodifiableSet(new LinkedHashSet<>(allowedOptionKeys));
         defaultProps = defaultProps == null ? Map.of() : Collections.unmodifiableMap(defaultProps);
+        defaultOptions = defaultOptions == null ? Map.of() : Collections.unmodifiableMap(defaultOptions);
         formSchema = formSchema == null || formSchema.isEmpty() ? null : Collections.unmodifiableMap(formSchema);
     }
 
@@ -64,6 +67,7 @@ public record BusinessPageDefinition(
             List<String> propKeys,
             List<String> optionKeys,
             Map<String, Object> defaultProps,
+            Map<String, Object> defaultOptions,
             Map<String, Object> formSchema,
             boolean builtin) {
         return new BusinessPageDefinition(
@@ -78,6 +82,7 @@ public record BusinessPageDefinition(
                 new LinkedHashSet<>(propKeys == null ? List.of() : propKeys),
                 new LinkedHashSet<>(optionKeys == null ? List.of() : optionKeys),
                 defaultProps,
+                defaultOptions,
                 formSchema,
                 builtin
         );

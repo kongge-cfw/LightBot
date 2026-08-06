@@ -4,6 +4,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lightbot.businesspage.BusinessPageDefinition;
 import com.lightbot.constant.ToolResultPrefixes;
+import com.lightbot.dto.CallerContext;
 import com.lightbot.service.BusinessPageService;
 import com.lightbot.tool.ToolEventEmitter;
 import com.lightbot.tool.annotation.SystemTool;
@@ -22,9 +23,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * 内置工具 — 在对话中呈现已由开发者注册的业务办理页。
+ * <p>调用方身份仅从 {@link ToolContext} 写入结果，禁止从模型 props 推断。</p>
  *
  * @author finch
  * @since 2026-08-04
@@ -37,12 +41,27 @@ import java.util.Set;
         icon = "AppstoreOutlined",
         description = "在对话中呈现已在能力中心注册的业务办理页（H5 HTML / 外链）",
         tags = {"交互", "业务页"},
-        outputExample = "{\"success\":true,\"pageType\":\"leave_request\",\"title\":\"请假申请\",\"mode\":\"inline\",\"wait_for_user\":true,\"props\":{\"days\":1},\"pageHtml\":\"<!DOCTYPE html>...\",\"actions\":[\"submit\",\"cancel\"]}",
-        outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"pageType\":{\"type\":\"string\"},\"wait_for_user\":{\"type\":\"boolean\"},\"props\":{\"type\":\"object\"},\"pageHtml\":{\"type\":\"string\"},\"pageUrl\":{\"type\":\"string\"}}}"
+        outputExample = "{\"success\":true,\"pageType\":\"leave_request\",\"title\":\"请假申请\",\"mode\":\"inline\",\"wait_for_user\":true,\"props\":{\"days\":1},\"callerContext\":{\"externalUserId\":\"u1\",\"regionId\":\"510100\"},\"identityHeaders\":{\"X-Zhiyuan-Region-Id\":\"510100\"},\"pageHtml\":\"<!DOCTYPE html>...\",\"actions\":[\"submit\",\"cancel\"]}",
+        outputSchema = "{\"type\":\"object\",\"properties\":{\"success\":{\"type\":\"boolean\"},\"pageType\":{\"type\":\"string\"},\"wait_for_user\":{\"type\":\"boolean\"},\"props\":{\"type\":\"object\"},\"callerContext\":{\"type\":\"object\"},\"identityHeaders\":{\"type\":\"object\"},\"pageHtml\":{\"type\":\"string\"},\"pageUrl\":{\"type\":\"string\"}}}"
 )
 public class PresentBusinessPageTool {
 
     public static final String TOOL_NAME = "present_business_page";
+
+    /** 平台默认身份 Header（业务后端优先认） */
+    public static final String HEADER_EXTERNAL_USER_ID = "X-Zhiyuan-External-User-Id";
+    public static final String HEADER_REGION_ID = "X-Zhiyuan-Region-Id";
+    public static final String HEADER_ENTERPRISE_ID = "X-Zhiyuan-Enterprise-Id";
+
+    /** 页面级身份透传配置键（来自 defaultOptions，模型不可覆盖） */
+    private static final Set<String> IDENTITY_OPTION_KEYS = Set.of(
+            "injectIdentityHeaders",
+            "contextHeaders",
+            "contextHeaderUrlIncludes",
+            "exposeProfile"
+    );
+
+    private static final Pattern CONTEXT_PLACEHOLDER = Pattern.compile("\\{\\{\\s*([\\w.]+)\\s*}}");
 
     private final BusinessPageService businessPageService;
     private final ObjectMapper objectMapper;
@@ -91,10 +110,14 @@ public class PresentBusinessPageTool {
         }
 
         Map<String, Object> mergedProps = mergeAllowedMap(definition.defaultProps(), parseObject(props), definition.allowedPropKeys());
-        Map<String, Object> mergedOptions = mergeAllowedMap(Map.of(), parseObject(options), definition.allowedOptionKeys());
+        Map<String, Object> mergedOptions = mergePageOptions(definition, parseObject(options));
         String resolvedMode = resolveMode(mode, definition);
         List<String> resolvedActions = resolveActions(actions, definition);
         String resolvedTitle = (title != null && !title.isBlank()) ? title.trim() : definition.defaultTitle();
+
+        // 身份仅从 ToolContext 断言；固化到工具结果供历史重放
+        Map<String, Object> callerContext = resolveCallerContextSnapshot(toolContext, mergedOptions);
+        Map<String, String> identityHeaders = buildIdentityHeaders(callerContext, mergedOptions);
 
         ToolEventEmitter.emit("正在打开业务办理页: " + definition.displayName());
 
@@ -107,6 +130,15 @@ public class PresentBusinessPageTool {
         result.put("props", mergedProps);
         result.put("actions", resolvedActions);
         result.put("options", mergedOptions);
+        result.put("callerContext", callerContext);
+        result.put("identityHeaders", identityHeaders);
+        Map<String, Object> identityMeta = new LinkedHashMap<>();
+        Map<String, String> headerNames = new LinkedHashMap<>();
+        headerNames.put("externalUserId", HEADER_EXTERNAL_USER_ID);
+        headerNames.put("regionId", HEADER_REGION_ID);
+        headerNames.put("enterpriseId", HEADER_ENTERPRISE_ID);
+        identityMeta.put("headerNames", headerNames);
+        result.put("identity", identityMeta);
         if (definition.pageHtml() != null && !definition.pageHtml().isBlank()) {
             result.put("pageHtml", definition.pageHtml());
             result.put("renderHint", "h5");
@@ -119,13 +151,160 @@ public class PresentBusinessPageTool {
         // 等待用户在页面提交/取消（对话回灌 + Workflow HITL）
         result.put("wait_for_user", true);
         result.put("break_loop", true);
-        result.put("schemaVersion", 1);
+        result.put("schemaVersion", 2);
 
         try {
             return objectMapper.writeValueAsString(result);
         } catch (Exception e) {
             return ToolResultPrefixes.failureJson("序列化失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 合并 options：页面 defaultOptions 为底；模型入参受白名单约束；身份键始终以页面注册为准。
+     */
+    private Map<String, Object> mergePageOptions(BusinessPageDefinition definition, Map<String, Object> incoming) {
+        Map<String, Object> merged = mergeAllowedMap(
+                definition.defaultOptions(),
+                incoming,
+                definition.allowedOptionKeys());
+        // 身份透传配置不可被模型覆盖
+        Map<String, Object> defaults = definition.defaultOptions() != null ? definition.defaultOptions() : Map.of();
+        for (String key : IDENTITY_OPTION_KEYS) {
+            if (defaults.containsKey(key)) {
+                merged.put(key, defaults.get(key));
+            }
+        }
+        // 平台默认：出站注 Header、暴露 profile（注册未写时补齐，便于前端/桥接）
+        if (!merged.containsKey("injectIdentityHeaders")) {
+            merged.put("injectIdentityHeaders", true);
+        }
+        if (!merged.containsKey("exposeProfile")) {
+            merged.put("exposeProfile", true);
+        }
+        return merged;
+    }
+
+    /**
+     * 从 ToolContext 组装可序列化身份快照（禁止读模型 props）。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> resolveCallerContextSnapshot(ToolContext toolContext, Map<String, Object> options) {
+        if (toolContext == null || toolContext.getContext() == null) {
+            return null;
+        }
+        Map<String, Object> ctx = toolContext.getContext();
+        Map<String, Object> raw = null;
+        Object caller = ctx.get("callerContext");
+        if (caller instanceof Map<?, ?> map && !map.isEmpty()) {
+            raw = new LinkedHashMap<>();
+            for (Map.Entry<?, ?> e : map.entrySet()) {
+                if (e.getKey() != null && e.getValue() != null) {
+                    raw.put(String.valueOf(e.getKey()), e.getValue());
+                }
+            }
+        } else {
+            // 兼容仅扁平键
+            CallerContext built = new CallerContext();
+            Object eu = ctx.get("externalUserId");
+            if (eu != null && !String.valueOf(eu).isBlank()) {
+                built.setExternalUserId(String.valueOf(eu).trim());
+            }
+            Object region = ctx.get("regionId");
+            if (region != null && !String.valueOf(region).isBlank()) {
+                built.setRegionId(String.valueOf(region).trim());
+            }
+            Object enterprise = ctx.get("enterpriseId");
+            if (enterprise != null && !String.valueOf(enterprise).isBlank()) {
+                built.setEnterpriseId(String.valueOf(enterprise).trim());
+            }
+            if (!built.isEmpty()) {
+                raw = built.toMap();
+            }
+        }
+        if (raw == null || raw.isEmpty()) {
+            return null;
+        }
+        boolean exposeProfile = options.get("exposeProfile") != Boolean.FALSE;
+        if (!exposeProfile) {
+            raw.remove("profile");
+        }
+        return raw.isEmpty() ? null : raw;
+    }
+
+    /**
+     * 渲染出站身份 Header：有 contextHeaders 模板则用之，否则平台默认三件套。
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, String> buildIdentityHeaders(Map<String, Object> callerContext, Map<String, Object> options) {
+        Map<String, String> headers = new LinkedHashMap<>();
+        if (callerContext == null || callerContext.isEmpty()) {
+            return headers;
+        }
+        if (options.get("injectIdentityHeaders") == Boolean.FALSE) {
+            return headers;
+        }
+        Object custom = options.get("contextHeaders");
+        if (custom instanceof Map<?, ?> mapping && !mapping.isEmpty()) {
+            Map<String, Object> vars = flattenCallerVars(callerContext);
+            for (Map.Entry<?, ?> e : mapping.entrySet()) {
+                if (e.getKey() == null || e.getValue() == null) {
+                    continue;
+                }
+                String rendered = renderContextTemplate(String.valueOf(e.getValue()), vars);
+                if (rendered != null && !rendered.isBlank()) {
+                    headers.put(String.valueOf(e.getKey()), rendered);
+                }
+            }
+            return headers;
+        }
+        putHeaderIfPresent(headers, HEADER_EXTERNAL_USER_ID, callerContext.get("externalUserId"));
+        putHeaderIfPresent(headers, HEADER_REGION_ID, callerContext.get("regionId"));
+        putHeaderIfPresent(headers, HEADER_ENTERPRISE_ID, callerContext.get("enterpriseId"));
+        return headers;
+    }
+
+    private static void putHeaderIfPresent(Map<String, String> headers, String name, Object value) {
+        if (value != null && !String.valueOf(value).isBlank()) {
+            headers.put(name, String.valueOf(value).trim());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> flattenCallerVars(Map<String, Object> callerContext) {
+        Map<String, Object> vars = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> e : callerContext.entrySet()) {
+            if (e.getKey() == null || e.getValue() == null) {
+                continue;
+            }
+            vars.put(e.getKey(), e.getValue());
+            vars.put("callerContext." + e.getKey(), e.getValue());
+            if ("profile".equals(e.getKey()) && e.getValue() instanceof Map<?, ?> profile) {
+                for (Map.Entry<?, ?> pe : profile.entrySet()) {
+                    if (pe.getKey() != null && pe.getValue() != null) {
+                        vars.put("callerContext.profile." + pe.getKey(), pe.getValue());
+                        vars.put("profile." + pe.getKey(), pe.getValue());
+                    }
+                }
+            }
+        }
+        return vars;
+    }
+
+    private String renderContextTemplate(String template, Map<String, Object> vars) {
+        if (template == null) {
+            return null;
+        }
+        Matcher matcher = CONTEXT_PLACEHOLDER.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        while (matcher.find()) {
+            String path = matcher.group(1);
+            Object value = vars.get(path);
+            String replacement = value == null ? "" : Matcher.quoteReplacement(String.valueOf(value));
+            matcher.appendReplacement(sb, replacement);
+        }
+        matcher.appendTail(sb);
+        return sb.toString();
     }
 
     /**
@@ -183,13 +362,16 @@ public class PresentBusinessPageTool {
         // 未配置白名单时放行全部（H5 页常见）
         if (allowedKeys == null || allowedKeys.isEmpty()) {
             for (Map.Entry<String, Object> e : incoming.entrySet()) {
-                if (e.getValue() != null) {
+                if (e.getValue() != null && !IDENTITY_OPTION_KEYS.contains(e.getKey())) {
                     merged.put(e.getKey(), e.getValue());
                 }
             }
             return merged;
         }
         for (Map.Entry<String, Object> e : incoming.entrySet()) {
+            if (IDENTITY_OPTION_KEYS.contains(e.getKey())) {
+                continue;
+            }
             if (allowedKeys.contains(e.getKey()) && e.getValue() != null) {
                 merged.put(e.getKey(), e.getValue());
             }

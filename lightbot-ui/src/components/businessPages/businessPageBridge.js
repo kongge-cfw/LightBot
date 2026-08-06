@@ -10,20 +10,30 @@ export const BUSINESS_PAGE_MSG_SOURCE = 'lightbot-business-page'
 export const BUSINESS_PAGE_DEMO_PATH = '/__lightbot_bp_demo__'
 
 /**
- * @param {Record<string, any>} [options] payload.options 中的捕获配置
+ * @param {Record<string, any>} [options] payload.options 中的捕获/身份配置
+ * @param {Record<string, any>|null} [initPayload] 含 callerContext / identityHeaders
  * @returns {object}
  */
-export function resolveCaptureConfig(options = {}) {
+export function resolveCaptureConfig(options = {}, initPayload = null) {
   const opts = options && typeof options === 'object' ? options : {}
+  const init = initPayload && typeof initPayload === 'object' ? initPayload : {}
   const methods = Array.isArray(opts.captureMethods) && opts.captureMethods.length
     ? opts.captureMethods.map((m) => String(m).toUpperCase())
     : ['POST', 'PUT', 'PATCH']
+  const identityHeaders = (init.identityHeaders && typeof init.identityHeaders === 'object')
+    ? init.identityHeaders
+    : {}
   return {
     autoCapture: opts.autoCapture !== false,
     captureMethods: methods,
     captureUrlIncludes: asStringArray(opts.captureUrlIncludes),
     captureUrlExcludes: asStringArray(opts.captureUrlExcludes),
     demoPath: BUSINESS_PAGE_DEMO_PATH,
+    // 身份透传：默认证出站 Header（仅 pageHtml 桥接可强制）
+    injectIdentityHeaders: opts.injectIdentityHeaders !== false,
+    contextHeaderUrlIncludes: asStringArray(opts.contextHeaderUrlIncludes),
+    callerContext: init.callerContext ?? null,
+    identityHeaders,
   }
 }
 
@@ -43,13 +53,13 @@ export function injectBusinessPageBridge(html, options, initPayload = null) {
   const raw = String(html || '')
   if (!raw.trim()) return raw
   if (raw.includes('data-lightbot-bp-bridge')) return raw
-  const cfg = resolveCaptureConfig(options)
   let safeInit = null
   try {
     safeInit = initPayload == null ? null : JSON.parse(JSON.stringify(initPayload))
   } catch {
     safeInit = null
   }
+  const cfg = resolveCaptureConfig(options, safeInit)
   // 转义 < 防止 JSON 中的 </script> 提前闭合标签
   const initJson = safeInit
     ? JSON.stringify(safeInit).replace(/</g, '\\u003c')
@@ -162,6 +172,102 @@ export function buildBridgeScript(cfg) {
     if (!CFG.autoCapture || done || !ok) return false;
     if (!methodMatched(method)) return false;
     return urlMatched(url);
+  }
+
+  function isSameOrigin(url) {
+    try {
+      if (!url || !/^https?:\\/\\//i.test(url)) return true;
+      var a = document.createElement('a');
+      a.href = url;
+      return a.origin === window.location.origin;
+    } catch (e) { return false; }
+  }
+
+  /**
+   * 出站身份 Header 作用域：
+   * - 有 includes → 仅匹配
+   * - 跳过静态资源
+   * - 同源 / 相对路径 / 含 /api/ → 注入
+   * - 跨源（如 localhost→127.0.0.1）仅对写请求注入，避免污染 CDN GET
+   */
+  function shouldInjectIdentity(url, method) {
+    if (!CFG.injectIdentityHeaders) return false;
+    var idh = CFG.identityHeaders || {};
+    var hasHeader = false;
+    for (var hk in idh) {
+      if (Object.prototype.hasOwnProperty.call(idh, hk) && idh[hk] != null && idh[hk] !== '') {
+        hasHeader = true;
+        break;
+      }
+    }
+    if (!hasHeader) return false;
+    var u = String(url || '');
+    var includes = CFG.contextHeaderUrlIncludes || [];
+    if (!includes.length) includes = CFG.captureUrlIncludes || [];
+    var excludes = CFG.captureUrlExcludes || [];
+    for (var i = 0; i < excludes.length; i++) {
+      if (excludes[i] && u.indexOf(excludes[i]) !== -1) return false;
+    }
+    if (includes.length) {
+      for (var j = 0; j < includes.length; j++) {
+        if (includes[j] && u.indexOf(includes[j]) !== -1) return true;
+      }
+      return false;
+    }
+    if (/\\.(css|js|mjs|png|jpe?g|gif|svg|webp|ico|woff2?|ttf|map)(\\?|$)/i.test(u)) return false;
+    if (u.indexOf('/api/') !== -1) return true;
+    var m = String(method || 'GET').toUpperCase();
+    var mutating = m === 'POST' || m === 'PUT' || m === 'PATCH' || m === 'DELETE';
+    // localhost 与 127.0.0.1 不同源；业务提交多为跨源写请求，仍需注身份
+    if (/^https?:\\/\\//i.test(u) && !isSameOrigin(u)) return mutating;
+    return true;
+  }
+
+  function applyIdentityToHeaders(headersLike) {
+    var idh = CFG.identityHeaders || {};
+    var headers = headersLike;
+    try {
+      if (typeof Headers !== 'undefined' && !(headers instanceof Headers)) {
+        headers = new Headers(headers || {});
+      } else if (!headers) {
+        headers = typeof Headers !== 'undefined' ? new Headers() : {};
+      }
+    } catch (e) {
+      headers = headers || {};
+    }
+    for (var k in idh) {
+      if (!Object.prototype.hasOwnProperty.call(idh, k)) continue;
+      var v = idh[k];
+      if (v == null || v === '') continue;
+      try {
+        if (headers && typeof headers.has === 'function') {
+          if (!headers.has(k)) headers.set(k, String(v));
+        } else if (headers && headers[k] == null) {
+          headers[k] = String(v);
+        }
+      } catch (e2) {}
+    }
+    return headers;
+  }
+
+  function syncIdentityFromInit(init) {
+    if (!init || typeof init !== 'object') return;
+    if (Object.prototype.hasOwnProperty.call(init, 'callerContext')) {
+      CFG.callerContext = init.callerContext;
+    }
+    if (init.identityHeaders && typeof init.identityHeaders === 'object') {
+      CFG.identityHeaders = init.identityHeaders;
+    }
+    if (init.options && typeof init.options === 'object') {
+      if (Object.prototype.hasOwnProperty.call(init.options, 'injectIdentityHeaders')) {
+        CFG.injectIdentityHeaders = init.options.injectIdentityHeaders !== false;
+      }
+      if (Array.isArray(init.options.contextHeaderUrlIncludes)) {
+        CFG.contextHeaderUrlIncludes = init.options.contextHeaderUrlIncludes.map(function(x) {
+          return String(x || '').trim();
+        }).filter(Boolean);
+      }
+    }
   }
 
   function emitSubmit(values, extra) {
@@ -393,6 +499,24 @@ export function buildBridgeScript(cfg) {
       try {
         notify('resize', { height: (document.body && document.body.scrollHeight || 320) + 24 });
       } catch (e) {}
+    },
+    /** 平台断言的调用方身份（只读快照） */
+    getCallerContext: function() {
+      try {
+        if (window.__LIGHTBOT_BP_INIT__ && Object.prototype.hasOwnProperty.call(window.__LIGHTBOT_BP_INIT__, 'callerContext')) {
+          return window.__LIGHTBOT_BP_INIT__.callerContext;
+        }
+      } catch (e) {}
+      return CFG.callerContext || null;
+    },
+    /** 已渲染的出站身份 Header 字典 */
+    getIdentityHeaders: function() {
+      try {
+        if (window.__LIGHTBOT_BP_INIT__ && window.__LIGHTBOT_BP_INIT__.identityHeaders) {
+          return window.__LIGHTBOT_BP_INIT__.identityHeaders;
+        }
+      } catch (e) {}
+      return CFG.identityHeaders || {};
     }
   };
 
@@ -404,7 +528,12 @@ export function buildBridgeScript(cfg) {
     window.fetch = function(input, init) {
       var url = resolveUrl(input);
       var method = resolveMethod(input, init, 'GET');
-      var reqBody = parseBody(init && init.body);
+      var nextInit = init ? Object.assign({}, init) : {};
+      var reqBody = parseBody(nextInit.body);
+
+      if (shouldInjectIdentity(url, method)) {
+        nextInit.headers = applyIdentityToHeaders(nextInit.headers);
+      }
 
       if (url.indexOf(demoPath) !== -1) {
         var demoPayload = Object.assign({ status: 'accepted', message: '演示受理成功' }, reqBody || {});
@@ -418,7 +547,7 @@ export function buildBridgeScript(cfg) {
         return Promise.resolve(demoRes);
       }
 
-      return rawFetch(input, init).then(function(res) {
+      return rawFetch(input, nextInit).then(function(res) {
         if (shouldCapture(method, url, !!(res && res.ok))) {
           var cloned = res.clone();
           cloned.json().then(function(data) {
@@ -442,14 +571,31 @@ export function buildBridgeScript(cfg) {
     var XHR = window.XMLHttpRequest;
     var open = XHR.prototype.open;
     var send = XHR.prototype.send;
+    var setRequestHeader = XHR.prototype.setRequestHeader;
     XHR.prototype.open = function(method, url) {
       this.__lbMethod = String(method || 'GET').toUpperCase();
       this.__lbUrl = String(url || '');
+      this.__lbHeaders = {};
       return open.apply(this, arguments);
+    };
+    XHR.prototype.setRequestHeader = function(name, value) {
+      this.__lbHeaders = this.__lbHeaders || {};
+      this.__lbHeaders[String(name || '').toLowerCase()] = true;
+      return setRequestHeader.apply(this, arguments);
     };
     XHR.prototype.send = function(body) {
       var xhr = this;
       var reqBody = parseBody(body);
+      if (shouldInjectIdentity(xhr.__lbUrl, xhr.__lbMethod)) {
+        var idh = CFG.identityHeaders || {};
+        for (var hk in idh) {
+          if (!Object.prototype.hasOwnProperty.call(idh, hk)) continue;
+          var hv = idh[hk];
+          if (hv == null || hv === '') continue;
+          if (xhr.__lbHeaders && xhr.__lbHeaders[String(hk).toLowerCase()]) continue;
+          try { setRequestHeader.call(xhr, hk, String(hv)); } catch (e) {}
+        }
+      }
       if (String(xhr.__lbUrl || '').indexOf(demoPath) !== -1) {
         var demoPayload = Object.assign({ status: 'accepted', message: '演示受理成功' }, reqBody || {});
         setTimeout(function() {
@@ -612,6 +758,7 @@ export function buildBridgeScript(cfg) {
     try {
       if (!window.__LIGHTBOT_BP_INIT__) return;
       var init = window.__LIGHTBOT_BP_INIT__;
+      syncIdentityFromInit(init);
       // 历史已提交：锁定交互，避免刷新后再次捕获
       if (init && init.options && init.options.submitted) {
         markDone();
@@ -638,6 +785,10 @@ export function buildBridgeScript(cfg) {
   }
   window.addEventListener('message', function(e) {
     if (e.data && e.data.source === SOURCE && e.data.type === 'init') {
+      try {
+        syncIdentityFromInit(e.data.payload);
+        if (e.data.payload) window.__LIGHTBOT_BP_INIT__ = e.data.payload;
+      } catch (e1) {}
       setTimeout(emitResize, 30);
       setTimeout(emitResize, 120);
     }

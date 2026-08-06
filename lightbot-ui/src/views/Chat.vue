@@ -1,16 +1,19 @@
 <template>
   <div class="chat-container">
     <ChatTopBar
-      v-if="sessionId"
       :session-title="sessionTitle"
       :title-editing="titleEditing"
       :title-edit-value="titleEditValue"
-      :show-file-drawer="!!sessionId"
+      :show-file-drawer="!!sessionId && !enterpriseReadonly"
       :show-runtime-panel="!!sessionId"
       :runtime-panel-open="sessionRuntimePanelOpen"
       :show-subagent-drawer="!!sessionId"
       :subagent-running-count="runningSubagentCount"
       :title-editable="!!sessionId && !enterpriseReadonly"
+      :show-sim-role="!enterpriseReadonly"
+      :sim-role-user-id="userStore.user?.id"
+      :session-has-messages="messages.length > 0"
+      :sim-role-disabled="enterpriseReadonly"
       @start-title-edit="startTitleEdit"
       @confirm-title-edit="confirmTitleEdit"
       @cancel-title-edit="cancelTitleEdit"
@@ -18,6 +21,8 @@
       @open-file-drawer="openFileDrawer"
       @toggle-runtime-panel="sessionRuntimePanelOpen = !sessionRuntimePanelOpen"
       @open-subagent-drawer="subagentRuntimeOpen = true"
+      @sim-role-change="onSimRoleChange"
+      @sim-role-new-session="onSimRoleNewSession"
     />
 
     <div class="chat-workspace">
@@ -249,6 +254,7 @@ import ChatSubAgentRuntimeDrawer from '../components/chat/session/ChatSubAgentRu
 import ChatSessionRuntimePanel from '../components/chat/session/ChatSessionRuntimePanel.vue'
 import ChatStreamingPlaceholder from '../components/chat/session/ChatStreamingPlaceholder.vue'
 import { getSession } from '../api/chatSession'
+import { useUserStore } from '../stores/user'
 import { buildSubagentLiveStatusBadges } from '../components/capabilities/subagentEventUtils.js'
 import { useChatAgents } from '../composables/useChatAgents'
 import { useChatAttachments } from '../composables/useChatAttachments'
@@ -274,10 +280,13 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
 
 const sessionId = computed(() => route.params.sessionId || null)
 /** API 集成 / 自动化会话：只读排障，禁止控制台续聊 */
 const enterpriseReadonly = ref(false)
+/** 当前选中的模拟角色 → 请求 callerContext */
+const simCallerContext = ref(null)
 
 async function refreshEnterpriseReadonly() {
   const sid = sessionId.value
@@ -326,6 +335,18 @@ const sessionRuntimePanelOpen = ref(false)
 const sessionRuntimePanelWidth = ref(336)
 const currentRequestStartIndex = ref(null)
 let stopRuntimePanelResize = null
+
+function onSimRoleChange(payload) {
+  simCallerContext.value = payload?.callerContext || null
+}
+
+function onSimRoleNewSession() {
+  skipNextWatch.value = true
+  messages.value = []
+  sessionTokenCount.value = 0
+  liveSubagentEvents.value = []
+  router.push('/app/chat')
+}
 
 /** 协作状态的待办/产物属于一轮用户任务，历史轮次只由各自消息与会话级抽屉承载。 */
 const currentRequestMessages = computed(() => {
@@ -571,6 +592,7 @@ const {
   toolEvents, isNearBottom, userScrolledUp, skipNextWatch, input, inputHistory,
   historyIndex, pendingAttachments, inputRef, replyTo, canSend, workflowConfirmBlocked,
   selectedAgentId, selectedConfigVersion, selectedAgentVersionId, sessionTokenCount,
+  simCallerContext,
   streamSmoother,
   getCurrentStreamingMsg: () => currentStreamingMsg,
   setCurrentStreamingMsg: (msg) => { currentStreamingMsg = msg },
